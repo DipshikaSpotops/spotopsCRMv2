@@ -1,0 +1,64 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html, body {
+  @apply min-h-screen font-sans text-white;
+  background: linear-gradient(to bottom right, #95949e, #a8a8ac, #24243e);
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+  background-size: cover;
+  position: relative;
+  z-index: 0 !important;  
+}
+html { font-size: clamp(13px, 1.05vw + 10px, 16px); }
+@layer components {
+  .input {
+    @apply border border-gray-300 rounded-lg p-2 w-full focus:ring-2 focus:ring-blue-400;
+  }
+}
+body::before {
+  all: unset; 
+}
+
+.custom-scrollbar {
+  scrollbar-width: thin; 
+  scrollbar-color: #1e293b #1e293b; 
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 8px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: #1e293b;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background-color: #5ac8fa; 
+  border-radius: 4px;
+  border: 2px solid #1e293b;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: #38bdf8; 
+}
+
+/* Light Mode Scrollbar */
+.light .custom-scrollbar {
+  scrollbar-color: #888 #e5e7eb; 
+}
+
+.light .custom-scrollbar::-webkit-scrollbar-track {
+  background: #e5e7eb; 
+}
+
+.light .custom-scrollbar::-webkit-scrollbar-thumb {
+  background-color: #a3a3a3; 
+  border: 2px solid #e5e7eb;
+}
+
+.light .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: #737373; 
+}
+

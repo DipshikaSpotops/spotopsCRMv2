@@ -1,0 +1,33 @@
+# ===== Environment & Secrets =====
+.env
+.env.*
+backend/.env
+client/.env
+!.env.example
+
+# ===== Node & Dependencies =====
+node_modules/
+backend/node_modules/
+client/node_modules/
+npm-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ===== Build / Dist Artifacts =====
+dist/
+build/
+client/dist/
+backend/build/
+
+# ===== Logs & Temp =====
+*.log
+logs/
+temp/
+tmp/
+.cache/
+
+# ===== IDE / System =====
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

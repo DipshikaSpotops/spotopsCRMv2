@@ -1,0 +1,24 @@
+
+/* Make preset buttons (Today, This Month, etc.) clearly visible */
+.rdrDefinedRangesWrapper .rdrStaticRange {
+  color: #222 !important;        /* Dark text */
+  font-weight: 600;              /* Make it bold */
+  background: #f8f8f8 !important; /* Light background for better visibility */
+  border-radius: 6px;
+  padding: 6px 8px;
+  margin-bottom: 4px;
+  cursor: pointer;
+}
+
+/* Change hover effect */
+.rdrDefinedRangesWrapper .rdrStaticRange:hover {
+  background: #ececec !important;
+  color: #000 !important;
+}
+
+/* Highlight the active preset (Today, etc.) */
+.rdrDefinedRangesWrapper .rdrStaticRangeSelected {
+  background: #4f46e5 !important; /* Indigo highlight */
+  color: white !important;
+}
+

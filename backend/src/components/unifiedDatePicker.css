@@ -1,0 +1,24 @@
+.rdrCalendarWrapper {
+  font-size: 12px !important;
+}
+
+.rdrMonth {
+  width: 300px !important; 
+}
+
+.rdrDay {
+  height: 26px !important;
+}
+
+.rdrDayNumber span {
+  font-size: 11px !important;
+}
+
+.rdrMonthAndYearPickers select {
+  font-size: 11px !important;
+  padding: 2px !important;
+}
+
+.rdrMonthAndYearWrapper {
+  padding: 2px 0 !important;
+}
