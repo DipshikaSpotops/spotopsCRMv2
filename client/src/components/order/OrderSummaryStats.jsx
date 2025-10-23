@@ -1,5 +1,5 @@
 import Stat from "../ui/Stat";
-import { formatDate } from "../../utils/formatter";
+import { formatDallasDate  } from "../../../../shared/utils/timeUtils";
 
 export default function OrderSummaryStats({ order }) {
   const salesAgent = order?.salesAgent || "—";
@@ -16,7 +16,7 @@ export default function OrderSummaryStats({ order }) {
       <Stat label="Est. GP" value={estGP} />
       <Stat label="Tax" value={tax} />
       <Stat label="Actual GP" value={actualGP} />
-      <Stat label="Date" value={formatDate(orderDate)} />
+      <Stat label="Date" value={formatDallasDate (orderDate)} />
       <div className="hidden xl:block" />
       <div className="hidden xl:block" />
       <div className="hidden xl:block" />

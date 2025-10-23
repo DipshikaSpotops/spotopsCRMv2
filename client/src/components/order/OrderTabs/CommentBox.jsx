@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
 import GlassCard from "../../ui/GlassCard";
-import { getWhen } from "../../../../../backend/utils/timeUtils";
+import { getWhen } from "../../../../../shared/utils/timeUtils";
 
 /* ---------------------- Toast Banner ---------------------- */
 function Toast({ message, onClose }) {

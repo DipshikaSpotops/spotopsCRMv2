@@ -23,7 +23,6 @@ import DisputeOrderModal from "../components/order/modals/DisputeOrderModal";
 import RefundOrderModal from "../components/order/modals/RefundOrderModal";
 import axios from "axios";
 
-// NEW: simple modal for history
 function HistoryModal({ open, onClose, timeline, loading, error }) {
   if (!open) return null;
   return (
@@ -58,40 +57,45 @@ function Toast({ message, onClose }) {
     </div>
   );
 }
+
 export default function OrderDetails() {
   const { API_BASE, orderNo, order, loading, error, timeline, yards, canAddNewYard, refresh } = useOrderDetails();
   // for status change of orders
   const handleStatusChange = async (value) => {
-    setNewStatus(value);
+  setNewStatus(value);
 
-    if ([
-      "Placed",
-      "Customer Approved",
-      "Yard Processing",
-      "In Transit",
-      "Escalation",
-      "Order Fulfilled",
-    ].includes(value)) {
-      // Directly update orderStatus
-      try {
-        const firstName = localStorage.getItem("firstName");
-        await axios.put(`${API_BASE}/orders/${orderNo}/custRefund?firstName=${firstName}`, {
-          orderStatus: value,
-        });
-        alert(`Order status updated to ${value}`);
-        refresh();
-      } catch (err) {
-        console.error("Error updating status:", err);
-        alert("Error updating order status");
-      }
-    } else if (value === "Order Cancelled") {
+  try {
+    const firstName = localStorage.getItem("firstName");
+
+    // Save the status directly to backend
+    await axios.put(`${API_BASE}/orders/${orderNo}/custRefund?firstName=${firstName}`, {
+      orderStatus: value, // backend stores "Dispute 2" for "Dispute after Cancellation"
+      // dipute 2 calue is saved and displayed as dipute ad=fter cancellation
+    });
+
+    await refresh(); 
+    const labelMap = {
+      "Dispute 2": "Dispute after Cancellation",
+    };
+    const label = labelMap[value] || value;
+
+    alert(`Order status updated to ${label}`);
+
+    // Open relevant modal after updating
+    if (value === "Order Cancelled") {
       setShowCancelModal(true);
     } else if (value === "Refunded") {
       setShowRefundModal(true);
-    } else if (value === "Dispute") {
-      setShowDisputeModal(true)
+    } else if (value === "Dispute" || value === "Dispute 2") {
+      setShowDisputeModal(true);
     }
-  };
+
+  } catch (err) {
+    console.error("Error updating status:", err);
+    alert("Error updating order status");
+  }
+};
+
 
   const handleAddYard = async (formData) => {
     try {
@@ -164,19 +168,24 @@ export default function OrderDetails() {
 
   const statusPill = order?.orderStatus || "—";
 
-  const allStatuses = [
-    "Placed",
-    "Customer Approved",
-    "Yard Processing",
-    "In Transit",
-    "Escalation",
-    "Order Fulfilled",
-    "Order Cancelled",
-    "Dispute",
-    "Dispute after Cancellation",
-    "Refunded",
-    "Voided",
+  const STATUS_OPTIONS = [
+    { label: "Placed", value: "Placed" },
+    { label: "Customer Approved", value: "Customer Approved" },
+    { label: "Yard Processing", value: "Yard Processing" },
+    { label: "In Transit", value: "In Transit" },
+    { label: "Escalation", value: "Escalation" },
+    { label: "Order Fulfilled", value: "Order Fulfilled" },
+    { label: "Order Cancelled", value: "Order Cancelled" },
+    { label: "Dispute", value: "Dispute" },
+    { label: "Dispute after Cancellation", value: "Dispute 2" },
+    { label: "Refunded", value: "Refunded" },
+    { label: "Voided", value: "Voided" },
   ];
+
+  // Helper to display label from stored value
+  const displayStatus = (value) =>
+    STATUS_OPTIONS.find((opt) => opt.value === value)?.label || value;
+
   useEffect(() => {
     if (order?.orderStatus) {
       setNewStatus(order.orderStatus);
@@ -206,7 +215,7 @@ export default function OrderDetails() {
     let hasPOCancelled = false;
     let poCancelledWithCardCharged = false;
 
-    // 🔹 Loop through all yards
+    // Loop through all yards
     additionalInfo.forEach((yard) => {
       const part = parseFloat(yard.partPrice) || 0;
       const others = parseFloat(yard.others) || 0;
@@ -226,7 +235,7 @@ export default function OrderDetails() {
       if (yard.paymentStatus === "Card charged") hasCardCharged = true;
       if (yard.status?.toLowerCase().includes("po cancelled")) hasPOCancelled = true;
 
-      // ✅ Detect PO Cancelled + Card Charged combo
+      // PO Cancelled but Card Charged 
       if (
         yard.status?.toLowerCase().includes("po cancelled") &&
         yard.paymentStatus === "Card charged"
@@ -235,7 +244,7 @@ export default function OrderDetails() {
       }
     });
 
-    // 🧮 Calculate Actual GP
+    // Calculate Actual GP
     let actualGP = 0;
 
     if (hasCardCharged || poCancelledWithCardCharged) {
@@ -253,17 +262,17 @@ export default function OrderDetails() {
       actualGP = 0;
     }
 
-    // 🔹 Live UI update like old jQuery version
+    // Live UI update for actualGP
     const gpField = document.querySelector("#actualGP");
     if (gpField) gpField.value = actualGP.toFixed(2);
 
-    // 🔹 Save only if changed
+    // saving  only if changed
     const currentGP = parseFloat(order.actualGP) || 0;
     if (Math.abs(currentGP - actualGP) > 0.01) {
       axios
         .put(`${API_BASE}/orders/${orderNo}/updateActualGP`, { actualGP })
         .then(async () => {
-          // 🕐 Wait for refresh before showing toast
+          // waiting for refresh before showing toast
           await refresh();
           setToast(`Actual GP updated to $${actualGP.toFixed(2)}`);
           setTimeout(() => setToast(""), 3000);
@@ -401,25 +410,26 @@ export default function OrderDetails() {
                   <select
                     value={newStatus}
                     onChange={(e) => {
-                      const selected = e.target.value;
-                      if (selected === newStatus) return; // no change
+                      const selectedValue = e.target.value;
+                      const selectedLabel = displayStatus(selectedValue);
+
+                      if (selectedValue === newStatus) return;
 
                       const confirmed = window.confirm(
-                        `Are you sure you want to change the order status to "${selected}"?`
+                        `Are you sure you want to change the order status to "${selectedLabel}"?`
                       );
 
                       if (confirmed) {
-                        handleStatusChange(selected);
+                        handleStatusChange(selectedValue); // send the actual value (e.g., "Dispute 2")
                       } else {
-                        // revert select visually to old value
                         e.target.value = newStatus;
                       }
                     }}
                     className="px-2 py-1 rounded-md bg-[#2b2d68] hover:bg-[#090c6c] text-white border border-white/20 cursor-pointer"
                   >
-                    {allStatuses.map((s) => (
-                      <option key={s} value={s}>
-                        {s}
+                    {STATUS_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
                       </option>
                     ))}
                   </select>
@@ -427,10 +437,12 @@ export default function OrderDetails() {
               </div>
 
               <div className="hidden md:flex gap-2">
-                <Pill className={getStatusColor(statusPill)}>{statusPill}</Pill>
+                <Pill className={getStatusColor(statusPill)}>
+                  {displayStatus(statusPill)}
+                </Pill>
               </div>
             </div>
-
+            {/* OrderSummaryStats for topmost salesAgent, quoted, est gp, tax, actualGP, Date */}
             <OrderSummaryStats order={order} />
           </div>
 
@@ -563,44 +575,44 @@ export default function OrderDetails() {
         yardIndex={refundIdx}
         yard={refundIdx !== null ? yards[refundIdx] : null}
       />
-     <CancelOrderModal
-  open={showCancelModal}
-  onClose={() => setShowCancelModal(false)}
-  orderNo={orderNo}
-  API_BASE={API_BASE}
-  refresh={() => {
-    setTimeout(() => {
-      refresh();
-      console.log("✅ Refreshed after Cancel modal (with delay)");
-    }, 300); // give backend time to commit
-  }}
-/>
+      <CancelOrderModal
+        open={showCancelModal}
+        onClose={() => setShowCancelModal(false)}
+        orderNo={orderNo}
+        API_BASE={API_BASE}
+        refresh={() => {
+          setTimeout(() => {
+            refresh();
+            console.log("✅ Refreshed after Cancel modal (with delay)");
+          }, 300); // give backend time to commit
+        }}
+      />
 
-<RefundOrderModal
-  open={showRefundModal}
-  onClose={() => setShowRefundModal(false)}
-  orderNo={orderNo}
-  API_BASE={API_BASE}
-  refresh={() => {
-    setTimeout(() => {
-      refresh();
-      console.log("✅ Refreshed after Refund modal (with delay)");
-    }, 300);
-  }}
-/>
+      <RefundOrderModal
+        open={showRefundModal}
+        onClose={() => setShowRefundModal(false)}
+        orderNo={orderNo}
+        API_BASE={API_BASE}
+        refresh={() => {
+          setTimeout(() => {
+            refresh();
+            console.log("Refreshed after Refund modal (with delay)");
+          }, 300);
+        }}
+      />
 
-<DisputeOrderModal
-  open={showDisputeModal}
-  onClose={() => setShowDisputeModal(false)}
-  orderNo={orderNo}
-  API_BASE={API_BASE}
-  refresh={() => {
-    setTimeout(() => {
-      refresh();
-      console.log("Refreshed after Dispute modal (with delay)");
-    }, 300);
-  }}
-/>
+      <DisputeOrderModal
+        open={showDisputeModal}
+        onClose={() => setShowDisputeModal(false)}
+        orderNo={orderNo}
+        API_BASE={API_BASE}
+        refresh={() => {
+          setTimeout(() => {
+            refresh();
+            console.log("Refreshed after Dispute modal (with delay)");
+          }, 300);
+        }}
+      />
 
       {toast && <Toast message={toast} onClose={() => setToast("")} />}
     </>
