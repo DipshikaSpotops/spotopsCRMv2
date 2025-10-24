@@ -1,11 +1,14 @@
 import express from "express";
+// REMOVE this if you keep Socket.IO. It's for the 'ws' library path only.
+// import { createWsServer } from "./src/ws.js";
 import mongoose from "mongoose";
 import dotenv from "dotenv";
 import cors from "cors";
 import http from "http";
 import { Server } from "socket.io";
-import authRoutes from "./routes/authRoutes.js"; 
-import ordersRoute from './routes/orders.js';
+
+import authRoutes from "./routes/authRoutes.js";
+import ordersRoute from "./routes/orders.js";
 import partsRoute from "./routes/parts.js";
 import placedOrdersRoutes from "./routes/placedOrders.js";
 import custApprovedRoutes from "./routes/customerApproved.js";
@@ -25,6 +28,8 @@ import emailsRouter from "./routes/emails.js";
 import ordersSearchRouter from "./routes/ordersSearch.js";
 import sendPORouter from "./routes/sendPO.js";
 import yardsRouter from "./routes/yards.js";
+import debugRouter from "./routes/debug.js";
+
 
 dotenv.config();
 
@@ -56,7 +61,7 @@ app.use("/emails", emailsRouter);
 app.use("/orders", ordersSearchRouter);
 app.use("/", sendPORouter);
 app.use("/api/yards", yardsRouter);
-
+app.use("/debug", debugRouter);
 // Catch-all /orders router LAST
 app.use("/orders", ordersRoute);
 
@@ -69,39 +74,50 @@ app.get("/", (req, res) => {
   res.send("Backend is live!");
 });
 
-// ===================
-// SOCKET.IO SETUP
-// ===================
-const server = http.createServer(app); 
+
+// SOCKET.IO SETUP 
+const server = http.createServer(app);
 const io = new Server(server, {
-  cors: {
-    origin: "*", 
-    methods: ["GET", "POST"]
-  }
+  cors: { origin: "*", methods: ["GET","POST","PUT","PATCH"] }
 });
 
-// Handle socket connections
+// make io and publisher available to routes/controllers
+app.set("io", io);
+
+// publish helper (call this from controllers after DB writes)
+export function publishOrder(orderNo, payload = {}) {
+  io.to(`order.${orderNo}`).emit("order:msg", { orderNo, ...payload });
+}
+// also expose through app.locals for easy access via req.app.locals
+app.locals.publishOrder = publishOrder;
+
 io.on("connection", (socket) => {
-  console.log("Client connected via WebSocket");
+  console.log("Client connected", socket.id);
+
+  socket.on("joinOrder", (orderNo) => {
+    const room = `order.${orderNo}`;
+    socket.join(room);
+    // optional: ack
+    socket.emit("order:msg", { type: "JOINED", orderNo });
+  });
+
+  socket.on("leaveOrder", (orderNo) => {
+    socket.leave(`order.${orderNo}`);
+  });
 
   socket.on("disconnect", () => {
-    console.log("Client disconnected");
+    console.log("Client disconnected", socket.id);
   });
 });
 
-// ===================
 // MongoDB connection
-// ===================
 mongoose
   .connect(process.env.MONGODB_URI)
   .then(() => console.log("MongoDB connected"))
   .catch((err) => console.error("MongoDB connection error:", err));
 
-// ===================
-// Server listen
-// ===================
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
 
-// Export io so models or routes can emit events
+// Export io if we still want it elsewhere
 export { io };

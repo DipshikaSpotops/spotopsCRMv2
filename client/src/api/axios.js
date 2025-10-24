@@ -1,5 +1,6 @@
 // /src/api/axios.js
 import axios from "axios";
+import { getActorId } from "../utils/actorId";
 
 const api = axios.create({
   baseURL: "http://localhost:5000", // matches your server mounts (/orders/...)
@@ -21,10 +22,10 @@ function getTokenFromLS() {
   );
 }
 
-api.interceptors.request.use((config) => {
-  const token = getTokenFromLS();
-  if (token) config.headers.Authorization = `Bearer ${token}`;
-  return config;
+axios.interceptors.request.use((cfg) => {
+  cfg.headers = cfg.headers || {};
+  cfg.headers["x-actor-id"] = getActorId();
+  return cfg;
 });
 
 export default api;

@@ -1,4 +1,4 @@
-// routes/emails.js (ESM)
+// routes/emails.js
 import express from "express";
 import { formatInTimeZone } from "date-fns-tz";
 

@@ -3,13 +3,31 @@ import express from "express";
 import moment from "moment-timezone";
 import Order from "../models/Order.js";
 import { getDateRange } from "../utils/dateRange.js";
-import { io } from "../server.js";
+// import { io } from "../server.js";
 import { getWhen } from "../../shared/utils/timeUtils.js";
 
 const router = express.Router();
 
-/* ---------------------------- Helpers ---------------------------- */
+/* helper functions*/
+// publish to all clients watching this order
+const publish = (req, orderNo, payload = {}) => {
+  try {
+    const io = req.app.get("io");
+    const actorId =
+      req.get("x-actor-id") ||
+      req.query.actorId ||
+      (req.body && req.body.actorId) ||
+      null;
 
+    io.to(`order.${orderNo}`).emit("order:msg", {
+      orderNo,
+      actorId,      
+      ...payload,
+    });
+  } catch (e) {
+    console.warn("[ws] emit failed", e);
+  }
+};
 const isInactiveStatus = (s) => {
   const t = String(s ?? "").trim().toLowerCase();
   return (
@@ -211,11 +229,9 @@ router.post("/orders", async (req, res) => {
     newOrder.orderHistory.push(`Order placed by ${firstName} on ${formattedDateTime}`);
 
     await newOrder.save();
-
-    // 🔔 Emit event to all clients
     const io = req.app.get("io");
     io.emit("orderCreated", newOrder);
-
+    publish(req, newOrder.orderNo, { type: "ORDER_CREATED" });
     res.status(201).json(newOrder);
   } catch (error) {
     if (error?.code === 11000) {
@@ -259,6 +275,10 @@ router.put("/:orderNo", async (req, res) => {
     }
 
     const updatedOrder = await order.save();
+    publish(req, updatedOrder.orderNo, {
+  type: updatedOrder.orderStatus !== oldStatus ? "STATUS_CHANGED" : "ORDER_UPDATED",
+  status: updatedOrder.orderStatus,
+});
     res.json(updatedOrder);
   } catch (err) {
     res.status(400).send(err?.message || String(err));
@@ -321,7 +341,10 @@ router.put("/:orderNo/custRefund", async (req, res) => {
 
     Object.assign(order, updateFields);
     await order.save();
-
+      publish(req, orderNo, {
+      type: "REFUND_SAVED",
+      status: order.orderStatus,
+    });
     res.json(order);
   } catch (error) {
     console.error("Error updating refund/cancellation:", error);
@@ -427,6 +450,11 @@ router.post("/:orderNo/additionalInfo", async (req, res) => {
     }
 
     await order.save();
+    publish(req, orderNo, {
+      type: "YARD_ADDED",
+      yardIndex: order.additionalInfo.length, 
+      status: order.orderStatus,
+    });
     res.json(order);
   } catch (error) {
     console.error("POST /orders/:orderNo/additionalInfo failed", error);
@@ -459,7 +487,7 @@ router.put("/:orderNo/additionalInfo/:index", async (req, res) => {
       "System"
     ).toString().trim();
 
-    const when = getWhen();       // formatted date for display
+    const when = getWhen();     
     const isoNow = getWhen("iso");
 
     const order = await Order.findOne({ orderNo });
@@ -545,6 +573,11 @@ router.put("/:orderNo/additionalInfo/:index", async (req, res) => {
 
       order.markModified(`additionalInfo.${idx0}`);
       await order.save();
+      publish(req, orderNo, {
+        type: "YARD_UPDATED",
+        yardIndex: idx1,         
+        status: order.orderStatus,
+      });
       return res.json({ message: "Label voided", order });
     }
 
@@ -694,6 +727,11 @@ router.put("/:orderNo/additionalInfo/:index", async (req, res) => {
 
     order.markModified(`additionalInfo.${idx0}`);
     await order.save();
+    publish(req, orderNo, {
+      type: changed.includes("status") ? "STATUS_CHANGED" : "YARD_UPDATED",
+      yardIndex: idx1,          
+      status: order.orderStatus,   
+    });
     res.json(order);
   } catch (err) {
     console.error("PUT yard edit failed", err);
@@ -764,6 +802,11 @@ router.put("/:orderNo/cancelShipment", async (req, res) => {
 
     order.markModified(`additionalInfo.${idx0}`);
     await order.save();
+    publish(req, orderNo, {
+      type: "YARD_UPDATED",
+      yardIndex: idx1,
+      status: order.orderStatus,
+    });
     res.json({ message: "Shipment cancelled", order });
   } catch (err) {
     console.error("PUT cancelShipment failed", err);
@@ -871,10 +914,12 @@ router.patch("/:orderNo/additionalInfo/:index", async (req, res) => {
       const noteText = `Updated: ${changes.join(", ")} on ${when} by ${firstName || "System"}`;
       yard.notes.push(noteText);
     }
-
-    // 7 Save changes
     await order.save();
-
+    publish(req, orderNo, {
+      type: "YARD_UPDATED",
+      yardIndex: i + 1,
+      status: order.orderStatus,
+    });
     res.json({
       message:
         changes.length > 0
@@ -928,6 +973,11 @@ router.patch("/:orderNo/additionalInfo/:yardIndex/paymentStatus", async (req, re
       );
       order.markModified(`additionalInfo.${idx0}`);
       await order.save();
+      publish(req, orderNo, {
+        type: "YARD_UPDATED",
+        yardIndex: idx0 + 1,
+        status: order.orderStatus,
+      });
       return res.json({ message: "Payment status updated", changes, order });
     }
 
@@ -980,6 +1030,11 @@ router.patch("/:orderNo/additionalInfo/:yardIndex/refundStatus", async (req, res
       );
       order.markModified(`additionalInfo.${idx0}`);
       await order.save();
+      publish(req, orderNo, {
+        type: "YARD_UPDATED",
+        yardIndex: idx0 + 1,
+        status: order.orderStatus,
+      });
       return res.json({ message: "Refund info updated", changes, order });
     }
 
@@ -1013,7 +1068,10 @@ router.put('/:orderNo/updateActualGP', async (req, res) => {
     order.orderHistory = order.orderHistory || [];
     order.orderHistory.push(`Actual GP updated to ${actualGP} on ${formattedDateTime}`);
     await order.save();
-
+    publish(req, orderNo, {
+      type: "GP_UPDATED",
+      actualGP: order.actualGP,
+    });
     res.json(order);
   } catch (error) {
     console.error("Error updating Actual GP:", error);
@@ -1036,6 +1094,7 @@ router.patch('/:orderNo/supportNotes', async (req, res) => {
     order.supportNotes.push(supportNote);
 
     await order.save();
+    publish(req, orderNo, { type: "SUPPORT_NOTE_ADDED" });
     res.json({ message: 'Support comment added', supportNotes: order.supportNotes });
   } catch (err) {
     console.error("PATCH /supportNotes error:", err);
@@ -1072,7 +1131,7 @@ router.patch("/:orderNo/additionalInfo/:index/notes", async (req, res) => {
     order.additionalInfo[index].notes.push(`${author}, ${when} : ${note}`);
 
     await order.save();
-
+    publish(req, orderNo, { type: "YARD_NOTE_ADDED", yardIndex: Number(index) + 1 });
     return res.json({
       message: "Yard note added successfully.",
       notes: order.additionalInfo[index].notes,
@@ -1108,6 +1167,7 @@ router.put("/:orderNo/cancelOnly", async (req, res) => {
     );
 
     await order.save();
+    publish(req, orderNo, { type: "STATUS_CHANGED", status: order.orderStatus });
     res.json({
       message: "Order cancelled and saved successfully (no email sent).",
       order,
@@ -1142,6 +1202,7 @@ router.put('/:orderNo/dispute', async (req, res) => {
     );
 
     await order.save();
+    publish(req, orderNo, { type: "STATUS_CHANGED", status: order.orderStatus });
     res.json({ message: "Order marked as Dispute successfully.", order });
   } catch (error) {
     console.error("Error updating dispute:", error);
@@ -1175,6 +1236,10 @@ router.put("/:orderNo/refundOnly", async (req, res) => {
     );
 
     await order.save();
+    publish(req, orderNo, {
+      type: "REFUND_SAVED",
+      status: order.orderStatus,
+    });
     res.json({
       message: "Refund saved successfully (no email sent).",
       order,

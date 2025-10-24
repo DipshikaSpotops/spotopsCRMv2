@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import NavbarForm from "../components/NavbarForm";
 import GlassCard from "../components/ui/GlassCard";
 import Pill from "../components/ui/Pill";
@@ -21,7 +21,65 @@ import RefundModal from "../components/order/modals/YardRefundCollectModal";
 import CancelOrderModal from "../components/order/modals/CancelOrderModal";
 import DisputeOrderModal from "../components/order/modals/DisputeOrderModal";
 import RefundOrderModal from "../components/order/modals/RefundOrderModal";
+import useOrderRealtime from "../hooks/useOrderRealtime";
 import axios from "axios";
+
+// popup intaed of alert or confirm:
+function ConfirmModal({
+  open,
+  title,
+  message,
+  confirmText = "Save",
+  cancelText = "Close",
+  onConfirm,
+  onClose,
+}) {
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/50 backdrop-blur-sm">
+      {/* Panel */}
+      <div className="relative w-[90vw] max-w-md rounded-2xl border border-white/15 bg-[#0b1c34]/90 text-white shadow-2xl">
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-white/10">
+          <h3 className="text-lg font-semibold">{title}</h3>
+          <button
+            onClick={onClose}
+            className="h-8 w-8 grid place-items-center rounded-md bg-white/10 hover:bg-white/20 border border-white/15"
+            aria-label="Close"
+          >
+            ×
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="px-5 py-4 text-white/90">
+          <p className="leading-relaxed">{message}</p>
+        </div>
+
+        {/* Footer */}
+        <div className="flex justify-end gap-3 px-5 py-4 border-t border-white/10">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 border border-white/20 text-white"
+          >
+            {cancelText}
+          </button>
+          <button
+            onClick={() => {
+              onConfirm?.();
+              onClose?.();
+            }}
+            className="px-5 py-2 rounded-lg bg-white text-[#04356d] font-medium border border-white/20 hover:bg-white/90"
+          >
+            {confirmText}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 
 function HistoryModal({ open, onClose, timeline, loading, error }) {
   if (!open) return null;
@@ -42,6 +100,7 @@ function HistoryModal({ open, onClose, timeline, loading, error }) {
     </div>
   );
 }
+
 /* Toast instead of alert */
 function Toast({ message, onClose }) {
   if (!message) return null;
@@ -58,56 +117,234 @@ function Toast({ message, onClose }) {
   );
 }
 
-export default function OrderDetails() {
-  const { API_BASE, orderNo, order, loading, error, timeline, yards, canAddNewYard, refresh } = useOrderDetails();
-  // for status change of orders
-  const handleStatusChange = async (value) => {
-  setNewStatus(value);
-
-  try {
-    const firstName = localStorage.getItem("firstName");
-
-    // Save the status directly to backend
-    await axios.put(`${API_BASE}/orders/${orderNo}/custRefund?firstName=${firstName}`, {
-      orderStatus: value, // backend stores "Dispute 2" for "Dispute after Cancellation"
-      // dipute 2 calue is saved and displayed as dipute ad=fter cancellation
-    });
-
-    await refresh(); 
-    const labelMap = {
-      "Dispute 2": "Dispute after Cancellation",
-    };
-    const label = labelMap[value] || value;
-
-    alert(`Order status updated to ${label}`);
-
-    // Open relevant modal after updating
-    if (value === "Order Cancelled") {
-      setShowCancelModal(true);
-    } else if (value === "Refunded") {
-      setShowRefundModal(true);
-    } else if (value === "Dispute" || value === "Dispute 2") {
-      setShowDisputeModal(true);
-    }
-
-  } catch (err) {
-    console.error("Error updating status:", err);
-    alert("Error updating order status");
-  }
+/** Map backend value "Dispute 2" to logical status used in GP rules */
+const normalizeStatusForCalc = (raw) => {
+  const s = (raw || "").trim();
+  if (s === "Dispute 2") return "Dispute after Cancellation";
+  return s;
 };
 
+/** Single source of truth for Actual GP math */
+const calcActualGP = (orderLike) => {
+  if (!orderLike) return 0;
+
+  const sp = parseFloat(orderLike.soldP) || 0;
+  const tax = parseFloat(orderLike.salestax) || 0;
+  const custRefundedAmount = parseFloat(
+    orderLike.custRefundedAmount ||
+    orderLike.cancelledRefAmount ||
+    orderLike.custRefAmount ||
+    0
+  );
+
+  const additionalInfo = Array.isArray(orderLike.additionalInfo)
+    ? orderLike.additionalInfo
+    : [];
+
+  let totalYardSpend = 0;
+  let hasCardCharged = false;
+  let hasPOCancelled = false;
+  let poCancelledWithCardCharged = false;
+
+  additionalInfo.forEach((yard) => {
+    const part = parseFloat(yard.partPrice) || 0;
+    const others = parseFloat(yard.others) || 0;
+    const refund = parseFloat(yard.refundedAmount) || 0;
+    const reimb = parseFloat(yard.reimbursementAmount) || 0;
+
+    let shipVal = 0;
+    const shipStr = yard.shippingDetails || "";
+    if (shipStr.includes(":")) shipVal = parseFloat(shipStr.split(":")[1]) || 0;
+
+    totalYardSpend += part + others + shipVal + reimb - refund;
+
+    if (yard.paymentStatus === "Card charged") hasCardCharged = true;
+
+    const statusStr = (yard.status || "").toLowerCase();
+    if (statusStr.includes("po cancel")) hasPOCancelled = true; // matches "po cancel" and "po cancelled"
+    if (statusStr.includes("po cancel") && yard.paymentStatus === "Card charged") {
+      poCancelledWithCardCharged = true;
+    }
+  });
+
+  const status = normalizeStatusForCalc(orderLike.orderStatus);
+
+  if (hasCardCharged || poCancelledWithCardCharged) {
+    return sp - custRefundedAmount - tax - totalYardSpend;
+  } else if (
+    ["Order Cancelled", "Refunded"].includes(status) ||
+    (hasPOCancelled && !hasCardCharged)
+  ) {
+    return sp - custRefundedAmount - tax;
+  } else if (["Dispute", "Dispute after Cancellation"].includes(status)) {
+    return 0 - (totalYardSpend + tax);
+  }
+  return 0;
+};
+
+export default function OrderDetails() {
+  const gpWriteGuardRef = useRef(false);
+  const {
+    API_BASE,
+    orderNo,
+    order,
+    loading,
+    error,
+    timeline,
+    yards,
+    canAddNewYard,
+    refresh,
+  } = useOrderDetails();
+
+  const [tab, setTab] = useState("Customer");
+  const [actualGPView, setActualGPView] = useState(null);
+  const [pendingAlertLabel, setPendingAlertLabel] = useState(null);
+  const [expandedYards, setExpandedYards] = useState({});
+  const [showAdd, setShowAdd] = useState(false);
+  const [editDetailsIdx, setEditDetailsIdx] = useState(null);
+  const [editStatusIdx, setEditStatusIdx] = useState(null);
+  const [cardChargedIdx, setCardChargedIdx] = useState(null);
+  const [refundIdx, setRefundIdx] = useState(null);
+  const [showHistory, setShowHistory] = useState(false);
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [showRefundModal, setShowRefundModal] = useState(false);
+  const [showDisputeModal, setShowDisputeModal] = useState(false);
+  const [activeSection, setActiveSection] = useState("support");
+  const [toast, setToast] = useState("");
+  const [newStatus, setNewStatus] = useState(order?.orderStatus || "");
+  const [confirm, setConfirm] = useState({ open: false, title: "", message: "", onConfirm: null });
+
+  useEffect(() => {
+    document.title = orderNo ? `Order No ${orderNo}` : "ORDER DETAILS";
+  }, [orderNo]);
+
+  const statusPill = newStatus || order?.orderStatus || "—";
+
+  const STATUS_OPTIONS = [
+    { label: "Placed", value: "Placed" },
+    { label: "Customer Approved", value: "Customer Approved" },
+    { label: "Yard Processing", value: "Yard Processing" },
+    { label: "In Transit", value: "In Transit" },
+    { label: "Escalation", value: "Escalation" },
+    { label: "Order Fulfilled", value: "Order Fulfilled" },
+    { label: "Order Cancelled", value: "Order Cancelled" },
+    { label: "Dispute", value: "Dispute" },
+    { label: "Dispute after Cancellation", value: "Dispute 2" }, // backend value
+    { label: "Refunded", value: "Refunded" },
+    { label: "Voided", value: "Voided" },
+  ];
+
+  const displayStatus = (value) =>
+    STATUS_OPTIONS.find((opt) => opt.value === value)?.label || value;
+
+  useEffect(() => {
+    if (order?.orderStatus) {
+      setNewStatus(order.orderStatus);
+    }
+  }, [order]);
+
+  /** DRY helper: recompute + persist + paint Actual GP */
+  const recomputeAndPersistActualGP = async ({ useServer = true } = {}) => {
+    try {
+      const orderLike = useServer
+        ? await (async () => {
+          const res = await fetch(`${API_BASE}/orders/${orderNo}`);
+          return await res.json();
+        })()
+        : order;
+
+      const gp = calcActualGP(orderLike);
+
+      setActualGPView(Number(gp).toFixed(2));
+      const gpField = document.querySelector("#actualGP");
+      if (gpField) gpField.value = Number(gp).toFixed(2);
+
+      await axios.put(`${API_BASE}/orders/${orderNo}/updateActualGP`, { actualGP: gp });
+      gpWriteGuardRef.current = true;
+
+      setToast(`Actual GP recalculated: $${gp.toFixed(2)}`);
+      return gp;
+    } catch (err) {
+      console.error("Error recalculating Actual GP:", err);
+      setToast("Failed to recalculate Actual GP.");
+      throw err;
+    }
+  };
+  const handleWsEvent = useCallback(async (msg) => {
+    if (["ORDER_UPDATED", "STATUS_CHANGED", "YARD_UPDATED", "REFUND_SAVED"].includes(msg.type)) {
+      await refresh(); // let the safety-effect decide if a PUT is needed
+    }
+  }, [refresh]);
+  useOrderRealtime(orderNo, { onEvent: handleWsEvent });
+  /** Status change -> save, optimistic GP recalc, then modal/alert logic */
+  const handleStatusChange = async (value) => {
+    setNewStatus(value);
+    try {
+      const firstName = localStorage.getItem("firstName");
+
+      await axios.put(
+        `${API_BASE}/orders/${orderNo}/custRefund?firstName=${firstName}`,
+        { orderStatus: value }
+      );
+
+      const labelMap = { "Dispute 2": "Dispute after Cancellation" };
+      const label = labelMap[value] || value;
+
+      // Optimistic GP recalc using current in-memory order with new status
+      const optimisticOrder = { ...order, orderStatus: label };
+      const newGP = calcActualGP(optimisticOrder);
+
+      setActualGPView(Number(newGP).toFixed(2));
+      const gpField = document.querySelector("#actualGP");
+      if (gpField) gpField.value = Number(newGP).toFixed(2);
+
+      axios
+        .put(`${API_BASE}/orders/${orderNo}/updateActualGP`, {
+          actualGP: newGP,
+        })
+        .then(() => {
+          gpWriteGuardRef.current = true;
+        })
+        .catch((e) =>
+          console.error("Failed to persist Actual GP (optimistic)", e)
+        );
+
+      // modal + alert timing
+      if (value === "Order Cancelled") {
+        setPendingAlertLabel(label);
+        setShowCancelModal(true);
+      } else if (value === "Refunded") {
+        setPendingAlertLabel(label);
+        setShowRefundModal(true);
+      } else if (value === "Dispute") {
+        setPendingAlertLabel(label);
+        setShowDisputeModal(true);
+      } else {
+        // No modal (including "Dispute 2")
+        await refresh();
+        setToast(`Order status updated to ${label}`);
+      }
+    } catch (err) {
+      console.error("Error updating status:", err);
+      await recomputeAndPersistActualGP({ useServer: true })
+      setToast("Error updating order status");
+    }
+  };
 
   const handleAddYard = async (formData) => {
     try {
       const firstName = localStorage.getItem("firstName") || "Unknown";
 
-      // 1️Check if yard already exists
-      const yardCheck = await axios.get(`${API_BASE}/api/yards/search?name=${encodeURIComponent(formData.yardName)}`);
+      // 1) Check if yard already exists
+      const yardCheck = await axios.get(
+        `${API_BASE}/api/yards/search?name=${encodeURIComponent(
+          formData.yardName
+        )}`
+      );
       const existingYards = yardCheck.data || [];
 
-      // 2️Add new yard only if it doesn’t exist
+      // 2) Add new yard only if it doesn’t exist
       if (existingYards.length === 0) {
-        console.log("Adding new yard to Yards collection...");
         await axios.post(`${API_BASE}/api/yards`, {
           yardName: formData.yardName,
           yardRating: formData.yardRating,
@@ -120,92 +357,41 @@ export default function OrderDetails() {
           zipcode: formData.zipcode,
           country: formData.country,
         });
-      } else {
-        console.log(`Yard "${formData.yardName}" already exists — skipping insert.`);
       }
 
-      // 3️Add yard info to this order (updates order.additionalInfo)
+      // 3) Add yard info to this order (updates order.additionalInfo)
       const payload = { ...formData, orderStatus: "Yard Processing" };
-
-      const res = await axios.post(
-        `${API_BASE}/orders/${orderNo}/additionalInfo?firstName=${encodeURIComponent(firstName)}`,
+      await axios.post(
+        `${API_BASE}/orders/${orderNo}/additionalInfo?firstName=${encodeURIComponent(
+          firstName
+        )}`,
         payload
       );
 
-      console.log("Yard info added:", res.data);
-
-      // 4️Refresh data and close modal
+      // 4) Refresh data and close modal
       if (typeof refresh === "function") await refresh();
       setShowAdd(false);
-      alert(`Yard- ${formData.yardName} added successfully.`);
-
+      setToast(`Yard “${formData.yardName}” added successfully.`);
     } catch (err) {
       console.error("Error adding yard:", err);
-      alert("Error adding yard. Please try again.");
+      setToast("Error adding yard. Please try again.");
     }
   };
-  const [tab, setTab] = useState("Customer");
-  const [expandedYards, setExpandedYards] = useState({});
-  const [showAdd, setShowAdd] = useState(false);
-  const [editDetailsIdx, setEditDetailsIdx] = useState(null);
-  const [editStatusIdx, setEditStatusIdx] = useState(null);
-  const [cardChargedIdx, setCardChargedIdx] = useState(null);
-  const [refundIdx, setRefundIdx] = useState(null);
-  const [showHistory, setShowHistory] = useState(false);
-  const [showCancelModal, setShowCancelModal] = useState(false);
-  const [showRefundModal, setShowRefundModal] = useState(false);
-  const [showDisputeModal, setShowDisputeModal] = useState(false);
-  // for comment box order-switch part:
-  const [activeSection, setActiveSection] = useState("support");
-  const [toast, setToast] = useState("");
 
-  // NEW: order status dropdown
-  const [newStatus, setNewStatus] = useState(order?.orderStatus || "");
-
-  useEffect(() => {
-    document.title = orderNo ? `Order No ${orderNo}` : "ORDER DETAILS";
-  }, [orderNo]);
-
-  const statusPill = order?.orderStatus || "—";
-
-  const STATUS_OPTIONS = [
-    { label: "Placed", value: "Placed" },
-    { label: "Customer Approved", value: "Customer Approved" },
-    { label: "Yard Processing", value: "Yard Processing" },
-    { label: "In Transit", value: "In Transit" },
-    { label: "Escalation", value: "Escalation" },
-    { label: "Order Fulfilled", value: "Order Fulfilled" },
-    { label: "Order Cancelled", value: "Order Cancelled" },
-    { label: "Dispute", value: "Dispute" },
-    { label: "Dispute after Cancellation", value: "Dispute 2" },
-    { label: "Refunded", value: "Refunded" },
-    { label: "Voided", value: "Voided" },
-  ];
-
-  // Helper to display label from stored value
-  const displayStatus = (value) =>
-    STATUS_OPTIONS.find((opt) => opt.value === value)?.label || value;
-
-  useEffect(() => {
-    if (order?.orderStatus) {
-      setNewStatus(order.orderStatus);
-    }
-  }, [order]);
-  //  to update actualGp for different scenarios:
+  // Safety net effect: recompute and persist when order changes from server
   useEffect(() => {
     if (!orderNo || !order) return;
 
     const sp = parseFloat(order.soldP) || 0;
     const tax = parseFloat(order.salestax) || 0;
-    const custRefundedAmount =
-      parseFloat(
-        order.custRefundedAmount ||
-        order.cancelledRefAmount ||
-        order.custRefAmount ||
-        0
-      );
+    const custRefundedAmount = parseFloat(
+      order.custRefundedAmount ||
+      order.cancelledRefAmount ||
+      order.custRefAmount ||
+      0
+    );
 
-    const orderStatus = order.orderStatus || "";
+    const orderStatus = normalizeStatusForCalc(order.orderStatus || "");
     const additionalInfo = Array.isArray(order.additionalInfo)
       ? order.additionalInfo
       : [];
@@ -215,14 +401,12 @@ export default function OrderDetails() {
     let hasPOCancelled = false;
     let poCancelledWithCardCharged = false;
 
-    // Loop through all yards
     additionalInfo.forEach((yard) => {
       const part = parseFloat(yard.partPrice) || 0;
       const others = parseFloat(yard.others) || 0;
       const refund = parseFloat(yard.refundedAmount) || 0;
       const reimb = parseFloat(yard.reimbursementAmount) || 0;
 
-      // Parse shipping numeric value
       let shipVal = 0;
       const shipStr = yard.shippingDetails || "";
       if (shipStr.includes(":")) {
@@ -233,18 +417,14 @@ export default function OrderDetails() {
       totalYardSpend += part + others + shipVal + reimb - refund;
 
       if (yard.paymentStatus === "Card charged") hasCardCharged = true;
-      if (yard.status?.toLowerCase().includes("po cancelled")) hasPOCancelled = true;
 
-      // PO Cancelled but Card Charged 
-      if (
-        yard.status?.toLowerCase().includes("po cancelled") &&
-        yard.paymentStatus === "Card charged"
-      ) {
+      const statusStr = (yard.status || "").toLowerCase();
+      if (statusStr.includes("po cancel")) hasPOCancelled = true;
+      if (statusStr.includes("po cancel") && yard.paymentStatus === "Card charged") {
         poCancelledWithCardCharged = true;
       }
     });
 
-    // Calculate Actual GP
     let actualGP = 0;
 
     if (hasCardCharged || poCancelledWithCardCharged) {
@@ -262,17 +442,22 @@ export default function OrderDetails() {
       actualGP = 0;
     }
 
-    // Live UI update for actualGP
+    // Paint view
+    setActualGPView(actualGP.toFixed(2));
     const gpField = document.querySelector("#actualGP");
     if (gpField) gpField.value = actualGP.toFixed(2);
 
-    // saving  only if changed
+    // Skip one cycle if we just wrote optimistically
     const currentGP = parseFloat(order.actualGP) || 0;
+    if (gpWriteGuardRef.current) {
+      gpWriteGuardRef.current = false;
+      return;
+    }
+
     if (Math.abs(currentGP - actualGP) > 0.01) {
       axios
         .put(`${API_BASE}/orders/${orderNo}/updateActualGP`, { actualGP })
         .then(async () => {
-          // waiting for refresh before showing toast
           await refresh();
           setToast(`Actual GP updated to $${actualGP.toFixed(2)}`);
           setTimeout(() => setToast(""), 3000);
@@ -295,25 +480,32 @@ export default function OrderDetails() {
     order?.cancelledRefAmount,
     order?.additionalInfo,
   ]);
+
+  // Mirror server value into view on arrival
   useEffect(() => {
     if (!order?.actualGP) return;
+    setActualGPView(Number(order.actualGP).toFixed(2));
     const gpField = document.querySelector("#actualGP");
     if (gpField) gpField.value = Number(order.actualGP).toFixed(2);
   }, [order?.actualGP]);
+
   return (
     <>
       <div className="min-h-screen text-sm text-[#04356d] bg-gradient-to-b from-[#70869c] via-[#51358a] to-[#4d6bb9] dark:bg-gradient-to-br dark:from-[#0b1c34] dark:via-[#2b2d68] dark:to-[#4b225e] dark:text-white">
         <NavbarForm />
 
-        <div className="w-full px-4 sm:px-6 lg:px-8 2xl:px-12 pt-24 pb-6 min-h-[calc(100vh-6rem)] overflow-y-auto">          {/* Header */}
+        <div className="w-full px-4 sm:px-6 lg:px-8 2xl:px-12 pt-24 pb-6 min-h-[calc(100vh-6rem)] overflow-y-auto">
+          {/* Header */}
           <div className="mb-6">
             <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
               <div>
                 <h1 className="text-3xl font-bold text-white">
-                  ORDER DETAILS <span className="ml-2 font-normal text-white/80">- {orderNo || "—"}</span>
+                  ORDER DETAILS{" "}
+                  <span className="ml-2 font-normal text-white/80">
+                    - {orderNo || "—"}
+                  </span>
                 </h1>
                 <div className="mt-2 flex gap-2 items-center">
-
                   {/* Order History Button */}
                   <button
                     onClick={() => setShowHistory(true)}
@@ -321,91 +513,25 @@ export default function OrderDetails() {
                   >
                     View History
                   </button>
+
                   {/* Recalculate Actual GP */}
                   <button
                     onClick={async () => {
-                      try {
-                        const confirmed = window.confirm("Recalculate Actual GP now?");
-                        if (!confirmed) return;
-
-                        const res = await fetch(`${API_BASE}/orders/${orderNo}`);
-                        const data = await res.json();
-
-                        // Run same formula as the useEffect recalculation
-                        const sp = parseFloat(data.soldP) || 0;
-                        const tax = parseFloat(data.salestax) || 0;
-                        const custRefundedAmount =
-                          parseFloat(
-                            data.custRefundedAmount ||
-                            data.cancelledRefAmount ||
-                            data.custRefAmount ||
-                            0
-                          );
-
-                        const additionalInfo = Array.isArray(data.additionalInfo)
-                          ? data.additionalInfo
-                          : [];
-
-                        let totalYardSpend = 0;
-                        let hasCardCharged = false;
-                        let hasPOCancelled = false;
-                        let poCancelledWithCardCharged = false;
-
-                        additionalInfo.forEach((yard) => {
-                          const part = parseFloat(yard.partPrice) || 0;
-                          const others = parseFloat(yard.others) || 0;
-                          const refund = parseFloat(yard.refundedAmount) || 0;
-                          const reimb = parseFloat(yard.reimbursementAmount) || 0;
-
-                          let shipVal = 0;
-                          const shipStr = yard.shippingDetails || "";
-                          if (shipStr.includes(":")) {
-                            shipVal = parseFloat(shipStr.split(":")[1]) || 0;
-                          }
-
-                          totalYardSpend += part + others + shipVal + reimb - refund;
-
-                          if (yard.paymentStatus === "Card charged") hasCardCharged = true;
-                          if (yard.status?.toLowerCase().includes("po cancel")) hasPOCancelled = true;
-
-                          if (
-                            yard.status?.toLowerCase().includes("po cancel") &&
-                            yard.paymentStatus === "Card charged"
-                          ) {
-                            poCancelledWithCardCharged = true;
-                          }
-                        });
-
-                        let actualGP = 0;
-                        const orderStatus = data.orderStatus || "";
-
-                        if (hasCardCharged || poCancelledWithCardCharged) {
-                          actualGP = sp - custRefundedAmount - tax - totalYardSpend;
-                        } else if (
-                          ["Order Cancelled", "Refunded"].includes(orderStatus) ||
-                          (hasPOCancelled && !hasCardCharged)
-                        ) {
-                          actualGP = sp - custRefundedAmount - tax;
-                        } else if (
-                          ["Dispute", "Dispute after Cancellation"].includes(orderStatus)
-                        ) {
-                          actualGP = 0 - (totalYardSpend + tax);
-                        } else {
-                          actualGP = 0;
+                      setConfirm({
+                        open: true,
+                        title: "Recalculate Actual GP?",
+                        message: "We’ll fetch the latest order, recompute, and persist the value.",
+                        confirmText: "Recalculate",
+                        onConfirm: async () => {
+                          await recomputeAndPersistActualGP({ useServer: true });
                         }
-
-                        await axios.put(`${API_BASE}/orders/${orderNo}/updateActualGP`, { actualGP });
-
-                        alert(`Actual GP recalculated: $${actualGP.toFixed(2)}`);
-                      } catch (err) {
-                        console.error("Error recalculating Actual GP:", err);
-                        alert("Failed to recalculate Actual GP.");
-                      }
+                      });
                     }}
                     className="px-3 py-1 rounded-md text-sm bg-white/10 hover:bg-white/20"
                   >
                     Recalculate Actual GP
                   </button>
+
                   {/* Status Dropdown */}
                   <select
                     value={newStatus}
@@ -415,15 +541,13 @@ export default function OrderDetails() {
 
                       if (selectedValue === newStatus) return;
 
-                      const confirmed = window.confirm(
-                        `Are you sure you want to change the order status to "${selectedLabel}"?`
-                      );
-
-                      if (confirmed) {
-                        handleStatusChange(selectedValue); // send the actual value (e.g., "Dispute 2")
-                      } else {
-                        e.target.value = newStatus;
-                      }
+                      setConfirm({
+                        open: true, title: "Change order status?",
+                        message: `Set status to “${selectedLabel}”?`,
+                        confirmText: "Change",
+                        cancelText: "Keep current",
+                        onConfirm: () => handleStatusChange(selectedValue),
+                      });
                     }}
                     className="px-2 py-1 rounded-md bg-[#2b2d68] hover:bg-[#090c6c] text-white border border-white/20 cursor-pointer"
                   >
@@ -442,13 +566,14 @@ export default function OrderDetails() {
                 </Pill>
               </div>
             </div>
-            {/* OrderSummaryStats for topmost salesAgent, quoted, est gp, tax, actualGP, Date */}
-            <OrderSummaryStats order={order} />
+
+            {/* Top summary; passes live GP override */}
+            <OrderSummaryStats order={order} actualGPOverride={actualGPView} />
           </div>
 
           {/* 3 columns */}
           <div className="grid grid-cols-12 gap-6 2xl:gap-8 items-stretch min-h-[calc(100vh-15rem)] pb-10">
-            {/* LEFT: Order Details now */}
+            {/* LEFT: Order Details */}
             <aside className="col-span-12 xl:col-span-4">
               <GlassCard
                 title="Order Details"
@@ -482,22 +607,24 @@ export default function OrderDetails() {
               <YardList
                 yards={yards}
                 expandedYards={expandedYards}
-                onToggle={(i) => setExpandedYards((p) => ({ ...p, [i]: !p[i] }))}
+                onToggle={(i) =>
+                  setExpandedYards((p) => ({ ...p, [i]: !p[i] }))
+                }
                 canAddNewYard={canAddNewYard}
                 onOpenAdd={() => setShowAdd(true)}
                 onEditStatus={(i) => setEditStatusIdx(i)}
                 onEditDetails={(i) => setEditDetailsIdx(i)}
                 onCardCharged={(i) => setCardChargedIdx(i)}
                 onRefundStatus={(i) => setRefundIdx(i)}
-                onEscalation={(i) => {/* same logic */ }}
+                onEscalation={(i) => {
+                  /* same logic */
+                }}
               />
             </section>
 
             {/* RIGHT: comments */}
             <aside className="col-span-12 xl:col-span-4 flex flex-col h-[calc(100vh-20rem)] min-h-0">
-              {/* Buttons for Support Comments + Yards */}
               <div className="flex gap-2 mb-3">
-
                 {yards?.map((y, i) => (
                   <button
                     key={i}
@@ -509,7 +636,6 @@ export default function OrderDetails() {
                   >
                     Yard {i + 1}
                   </button>
-
                 ))}
                 <button
                   onClick={() => setActiveSection("support")}
@@ -522,14 +648,12 @@ export default function OrderDetails() {
                 </button>
               </div>
 
-              {/* Pass mode + index */}
               <CommentBox
                 orderNo={order?.orderNo}
                 mode={activeSection === "support" ? "support" : "yard"}
                 yardIndex={activeSection === "support" ? null : activeSection}
               />
             </aside>
-
           </div>
         </div>
       </div>
@@ -542,7 +666,13 @@ export default function OrderDetails() {
         loading={loading}
         error={error}
       />
-      <YardAddModal open={showAdd} onClose={() => setShowAdd(false)} onSubmit={handleAddYard} />
+
+      <YardAddModal
+        open={showAdd}
+        onClose={() => setShowAdd(false)}
+        onSubmit={handleAddYard}
+      />
+
       <YardEditModal
         open={editDetailsIdx !== null}
         yardIndex={editDetailsIdx}
@@ -550,6 +680,7 @@ export default function OrderDetails() {
         order={order}
         onClose={() => setEditDetailsIdx(null)}
       />
+
       <EditYardStatusModal
         open={editStatusIdx !== null}
         yardIndex={typeof editStatusIdx === "number" ? editStatusIdx : 0}
@@ -558,6 +689,7 @@ export default function OrderDetails() {
         onClose={() => setEditStatusIdx(null)}
         onSave={() => { }}
       />
+
       <CardChargedModal
         open={cardChargedIdx !== null}
         onClose={() => setCardChargedIdx(null)}
@@ -566,7 +698,7 @@ export default function OrderDetails() {
         yardIndex={cardChargedIdx}
         yard={cardChargedIdx !== null ? yards[cardChargedIdx] : null}
       />
-      {/* yard refund */}
+
       <RefundModal
         open={refundIdx !== null}
         onClose={() => setRefundIdx(null)}
@@ -575,16 +707,19 @@ export default function OrderDetails() {
         yardIndex={refundIdx}
         yard={refundIdx !== null ? yards[refundIdx] : null}
       />
+
       <CancelOrderModal
         open={showCancelModal}
         onClose={() => setShowCancelModal(false)}
         orderNo={orderNo}
         API_BASE={API_BASE}
-        refresh={() => {
-          setTimeout(() => {
-            refresh();
-            console.log("✅ Refreshed after Cancel modal (with delay)");
-          }, 300); // give backend time to commit
+        refresh={async () => {
+          await refresh();
+          await recomputeAndPersistActualGP({ useServer: true, showAlert: false });
+          if (pendingAlertLabel) {
+            setToast(`Order status updated to ${pendingAlertLabel}`);
+            setPendingAlertLabel(null);
+          }
         }}
       />
 
@@ -593,11 +728,13 @@ export default function OrderDetails() {
         onClose={() => setShowRefundModal(false)}
         orderNo={orderNo}
         API_BASE={API_BASE}
-        refresh={() => {
-          setTimeout(() => {
-            refresh();
-            console.log("Refreshed after Refund modal (with delay)");
-          }, 300);
+        refresh={async () => {
+          await refresh();
+          await recomputeAndPersistActualGP({ useServer: true, showAlert: false });
+          if (pendingAlertLabel) {
+            alert(`Order status updated to ${pendingAlertLabel}`);
+            setPendingAlertLabel(null);
+          }
         }}
       />
 
@@ -606,16 +743,26 @@ export default function OrderDetails() {
         onClose={() => setShowDisputeModal(false)}
         orderNo={orderNo}
         API_BASE={API_BASE}
-        refresh={() => {
-          setTimeout(() => {
-            refresh();
-            console.log("Refreshed after Dispute modal (with delay)");
-          }, 300);
+        refresh={async () => {
+          await refresh();
+          await recomputeAndPersistActualGP({ useServer: true, showAlert: false });
+          if (pendingAlertLabel) {
+            alert(`Order status updated to ${pendingAlertLabel}`);
+            setPendingAlertLabel(null);
+          }
         }}
+      />
+      <ConfirmModal
+        open={confirm.open}
+        title={confirm.title}
+        message={confirm.message}
+        confirmText={confirm.confirmText}
+        cancelText={confirm.cancelText}
+        onConfirm={confirm.onConfirm}
+        onClose={() => setConfirm((c) => ({ ...c, open: false }))}
       />
 
       {toast && <Toast message={toast} onClose={() => setToast("")} />}
     </>
-
   );
 }
