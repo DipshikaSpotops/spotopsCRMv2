@@ -1,9 +1,9 @@
 import express from "express";
-// REMOVE this if you keep Socket.IO. It's for the 'ws' library path only.
 // import { createWsServer } from "./src/ws.js";
 import mongoose from "mongoose";
 import dotenv from "dotenv";
 import cors from "cors";
+import cookieParser from "cookie-parser";
 import http from "http";
 import { Server } from "socket.io";
 
@@ -34,12 +34,31 @@ import debugRouter from "./routes/debug.js";
 dotenv.config();
 
 const app = express();
-app.use(cors());
-app.use(express.json());
+app.set("trust proxy", 1);
+ const ALLOWED_ORIGINS = [
+   "http://localhost:5173",
+   "http://localhost:3000",
+   "https://your-frontend-domain.com",
+ ];
+ app.use(cors({
+   origin(origin, cb) {
+     if (!origin) return cb(null, true); // curl/postman
+     if (ALLOWED_ORIGINS.includes(origin)) return cb(null, true);
+     return cb(new Error(`CORS blocked: ${origin}`));
+   },
+   credentials: true,
+   methods: ["GET","POST","PUT","PATCH","DELETE","OPTIONS"],
+   allowedHeaders: ["Content-Type","Authorization","X-Requested-With"],
+ }));
+ app.options("*", cors());
+ app.use(express.json());
+ app.use(cookieParser());
 
-// ===================
 // ROUTES
-// ===================
+app.get("/api/health", (req, res) => {
+  res.json({ ok: true, uptime: process.uptime() });
+}); 
+
 app.use("/api/auth", authRoutes);
 
 app.use("/orders/placed", placedOrdersRoutes);

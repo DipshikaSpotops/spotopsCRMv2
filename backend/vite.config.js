@@ -1,6 +1,7 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import { visualizer } from "rollup-plugin-visualizer";
+import path from "path";
 
 export default defineConfig({
   plugins: [
@@ -12,6 +13,11 @@ export default defineConfig({
       brotliSize: true,
     })
   ],
+    resolve: {
+    alias: {
+      "@shared": path.resolve(__dirname, "../shared"),
+    },
+  },
   server: {
     proxy: {
       "/api": {
@@ -19,6 +25,9 @@ export default defineConfig({
         changeOrigin: true,
         secure: false,
       },
+       fs: {
+      allow: [".."], 
+    },
     },
   },
   build: {
