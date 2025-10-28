@@ -135,6 +135,7 @@ process.on("uncaughtException", (err) => {
 });
 
 const mongoUri = process.env.MONGODB_URI;
+console.log("Connecting to MongoDB...",mongoUri);
 if (!mongoUri) {
   console.error("MONGODB_URI is not set");
   process.exit(1);
