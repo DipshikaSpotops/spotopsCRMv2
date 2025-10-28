@@ -2,6 +2,10 @@
   "private": true,
   "type": "module",
   "workspaces": ["backend", "client", "shared"],
+   "exports": {
+    ".": "./index.js",
+    "./utils/timeUtils": "./utils/timeUtils.js"
+  },
   "dependencies": {
     "moment-timezone": "^0.5.46",
      "express": "^4",

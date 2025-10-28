@@ -1,6 +1,7 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import { visualizer } from "rollup-plugin-visualizer";
+import { fileURLToPath, URL } from "node:url";
 
 export default defineConfig({
   plugins: [
@@ -12,6 +13,16 @@ export default defineConfig({
       brotliSize: true,
     })
   ],
+    resolve: {
+    alias: {
+      "@shared": fileURLToPath(new URL("../shared", import.meta.url)),
+    },
+  },
+
+  //moment-timezone from shared gets pre-bundled cleanly
+  optimizeDeps: {
+    include: ["moment-timezone"],
+  },
   server: {
     proxy: {
       "/api": {

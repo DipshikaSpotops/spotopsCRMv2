@@ -1,7 +1,7 @@
 // /client/src/components/order/OrderTabs/CommentBox.jsx
 import { useEffect, useState, useCallback, useRef } from "react";
 import axios from "axios";
-import { getWhen } from "../../../../../shared/utils/timeUtils";
+import { getWhen } from "@shared/utils/timeUtils";
 import useOrderRealtime from "../../../hooks/useOrderRealtime";
 
 /* ---------------------- Toast Banner ---------------------- */

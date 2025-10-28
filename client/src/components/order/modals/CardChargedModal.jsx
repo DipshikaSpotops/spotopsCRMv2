@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import Select from "../../ui/Select";
-import { getWhen, toDallasIso } from "../../../../../shared/utils/timeUtils";
+import { getWhen, toDallasIso } from "@shared/utils/timeUtils";
 
 export default function CardChargedModal({ open, onClose, onSubmit, orderNo, yardIndex, yard }) {
   const [paymentStatus, setPaymentStatus] = useState("");

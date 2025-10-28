@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
-import { getWhen, formatDallasDate } from "../../../../../shared/utils/timeUtils";
+import { getWhen, formatDallasDate } from "@shared/utils/timeUtils";
 
 export default function CancelOrderModal({ open, onClose, orderNo, onSubmit }) {
   const [reason, setReason] = useState("");

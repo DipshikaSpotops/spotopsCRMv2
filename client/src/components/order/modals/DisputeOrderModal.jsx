@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
-import { getWhen, formatDallasDate } from "../../../../../shared/utils/timeUtils";
+import { getWhen, formatDallasDate } from "@shared/utils/timeUtils";
 
 export default function DisputeOrderModal({ open, onClose, orderNo, onSubmit }) {
   const [orderDateDisp, setOrderDateDisp] = useState("");     // display strings
