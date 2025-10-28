@@ -31,3 +31,8 @@ tmp/
 .idea/
 .DS_Store
 Thumbs.db
+# Windows reserved device names—ignore if they appear
+client/NUL
+client/nul
+shared/utils/NUL
+shared/utils/nul
