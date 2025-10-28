@@ -34,46 +34,13 @@ import debugRouter from "./routes/debug.js";
 dotenv.config();
 
 const app = express();
-app.set("trust proxy", 1);
-
-// Flexible allow: localhost/127.0.0.1/lan-ip in dev, *.spotops360.com in prod
-function isAllowedOrigin(origin) {
-  try {
-    const u = new URL(origin);
-    const host = u.hostname;            // e.g., localhost, 127.0.0.1, 192.168.1.10, app.spotops360.com
-    const protoOk = u.protocol === "http:" || u.protocol === "https:";
-    if (!protoOk) return false;
-
-    // Dev: localhost, 127.0.0.1, and any RFC1918 LAN IPs
-    const isLocalhost = host === "localhost" || host === "127.0.0.1";
-    const isLan =
-      /^10\./.test(host) ||
-      /^192\.168\./.test(host) ||
-      /^172\.(1[6-9]|2\d|3[0-1])\./.test(host); // 172.16.0.0 – 172.31.255.255
-
-    // Prod: your apex and any subdomains
-    const isSpotOps =
-      host === "spotops360.com" || host.endsWith(".spotops360.com");
-
-    return isLocalhost || isLan || isSpotOps;
-  } catch {
-    return false;
-  }
-}
-
-app.use(
-  cors({
-    origin(origin, cb) {
-      // allow server-to-server/no-origin (curl/postman)
-      if (!origin) return cb(null, true);
-      if (isAllowedOrigin(origin)) return cb(null, true);
-      return cb(new Error(`CORS blocked: ${origin}`));
-    },
-    credentials: true,
-    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    //allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
-  })
-);
+const ALLOWED_ORIGIN = process.env.PUBLIC_ORIGIN || "http://13.233.238.230";
+app.use(cors({
+  origin: (origin, cb) => cb(null, true), // allow all; or restrict to ALLOWED_ORIGIN
+  credentials: true,
+  methods: ["GET","POST","PUT","PATCH","DELETE","OPTIONS"],
+  allowedHeaders: ["Content-Type","Authorization","X-Requested-With"]
+}));
 app.options("*", cors());
 app.use(express.json());
 app.use(cookieParser());
@@ -156,7 +123,13 @@ io.on("connection", (socket) => {
 // MongoDB connection
 mongoose
   .connect(process.env.MONGODB_URI)
-  .then(() => console.log("MongoDB connected"))
+  .then(() => console.log("MongoDB connected",JSON.stringify({
+      host: c.host,
+      port: c.port,
+      name: c.name,          
+      user: c.user || null,
+    })
+  ))
   .catch((err) => console.error("MongoDB connection error:", err));
 
 const PORT = process.env.PORT || 5000;
