@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import API from "../../../api";
-import { getWhen, formatDallasDate } from "@shared/utils/timeUtils";
+import { getWhen, formatDallasDate } from "@spotops/shared";
 
 export default function DisputeOrderModal({ open, onClose, orderNo, onSubmit }) {
   const [orderDateDisp, setOrderDateDisp] = useState("");     // display strings

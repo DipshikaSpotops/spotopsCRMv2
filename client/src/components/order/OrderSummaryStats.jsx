@@ -1,5 +1,5 @@
 import Stat from "../ui/Stat";
-import { formatDallasDate } from "@shared/utils/timeUtils";
+import { formatDallasDate } from "@spotops/shared";
 
 export default function OrderSummaryStats({ order, actualGPOverride }) {
   // use nullish coalescing so 0 doesn't become "—"

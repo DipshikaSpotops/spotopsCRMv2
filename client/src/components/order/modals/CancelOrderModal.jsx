@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import API from "../../../api";
-import { getWhen, formatDallasDate } from "@shared/utils/timeUtils";
+import { getWhen, formatDallasDate } from "@spotops/shared";
 
 export default function CancelOrderModal({ open, onClose, orderNo, onSubmit }) {
   const [reason, setReason] = useState("");

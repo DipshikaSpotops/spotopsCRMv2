@@ -1,15 +1,15 @@
 {
+  "name": "spotopscrmv2",
   "private": true,
   "type": "module",
-  "workspaces": ["backend", "client", "shared"],
-   "exports": {
-    ".": "./index.js",
-    "./utils/timeUtils": "./utils/timeUtils.js"
-  },
-  "dependencies": {
-    "moment-timezone": "^0.5.46",
-     "express": "^4",
-    "cors": "^2",
-    "cookie-parser": "^1"
+  "workspaces": [
+    "client",
+    "server",
+    "shared"
+  ],
+  "scripts": {
+    "dev": "npm run dev -w client",
+    "build": "npm run build -w client",
+    "start": "npm start -w server"
   }
 }
