@@ -1,10 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLocation, useParams } from "react-router-dom";
-import axios from "axios";
 import { parseOrderHistory } from "../utils/formatter";
 import { isInactiveYard } from "../utils/yards";
-
-const API_BASE = "http://localhost:5000";
+import API from "../api";
 
 export default function useOrderDetails() {
   const location = useLocation();
@@ -34,9 +32,9 @@ export default function useOrderDetails() {
     setLoading(true);
     setErr("");
     try {
-      const res = await axios.get(`${API_BASE}/orders/${encodeURIComponent(orderNo)}`);
-      setOrder(res.data || null);
-      console.log("ORDER DATA:", res.data);
+      const { data } = await API.get(`/orders/${encodeURIComponent(orderNo)}`);
+      setOrder(data || null);
+      console.log("ORDER DATA coming from useOrderDEtails page inside hooks:", data);
 
     } catch (e) {
       setErr(e.response?.data?.message || e.message || "Network error");
@@ -57,5 +55,5 @@ export default function useOrderDetails() {
     return yards.every(isInactiveYard);
   }, [yards]);
 
-  return { API_BASE, orderNo, order, loading, error: err, timeline, yards, canAddNewYard, refresh };
+  return { orderNo, order, loading, error: err, timeline, yards, canAddNewYard, refresh };
 }

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-
+import API from "../../../api";
 export default function SaleNote({ orderNo }) {
   const [noteData, setNoteData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -14,18 +14,14 @@ export default function SaleNote({ orderNo }) {
         setError("");
 
         // Try fetching from main orders first
-        let res = await fetch(`http://localhost:5000/orders/${orderNo}`);
-        let data = await res.json();
+        let res = await API.get(`/orders/${orderNo}`);
+        let data = res.data;
 
         // If not found, fallback to cancelledOrders
         if (!data || !data.notes) {
           console.log("Not found in orders, checking cancelledOrders...");
-          res = await fetch(`http://localhost:5000/cancelledOrders/${orderNo}`);
-          if (res.status === 404) {
-            setError("No sale notes found for this order.");
-            return;
-          }
-          data = await res.json();
+          res = await API.get(`/cancelledOrders/${orderNo}`);
+          data = res.data;
         }
 
         if (!data || !data.notes) {

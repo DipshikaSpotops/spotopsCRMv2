@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import axios from "axios";
+import API from "../api";
+
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   BarChart, Bar, Legend, PieChart, Pie, Cell
@@ -113,9 +115,8 @@ export default function Dashboard() {
   useEffect(() => {
     async function loadDashboardMonthly() {
       try {
-        const res = await axios.get(
-          `http://localhost:5000/orders/dashboard?month=${selectedMonth}&year=${selectedYear}`
-        );
+        const res = await API.get(`/orders/dashboard?month=${selectedMonth}&year=${selectedYear}`);
+
         const {
           totalOrders, totalSales, totalGp, actualGp, purchases,
           dailyData: daily,
@@ -156,9 +157,9 @@ export default function Dashboard() {
     async function loadCancelRefund() {
       try {
         const [cancelledOrders, refundedOrders, disputedOrders] = await Promise.all([
-          axios.get("http://localhost:5000/orders/cancelled-by-date", { params: { month: selectedMonth, year: selectedYear } }).then(r => r.data),
-          axios.get("http://localhost:5000/orders/refunded-by-date",  { params: { month: selectedMonth, year: selectedYear } }).then(r => r.data),
-          axios.get("http://localhost:5000/orders/disputes-by-date",  { params: { month: selectedMonth, year: selectedYear } }).then(r => r.data),
+          API.get("/orders/cancelled-by-date", { params: { month: selectedMonth, year: selectedYear } }).then(r => r.data),
+          API.get("/orders/refunded-by-date",  { params: { month: selectedMonth, year: selectedYear } }).then(r => r.data),
+          API.get("/orders/disputes-by-date",  { params: { month: selectedMonth, year: selectedYear } }).then(r => r.data),
         ]);
 
         const cancelled = cancelledOrders.length;
@@ -178,8 +179,7 @@ export default function Dashboard() {
 
     async function loadReimbursements() {
       try {
-        const reimbursedOrders = await axios
-          .get("http://localhost:5000/orders/reimbursed-by-date", { params: { month: selectedMonth, year: selectedYear } })
+        const reimbursedOrders = await API.get("/orders/reimbursed-by-date", { params: { month: selectedMonth, year: selectedYear } })
           .then(r => r.data || []);
 
         let count = 0;
@@ -219,8 +219,7 @@ export default function Dashboard() {
         const months = Array.from({ length: 12 }, (_, i) => i + 1);
         const results = await Promise.all(
           months.map(async (m) => {
-            const res = await axios.get(
-              `http://localhost:5000/orders/dashboard?month=${m}&year=${selectedYear}`
+           const res = await API.get(`/orders/dashboard?month=${m}&year=${selectedYear}`
             );
             const actual = res.data?.actualGp ?? res.data?.actualGP ?? 0;
             return { month: monthLabel(m), actualGP: Number(actual) || 0 };

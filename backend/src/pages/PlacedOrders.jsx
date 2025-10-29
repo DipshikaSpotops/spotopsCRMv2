@@ -1,6 +1,6 @@
 // src/pages/PlacedOrders.jsx
 import React, { useEffect, useState } from "react";
-import axios from "axios";
+import API from "../api";
 import UnifiedDatePicker from "../components/UnifiedDatePicker";
 import { formatInTimeZone } from "date-fns-tz";
 import moment from "moment-timezone";
@@ -33,7 +33,6 @@ const prettyFilterLabel = (filter) => {
 
   return "";
 };
-const API_BASE = "http://localhost:5000";
 
 const REASONS = [
   "Same Day",
@@ -129,10 +128,10 @@ const PlacedOrders = () => {
       let url;
       if (filter.start && filter.end) {
         const qPart = filter.q ? `&q=${encodeURIComponent(filter.q)}` : "";
-        url = `${API_BASE}/orders/placed?start=${filter.start}&end=${filter.end}${qPart}`;
+        url = `/orders/placed?start=${filter.start}&end=${filter.end}${qPart}`;
       } else if (filter.month && filter.year) {
         const qPart = filter.q ? `&q=${encodeURIComponent(filter.q)}` : "";
-        url = `${API_BASE}/orders/placed?month=${filter.month}&year=${filter.year}${qPart}`;
+        url = `/orders/placed?month=${filter.month}&year=${filter.year}${qPart}`;
       } else {
         // default = current Dallas month
         const nowDallas = moment().tz("America/Chicago");
@@ -140,11 +139,11 @@ const PlacedOrders = () => {
         const month = monthNames[nowDallas.month()];
         const year = nowDallas.year();
         const qPart = filter.q ? `&q=${encodeURIComponent(filter.q)}` : "";
-        url = `${API_BASE}/orders/placed?month=${month}&year=${year}${qPart}`;
+        url = `$/orders/placed?month=${month}&year=${year}${qPart}`;
         // also persist default as currentFilter so Enter search works
         setCurrentFilter({ month, year });
       }
-      const response = await axios.get(url);
+      const response = await API.get(url);
       setOrders(Array.isArray(response.data) ? response.data : []);
     } catch (err) {
       console.error(err);
@@ -189,8 +188,8 @@ const PlacedOrders = () => {
     const customerApprovedDate = dallasNowParts();
 
     try {
-      await axios.put(
-        `${API_BASE}/orders/${orderNo}?firstName=${encodeURIComponent(firstName)}`,
+      await API.put(
+        `$/orders/${orderNo}?firstName=${encodeURIComponent(firstName)}`,
         {
           orderStatus: "Customer approved",
           firstName,
@@ -249,8 +248,8 @@ const PlacedOrders = () => {
 
     try {
       // 1) Save the cancellation + status
-      await axios.put(
-        `${API_BASE}/orders/${orderNo}/custRefund`,
+      await API.put(
+        `/orders/${orderNo}/custRefund`,
         {
           cancelledDate: iso,
           cancelledRefAmount: cancelForm.amount,
@@ -262,8 +261,8 @@ const PlacedOrders = () => {
       );
 
       // 2) Send the cancellation email
-      const { data, status } = await axios.post(
-        `${API_BASE}/emails/order-cancel/${orderNo}`,
+      const { data, status } = await API.POST(
+        `/emails/order-cancel/${orderNo}`,
         null,
         { params: { firstName, cancelledRefAmount: cancelForm.amount || "" } }
       );

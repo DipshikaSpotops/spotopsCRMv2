@@ -5,6 +5,7 @@ import UnifiedDatePicker from "../components/UnifiedDatePicker";
 import { formatInTimeZone } from "date-fns-tz";
 import { useNavigate } from "react-router-dom";
 import moment from "moment-timezone";
+import API from "../api";
 
 const prettyFilterLabel = (filter) => {
   if (!filter) return "";
@@ -21,8 +22,6 @@ const prettyFilterLabel = (filter) => {
   }
   return "";
 };
-
-const API_BASE = "http://localhost:5000";
 
 const toDallasPretty = (dateLike) => {
   if (!dateLike) return "";
@@ -54,20 +53,20 @@ const CustomerApproved = () => {
       const q = filter.q ? `&q=${encodeURIComponent(filter.q)}` : "";
 
       if (filter.start && filter.end) {
-        url = `${API_BASE}/orders/customerApproved?start=${filter.start}&end=${filter.end}${q}`;
+        url = `/orders/customerApproved?start=${filter.start}&end=${filter.end}${q}`;
       } else if (filter.month && filter.year) {
-        url = `${API_BASE}/orders/customerApproved?month=${filter.month}&year=${filter.year}${q}`;
+        url = `/orders/customerApproved?month=${filter.month}&year=${filter.year}${q}`;
       } else {
         // default = current Dallas month
         const nowDallas = moment().tz("America/Chicago");
         const monthNames = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
         const month = monthNames[nowDallas.month()];
         const year = nowDallas.year();
-        url = `${API_BASE}/orders/customerApproved?month=${month}&year=${year}${q}`;
+        url = `/orders/customerApproved?month=${month}&year=${year}${q}`;
         setCurrentFilter({ month, year });
       }
 
-      const { data } = await axios.get(url);
+      const { data } = await API.get(url, "");
       setOrders(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error("Error fetching customer approved orders:", err);

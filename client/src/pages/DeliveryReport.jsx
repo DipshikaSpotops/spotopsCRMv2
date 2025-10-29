@@ -9,10 +9,9 @@ import {
   FaChevronLeft,
   FaChevronRight,
 } from "react-icons/fa";
-
+import API from "../api";
 const TZ = "America/Chicago";
 const ROWS_PER_PAGE = 25;
-const API_BASE = "http://localhost:5000/orders/monthlyOrders";
 
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 

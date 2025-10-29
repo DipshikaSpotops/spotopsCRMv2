@@ -3,7 +3,7 @@ import Select from "../../ui/Select";
 import { getWhen, toDallasIso } from "../../../../../backend/utils/timeUtils";
 
 export default function RefundModal({ open, onClose, onSubmit, orderNo, yardIndex, yard }) {
-  const baseUrl = import.meta.env.VITE_API_BASE || "http://localhost:5000";
+  const baseUrl = import.meta.env.VITE_API_BASE_URL;
 
   const [refundStatus, setRefundStatus] = useState("");
   const [refundedAmount, setRefundedAmount] = useState("");

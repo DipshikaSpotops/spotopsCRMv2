@@ -3,7 +3,7 @@ import axios from "axios";
 import { getActorId } from "../utils/actorId";
 
 const api = axios.create({
-  baseURL: "http://localhost:5000", // matches your server mounts (/orders/...)
+  baseURL: import.meta.env.VITE_API_BASE_URL_URL
 });
 
 function getTokenFromLS() {

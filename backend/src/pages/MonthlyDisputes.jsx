@@ -1,6 +1,6 @@
 // src/pages/MonthlyDisputes.jsx
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import axios from "axios";
+import API from "../api";
 import { FaSort, FaSortUp, FaSortDown, FaChevronLeft, FaChevronRight } from "react-icons/fa";
 import { useLocation, useNavigate } from "react-router-dom";
 
@@ -14,7 +14,7 @@ import { baseHeadClass, baseCellClass } from "../utils/tableStyles";
 
 const TZ = "America/Chicago";
 const ROWS_PER_PAGE = 25;
-const DISPUTES_API = "http://localhost:5000/orders/disputes-by-date";
+const DISPUTES_API = "/orders/disputes-by-date";
 
 const LS_PAGE = "disputes_page";
 const LS_FILTER = "disputes_filter_v2";
@@ -117,7 +117,7 @@ const MonthlyDisputes = () => {
       const params = buildParams({ filter, query: appliedQuery || undefined, sortBy, sortOrder });
       const headers = token ? { Authorization: `Bearer ${token}` } : {};
 
-      const res = await axios.get(`${DISPUTES_API}?${params.toString()}`, { headers });
+      const res = await API.get(`${DISPUTES_API}?${params.toString()}`, { headers });
 
       const data = Array.isArray(res.data)
         ? res.data

@@ -2,7 +2,7 @@
 import axios from "axios";
 
 const api = axios.create({
-  baseURL: "http://localhost:5000", // matches your server mounts (/orders/...)
+  baseURL: "process.env.REACT_APP_API_BASE_URL", 
 });
 
 function getTokenFromLS() {

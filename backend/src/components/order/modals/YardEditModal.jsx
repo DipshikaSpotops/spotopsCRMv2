@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import Field from "../../ui/Field";
+import API from "../api";
+
 import Input from "../../ui/Input";
 import Select from "../../ui/Select";
 import { extractOwn, extractYard } from "../../../utils/yards";
@@ -237,75 +239,65 @@ export default function YardEditModal({ open, initial, order, orderNo, yardIndex
           <button onClick={onClose} className="px-3 py-1.5 rounded-md bg-white/10 border border-white/20 hover:bg-white/20">Close</button>
           <button
             onClick={async () => {
-  if (!validate()) return;
+              if (!validate()) return;
 
-  const firstName = localStorage.getItem("firstName") || "System";
-  const orderNo = order?.orderNo;
+              const firstName = localStorage.getItem("firstName") || "System";
+              const orderNo = order?.orderNo;
 
-  const changedFields = {};
-  Object.keys(form).forEach((key) => {
-    const oldVal = (initial?.[key] ?? "").toString().trim();
-    const newVal = (form[key] ?? "").toString().trim();
-    if (oldVal !== newVal) {
-      changedFields[key] = form[key];
-    }
-  });
+              const changedFields = {};
+              Object.keys(form).forEach((key) => {
+                const oldVal = (initial?.[key] ?? "").toString().trim();
+                const newVal = (form[key] ?? "").toString().trim();
+                if (oldVal !== newVal) {
+                  changedFields[key] = form[key];
+                }
+              });
 
-  // 🧹 Frontend cleanup for derived shipping fields
-  if (changedFields.ownShipping !== undefined) {
-    const oldOwn = (initial?.ownShipping ?? extractOwn(initial?.shippingDetails) ?? "").toString().trim();
-    const newOwn = String(form.ownShipping ?? "").trim();
-    if (oldOwn === newOwn) delete changedFields.ownShipping;
-  }
-  if (changedFields.yardShipping !== undefined) {
-    const oldYard = (initial?.yardShipping ?? extractYard(initial?.shippingDetails) ?? "").toString().trim();
-    const newYard = String(form.yardShipping ?? "").trim();
-    if (oldYard === newYard) delete changedFields.yardShipping;
-  }
+              // 🧹 Frontend cleanup for derived shipping fields
+              if (changedFields.ownShipping !== undefined) {
+                const oldOwn = (initial?.ownShipping ?? extractOwn(initial?.shippingDetails) ?? "").toString().trim();
+                const newOwn = String(form.ownShipping ?? "").trim();
+                if (oldOwn === newOwn) delete changedFields.ownShipping;
+              }
+              if (changedFields.yardShipping !== undefined) {
+                const oldYard = (initial?.yardShipping ?? extractYard(initial?.shippingDetails) ?? "").toString().trim();
+                const newYard = String(form.yardShipping ?? "").trim();
+                if (oldYard === newYard) delete changedFields.yardShipping;
+              }
 
-  if (Object.keys(changedFields).length === 0) {
-    setToast("No changes detected.");
-    return;
-  }
+              if (Object.keys(changedFields).length === 0) {
+                setToast("No changes detected.");
+                return;
+              }
 
-  // Add derived fields if relevant
-  if (changedFields.street || changedFields.city || changedFields.state || changedFields.zipcode) {
-    changedFields.address = `${form.street} ${form.city} ${form.state} ${form.zipcode}`.trim();
-  }
+              // Add derived fields if relevant
+              if (changedFields.street || changedFields.city || changedFields.state || changedFields.zipcode) {
+                changedFields.address = `${form.street} ${form.city} ${form.state} ${form.zipcode}`.trim();
+              }
 
-  if (changedFields.ownShipping || changedFields.yardShipping) {
-    changedFields.shippingDetails = [
-      String(form.ownShipping || "").trim() !== "" ? `Own shipping: ${form.ownShipping}` : "",
-      String(form.yardShipping || "").trim() !== "" ? `Yard shipping: ${form.yardShipping}` : "",
-    ]
-      .filter(Boolean)
-      .join(" | ");
-  }
+              if (changedFields.ownShipping || changedFields.yardShipping) {
+                changedFields.shippingDetails = [
+                  String(form.ownShipping || "").trim() !== "" ? `Own shipping: ${form.ownShipping}` : "",
+                  String(form.yardShipping || "").trim() !== "" ? `Yard shipping: ${form.yardShipping}` : "",
+                ]
+                  .filter(Boolean)
+                  .join(" | ");
+              }
 
-  try {
-    const res = await fetch(
-      `${import.meta.env.VITE_API_BASE || "http://localhost:5000"}/orders/${encodeURIComponent(
-        orderNo
-      )}/additionalInfo/${yardIndex + 1}?firstName=${encodeURIComponent(firstName)}`,
-      {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(changedFields),
-      }
-    );
+              try {
+                await API.patch(
+                  `/orders/${encodeURIComponent(order?.orderNo)}/additionalInfo/${yardIndex + 1}`,
+                  changedFields,
+                  { params: { firstName } }
+                );
 
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      setToast(data?.message || "Failed to update yard details");
-      return;
-    }
+                setToast(`Yard ${yardIndex + 1} details updated successfully!`);
+              } catch (err) {
+                console.error("Error updating yard:", err);
+                setToast(err?.response?.data?.message || "Failed to update yard details");
+              }
 
-    setToast(`Yard ${yardIndex + 1} details updated successfully!`);
-  } catch (err) {
-    console.error("Error updating yard:", err);
-    setToast("Server error while updating yard.");
-  }
-}}
+            }}
 
             className="px-3 py-1.5 rounded-md bg-white text-[#04356d] border border-white/20 hover:bg-white/90"
           >

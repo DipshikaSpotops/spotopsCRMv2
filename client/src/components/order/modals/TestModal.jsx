@@ -11,7 +11,7 @@ export default function TestModal({ open, onClose }) {
 
       {/* content box */}
       <div className="relative z-[10000] bg-white text-black p-6 rounded-lg shadow-2xl">
-        <h2 className="text-xl font-bold mb-4">Modal Works 🎉</h2>
+        <h2 className="text-xl font-bold mb-4">Modal Works </h2>
         <p>If you can read this, your modal is rendering properly.</p>
         <button
           onClick={onClose}

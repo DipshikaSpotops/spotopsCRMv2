@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import axios from "axios";
+import API from "../api";
 import {
   FaSort, FaSortUp, FaSortDown, FaChevronLeft, FaChevronRight, FaPlus, FaEdit, FaSave, FaTimes, FaEye, FaEyeSlash
 } from "react-icons/fa";
@@ -43,7 +43,7 @@ export default function ViewUsers() {
       setLoading(true);
       setError("");
       try {
-        const { data } = await axios.get("http://localhost:5000/api/users");
+        const { data } = await API.get("/api/users");
         if (mounted) setUsers(Array.isArray(data) ? data : []);
       } catch (e) {
         if (mounted) setError("Failed to load users.");
@@ -87,7 +87,7 @@ export default function ViewUsers() {
   const handleDelete = async (id) => {
     if (!window.confirm("Delete this user? This cannot be undone.")) return;
     try {
-      await axios.delete(`http://localhost:5000/api/users/${id}`);
+      await API.delete(`/api/users/${id}`);
       setUsers(prev => prev.filter(u => u._id !== id));
     } catch (e) {
       alert("Failed to delete user.");
@@ -140,7 +140,7 @@ export default function ViewUsers() {
     }
     setSaving(true);
     try {
-      const { data } = await axios.patch(`http://localhost:5000/api/users/${u._id}`, changes);
+      const { data } = await API.patch(`/api/users/${u._id}`, changes);
       // merge response into local list (without password)
       setUsers(prev => prev.map(x => (x._id === u._id ? { ...x, ...data } : x)));
       cancelEdit();

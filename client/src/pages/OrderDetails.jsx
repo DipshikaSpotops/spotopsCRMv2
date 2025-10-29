@@ -22,7 +22,7 @@ import CancelOrderModal from "../components/order/modals/CancelOrderModal";
 import DisputeOrderModal from "../components/order/modals/DisputeOrderModal";
 import RefundOrderModal from "../components/order/modals/RefundOrderModal";
 import useOrderRealtime from "../hooks/useOrderRealtime";
-import axios from "axios";
+import API from "../api";
 
 // popup intaed of alert or confirm:
 function ConfirmModal({
@@ -185,7 +185,6 @@ const calcActualGP = (orderLike) => {
 export default function OrderDetails() {
   const gpWriteGuardRef = useRef(false);
   const {
-    API_BASE,
     orderNo,
     order,
     loading,
@@ -247,19 +246,15 @@ export default function OrderDetails() {
   const recomputeAndPersistActualGP = async ({ useServer = true } = {}) => {
     try {
       const orderLike = useServer
-        ? await (async () => {
-          const res = await fetch(`${API_BASE}/orders/${orderNo}`);
-          return await res.json();
-        })()
+        ? (await API.get(`/orders/${orderNo}`)).data
         : order;
-
       const gp = calcActualGP(orderLike);
 
       setActualGPView(Number(gp).toFixed(2));
       const gpField = document.querySelector("#actualGP");
       if (gpField) gpField.value = Number(gp).toFixed(2);
 
-      await axios.put(`${API_BASE}/orders/${orderNo}/updateActualGP`, { actualGP: gp });
+      await API.put(`/orders/${orderNo}/updateActualGP`, { actualGP: gp });
       gpWriteGuardRef.current = true;
 
       setToast(`Actual GP recalculated: $${gp.toFixed(2)}`);
@@ -282,9 +277,10 @@ export default function OrderDetails() {
     try {
       const firstName = localStorage.getItem("firstName");
 
-      await axios.put(
-        `${API_BASE}/orders/${orderNo}/custRefund?firstName=${firstName}`,
-        { orderStatus: value }
+      await API.put(
+        `/orders/${orderNo}/custRefund`,
+        { orderStatus: value },
+        { params: { firstName } }
       );
 
       const labelMap = { "Dispute 2": "Dispute after Cancellation" };
@@ -298,10 +294,8 @@ export default function OrderDetails() {
       const gpField = document.querySelector("#actualGP");
       if (gpField) gpField.value = Number(newGP).toFixed(2);
 
-      axios
-        .put(`${API_BASE}/orders/${orderNo}/updateActualGP`, {
-          actualGP: newGP,
-        })
+      API
+        .put(`/orders/${orderNo}/updateActualGP`, { actualGP: newGP })
         .then(() => {
           gpWriteGuardRef.current = true;
         })
@@ -336,16 +330,14 @@ export default function OrderDetails() {
       const firstName = localStorage.getItem("firstName") || "Unknown";
 
       // 1) Check if yard already exists
-      const yardCheck = await axios.get(
-        `${API_BASE}/api/yards/search?name=${encodeURIComponent(
-          formData.yardName
-        )}`
-      );
+      const yardCheck = await API.get(`/yards/search`, {
+        params: { name: formData.yardName },
+      });
       const existingYards = yardCheck.data || [];
 
       // 2) Add new yard only if it doesn’t exist
       if (existingYards.length === 0) {
-        await axios.post(`${API_BASE}/api/yards`, {
+        await API.post(`/yards`, {
           yardName: formData.yardName,
           yardRating: formData.yardRating,
           phone: formData.phone,
@@ -361,11 +353,10 @@ export default function OrderDetails() {
 
       // 3) Add yard info to this order (updates order.additionalInfo)
       const payload = { ...formData, orderStatus: "Yard Processing" };
-      await axios.post(
-        `${API_BASE}/orders/${orderNo}/additionalInfo?firstName=${encodeURIComponent(
-          firstName
-        )}`,
-        payload
+      await API.post(
+        `/orders/${orderNo}/additionalInfo`,
+        payload,
+        { params: { firstName } }
       );
 
       // 4) Refresh data and close modal
@@ -455,8 +446,8 @@ export default function OrderDetails() {
     }
 
     if (Math.abs(currentGP - actualGP) > 0.01) {
-      axios
-        .put(`${API_BASE}/orders/${orderNo}/updateActualGP`, { actualGP })
+      API
+        .put(`/orders/${orderNo}/updateActualGP`, { actualGP })
         .then(async () => {
           await refresh();
           setToast(`Actual GP updated to $${actualGP.toFixed(2)}`);
@@ -712,7 +703,6 @@ export default function OrderDetails() {
         open={showCancelModal}
         onClose={() => setShowCancelModal(false)}
         orderNo={orderNo}
-        API_BASE={API_BASE}
         refresh={async () => {
           await refresh();
           await recomputeAndPersistActualGP({ useServer: true, showAlert: false });
@@ -727,7 +717,6 @@ export default function OrderDetails() {
         open={showRefundModal}
         onClose={() => setShowRefundModal(false)}
         orderNo={orderNo}
-        API_BASE={API_BASE}
         refresh={async () => {
           await refresh();
           await recomputeAndPersistActualGP({ useServer: true, showAlert: false });
@@ -742,7 +731,6 @@ export default function OrderDetails() {
         open={showDisputeModal}
         onClose={() => setShowDisputeModal(false)}
         orderNo={orderNo}
-        API_BASE={API_BASE}
         refresh={async () => {
           await refresh();
           await recomputeAndPersistActualGP({ useServer: true, showAlert: false });

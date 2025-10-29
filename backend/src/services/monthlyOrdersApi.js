@@ -23,10 +23,13 @@ function buildQuery(params = {}) {
   return sp.toString();
 }
 
+const API_BASE =
+  (import.meta && import.meta.env && import.meta.env.VITE_API_BASE_URL_URL);
+
 export const monthlyOrdersApi = createApi({
   reducerPath: "monthlyOrdersApi",
   baseQuery: fetchBaseQuery({
-    baseUrl: "http://localhost:5000",
+    baseUrl: API_BASE,
     prepareHeaders: (headers, { getState }) => {
       const token = selectToken(getState()) || getLsToken();
       if (token) headers.set("authorization", `Bearer ${token}`);

@@ -1,6 +1,6 @@
 // src/pages/StoreCredits.jsx
 import React, { useEffect, useMemo, useState, useRef } from "react";
-import axios from "axios";
+import API from "../api";
 import { formatInTimeZone } from "date-fns-tz";
 import { useNavigate, useLocation } from "react-router-dom";
 import SearchBar from "../components/SearchBar";
@@ -16,9 +16,6 @@ import {
 /* ---------- constants ---------- */
 const TZ = "America/Chicago";
 const ROWS_PER_PAGE = 25;
-const AUTH_URL = "http://localhost:5000/auth/token";          // /:userId
-const STORECREDITS_URL = "http://localhost:5000/orders/storeCredits";
-const ORDERS_BASE = "http://localhost:5000";                   // for PATCH
 
 // LocalStorage keys (match behavior on other pages)
 const LS_PAGE = "storeCredits_page";
@@ -173,7 +170,7 @@ const StoreCredits = () => {
       typeof window !== "undefined" ? localStorage.getItem("token") : null;
     if (!t && userId) {
       try {
-        const res = await axios.get(`${AUTH_URL}/${userId}`);
+        const res = await API.get(`/auth/token/${userId}`);
         if (res.status === 200 && res.data?.token) {
           localStorage.setItem("token", res.data.token);
           t = res.data.token;
@@ -188,7 +185,7 @@ const StoreCredits = () => {
   const fetchAllStoreCredits = async () => {
     const t = await ensureToken();
     const headers = t ? { Authorization: `Bearer ${t}` } : {};
-    const res = await axios.get(STORECREDITS_URL, { headers });
+    const res = await API.get(`/orders/storeCredits`, { headers });
     return Array.isArray(res.data) ? res.data : [];
   };
 
@@ -362,10 +359,8 @@ const StoreCredits = () => {
     try {
       setBusy(true);
       setApiError("");
-      await axios.patch(
-        `${ORDERS_BASE}/orders/${encodeURIComponent(
-          useTarget.orderNo
-        )}/storeCredits`,
+      await API.patch(
+        `/orders/${encodeURIComponent(useTarget.orderNo)}/storeCredits`,
         { usageType, amountUsed: amt, orderNoUsedFor: orderNoUsedFor.trim() },
         { headers }
       );
@@ -405,11 +400,10 @@ const StoreCredits = () => {
               <button
                 disabled={safePage === 1}
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
-                className={`px-3 py-1 rounded-full transition ${
-                  safePage === 1
+                className={`px-3 py-1 rounded-full transition ${safePage === 1
                     ? "bg-gray-600 text-gray-400 cursor-not-allowed"
                     : "bg-gray-700 hover:bg-gray-600"
-                }`}
+                  }`}
               >
                 <FaChevronLeft size={14} />
               </button>
@@ -423,11 +417,10 @@ const StoreCredits = () => {
               <button
                 disabled={safePage === totalPages}
                 onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                className={`px-3 py-1 rounded-full transition ${
-                  safePage === totalPages
+                className={`px-3 py-1 rounded-full transition ${safePage === totalPages
                     ? "bg-gray-600 text-gray-400 cursor-not-allowed"
                     : "bg-gray-700 hover:bg-gray-600"
-                }`}
+                  }`}
               >
                 <FaChevronRight size={14} />
               </button>
@@ -552,13 +545,12 @@ const StoreCredits = () => {
                       key={r._id}
                       id={`sc-row-${r._id}`}
                       onClick={() => toggleHighlight(r.orderNo)}
-                      className={`transition text-sm cursor-pointer ${
-                        isHi
+                      className={`transition text-sm cursor-pointer ${isHi
                           ? "bg-yellow-500/20 ring-2 ring-yellow-400"
                           : i % 2 === 0
-                          ? "bg-white/10"
-                          : "bg-white/5"
-                      } hover:bg-white/20`}
+                            ? "bg-white/10"
+                            : "bg-white/5"
+                        } hover:bg-white/20`}
                     >
                       {/* Sticky first cell: compose baseCellClass + sticky bg */}
                       <td

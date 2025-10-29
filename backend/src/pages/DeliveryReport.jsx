@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import axios from "axios";
+import API from "../api";
 import UnifiedDatePicker from "../components/UnifiedDatePicker";
 import { formatInTimeZone } from "date-fns-tz";
 import {
@@ -12,7 +12,6 @@ import {
 
 const TZ = "America/Chicago";
 const ROWS_PER_PAGE = 25;
-const API_BASE = "http://localhost:5000/orders/monthlyOrders";
 
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
@@ -71,7 +70,7 @@ const DeliveryReport = () => {
       params.set("year", String(def.year));
     }
 
-    return `${API_BASE}?${params.toString()}`;
+    return params.toString();
   };
 
   // Fetch ALL pages using server totalPages
@@ -81,7 +80,7 @@ const DeliveryReport = () => {
       const base = buildBaseUrl(filter);
       const headers = token ? { Authorization: `Bearer ${token}` } : {};
 
-      const first = await axios.get(`${base}&page=1`, { headers });
+      const first = await API.get(`/orders/monthlyOrders?${base.split("?")[1]}&page=1`);
       const firstOrders = first.data?.orders || [];
       const totalPages = first.data?.totalPages || 1;
 
@@ -89,7 +88,7 @@ const DeliveryReport = () => {
       if (totalPages > 1) {
         const reqs = [];
         for (let p = 2; p <= totalPages; p++) {
-          reqs.push(axios.get(`${base}&page=${p}`, { headers }));
+          reqs.push(API.get(`/orders/monthlyOrders?${base.split("?")[1]}&page=${p}`));
         }
         const results = await Promise.all(reqs);
         results.forEach((r) => {

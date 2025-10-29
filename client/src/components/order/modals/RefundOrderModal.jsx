@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import axios from "axios";
+import API from "../../../api";
 import { getWhen, formatDallasDate } from "@shared/utils/timeUtils";
 
 export default function RefundOrderModal({ open, onClose, orderNo, onSubmit }) {
@@ -8,9 +8,7 @@ export default function RefundOrderModal({ open, onClose, orderNo, onSubmit }) {
   const [pdfFile, setPdfFile] = useState(null);
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState("");
-  const [isRefundLocked, setIsRefundLocked] = useState(false); // 🔹 Track if refund amount should be readonly
-
-  const baseUrl = import.meta.env.VITE_API_BASE || "http://localhost:5000";
+  const [isRefundLocked, setIsRefundLocked] = useState(false);
   const firstName = localStorage.getItem("firstName") || "System";
 
   // Prefill refund details when modal opens
@@ -18,7 +16,7 @@ export default function RefundOrderModal({ open, onClose, orderNo, onSubmit }) {
     const fetchExisting = async () => {
       if (!open) return;
       try {
-        const res = await axios.get(`${baseUrl}/orders/${orderNo}`);
+        const res = await API.get(`/orders/${orderNo}`);
         const order = res.data;
         if (order.custRefundDate || order.custRefAmount) {
           setRefundAmount(order.custRefAmount || "");
@@ -34,7 +32,7 @@ export default function RefundOrderModal({ open, onClose, orderNo, onSubmit }) {
       }
     };
     fetchExisting();
-  }, [open, orderNo, baseUrl]);
+  }, [open, orderNo]);
 
   if (!open) return null;
 
@@ -57,18 +55,22 @@ export default function RefundOrderModal({ open, onClose, orderNo, onSubmit }) {
       if (sendEmail) {
         const formData = new FormData();
         if (pdfFile) formData.append("pdfFile", pdfFile);
-
-        await fetch(
-          `${baseUrl}/emails/orders/sendRefundConfirmation/${orderNo}?firstName=${firstName}&refundedAmount=${refundAmount}`,
-          { method: "POST", body: formData }
+        await API.post(
+          `/emails/orders/sendRefundConfirmation/${orderNo}`,
+          formData,
+          { params: { firstName, refundedAmount: refundAmount } }
         );
         setToast("Refund email sent to the customer!");
       } else {
-        await axios.put(`${baseUrl}/orders/${orderNo}/custRefund?firstName=${firstName}`, {
-          custRefundDate: refundDate || getWhen("iso"),
-          custRefundedAmount: refundAmount,
-          orderStatus: "Refunded",
-        });
+        await API.put(
+          `/orders/${orderNo}/custRefund`,
+          {
+            custRefundDate: refundDate || getWhen("iso"),
+            custRefundedAmount: refundAmount,
+            orderStatus: "Refunded",
+          },
+          { params: { firstName } }
+        );
         setToast("Refund saved successfully.");
       }
 
@@ -115,11 +117,10 @@ export default function RefundOrderModal({ open, onClose, orderNo, onSubmit }) {
               value={refundAmount}
               readOnly={isRefundLocked} // 🔒 lock input
               onChange={(e) => !isRefundLocked && setRefundAmount(e.target.value)}
-              className={`w-full rounded-lg px-3 py-2 border text-center ${
-                isRefundLocked
+              className={`w-full rounded-lg px-3 py-2 border text-center ${isRefundLocked
                   ? "bg-gray-700 text-gray-300 border-gray-500 cursor-not-allowed"
                   : "bg-white/10 border-white/30 text-white"
-              }`}
+                }`}
             />
             {isRefundLocked && (
               <p className="text-xs text-yellow-300 mt-1">
@@ -152,11 +153,10 @@ export default function RefundOrderModal({ open, onClose, orderNo, onSubmit }) {
           <button
             onClick={() => handleSave(false)}
             disabled={loading}
-            className={`px-3 py-1.5 rounded-md border transition ${
-              loading
+            className={`px-3 py-1.5 rounded-md border transition ${loading
                 ? "bg-gray-400 text-gray-700 border-gray-300 cursor-not-allowed"
                 : "bg-white text-[#04356d] border-white/20 hover:bg-white/90"
-            }`}
+              }`}
           >
             {loading ? "Saving..." : "Save Only"}
           </button>
@@ -164,11 +164,10 @@ export default function RefundOrderModal({ open, onClose, orderNo, onSubmit }) {
           <button
             onClick={() => handleSave(true)}
             disabled={loading}
-            className={`px-3 py-1.5 rounded-md border transition ${
-              loading
+            className={`px-3 py-1.5 rounded-md border transition ${loading
                 ? "bg-gray-400 text-gray-700 border-gray-300 cursor-not-allowed"
                 : "bg-[#2b2d68] hover:bg-[#090c6c] border border-white/20"
-            }`}
+              }`}
           >
             {loading ? "Sending..." : "Save & Send Email"}
           </button>

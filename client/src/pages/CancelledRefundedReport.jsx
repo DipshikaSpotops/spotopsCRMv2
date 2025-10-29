@@ -1,6 +1,6 @@
 // src/pages/CancelledRefundedOrders.jsx
 import React, { useEffect, useMemo, useState, useRef } from "react";
-import axios from "axios";
+import API from "../api";
 import UnifiedDatePicker from "../components/UnifiedDatePicker";
 import { formatInTimeZone } from "date-fns-tz";
 import { FaSort, FaSortUp, FaSortDown, FaEye, FaTimes } from "react-icons/fa";
@@ -134,8 +134,9 @@ const CancelledRefundedOrders = () => {
         const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
 
         const [cancelledRes, refundedRes] = await Promise.all([
-          axios.get(`http://localhost:5000/orders/cancelled-by-date`, { params: baseParams, headers }),
-          axios.get(`http://localhost:5000/orders/refunded-by-date`, { params: baseParams, headers }),
+          API.get(`/orders/cancelled-by-date`, { params: baseParams, headers }),
+API.get(`/orders/refunded-by-date`, { params: baseParams, headers })
+
         ]);
 
         const cancelled = Array.isArray(cancelledRes.data) ? cancelledRes.data : [];

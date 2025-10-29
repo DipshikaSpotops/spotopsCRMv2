@@ -3,8 +3,9 @@ import { useLocation, useParams } from "react-router-dom";
 import axios from "axios";
 import { parseOrderHistory } from "../utils/formatter";
 import { isInactiveYard } from "../utils/yards";
+import API from "../api";
 
-const API_BASE = "http://localhost:5000";
+const API_BASE = API;
 
 export default function useOrderDetails() {
   const location = useLocation();

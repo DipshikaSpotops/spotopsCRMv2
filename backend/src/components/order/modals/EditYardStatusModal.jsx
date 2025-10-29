@@ -62,7 +62,7 @@ export default function EditYardStatusModal({
   const [loading, setLoading] = useState(false);
 
   const fileInputRef = useRef(null);
-  const baseUrl = import.meta.env.VITE_API_BASE || "http://localhost:5000";
+  const baseUrl = import.meta.env.VITE_API_BASE_URL;
 
   /* ---------------------- useEffects ---------------------- */
   useEffect(() => {

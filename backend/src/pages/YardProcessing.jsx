@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import axios from "axios";
+import API from "../api";
 import UnifiedDatePicker from "../components/UnifiedDatePicker";
 import { formatInTimeZone } from "date-fns-tz";
 import { FaSort, FaSortUp, FaSortDown, FaChevronLeft, FaChevronRight, FaTimes } from "react-icons/fa";
@@ -124,8 +124,7 @@ const YardProcessingOrders = () => {
       if (sBy) params.set("sortBy", sBy);
       if (sDir) params.set("sortOrder", sDir);
 
-      const url = `http://localhost:5000/orders/yardProcessingOrders?${params.toString()}`;
-      const { data } = await axios.get(url);
+      const { data } = await API.get(`/orders/yardProcessingOrders?${params.toString()}`);
 
       setOrders(data.orders || []);
       setTotalPages(data.totalPages || 1);

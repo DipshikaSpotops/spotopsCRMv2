@@ -8,9 +8,10 @@ import StickyDataPage from "../layouts/StickyDataPage";
 import DataTable from "../components/table/StickyTable";
 import { FaSort, FaSortUp, FaSortDown } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
+import API from "../api";
 
 const TZ = "America/Chicago";
-const API = "http://localhost:5000/orders/inTransitOrders";
+const URL = `${API}/orders/inTransitOrders`;
 
 const LS_PAGE_KEY   = "inTransitPage";
 const LS_SEARCH_KEY = "inTransitSearch";
@@ -135,7 +136,7 @@ const InTransitOrders = () => {
       if (sKey)   params.set("sortBy", sKey);
       if (sDir)   params.set("sortOrder", sDir);
 
-      const { data } = await axios.get(`${API}?${params.toString()}`);
+      const { data } = await axios.get(`${URL}?${params.toString()}`);
 
       setOrders(data.orders || []);
       setTotalPages(data.totalPages || 1);

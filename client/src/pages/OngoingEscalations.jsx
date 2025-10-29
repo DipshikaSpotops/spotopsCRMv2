@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import axios from "axios";
+import API from "../api";
 import UnifiedDatePicker from "../components/UnifiedDatePicker";
 import { formatInTimeZone } from "date-fns-tz";
 import { FaSort, FaSortUp, FaSortDown, FaChevronLeft, FaChevronRight } from "react-icons/fa";
@@ -80,8 +80,7 @@ const OngoingEscalationOrders = () => {
       params.set("page", String(page));
       if (q) params.set("q", q);
 
-      const url = `http://localhost:5000/orders/ongoingEscalationOrders?${params.toString()}`;
-      const { data } = await axios.get(url);
+      const { data } = await API.get(`/orders/ongoingEscalationOrders?${params.toString()}`);
 
       const raw = data.orders || [];
 

@@ -20,16 +20,14 @@ import {
   FaSortUp,
 } from "react-icons/fa";
 import StickyXScrollbar from "./StickyXScrollbar";
+import API from "../api";
 
-/* =========================
-   Constants / helpers
-   ========================= */
+/*Constants / helpers*/
 const TZ = "America/Chicago";
 const ROWS_PER_PAGE = 25;
 const BAD_STATUSES = new Set(["Order Cancelled", "Refunded", "Dispute"]);
 
-// You can keep this in one place (or move to env)
-const API_BASE = "http://localhost:5000";
+const API_BASE = API;
 const TOKEN_API = (userId) => `${API_BASE}/auth/token/${userId}`;
 
 // utils

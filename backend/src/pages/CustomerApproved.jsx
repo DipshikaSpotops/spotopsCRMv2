@@ -1,6 +1,6 @@
 // src/pages/CustomerApproved.jsx
 import React, { useEffect, useState } from "react";
-import axios from "axios";
+import API from "../api";
 import UnifiedDatePicker from "../components/UnifiedDatePicker";
 import { formatInTimeZone } from "date-fns-tz";
 import { useNavigate } from "react-router-dom";
@@ -21,8 +21,6 @@ const prettyFilterLabel = (filter) => {
   }
   return "";
 };
-
-const API_BASE = "http://localhost:5000";
 
 const toDallasPretty = (dateLike) => {
   if (!dateLike) return "";
@@ -67,7 +65,7 @@ const CustomerApproved = () => {
         setCurrentFilter({ month, year });
       }
 
-      const { data } = await axios.get(url);
+      const { data } = await API.get(url.replace(API_BASE, ""));     
       setOrders(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error("Error fetching customer approved orders:", err);

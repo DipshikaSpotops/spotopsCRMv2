@@ -26,7 +26,7 @@ function buildQuery(params = {}) {
 export const monthlyOrdersApi = createApi({
   reducerPath: "monthlyOrdersApi",
   baseQuery: fetchBaseQuery({
-    baseUrl: "http://localhost:5000",
+    baseUrl: import.meta.env.VITE_API_BASE_URL_URL,
     prepareHeaders: (headers, { getState }) => {
       const token = selectToken(getState()) || getLsToken();
       if (token) headers.set("authorization", `Bearer ${token}`);

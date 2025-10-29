@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import axios from "axios";
+import API from "../../../api";
 import { getWhen, formatDallasDate } from "@shared/utils/timeUtils";
 
 export default function CancelOrderModal({ open, onClose, orderNo, onSubmit }) {
@@ -9,7 +9,6 @@ export default function CancelOrderModal({ open, onClose, orderNo, onSubmit }) {
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState("");
 
-  const baseUrl = import.meta.env.VITE_API_BASE || "http://localhost:5000";
   const firstName = localStorage.getItem("firstName") || "System";
 
   // Fetch previously saved cancellation data when modal opens
@@ -17,7 +16,7 @@ export default function CancelOrderModal({ open, onClose, orderNo, onSubmit }) {
     const fetchExisting = async () => {
       if (!open) return;
       try {
-        const res = await axios.get(`${baseUrl}/orders/${orderNo}`);
+        const res = await API.get(`/orders/${orderNo}`);
         const order = res.data;
         if (order.cancelledDate || order.cancellationReason || order.custRefAmount) {
           setReason(order.cancellationReason || "");
@@ -31,8 +30,7 @@ export default function CancelOrderModal({ open, onClose, orderNo, onSubmit }) {
       }
     };
     fetchExisting();
-  }, [open, orderNo, baseUrl]);
-
+  }, [open, orderNo]);
   if (!open) return null;
 
   const validate = () => {
@@ -55,12 +53,18 @@ export default function CancelOrderModal({ open, onClose, orderNo, onSubmit }) {
       };
 
       if (sendEmail) {
-        await axios.post(
-          `${baseUrl}/emails/order-cancel/${orderNo}?cancelledRefAmount=${refundAmount}&firstName=${firstName}`
+        await API.post(
+          `/emails/order-cancel/${orderNo}`,
+          null,
+          { params: { cancelledRefAmount: refundAmount, firstName } }
         );
         setToast("Cancellation email sent successfully!");
       } else {
-        await axios.put(`${baseUrl}/orders/${orderNo}/custRefund?firstName=${firstName}`, payload);
+        await API.put(
+          `/orders/${orderNo}/custRefund`,
+          payload,
+          { params: { firstName } }
+        );
         setToast("Order cancellation saved.");
       }
 
@@ -70,9 +74,9 @@ export default function CancelOrderModal({ open, onClose, orderNo, onSubmit }) {
         onClose();
         // trigger parent refresh (OrderDetails → useOrderDetails hook)
         if (typeof onSubmit === "function") {
-            await onSubmit();
+          await onSubmit();
         }
-        }, 800);
+      }, 800);
     } catch (err) {
       console.error("Cancel order save/send failed:", err);
       setToast("Error saving or sending cancellation.");
@@ -144,11 +148,10 @@ export default function CancelOrderModal({ open, onClose, orderNo, onSubmit }) {
           <button
             onClick={() => handleSave(false)}
             disabled={loading}
-            className={`px-3 py-1.5 rounded-md border transition ${
-              loading
-                ? "bg-gray-400 text-gray-700 border-gray-300 cursor-not-allowed"
-                : "bg-white text-[#04356d] border-white/20 hover:bg-white/90"
-            }`}
+            className={`px-3 py-1.5 rounded-md border transition ${loading
+              ? "bg-gray-400 text-gray-700 border-gray-300 cursor-not-allowed"
+              : "bg-white text-[#04356d] border-white/20 hover:bg-white/90"
+              }`}
           >
             {loading ? "Saving..." : "Save Only"}
           </button>
@@ -156,11 +159,10 @@ export default function CancelOrderModal({ open, onClose, orderNo, onSubmit }) {
           <button
             onClick={() => handleSave(true)}
             disabled={loading}
-            className={`px-3 py-1.5 rounded-md border transition ${
-              loading
-                ? "bg-gray-400 text-gray-700 border-gray-300 cursor-not-allowed"
-                : "bg-[#2b2d68] hover:bg-[#090c6c] border border-white/20"
-            }`}
+            className={`px-3 py-1.5 rounded-md border transition ${loading
+              ? "bg-gray-400 text-gray-700 border-gray-300 cursor-not-allowed"
+              : "bg-[#2b2d68] hover:bg-[#090c6c] border border-white/20"
+              }`}
           >
             {loading ? "Sending..." : "Save & Send Email"}
           </button>

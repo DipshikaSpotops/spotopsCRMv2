@@ -123,6 +123,7 @@
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import axios from "axios";
+import API from "../api"; 
 
 const Login = () => {
   const [formData, setFormData] = useState({ email: "", password: "" });
@@ -137,7 +138,7 @@ const Login = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      const res = await axios.post("http://localhost:5000/api/auth/login", formData);
+      const res = await API.post("/api/auth/login", formData);
       if (res.data.token && res.data.user) {
         // canonical
         localStorage.setItem("auth", JSON.stringify({ user: res.data.user, token: res.data.token }));

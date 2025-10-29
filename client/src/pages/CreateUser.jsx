@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import axios from "axios";
+import API from "../api";
 import { FaEye, FaEyeSlash } from "react-icons/fa";
 
 
@@ -47,7 +47,7 @@ export default function CreateUser() {
     setSubmitting(true);
     try {
       // Adjust base URL as needed (env var recommended)
-      const { data } = await axios.post("http://localhost:5000/api/users", form);
+      const { data } = await API.post("/api/users", form);
       setMessage({ type: "success", text: `User ${data.firstName} created.` });
       setForm({
         firstName: "",

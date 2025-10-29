@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import axios from "axios";
+import API from "../../../api";
 import { getWhen, formatDallasDate } from "@shared/utils/timeUtils";
 
 export default function DisputeOrderModal({ open, onClose, orderNo, onSubmit }) {
@@ -10,7 +10,6 @@ export default function DisputeOrderModal({ open, onClose, orderNo, onSubmit }) 
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState("");
 
-  const baseUrl = import.meta.env.VITE_API_BASE || "http://localhost:5000";
   const firstName = localStorage.getItem("firstName") || "System";
 
   // Prefill from backend each time the modal opens
@@ -19,8 +18,7 @@ export default function DisputeOrderModal({ open, onClose, orderNo, onSubmit }) 
 
     (async () => {
       try {
-        const res = await fetch(`${baseUrl}/orders/${orderNo}`);
-        const data = await res.json();
+        const { data } = await API.get(`/orders/${orderNo}`);
 
         // Display-only strings
         setOrderDateDisp(formatDallasDate(data.orderDate));
@@ -35,7 +33,7 @@ export default function DisputeOrderModal({ open, onClose, orderNo, onSubmit }) 
         setTimeout(() => setToast(""), 2000);
       }
     })();
-  }, [open, orderNo, baseUrl]);
+  }, [open, orderNo]);
 
   if (!open) return null;
 
@@ -62,9 +60,10 @@ export default function DisputeOrderModal({ open, onClose, orderNo, onSubmit }) 
         disputedRefAmount: Number(refundAmount),
       };
 
-      await axios.put(
-        `${baseUrl}/orders/${orderNo}/dispute?firstName=${encodeURIComponent(firstName)}`,
-        payload
+      await API.put(
+        `/orders/${orderNo}/dispute`,
+        payload,
+        { params: { firstName } }
       );
 
       setToast("Dispute saved successfully!");
@@ -74,9 +73,9 @@ export default function DisputeOrderModal({ open, onClose, orderNo, onSubmit }) 
         onClose();
         // trigger parent refresh (OrderDetails → useOrderDetails hook)
         if (typeof onSubmit === "function") {
-            await onSubmit();
+          await onSubmit();
         }
-        }, 800);
+      }, 800);
     } catch (err) {
       console.error("Error saving dispute:", err);
       setToast("Failed to save dispute information.");
@@ -160,11 +159,10 @@ export default function DisputeOrderModal({ open, onClose, orderNo, onSubmit }) 
           <button
             onClick={handleSave}
             disabled={loading}
-            className={`px-3 py-1.5 rounded-md border transition ${
-              loading
+            className={`px-3 py-1.5 rounded-md border transition ${loading
                 ? "bg-gray-400 text-gray-700 border-gray-300 cursor-not-allowed"
                 : "bg-white text-[#04356d] border-white/20 hover:bg-white/90"
-            }`}
+              }`}
           >
             {loading ? "Saving..." : "Save"}
           </button>
