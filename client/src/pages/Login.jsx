@@ -138,7 +138,7 @@ const Login = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      const res = await API.post("/api/auth/login", formData);
+      const res = await API.post("/auth/login", formData);
       if (res.data.token && res.data.user) {
         // canonical
         localStorage.setItem("auth", JSON.stringify({ user: res.data.user, token: res.data.token }));

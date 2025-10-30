@@ -80,8 +80,6 @@ router.post("/login", validateLogin, async (req, res) => {
       { userId: user._id, loginTime: new Date(), jwtToken: token, expiry: expiryDate },
       { upsert: true, new: true }
     );
-
-    // ✅ sanitize
     const safeUser = {
       _id: user._id,
       firstName: user.firstName,
