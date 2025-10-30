@@ -29,7 +29,7 @@ const ROWS_PER_PAGE = 25;
 const BAD_STATUSES = new Set(["Order Cancelled", "Refunded", "Dispute"]);
 
 // You can keep this in one place (or move to env)
-const API_BASE = import.meta.env.VITE_API_BASE_URL_URL
+const API_BASE = import.meta.env.VITE_API_BASE_URL;
 const TOKEN_API = (userId) => `${API_BASE}/auth/token/${userId}`;
 
 // utils
