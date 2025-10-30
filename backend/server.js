@@ -58,7 +58,7 @@ app.use("/api/orders/monthlyOrders", monthlyOrders);
 app.use("/orders/ordersPerPage", AllOrders);
 app.use("/api/orders/yardProcessingOrders", YardProcessingOrders);
 app.use("/api/orders/inTransitOrders", InTransitOrders);
-app.use("/orders/cancelledOrders", CancelledOrders);
+app.use("/api/orders/cancelledOrders", CancelledOrders);
 app.use("/orders/refundedOrders", RefundedOrders);
 app.use("/orders/disputedOrders", DisputedOrders);
 app.use("/orders/fulfilledOrders", FulfilledOrders);
