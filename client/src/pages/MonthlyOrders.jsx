@@ -180,7 +180,7 @@ export default function MonthlyOrders() {
   return (
     <OrdersTable
       title="Monthly Orders"
-      endpoint="/api/orders/monthlyOrders"
+      endpoint="/orders/monthlyOrders"
       storageKeys={{
         page:   "monthlyOrdersPage",
         search: "monthlyOrdersSearch",

@@ -28,8 +28,17 @@ const TZ = "America/Chicago";
 const ROWS_PER_PAGE = 25;
 const BAD_STATUSES = new Set(["Order Cancelled", "Refunded", "Dispute"]);
 
-// You can keep this in one place (or move to env)
-const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api';
+//  Handles both local (Vite dev) and EC2 (nginx) seamlessly
+const API_BASE = (() => {
+  const envBase = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, "");
+  if (envBase) return envBase; 
+  if (window.location.hostname === "localhost") {
+    return "http://localhost:5000/api";
+  }
+
+  // default for prod server
+  return "/api";
+})();
 const TOKEN_API = (userId) => `${API_BASE}/auth/token/${userId}`;
 
 // utils
