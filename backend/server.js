@@ -53,7 +53,7 @@ function isAllowedOrigin(origin) {
 
     // Prod: your apex and any subdomains
     const isSpotOps =
-      host === "spotops360.com" || host.endsWith(".spotops360.com");
+      host === "spotops360.com" || host.endsWith(".spotops360.com") || "13.233.238.230";
 
     return isLocalhost || isLan || isSpotOps;
   } catch {
