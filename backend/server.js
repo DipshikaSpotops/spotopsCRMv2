@@ -55,7 +55,7 @@ app.use("/api/orders/placed", placedOrdersRoutes);
 app.use("/parts", partsRoute);
 app.use("/api/orders/customerApproved", custApprovedRoutes);
 app.use("/api/orders/monthlyOrders", monthlyOrders);
-app.use("/orders/ordersPerPage", AllOrders);
+app.use("/api/orders/ordersPerPage", AllOrders);
 app.use("/api/orders/yardProcessingOrders", YardProcessingOrders);
 app.use("/api/orders/inTransitOrders", InTransitOrders);
 app.use("/api/orders/cancelledOrders", CancelledOrders);
