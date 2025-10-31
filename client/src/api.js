@@ -1,7 +1,7 @@
 import axios from "axios";
 
 const API_BASE = (() => {
-  const envBase = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, "");
+  const envBase = import.meta.env.VITE_API_BASE_URL_URL?.replace(/\/$/, "");
   if (envBase) return envBase;
 
   if (window.location.hostname === "localhost") {

@@ -30,7 +30,7 @@ const BAD_STATUSES = new Set(["Order Cancelled", "Refunded", "Dispute"]);
 
 //  Handles both local (Vite dev) and EC2 (nginx) seamlessly
 const API_BASE = (() => {
-  const envBase = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, "");
+  const envBase = import.meta.env.VITE_API_BASE_URL_URL?.replace(/\/$/, "");
   if (envBase) return envBase; 
   if (window.location.hostname === "localhost") {
     return "http://localhost:5000/api";

@@ -3,7 +3,7 @@ import axios from "axios";
 import { getActorId } from "../utils/actorId";
 
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL_URL
+  baseURL: import.meta.env.VITE_API_BASE_URL
 });
 
 function getTokenFromLS() {

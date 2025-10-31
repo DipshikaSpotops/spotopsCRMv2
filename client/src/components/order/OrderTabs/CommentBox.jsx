@@ -42,7 +42,8 @@ export default function CommentBox({
   mode = "support",
   yardIndex = null,
 }) {
-  const baseUrl = import.meta.env.VITE_API_BASE || "http://localhost:5000";
+  const baseUrl = import.meta.env.VITE_API_BASE_URL;
+  console.log("API Base URL:", baseUrl);
   const [comments, setComments] = useState([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -125,9 +126,9 @@ export default function CommentBox({
         });
       } else {
         await axios.patch(
-          `${baseUrl}/orders/api/${orderNo}/additionalInfo/${yardIndex}/notes`,
-          { note, author, timestamp: whenIso }
-        );
+       `${baseUrl}/api/orders/${orderNo}/additionalInfo/${yardIndex}/notes`,
+       { note, author, timestamp: whenIso }
+     );
       }
 
       // success toast only for the actor on this tab

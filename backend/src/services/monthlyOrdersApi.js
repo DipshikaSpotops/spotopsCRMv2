@@ -24,7 +24,7 @@ function buildQuery(params = {}) {
 }
 
 const API_BASE =
-  (import.meta && import.meta.env && import.meta.env.VITE_API_BASE_URL_URL);
+  (import.meta && import.meta.env && import.meta.env.VITE_API_BASE_URL);
 
 export const monthlyOrdersApi = createApi({
   reducerPath: "monthlyOrdersApi",
