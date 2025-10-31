@@ -278,8 +278,16 @@ const LS_SHOWN = "udp_v2_shownDate";
 
 /* -------------------- helpers -------------------- */
 const toDallasDayUTCBounds = (startLike, endLike) => {
-  const startUTC = moment.tz(startLike, ZONE).startOf("day").utc().format();
-  const endUTC = moment.tz(endLike, ZONE).endOf("day").utc().format();
+  // Rebuild as Dallas calendar dates from Y/M/D (ignores original timezone)
+  const mkDallasDay = (dLike) => {
+    const d = dLike instanceof Date ? dLike : new Date(dLike);
+    return moment.tz(
+      { year: d.getFullYear(), month: d.getMonth(), day: d.getDate() },
+      ZONE
+    );
+  };
+  const startUTC = mkDallasDay(startLike).startOf("day").utc().format();
+  const endUTC   = mkDallasDay(endLike).endOf("day").utc().format();
   return { startUTC, endUTC };
 };
 

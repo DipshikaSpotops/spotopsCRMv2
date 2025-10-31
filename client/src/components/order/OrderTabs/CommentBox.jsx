@@ -65,7 +65,7 @@ export default function CommentBox({
     setLoading(true);
     try {
       const res = await retry(
-        () => axios.get(`${baseUrl}/orders/${orderNo}`),
+        () => axios.get(`${baseUrl}/api/orders/${orderNo}`),
         { retries: 2, delay: 400 }
       );
       if (mode === "support") {
@@ -118,14 +118,14 @@ export default function CommentBox({
 
     try {
       if (mode === "support") {
-        await axios.patch(`${baseUrl}/orders/${orderNo}/supportNotes`, {
+        await axios.patch(`${baseUrl}/api/orders/${orderNo}/supportNotes`, {
           note,
           author,
           timestamp: whenIso,
         });
       } else {
         await axios.patch(
-          `${baseUrl}/orders/${orderNo}/additionalInfo/${yardIndex}/notes`,
+          `${baseUrl}/orders/api/${orderNo}/additionalInfo/${yardIndex}/notes`,
           { note, author, timestamp: whenIso }
         );
       }
