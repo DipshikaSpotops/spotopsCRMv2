@@ -12,13 +12,26 @@ export default function CardChargedModal({ open, onClose, onSubmit, orderNo, yar
   // 🔹 Prefill data from backend when modal opens
   useEffect(() => {
     if (open && yard) {
-      const rawStatus = String(yard.paymentStatus || "")
+    const rawStatus = String(yard.paymentStatus || "")
         .toLowerCase()
         .trim();
 
-      if (rawStatus === "card charged" || rawStatus === "charged") {
+    const normalized = rawStatus
+      .replace(/\s+/g, " ")
+      .replace(/[^a-z ]/g, "");
+
+    if (
+      normalized === "card charged" ||
+      normalized === "charged" ||
+      normalized === "charge complete"
+    ) {
         setPaymentStatus("Card charged");
-      } else if (rawStatus === "card not charged" || rawStatus === "not charged") {
+    } else if (
+      normalized === "card not charged" ||
+      normalized === "not charged" ||
+      normalized === "pending" ||
+      normalized === "charge pending"
+    ) {
         setPaymentStatus("Card not charged");
       } else {
         setPaymentStatus("");
