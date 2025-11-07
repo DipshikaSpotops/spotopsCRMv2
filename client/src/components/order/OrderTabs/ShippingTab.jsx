@@ -3,6 +3,18 @@ import Input from "../../ui/Input";
 import Select from "../../ui/Select";
 
 export default function ShippingTab({ order }) {
+  const isEscalated = (() => {
+    const yards = Array.isArray(order?.additionalInfo) ? order.additionalInfo : [];
+    return yards.some((yard) => {
+      const flag = yard?.escTicked;
+      if (typeof flag === "string") {
+        const normalized = flag.trim().toLowerCase();
+        return normalized === "yes" || normalized === "true";
+      }
+      return Boolean(flag);
+    });
+  })();
+
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
       <Field label="Order Status">
@@ -17,7 +29,7 @@ export default function ShippingTab({ order }) {
 
       <label className="inline-flex items-center gap-2 mt-2">
         <input type="checkbox" className="h-4 w-4" readOnly
-          checked={(order?.orderStatus || "").toLowerCase().includes("escalation")} />
+          checked={isEscalated} />
         <span className="text-[#04356d] dark:text-white">Escalation</span>
       </label>
 

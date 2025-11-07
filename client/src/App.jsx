@@ -199,7 +199,7 @@ function App() {
         path="/card-not-charged-report"
         element={
           <MainLayout>
-            <CardNotCharged/>
+            <CardNotCharged />
           </MainLayout>
         }/>
         <Route

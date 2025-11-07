@@ -1,14 +1,13 @@
-import { useEffect, useState } from "react";
-import Select from "../../ui/Select";
+import { useEffect, useState, useCallback } from "react";
+import Select, { SelectTrigger, SelectValue, SelectContent, SelectItem } from "../../ui/Select";
 import { getWhen, toDallasIso } from "@spotops/shared";
+import API from "../../../api";
 
 export default function CardChargedModal({ open, onClose, onSubmit, orderNo, yardIndex, yard }) {
   const [paymentStatus, setPaymentStatus] = useState("");
   const [cardChargedDate, setCardChargedDate] = useState("");
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState("");
-
-  const baseUrl = import.meta.env.VITE_API_BASE || "http://localhost:5000";
 
   // 🔹 Prefill data from backend when modal opens
   useEffect(() => {
@@ -22,9 +21,7 @@ export default function CardChargedModal({ open, onClose, onSubmit, orderNo, yar
     }
   }, [open, yard]);
 
-  if (!open) return null;
-
-  const handleSubmit = async () => {
+  const handleSubmit = useCallback(async () => {
     if (!paymentStatus) {
       setToast("Please select payment status.");
       return;
@@ -41,24 +38,17 @@ export default function CardChargedModal({ open, onClose, onSubmit, orderNo, yar
             : getWhen("iso"),
       };
 
-      const res = await fetch(
-        `${baseUrl}/orders/${encodeURIComponent(orderNo)}/additionalInfo/${yardIndex + 1}/paymentStatus?firstName=${encodeURIComponent(firstName)}`,
-        {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        }
+      const { data } = await API.patch(
+        `/orders/${encodeURIComponent(orderNo)}/additionalInfo/${yardIndex + 1}/paymentStatus`,
+        payload,
+        { params: { firstName } }
       );
-
-      if (!res.ok) throw new Error("Failed to update payment status");
-      const data = await res.json();
 
       setToast("Yard payment status updated successfully!");
       await onSubmit?.(data);
       setTimeout(() => {
         setToast("");
         onClose();
-        window.location.reload();
       }, 1000);
     } catch (err) {
       console.error("Error updating yard payment:", err);
@@ -66,7 +56,9 @@ export default function CardChargedModal({ open, onClose, onSubmit, orderNo, yar
     } finally {
       setLoading(false);
     }
-  };
+  }, [cardChargedDate, onClose, onSubmit, orderNo, paymentStatus, yardIndex]);
+
+  if (!open) return null;
 
   return (
     <div className="fixed inset-0 z-[90] flex items-center justify-center p-4">
@@ -79,17 +71,31 @@ export default function CardChargedModal({ open, onClose, onSubmit, orderNo, yar
           </button>
         </header>
 
-        <div className="p-5 space-y-4">
+        <div
+          className="p-5 space-y-4"
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              const tag = e.target?.tagName?.toLowerCase();
+              if (tag !== "textarea") {
+                e.preventDefault();
+                handleSubmit();
+              }
+            }
+          }}
+        >
           <div>
             <label className="block text-sm mb-1">Card Charged:</label>
             <Select
               value={paymentStatus}
-              onChange={(e) => setPaymentStatus(e.target.value)}
-              className="!bg-[#2b2d68] hover:!bg-[#090c6c] w-full"
+              onValueChange={(val) => setPaymentStatus(val)}
             >
-              <option value="">Choose</option>
-              <option value="Card charged">Charged</option>
-              <option value="Card not charged">Not charged</option>
+              <SelectTrigger className="!bg-[#2b2d68] hover:!bg-[#090c6c] w-full">
+                <SelectValue placeholder="Choose" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Card charged">Charged</SelectItem>
+                <SelectItem value="Card not charged">Not charged</SelectItem>
+              </SelectContent>
             </Select>
           </div>
 

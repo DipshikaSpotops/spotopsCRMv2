@@ -45,15 +45,41 @@ export const prettyFilterLabel = (filter) => {
   if (filter.month && filter.year) return `${filter.month} ${filter.year}`;
 
   if (filter.start && filter.end) {
-    const s = moment.tz(filter.start, TZ);
-    const e = moment.tz(filter.end, TZ);
-    if (
-      s.isSame(s.clone().startOf("month")) &&
-      e.isSame(s.clone().endOf("month"))
-    ) {
-      return s.format("MMM YYYY");
+    const startMoment = moment.tz(filter.start, TZ);
+    let endMoment = moment.tz(filter.end, TZ);
+
+    if (!startMoment.isValid() || !endMoment.isValid()) return "";
+
+    const msSinceDayStart = endMoment.diff(endMoment.clone().startOf("day"), "milliseconds");
+    const looksExclusiveUpperBound = endMoment.isAfter(startMoment) && msSinceDayStart <= 1000;
+
+    if (looksExclusiveUpperBound) {
+      endMoment = endMoment.clone().subtract(1, "millisecond");
     }
-    return `${s.format("D MMM YYYY")} – ${e.format("D MMM YYYY")}`;
+
+    const isStillMidnight =
+      endMoment.hour() === 0 &&
+      endMoment.minute() === 0 &&
+      endMoment.second() === 0 &&
+      endMoment.millisecond() === 0;
+
+    if (isStillMidnight && endMoment.isAfter(startMoment)) {
+      endMoment = endMoment.clone().subtract(1, "millisecond");
+    }
+
+    if (endMoment.isBefore(startMoment)) {
+      endMoment = startMoment.clone();
+    }
+
+    const isWholeMonth =
+      startMoment.date() === 1 &&
+      endMoment.isSame(startMoment.clone().endOf("month"), "day");
+
+    if (isWholeMonth) {
+      return startMoment.format("MMM YYYY");
+    }
+
+    return `${startMoment.format("D MMM YYYY")} – ${endMoment.format("D MMM YYYY")}`;
   }
 
   return "";

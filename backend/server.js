@@ -52,7 +52,8 @@ app.get("/api/health", (req, res) => {
 app.use("/api/auth", authRoutes);
 
 app.use("/api/orders/placed", placedOrdersRoutes);
-app.use("/parts", partsRoute);
+app.use("/parts", partsRoute); // legacy path
+app.use("/api/parts", partsRoute);
 app.use("/api/orders/customerApproved", custApprovedRoutes);
 app.use("/api/orders/monthlyOrders", monthlyOrders);
 app.use("/api/orders/ordersPerPage", AllOrders);

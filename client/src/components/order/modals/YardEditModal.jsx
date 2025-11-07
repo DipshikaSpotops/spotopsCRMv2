@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import Field from "../../ui/Field";
 import Input from "../../ui/Input";
 import Select from "../../ui/Select";
+import API from "../../../api";
 import { extractOwn, extractYard } from "../../../utils/yards";
 function Toast({ message, onClose }) {
   if (!message) return null;
@@ -10,6 +11,12 @@ function Toast({ message, onClose }) {
       <span>{message}</span>
       <button
         onClick={onClose}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            onClose?.();
+          }
+        }}
         className="ml-3 px-3 py-1 text-sm font-semibold bg-[#04356d] text-white rounded-md hover:bg-[#021f4b] transition"
       >
         OK
@@ -46,6 +53,48 @@ export default function YardEditModal({ open, initial, order, orderNo, yardIndex
   }));
   const [errors, setErrors] = useState({});
   const [toast, setToast] = useState("");
+  const zipTimerRef = useRef(null);
+
+  const lookupZip = useCallback(async (rawZip) => {
+    const trimmed = (rawZip || "").trim();
+    if (!trimmed) return null;
+
+    const normalized = trimmed.replace(/\s+/g, "").toUpperCase();
+
+    try {
+      if (/^\d{5}$/.test(normalized)) {
+        const response = await fetch(`https://api.zippopotam.us/us/${normalized}`);
+        if (!response.ok) return null;
+        const data = await response.json();
+        const place = data?.places?.[0];
+        if (!place) return null;
+        return {
+          city: place["place name"] || "",
+          state: place["state abbreviation"] || "",
+          country: data?.["country abbreviation"] || "US",
+        };
+      }
+
+      if (trimmed.length >= 4 && trimmed.includes(" ")) {
+        const segment = trimmed.slice(0, 3).toUpperCase();
+        if (!/^[A-Z]\d[A-Z]$/.test(segment)) return null;
+        const response = await fetch(`https://api.zippopotam.us/CA/${segment}`);
+        if (!response.ok) return null;
+        const data = await response.json();
+        const place = data?.places?.[0];
+        if (!place) return null;
+        return {
+          city: place["place name"] || "",
+          state: place["state abbreviation"] || "",
+          country: data?.country || "Canada",
+        };
+      }
+    } catch (err) {
+      console.debug("ZIP lookup skipped", err);
+    }
+
+    return null;
+  }, []);
 
   useEffect(() => {
     if (open) {
@@ -140,6 +189,87 @@ export default function YardEditModal({ open, initial, order, orderNo, yardIndex
     return Object.keys(e).length === 0;
   };
 
+  useEffect(() => {
+    const rawZip = String(form.zipcode || "").trim();
+    if (zipTimerRef.current) clearTimeout(zipTimerRef.current);
+    if (!rawZip) return () => {};
+
+    zipTimerRef.current = setTimeout(async () => {
+      const result = await lookupZip(rawZip);
+      if (result) {
+        setForm((prev) => ({
+          ...prev,
+          city: result.city || prev.city,
+          state: result.state || prev.state,
+          country: result.country || prev.country,
+        }));
+      }
+    }, 400);
+
+    return () => {
+      if (zipTimerRef.current) clearTimeout(zipTimerRef.current);
+    };
+  }, [form.zipcode, lookupZip]);
+
+  const handleSave = async () => {
+    if (!validate()) return;
+
+    const firstName = localStorage.getItem("firstName") || "System";
+    const orderNo = order?.orderNo;
+
+    const changedFields = {};
+    Object.keys(form).forEach((key) => {
+      const oldVal = (initial?.[key] ?? "").toString().trim();
+      const newVal = (form[key] ?? "").toString().trim();
+      if (oldVal !== newVal) {
+        changedFields[key] = form[key];
+      }
+    });
+
+    if (changedFields.ownShipping !== undefined) {
+      const oldOwn = (initial?.ownShipping ?? extractOwn(initial?.shippingDetails) ?? "").toString().trim();
+      const newOwn = String(form.ownShipping ?? "").trim();
+      if (oldOwn === newOwn) delete changedFields.ownShipping;
+    }
+    if (changedFields.yardShipping !== undefined) {
+      const oldYard = (initial?.yardShipping ?? extractYard(initial?.shippingDetails) ?? "").toString().trim();
+      const newYard = String(form.yardShipping ?? "").trim();
+      if (oldYard === newYard) delete changedFields.yardShipping;
+    }
+
+    if (Object.keys(changedFields).length === 0) {
+      setToast("No changes detected.");
+      return;
+    }
+
+    if (changedFields.street || changedFields.city || changedFields.state || changedFields.zipcode) {
+      changedFields.address = `${form.street} ${form.city} ${form.state} ${form.zipcode}`.trim();
+    }
+
+    if (changedFields.ownShipping || changedFields.yardShipping) {
+      changedFields.shippingDetails = [
+        String(form.ownShipping || "").trim() !== "" ? `Own shipping: ${form.ownShipping}` : "",
+        String(form.yardShipping || "").trim() !== "" ? `Yard shipping: ${form.yardShipping}` : "",
+      ]
+        .filter(Boolean)
+        .join(" | ");
+    }
+
+    try {
+      const { data } = await API.patch(
+        `/orders/${encodeURIComponent(orderNo)}/additionalInfo/${yardIndex + 1}`,
+        changedFields,
+        { params: { firstName } }
+      );
+
+      setToast(data?.message || `Yard ${yardIndex + 1} details updated successfully!`);
+    } catch (err) {
+      console.error("Error updating yard:", err);
+      const message = err?.response?.data?.message || "Server error while updating yard.";
+      setToast(message);
+    }
+  };
+
   if (!open) return null;
 
   return (
@@ -166,7 +296,18 @@ export default function YardEditModal({ open, initial, order, orderNo, yardIndex
             Desc: {order?.desc || order?.description || "—"}
           </div>
         </header>
-        <div className="p-5 space-y-4 max-h-[80vh] overflow-y-auto">
+        <div
+          className="p-5 space-y-4 max-h-[80vh] overflow-y-auto"
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              const tag = e.target?.tagName?.toLowerCase();
+              if (tag && tag !== "textarea") {
+                e.preventDefault();
+                handleSave();
+              }
+            }
+          }}
+        >
           {/* Names / rating */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <Field label="Yard Name"><Input value={form.yardName} onChange={set("yardName")} /></Field>
@@ -236,77 +377,7 @@ export default function YardEditModal({ open, initial, order, orderNo, yardIndex
         <footer className="flex items-center justify-end gap-2 px-5 py-3 border-t border-white/20">
           <button onClick={onClose} className="px-3 py-1.5 rounded-md bg-white/10 border border-white/20 hover:bg-white/20">Close</button>
           <button
-            onClick={async () => {
-  if (!validate()) return;
-
-  const firstName = localStorage.getItem("firstName") || "System";
-  const orderNo = order?.orderNo;
-
-  const changedFields = {};
-  Object.keys(form).forEach((key) => {
-    const oldVal = (initial?.[key] ?? "").toString().trim();
-    const newVal = (form[key] ?? "").toString().trim();
-    if (oldVal !== newVal) {
-      changedFields[key] = form[key];
-    }
-  });
-
-  // 🧹 Frontend cleanup for derived shipping fields
-  if (changedFields.ownShipping !== undefined) {
-    const oldOwn = (initial?.ownShipping ?? extractOwn(initial?.shippingDetails) ?? "").toString().trim();
-    const newOwn = String(form.ownShipping ?? "").trim();
-    if (oldOwn === newOwn) delete changedFields.ownShipping;
-  }
-  if (changedFields.yardShipping !== undefined) {
-    const oldYard = (initial?.yardShipping ?? extractYard(initial?.shippingDetails) ?? "").toString().trim();
-    const newYard = String(form.yardShipping ?? "").trim();
-    if (oldYard === newYard) delete changedFields.yardShipping;
-  }
-
-  if (Object.keys(changedFields).length === 0) {
-    setToast("No changes detected.");
-    return;
-  }
-
-  // Add derived fields if relevant
-  if (changedFields.street || changedFields.city || changedFields.state || changedFields.zipcode) {
-    changedFields.address = `${form.street} ${form.city} ${form.state} ${form.zipcode}`.trim();
-  }
-
-  if (changedFields.ownShipping || changedFields.yardShipping) {
-    changedFields.shippingDetails = [
-      String(form.ownShipping || "").trim() !== "" ? `Own shipping: ${form.ownShipping}` : "",
-      String(form.yardShipping || "").trim() !== "" ? `Yard shipping: ${form.yardShipping}` : "",
-    ]
-      .filter(Boolean)
-      .join(" | ");
-  }
-
-  try {
-    const res = await fetch(
-      `${import.meta.env.VITE_API_BASE || "http://localhost:5000"}/orders/${encodeURIComponent(
-        orderNo
-      )}/additionalInfo/${yardIndex + 1}?firstName=${encodeURIComponent(firstName)}`,
-      {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(changedFields),
-      }
-    );
-
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      setToast(data?.message || "Failed to update yard details");
-      return;
-    }
-
-    setToast(`Yard ${yardIndex + 1} details updated successfully!`);
-  } catch (err) {
-    console.error("Error updating yard:", err);
-    setToast("Server error while updating yard.");
-  }
-}}
-
+            onClick={handleSave}
             className="px-3 py-1.5 rounded-md bg-white text-[#04356d] border border-white/20 hover:bg-white/90"
           >
             Save
@@ -316,8 +387,7 @@ export default function YardEditModal({ open, initial, order, orderNo, yardIndex
           message={toast}
           onClose={() => {
             setToast("");
-            onClose();
-            window.location.reload();
+          onClose();
           }}
         />
       </div>

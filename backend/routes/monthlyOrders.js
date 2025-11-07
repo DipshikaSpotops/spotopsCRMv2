@@ -11,29 +11,41 @@ const TZ = 'America/Chicago';
 function buildDateRange(q) {
   const { start, end, month, year } = q;
 
+  // Manual date range (calendar picker)
   if (start && end) {
-    const startDate = moment.tz(start, TZ).startOf('day').toDate();
-    const endDate   = moment.tz(end,   TZ).endOf('day').toDate();
-    return { startDate, endDate };
+    const startMoment = moment.tz(start, TZ).startOf("day");
+    const endExclusiveMoment = moment.tz(end, TZ).endOf("day").add(1, "millisecond");
+
+    return {
+      startDate: startMoment.toDate(),
+      endDate: endExclusiveMoment.toDate(),
+      exclusiveEnd: true,
+    };
   }
 
+  // Month + year path
   if (month && year) {
     const monthIndex = isNaN(month)
       ? { Jan:0, Feb:1, Mar:2, Apr:3, May:4, Jun:5, Jul:6, Aug:7, Sep:8, Oct:9, Nov:10, Dec:11 }[month]
       : parseInt(month, 10) - 1;
 
     const y = parseInt(year, 10);
-    if (isNaN(monthIndex) || isNaN(y)) {
-      throw new Error('Invalid month or year format');
-    }
+    if (isNaN(monthIndex) || isNaN(y)) throw new Error("Invalid month/year");
 
-    const startDate = moment.tz({ year: y, month: monthIndex, day: 1 }, TZ).startOf('month').toDate();
-    const endDate   = moment(startDate).add(1, 'month').toDate(); // start of next month
-    return { startDate, endDate };
+    const startDateMoment = moment.tz({ year: y, month: monthIndex }, TZ).startOf("month");
+    const endExclusiveMoment = startDateMoment.clone().add(1, "month");
+
+    const startDate = startDateMoment.toDate();
+    const endDate = endExclusiveMoment.toDate();
+
+    console.log(" Final query range (DST-safe):", startDate, "to <", endDate);
+    return { startDate, endDate, exclusiveEnd: true };
   }
 
-  throw new Error('Provide either start/end or month/year');
+  throw new Error("Provide either start/end or month/year");
 }
+
+
 
 // GET /orders/monthlyOrders  (secured)
 router.get('/', requireAuth, allow('Admin', 'Sales', 'Support'), async (req, res) => {
@@ -52,10 +64,14 @@ router.get('/', requireAuth, allow('Admin', 'Sales', 'Support'), async (req, res
     } = req.query;
 
     // 1) Date range
-    const { startDate, endDate } = buildDateRange({ start, end, month, year });
-
+    const { startDate, endDate, exclusiveEnd } = buildDateRange({ start, end, month, year });
+    console.log("Final query range (computed in route):", startDate, exclusiveEnd ? `to < ${endDate}` : endDate);
     // 2) Base query
-    const query = { orderDate: { $gte: startDate, $lt: endDate } };
+    const query = {
+      orderDate: exclusiveEnd
+        ? { $gte: startDate, $lt: endDate }
+        : { $gte: startDate, $lte: endDate },
+    };
 
     // 3) Text search
     if (q && q.trim()) {

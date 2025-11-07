@@ -6,11 +6,12 @@ import React, {
   useRef,
   useState,
 } from "react";
-import axios from "axios";
+import API from "../api";
 import { useNavigate } from "react-router-dom";
 import UnifiedDatePicker from "./UnifiedDatePicker";
 import AgentDropdown from "./AgentDropdown";
 import { formatInTimeZone } from "date-fns-tz";
+import { prettyFilterLabel } from "../utils/dateUtils";
 import {
   FaChevronLeft,
   FaChevronRight,
@@ -28,19 +29,6 @@ const TZ = "America/Chicago";
 const ROWS_PER_PAGE = 25;
 const BAD_STATUSES = new Set(["Order Cancelled", "Refunded", "Dispute"]);
 
-//  Handles both local (Vite dev) and EC2 (nginx) seamlessly
-const API_BASE = (() => {
-  const envBase = import.meta.env.VITE_API_BASE_URL_URL?.replace(/\/$/, "");
-  if (envBase) return envBase; 
-  if (window.location.hostname === "localhost") {
-    return "http://localhost:5000/api";
-  }
-
-  // default for prod server
-  return "/api";
-})();
-const TOKEN_API = (userId) => `${API_BASE}/auth/token/${userId}`;
-
 // utils
 const currency = (n) => `$${(Number(n) || 0).toFixed(2)}`;
 const formatDateSafe = (dateStr) => {
@@ -56,21 +44,6 @@ const buildDefaultFilter = () => {
   const year = Number(formatInTimeZone(now, TZ, "yyyy"));
   return { month, year, limit: "all" };
 };
-const prettyFilterLabel = (filter) => {
-  if (!filter) return "";
-  if (filter.month && filter.year) return `${filter.month} ${filter.year}`;
-  if (filter.start && filter.end) {
-    const s = new Date(filter.start);
-    const e = new Date(filter.end);
-    return `${formatInTimeZone(s, TZ, "d MMM yyyy")} – ${formatInTimeZone(
-      e,
-      TZ,
-      "d MMM yyyy"
-    )}`;
-  }
-  return "";
-};
-
 // localStorage helpers
 const getLS = (k, def = "") => {
   try {
@@ -84,7 +57,7 @@ const setLS = (k, v) => {
   try {
     if (v == null || v === "") localStorage.removeItem(k);
     else localStorage.setItem(k, v);
-  } catch {}
+  } catch { }
 };
 const getJSON = (k) => {
   try {
@@ -99,7 +72,7 @@ const setJSON = (k, v) => {
   try {
     if (!v) localStorage.removeItem(k);
     else localStorage.setItem(k, JSON.stringify(v));
-  } catch {}
+  } catch { }
 };
 
 /* =========================
@@ -159,13 +132,13 @@ function parseShippingCostStrict(field) {
 
 /** Your exact yard spending formulas per yard */
 function computeYardSpendForInfo(info = {}) {
-  const shippingCost           = parseShippingCostStrict(info?.shippingDetails);
-  const partPrice              = parseFloat(info?.partPrice || 0) || 0;
-  const others                 = parseFloat(info?.others || 0) || 0;
-  const refundedAmount         = parseFloat(info?.refundedAmount || 0) || 0;
+  const shippingCost = parseShippingCostStrict(info?.shippingDetails);
+  const partPrice = parseFloat(info?.partPrice || 0) || 0;
+  const others = parseFloat(info?.others || 0) || 0;
+  const refundedAmount = parseFloat(info?.refundedAmount || 0) || 0;
   const custOwnShipReplacement = parseFloat(info?.custOwnShipReplacement || 0) || 0;
-  const yardOwnShipping        = parseFloat(info?.yardOwnShipping || 0) || 0;
-  const custOwnShippingReturn  = parseFloat(info?.custOwnShippingReturn || 0) || 0;
+  const yardOwnShipping = parseFloat(info?.yardOwnShipping || 0) || 0;
+  const custOwnShippingReturn = parseFloat(info?.custOwnShippingReturn || 0) || 0;
 
   // Yard spending (the one you want to sum)
   const yardSpendTotal =
@@ -288,6 +261,12 @@ export default function OrdersTable({
   denominatorEndpoint,
   showOrdersCountInTotals = true,
   showTotalsButton = true,
+  onRowsChange,
+  paramsBuilder,
+  fetchOverride,
+  totalLabel,
+  showTotalsNearPill = false,
+  
 }) {
   const navigate = useNavigate();
 
@@ -356,8 +335,8 @@ export default function OrdersTable({
   const [userRole, setUserRole] = useState(null);
   const [firstName, setFirstName] = useState("");
   useEffect(() => {
-  setUserRole((localStorage.getItem("role") || "").trim());
-  setFirstName((localStorage.getItem("firstName") || "").trim());
+    setUserRole((localStorage.getItem("role") || "").trim());
+    setFirstName((localStorage.getItem("firstName") || "").trim());
   }, []);
 
   // persist page + scroll to top on manual page change
@@ -368,47 +347,26 @@ export default function OrdersTable({
     }
   }, [currentPage]);
 
-  // token bootstrap
-  const ensureToken = useCallback(async () => {
-    let token = null;
-    try {
-      token = localStorage.getItem("token");
-    } catch {}
-    if (token) return token;
-    const userId = localStorage.getItem("userId");
-    if (!userId) return null;
-    try {
-      const res = await axios.get(TOKEN_API(userId));
-      if (res.status === 200 && res.data?.token) {
-        localStorage.setItem("token", res.data.token);
-        return res.data.token;
-      }
-    } catch (e) {
-      console.error("Error fetching token:", e);
-    }
-    return null;
-  }, []);
-
   // build params
-  const buildParams = (filter = {}) => {
-    const params = { limit: "all" };
+  const defaultBuildParams = (filter = {}) => {
+    const params = { /* no limit by default to avoid 500s on some endpoints */ };
     if (filter.start && filter.end) {
-      params.start = new Date(filter.start).toISOString();
-      params.end = new Date(filter.end).toISOString();
-      return params;
+      // if filter already has ISO strings, no need to re-ISO them
+      params.start = filter.start;
+      params.end = filter.end;
+    } else {
+      const month = filter.month || buildDefaultFilter().month;
+      const year = filter.year || buildDefaultFilter().year;
+      params.month = month;
+      params.year = year;
     }
-    const month = filter.month || buildDefaultFilter().month;
-    const year = filter.year || buildDefaultFilter().year;
-    params.month = month;
-    params.year = year;
     return params;
   };
-
   // compute endpoint URL
   const endpointURL = useMemo(() => {
-    if (/^https?:\/\//i.test(endpoint)) return endpoint;
-    return `${API_BASE}${endpoint}`;
+    return /^https?:\/\//i.test(endpoint) ? endpoint : endpoint;
   }, [endpoint]);
+
 
   // fetch data
   const fetchOrders = useCallback(
@@ -416,25 +374,58 @@ export default function OrdersTable({
       setLoading(true);
       setError("");
       try {
-        const token = await ensureToken();
-        const headers = token ? { Authorization: `Bearer ${token}` } : {};
-        const params = buildParams(filter || activeFilter || buildDefaultFilter());
-        const res = await axios.get(endpointURL, { params, headers });
-        const data = Array.isArray(res.data)
-          ? res.data
-          : Array.isArray(res.data?.orders)
-          ? res.data.orders
-          : [];
+        const baseFilter = filter || activeFilter || buildDefaultFilter();
+        const params = typeof paramsBuilder === "function"
+          ? paramsBuilder({
+            filter: baseFilter,
+            query: appliedQuery,
+            sortBy,
+            sortOrder,
+            selectedAgent,
+            userRole,
+            firstName,
+          })
+          : defaultBuildParams(baseFilter);
+
+        let data = [];
+        if (typeof fetchOverride === "function") {
+          // Let the parent fully control how rows are fetched (e.g., merge 2 endpoints)
+          data = await fetchOverride({
+            filter: baseFilter,
+            query: appliedQuery,
+            sortBy,
+            sortOrder,
+            selectedAgent,
+            userRole,
+            firstName,
+          });
+        } else {
+          console.log("[OrdersTable] GET", endpointURL, params);
+          const res = await API.get(endpointURL, { params });
+          data = Array.isArray(res.data)
+            ? res.data
+            : Array.isArray(res.data?.orders)
+              ? res.data.orders
+              : [];
+        }
         setOrders(data);
       } catch (e) {
-        console.error("Error fetching orders:", e);
+        if (e?.response) {
+          console.error("Error fetching orders:", {
+            status: e.response.status,
+            url: (e.config?.baseURL || "") + (e.config?.url || ""),
+            data: e.response.data,
+          });
+        } else {
+          console.error("Error fetching orders:", e);
+        }
         setError("Failed to load orders.");
         setOrders([]);
       } finally {
         setLoading(false);
       }
     },
-    [activeFilter, ensureToken, endpointURL]
+    [activeFilter, endpointURL, appliedQuery, sortBy, sortOrder, selectedAgent, userRole, firstName, fetchOverride, paramsBuilder]
   );
 
   useEffect(() => {
@@ -458,89 +449,83 @@ export default function OrdersTable({
       setRestoredScroll(true);
     }
   }, [orders, SCROLL_KEY]);
-// ===== Fetch denominator for Cancellation Rate =====
-const fetchDenominator = useCallback(async () => {
-  if (!computeCancellationRate) return;
-  try {
-    const token = await ensureToken();
-    const headers = token ? { Authorization: `Bearer ${token}` } : {};
-
-    // same date params as the grid
-    const params = { ...buildParams(activeFilter || buildDefaultFilter()), limit: "all" };
-
-    // same role narrowing as the grid
-    const role = (userRole || "").toLowerCase();
-    if (role === "sales") {
-      params.salesAgent = firstName;
-    } else if (role === "admin") {
-      if (selectedAgent && selectedAgent !== "Select" && selectedAgent !== "All") {
-        params.salesAgent = selectedAgent;
+  // ===== Fetch denominator for Cancellation Rate =====
+  const fetchDenominator = useCallback(async () => {
+    if (!computeCancellationRate) return;
+    try {
+      // same role narrowing as the grid
+      const role = (userRole || "").toLowerCase();
+      if (role === "sales") {
+        params.salesAgent = firstName;
+      } else if (role === "admin") {
+        if (selectedAgent && selectedAgent !== "Select" && selectedAgent !== "All") {
+          params.salesAgent = selectedAgent;
+        }
       }
+
+      const url = /^https?:\/\//i.test(denominatorEndpoint)
+        ? denominatorEndpoint
+        : denominatorEndpoint; // relative; API.baseURL will prefix
+      console.log("[OrdersTable] GET (denom)", url, params);
+      const res = await API.get(url, { params });
+      const raw = Array.isArray(res.data) ? res.data : (res.data?.orders || []);
+
+      // Denominator = ALL orders in the same window/scope
+      const denom = Array.isArray(raw) ? raw.length : 0;
+      setDenomCount(denom);
+
+      // Numerator (bad) = Cancelled + Refunded + Dispute in that same window/scope
+      const bad = Array.isArray(raw)
+        ? raw.reduce(
+          (n, o) => n + (BAD_STATUSES.has((o?.orderStatus || "").trim()) ? 1 : 0),
+          0
+        )
+        : 0;
+      setBadCount(bad);
+    } catch (e) {
+      console.error("Error fetching denominator:", e);
+      setDenomCount(0);
+      setBadCount(0);
     }
+  }, [computeCancellationRate, activeFilter, userRole, firstName, selectedAgent, denominatorEndpoint]);
 
-    const url = /^https?:\/\//i.test(denominatorEndpoint)
-      ? denominatorEndpoint
-      : `${API_BASE}${denominatorEndpoint}`;
-
-    const res = await axios.get(url, { params, headers });
-const raw = Array.isArray(res.data) ? res.data : (res.data?.orders || []);
-
-// Denominator = ALL orders in the same window/scope
-const denom = Array.isArray(raw) ? raw.length : 0;
-setDenomCount(denom);
-
-// Numerator (bad) = Cancelled + Refunded + Dispute in that same window/scope
-const bad = Array.isArray(raw)
-  ? raw.reduce(
-      (n, o) => n + (BAD_STATUSES.has((o?.orderStatus || "").trim()) ? 1 : 0),
-      0
-    )
-  : 0;
-setBadCount(bad);
-} catch (e) {
-  console.error("Error fetching denominator:", e);
-  setDenomCount(0);
-  setBadCount(0);
-}
-}, [computeCancellationRate, activeFilter, ensureToken, userRole, firstName, selectedAgent, denominatorEndpoint]);
-
-useEffect(() => {
-  fetchDenominator();
-}, [fetchDenominator]);
+  useEffect(() => {
+    fetchDenominator();
+  }, [fetchDenominator]);
 
   // derived rows
   const rowsWithDerived = useMemo(() => {
-  return orders.map((o) => {
-    const currentGP = showGP ? calculateCurrentGP(o) : 0;
-    let actualGP = parseFloat(o?.actualGP);
-if (isNaN(actualGP)) actualGP = 0;
+    return orders.map((o) => {
+      const currentGP = showGP ? calculateCurrentGP(o) : 0;
+      let actualGP = parseFloat(o?.actualGP);
+      if (isNaN(actualGP)) actualGP = 0;
 
-    const customerName =
-      o?.fName && o?.lName ? `${o.fName} ${o.lName}` : o?.customerName || "";
-    const partName = o?.pReq || o?.partName || "";
+      const customerName =
+        o?.fName && o?.lName ? `${o.fName} ${o.lName}` : o?.customerName || "";
+      const partName = o?.pReq || o?.partName || "";
 
-    // NEW: derived fields for sorting
-    const yards = Array.isArray(o?.additionalInfo) ? o.additionalInfo : [];
-    const firstYardName = yards[0]?.yardName || ""; // sort by this for "Yard Details"
-    const refundedBy = getRefundedByFromHistory(o) || o?.refundedBy || "";
-    const cancelledBy    = getCancelledByFromHistory(o)  || o?.cancelledBy || "";
-    const totalYardSpend = computeTotalYardSpend(o);
+      // NEW: derived fields for sorting
+      const yards = Array.isArray(o?.additionalInfo) ? o.additionalInfo : [];
+      const firstYardName = yards[0]?.yardName || ""; // sort by this for "Yard Details"
+      const refundedBy = getRefundedByFromHistory(o) || o?.refundedBy || "";
+      const cancelledBy = getCancelledByFromHistory(o) || o?.cancelledBy || "";
+      const totalYardSpend = computeTotalYardSpend(o);
 
-    return {
-      ...o,
-      _currentGP: currentGP,
-      _actualGP: actualGP,
-      _customerName: customerName,
-      _partName: partName,
-      _yardName: firstYardName,
-      _refundedBy: refundedBy,
-      _cancelledBy: cancelledBy,
-      _totalYardSpend: totalYardSpend,
-      cancelledBy,
-      
-    };
-  });
-}, [orders, showGP]);
+      return {
+        ...o,
+        _currentGP: currentGP,
+        _actualGP: actualGP,
+        _customerName: customerName,
+        _partName: partName,
+        _yardName: firstYardName,
+        _refundedBy: refundedBy,
+        _cancelledBy: cancelledBy,
+        _totalYardSpend: totalYardSpend,
+        cancelledBy,
+
+      };
+    });
+  }, [orders, showGP]);
 
   // agent options
   const agentOptions = useMemo(() => {
@@ -554,26 +539,26 @@ if (isNaN(actualGP)) actualGP = 0;
   }, [rowsWithDerived]);
 
   // agent filter
-const filteredByRole = useMemo(() => {
-  if ((userRole || "").toLowerCase() === "sales") {
-    const me = firstName.toLowerCase();
-    return rowsWithDerived.filter(
-      (o) => (o?.salesAgent || "").toLowerCase() === me
-    );
-  }
-  // Admin & Support see everything
-  return rowsWithDerived;
-}, [rowsWithDerived, userRole, firstName]);
+  const filteredByRole = useMemo(() => {
+    if ((userRole || "").toLowerCase() === "sales") {
+      const me = firstName.toLowerCase();
+      return rowsWithDerived.filter(
+        (o) => (o?.salesAgent || "").toLowerCase() === me
+      );
+    }
+    // Admin & Support see everything
+    return rowsWithDerived;
+  }, [rowsWithDerived, userRole, firstName]);
 
-// 2) Admin-only agent narrowing (Select/All=no narrowing)
-const agentFiltered = useMemo(() => {
-  if ((userRole || "").toLowerCase() !== "admin") return filteredByRole;
-  if (selectedAgent === "Select" || selectedAgent === "All") return filteredByRole;
-  const needle = (selectedAgent || "").toLowerCase();
-  return filteredByRole.filter(
-    (o) => (o?.salesAgent || "").toLowerCase().includes(needle)
-  );
-}, [filteredByRole, userRole, selectedAgent]);
+  // 2) Admin-only agent narrowing (Select/All=no narrowing)
+  const agentFiltered = useMemo(() => {
+    if ((userRole || "").toLowerCase() !== "admin") return filteredByRole;
+    if (selectedAgent === "Select" || selectedAgent === "All") return filteredByRole;
+    const needle = (selectedAgent || "").toLowerCase();
+    return filteredByRole.filter(
+      (o) => (o?.salesAgent || "").toLowerCase().includes(needle)
+    );
+  }, [filteredByRole, userRole, selectedAgent]);
 
   // search filter
   const searchedRows = useMemo(() => {
@@ -645,10 +630,10 @@ const agentFiltered = useMemo(() => {
     const toVal = (row) => {
       let v = row[key];
       if (sortBy === "customerName") v = row._customerName;
-      if (sortBy === "partName")     v = row._partName; 
-      if (sortBy === "yardName")       v = row._yardName;         // string
-      if (sortBy === "refundedBy")     v = row._refundedBy;       // string
-      if (sortBy === "cancelledBy")  v = row._cancelledBy;
+      if (sortBy === "partName") v = row._partName;
+      if (sortBy === "yardName") v = row._yardName;         // string
+      if (sortBy === "refundedBy") v = row._refundedBy;       // string
+      if (sortBy === "cancelledBy") v = row._cancelledBy;
       if (sortBy === "totalYardSpend") return parseFloat(row._totalYardSpend) || 0;
       if (String(sortBy).toLowerCase().includes("date")) {
         const t = new Date(v || 0).getTime();
@@ -670,7 +655,10 @@ const agentFiltered = useMemo(() => {
     });
     return arr;
   }, [searchedRows, sortBy, sortOrder]);
-
+  // NEW: notify parent whenever the visible, sorted rows change
+  useEffect(() => {
+    if (typeof onRowsChange === "function") onRowsChange(sortedRows);
+  }, [sortedRows, onRowsChange]);
   // pagination
   const totalRows = sortedRows.length;
   const totalPages = Math.max(1, Math.ceil(totalRows / ROWS_PER_PAGE));
@@ -692,13 +680,13 @@ const agentFiltered = useMemo(() => {
     }
     return { totalEstGP: est, totalCurrentGP: cur, totalActualGP: act };
   }, [sortedRows, showGP]);
-useEffect(() => {
-  // count cancelled + refunded + dispute in the current view
-  const bad = sortedRows.reduce((acc, row) => {
-    return acc + (BAD_STATUSES.has(row?.orderStatus) ? 1 : 0);
-  }, 0);
-  setBadCount(bad);
-}, [sortedRows]);
+  useEffect(() => {
+    // count cancelled + refunded + dispute in the current view
+    const bad = sortedRows.reduce((acc, row) => {
+      return acc + (BAD_STATUSES.has(row?.orderStatus) ? 1 : 0);
+    }, 0);
+    setBadCount(bad);
+  }, [sortedRows]);
 
   // scroll to highlighted row (unless we restored scroll)
   useEffect(() => {
@@ -740,26 +728,30 @@ useEffect(() => {
   return (
     <div className="min-h-screen p-6 overflow-x-hidden">
       {/* ===== Header row ===== */}
-      <div className="mb-3 flex items-center gap-3">
+      <div className="mb-3 flex flex-wrap items-center gap-3">
         <h2 className="text-3xl font-bold text-white underline decoration-1">
           {title}
         </h2>
 
-        {showAgentFilter && userRole === "Admin" && (
-          <AgentDropdown
-            options={agentOptions}
-            value={selectedAgent}
-            onChange={(val) => {
-              setSelectedAgent(val);
-              setCurrentPage(1);
-            }}
-            className="ml-2"
-          />
+        {/* Show total label under title only for pages that DO NOT use "totals near pill" */}
+        {!showTotalsNearPill && totalLabel && (
+          <p className="text-sm text-white/70 mt-1">{totalLabel}</p>
         )}
-
-        {/* Right block: search + date + eye */}
+        {/* RIGHT cluster: pager -> search (same width) -> eye */}
         <div className="ml-auto flex items-center gap-3">
-          {/* Search */}
+          {/* Pager */}
+          {showAgentFilter && userRole === "Admin" && (
+            <AgentDropdown
+              options={agentOptions}
+              value={selectedAgent}
+              onChange={(val) => {
+                setSelectedAgent(val);
+                setCurrentPage(1);
+              }}
+              className="ml-2"
+            />
+          )}
+          {/* Search (same width as before) */}
           <form
             onSubmit={(e) => {
               e.preventDefault();
@@ -812,7 +804,41 @@ useEffect(() => {
             <input type="submit" hidden />
           </form>
 
-          {/* Date filter */}
+          {/* Eye button */}
+          {showTotalsButton && (
+            <button
+              onClick={() => setShowTotalsModal(true)}
+              className="inline-flex items-center gap-2 rounded-lg px-3 py-2 bg-[#1f4c74] hover:bg-[#215784] text-white border border-white/15"
+              title="View totals"
+            >
+              <FaEye />
+            </button>
+          )}
+        </div>
+      </div>
+
+
+      {/* ===== Subheader: totals + pagination (right) ===== */}
+      <div className="mb-4 flex items-center justify-between">
+        {/* LEFT: totals + active filter + date picker */}
+        <div className="flex items-center gap-4">
+          {showTotalsNearPill ? (
+            // For pages like CancelledRefundedReport
+            <p className="text-sm text-white/80">{totalLabel}</p>
+          ) : (
+            // For all other pages
+            <p className="text-sm text-white/80">
+              Total Orders: <strong>{sortedRows.length}</strong>
+            </p>
+          )}
+
+
+          {activeFilter && (
+            <span className="inline-flex items-center gap-2 rounded-full bg-white/5 border border-white/15 px-3 py-1 text-xs text-white/70">
+              {prettyFilterLabel(activeFilter)}
+            </span>
+          )}
+
           <UnifiedDatePicker
             key={JSON.stringify(activeFilter)}
             value={activeFilter}
@@ -825,64 +851,39 @@ useEffect(() => {
               setCurrentPage(1);
             }}
           />
-
-          {/* Eye button => totals */}
-          
-          {showTotalsButton && (
-            <button
-              onClick={() => setShowTotalsModal(true)}
-              className="inline-flex items-center gap-2 rounded-lg px-3 py-2 bg-[#1f4c74] hover:bg-[#215784] text-white border border-white/15"
-              title="View totals"
-            >
-              <FaEye />
-           </button>
-          )}
         </div>
-      </div>
 
-      {/* ===== Subheader: totals + pager ===== */}
-      <div className="mb-4 flex items-center gap-4">
-        <p className="text-sm text-white/80">
-          Total Orders: <strong>{sortedRows.length}</strong>
-        </p>
-
-        {activeFilter && (
-          <span className="inline-flex items-center gap-2 rounded-full bg-white/5 border border-white/15 px-3 py-1 text-xs text-white/70">
-            {prettyFilterLabel(activeFilter)}
-          </span>
-        )}
-
+        {/* RIGHT: compact pagination */}
         <div className="flex items-center gap-2 text-white font-medium">
           <button
             disabled={safePage === 1}
             onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-            className={`px-3 py-1 rounded-full transition ${
-              safePage === 1
-                ? "bg-gray-600 text-gray-400 cursor-not-allowed"
-                : "bg-gray-700 hover:bg-gray-600"
-            }`}
+            className={`h-6 px-2 rounded-full transition ${safePage === 1
+              ? "bg-gray-600 text-gray-400 cursor-not-allowed"
+              : "bg-gray-700 hover:bg-gray-600"
+              }`}
+            aria-label="Previous page"
           >
-            <FaChevronLeft size={14} />
+            <FaChevronLeft size={12} />
           </button>
 
-          <span className="px-4 py-1 bg-gray-800 rounded-full text-sm shadow">
-            Page <strong>{safePage}</strong> of {totalPages}
+          <span className="h-6 px-3 inline-flex items-center justify-center bg-gray-800 rounded-full text-xs shadow">
+            Page <strong className="mx-1">{safePage}</strong> of {totalPages}
           </span>
 
           <button
             disabled={safePage === totalPages}
             onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-            className={`px-3 py-1 rounded-full transition ${
-              safePage === totalPages
-                ? "bg-gray-600 text-gray-400 cursor-not-allowed"
-                : "bg-gray-700 hover:bg-gray-600"
-            }`}
+            className={`h-6 px-2 rounded-full transition ${safePage === totalPages
+              ? "bg-gray-600 text-gray-400 cursor-not-allowed"
+              : "bg-gray-700 hover:bg-gray-600"
+              }`}
+            aria-label="Next page"
           >
-            <FaChevronRight size={14} />
+            <FaChevronRight size={12} />
           </button>
         </div>
       </div>
-
       {/* ===== Desktop table ===== */}
       <div
         ref={tableScrollRef}
@@ -922,11 +923,10 @@ useEffect(() => {
                     key={row.orderNo || `${row.orderDate}-${Math.random()}`}
                     id={`row-${row.orderNo}`}
                     onClick={() => toggleHighlight(row.orderNo)}
-                    className={`transition text-sm cursor-pointer ${
-                      isHighlighted
-                        ? "bg-yellow-500/20 ring-2 ring-yellow-400"
-                        : "even:bg-white/5 odd:bg-white/10 hover:bg-white/20"
-                    }`}
+                    className={`transition text-sm cursor-pointer ${isHighlighted
+                      ? "bg-yellow-500/20 ring-2 ring-yellow-400"
+                      : "even:bg-white/5 odd:bg-white/10 hover:bg-white/20"
+                      }`}
                   >
                     {columns.map((col) => (
                       <td
@@ -965,8 +965,8 @@ useEffect(() => {
           </tbody>
         </table>
       </div>
-  {/* Fixed horizontal scrollbar that mirrors the table’s X scroll */}
-    <StickyXScrollbar targetRef={tableScrollRef} bottom={0} height={14} />
+      {/* Fixed horizontal scrollbar that mirrors the table’s X scroll */}
+      <StickyXScrollbar targetRef={tableScrollRef} bottom={0} height={14} />
       {/* ===== Mobile cards ===== */}
       <div className="md:hidden flex-1 min-h-0 overflow-y-auto space-y-3 mt-4">
         {pageRows.length === 0 ? (
@@ -981,11 +981,10 @@ useEffect(() => {
                 key={row.orderNo || `${row.orderDate}-${Math.random()}`}
                 id={`row-${row.orderNo}`}
                 onClick={() => toggleHighlight(row.orderNo)}
-                className={`rounded-xl p-4 backdrop-blur-md border text-white transition ${
-                  isHighlighted
-                    ? "bg-yellow-500/20 ring-2 ring-yellow-400 border-white/15"
-                    : "bg-white/10 border-white/15"
-                }`}
+                className={`rounded-xl p-4 backdrop-blur-md border text-white transition ${isHighlighted
+                  ? "bg-yellow-500/20 ring-2 ring-yellow-400 border-white/15"
+                  : "bg-white/10 border-white/15"
+                  }`}
               >
                 <div className="flex items-center justify-between">
                   <div className="font-semibold">{row.orderNo || "-"}</div>
@@ -1070,11 +1069,11 @@ useEffect(() => {
                   );
                 }
                 if (typeof extraTotals === "function") {
-  const extra = extraTotals(sortedRows, { denomCount, badCount }) || [];
-  extra.forEach((e) => lines.push([e.name, e.value]));
-}
+                  const extra = extraTotals(sortedRows, { denomCount, badCount }) || [];
+                  extra.forEach((e) => lines.push([e.name, e.value]));
+                }
                 const text = lines.map(([k, v]) => `${k}: ${v}`).join("\n");
-                navigator.clipboard?.writeText(text).catch(() => {});
+                navigator.clipboard?.writeText(text).catch(() => { });
               }}
               className="px-3 py-2 rounded border border-white/20 hover:bg-white/10"
             >
@@ -1092,12 +1091,12 @@ useEffect(() => {
               </thead>
               <tbody>
                 {showOrdersCountInTotals && (
-                <tr className="even:bg-white/5 odd:bg-white/0">
-                  <td className="px-3 py-2">Orders</td>
-                  <td className="px-3 py-2 text-right font-semibold">
-                    {sortedRows.length}
-                  </td>
-                </tr>
+                  <tr className="even:bg-white/5 odd:bg-white/0">
+                    <td className="px-3 py-2">Orders</td>
+                    <td className="px-3 py-2 text-right font-semibold">
+                      {sortedRows.length}
+                    </td>
+                  </tr>
                 )}
 
                 {showGP && (
@@ -1124,15 +1123,15 @@ useEffect(() => {
                 )}
 
                 {/* Extra totals (e.g., cancellation rate, counts, etc.) */}
-              {typeof extraTotals === "function" &&
-  (extraTotals(sortedRows, { denomCount, badCount }) || []).map((item) => (
-    <tr key={item.name} className="even:bg-white/5 odd:bg-white/0">
-      <td className="px-3 py-2">{item.name}</td>
-      <td className="px-3 py-2 text-right font-semibold">
-        {item.value}
-      </td>
-    </tr>
-  ))}
+                {typeof extraTotals === "function" &&
+                  (extraTotals(sortedRows, { denomCount, badCount }) || []).map((item) => (
+                    <tr key={item.name} className="even:bg-white/5 odd:bg-white/0">
+                      <td className="px-3 py-2">{item.name}</td>
+                      <td className="px-3 py-2 text-right font-semibold">
+                        {item.value}
+                      </td>
+                    </tr>
+                  ))}
 
               </tbody>
             </table>

@@ -278,16 +278,48 @@ const LS_SHOWN = "udp_v2_shownDate";
 
 /* -------------------- helpers -------------------- */
 const toDallasDayUTCBounds = (startLike, endLike) => {
-  // Rebuild as Dallas calendar dates from Y/M/D (ignores original timezone)
-  const mkDallasDay = (dLike) => {
-    const d = dLike instanceof Date ? dLike : new Date(dLike);
-    return moment.tz(
-      { year: d.getFullYear(), month: d.getMonth(), day: d.getDate() },
-      ZONE
-    );
+  const mkDallasMoment = (value) => {
+    if (!value) return moment().tz(ZONE);
+
+    if (moment.isMoment(value)) {
+      return value.clone().tz(ZONE);
+    }
+
+    if (value instanceof Date) {
+      return moment.tz(
+        {
+          year: value.getFullYear(),
+          month: value.getMonth(),
+          day: value.getDate(),
+          hour: value.getHours(),
+          minute: value.getMinutes(),
+          second: value.getSeconds(),
+          millisecond: value.getMilliseconds(),
+        },
+        ZONE
+      );
+    }
+
+    if (typeof value === "string") {
+      const parsed = moment(value);
+      if (parsed.isValid()) {
+        return parsed.tz(ZONE);
+      }
+    }
+
+    const coerced = moment(value);
+    if (coerced.isValid()) {
+      return coerced.tz(ZONE);
+    }
+
+    return moment().tz(ZONE);
   };
-  const startUTC = mkDallasDay(startLike).startOf("day").utc().format();
-  const endUTC   = mkDallasDay(endLike).endOf("day").utc().format();
+
+  const startMoment = mkDallasMoment(startLike);
+  const endMoment = mkDallasMoment(endLike);
+
+  const startUTC = startMoment.clone().startOf("day").utc().format();
+  const endUTC = endMoment.clone().endOf("day").utc().format();
   return { startUTC, endUTC };
 };
 
@@ -295,7 +327,7 @@ const sameDallasDay = (a, b) =>
   moment.tz(a, ZONE).format("YYYY-MM-DD") === moment.tz(b, ZONE).format("YYYY-MM-DD");
 
 const monthNameToIndex = (name) => {
-  const idx = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"].indexOf(name);
+  const idx = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"].indexOf(name);
   return idx >= 0 ? idx : null;
 };
 
@@ -327,7 +359,12 @@ const filterToDates = (filter) => {
 };
 /* ------------------------------------------------- */
 
-const UnifiedDatePicker = ({ value, onFilterChange, buttonLabel = "Select Range" }) => {
+const UnifiedDatePicker = ({
+  value,
+  onFilterChange,
+  buttonLabel = "Select Range",
+  buttonClassName = "",
+}) => {
   const isControlled = value != null;
 
   const triggerRef = useRef(null);
@@ -351,7 +388,7 @@ const UnifiedDatePicker = ({ value, onFilterChange, buttonLabel = "Select Range"
           key: "selection",
         }];
       }
-    } catch {}
+    } catch { }
     return [{
       startDate: todayDallas.startOf("day").toDate(),
       endDate: todayDallas.endOf("day").toDate(),
@@ -364,7 +401,7 @@ const UnifiedDatePicker = ({ value, onFilterChange, buttonLabel = "Select Range"
     try {
       const saved = localStorage.getItem(LS_SHOWN);
       if (saved) return new Date(saved);
-    } catch {}
+    } catch { }
     return todayDallas.toDate();
   });
 
@@ -465,6 +502,14 @@ const UnifiedDatePicker = ({ value, onFilterChange, buttonLabel = "Select Range"
     onFilterChange?.({ start: startUTC, end: endUTC });
   };
 
+  const emitMonthToParent = (momentLike) => {
+    const monthMoment = moment.isMoment(momentLike)
+      ? momentLike
+      : moment(momentLike).tz(ZONE);
+    if (!monthMoment.isValid()) return;
+    onFilterChange?.({ month: monthMoment.format("MMM"), year: monthMoment.year() });
+  };
+
   /* ------------------ handlers: selection ------------------ */
   const handleSelect = (ranges) => {
     const { startDate, endDate } = ranges.selection;
@@ -480,12 +525,48 @@ const UnifiedDatePicker = ({ value, onFilterChange, buttonLabel = "Select Range"
     }
 
     setLastClick({ date: startDate, time: now });
-    setRange([ranges.selection]);
+  let nextStart = startDate;
+  let nextEnd = endDate;
 
-    if (startDate && endDate) {
-      setShownDate(startDate);
-      emitRangeToParent(startDate, endDate);
+  if (startDate && endDate) {
+    const startMoment = moment.tz(startDate, ZONE);
+    const endMoment = moment.tz(endDate, ZONE);
+
+    const isMonthPickerSelection =
+      startMoment.date() === 1 &&
+      endMoment.date() === 1 &&
+      endMoment.hour() === 0 &&
+      endMoment.minute() === 0 &&
+      endMoment.second() === 0 &&
+      endMoment.millisecond() === 0 &&
+      endMoment.diff(startMoment, "month") === 1;
+
+    if (isMonthPickerSelection) {
+      const monthStart = startMoment.clone().startOf("month");
+      const monthEnd = monthStart.clone().endOf("month");
+
+      nextStart = monthStart.toDate();
+      nextEnd = monthEnd.toDate();
+
+      setRange([{ startDate: nextStart, endDate: nextEnd, key: "selection" }]);
+      setShownDate(nextStart);
+      emitMonthToParent(monthStart);
+      return;
     }
+  }
+
+  const nextSelection = {
+    startDate: nextStart,
+    endDate: nextEnd,
+    key: "selection",
+  };
+
+  setRange([nextSelection]);
+
+  if (nextStart && nextEnd) {
+    setShownDate(nextStart);
+    emitRangeToParent(nextStart, nextEnd);
+  }
   };
 
   // Month/Year nav => snap to whole month
@@ -501,7 +582,7 @@ const UnifiedDatePicker = ({ value, onFilterChange, buttonLabel = "Select Range"
 
     setShownDate(startDate);
     setRange([{ startDate, endDate, key: "selection" }]);
-    emitRangeToParent(startDate, endDate);
+    emitMonthToParent(start);
   };
 
   const handleShortcut = (type) => {
@@ -512,12 +593,22 @@ const UnifiedDatePicker = ({ value, onFilterChange, buttonLabel = "Select Range"
       start = now.clone().startOf("day").toDate();
       end = now.clone().endOf("day").toDate();
     } else if (type === "thisMonth") {
-      start = now.clone().startOf("month").toDate();
-      end = now.clone().endOf("month").toDate();
+      const monthStart = now.clone().startOf("month");
+      const monthEnd = now.clone().endOf("month");
+      setRange([{ startDate: monthStart.toDate(), endDate: monthEnd.toDate(), key: "selection" }]);
+      setShownDate(monthStart.toDate());
+      emitMonthToParent(monthStart);
+      setShowCalendar(false);
+      return;
     } else if (type === "lastMonth") {
       const m = now.clone().subtract(1, "month");
-      start = m.clone().startOf("month").toDate();
-      end = m.clone().endOf("month").toDate();
+      const monthStart = m.clone().startOf("month");
+      const monthEnd = m.clone().endOf("month");
+      setRange([{ startDate: monthStart.toDate(), endDate: monthEnd.toDate(), key: "selection" }]);
+      setShownDate(monthStart.toDate());
+      emitMonthToParent(monthStart);
+      setShowCalendar(false);
+      return;
     } else if (type === "last3Months") {
       start = now.clone().subtract(3, "month").startOf("month").toDate();
       end = now.clone().endOf("month").toDate();
@@ -538,11 +629,15 @@ const UnifiedDatePicker = ({ value, onFilterChange, buttonLabel = "Select Range"
       <button
         ref={triggerRef}
         onClick={() => setShowCalendar((s) => !s)}
-        className="px-4 py-2 bg-[#04356d] hover:bg-[#3b89bf] text-white rounded shadow"
+        className={`inline-flex items-center justify-center
+              h-6 px-3 rounded-full text-xs leading-none
+              bg-[#04356d] hover:bg-[#3b89bf] text-white
+              border border-white/15 shadow`}
         type="button"
       >
         {buttonLabel}
       </button>
+
 
       {showCalendar && (
         <div

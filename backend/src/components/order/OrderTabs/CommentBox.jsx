@@ -20,7 +20,7 @@ function Toast({ message, onClose }) {
 }
 
 export default function CommentBox({ orderNo, mode = "support", yardIndex = null }) {
-  const baseUrl = import.meta.env.VITE_API_BASE_URL_URL;
+  const baseUrl = import.meta.env.VITE_API_BASE_URL;
   const [comments, setComments] = useState([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);

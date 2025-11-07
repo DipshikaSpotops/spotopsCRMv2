@@ -1,10 +1,67 @@
-import { useState, useEffect } from "react";
-import axios from "axios";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { STATES } from "../data/states";
 const SALES_AGENTS = ["David", "Dipshika", "John", "Mark", "Michael", "Richard", "Tristan"];
+const REQUIRED_FIELD_LABELS = {
+  orderNo: "Order No",
+  salesAgent: "Sales Agent",
+  fName: "First Name",
+  lName: "Last Name",
+  email: "Email",
+  phone: "Phone",
+  bName: "Billing Name",
+  bAddressStreet: "Billing Street",
+  bAddressCity: "Billing City",
+  bAddressState: "Billing State",
+  bAddressZip: "Billing Zip",
+  bAddressAcountry: "Billing Country",
+  sAttention: "Shipping Attention",
+  sAddressStreet: "Shipping Street",
+  sAddressCity: "Shipping City",
+  sAddressState: "Shipping State",
+  sAddressZip: "Shipping Zip",
+  sAddressAcountry: "Shipping Country",
+  make: "Make",
+  model: "Model",
+  year: "Year",
+  pReq: "Part Required",
+  warranty: "Warranty",
+  warrantyField: "Warranty Units",
+  vin: "VIN",
+  soldP: "Sale Price",
+  costP: "Est. Yard Price",
+  shippingFee: "Est. Shipping",
+  last4digits: "Last 4 Digits",
+  notes: "Order Notes",
+};
 import API from "../api";
 
+function Toast({ toast, onClose }) {
+  if (!toast) return null;
+
+  const isError = toast.variant === "error";
+  const background = isError ? "bg-red-100 text-red-900" : "bg-white text-black";
+  const buttonStyles = isError
+    ? "bg-red-500 text-white hover:bg-red-600"
+    : "bg-[#04356d] text-white hover:bg-[#021f4b]";
+
+  return (
+    <div
+      className={`fixed bottom-5 left-1/2 -translate-x-1/2 px-6 py-3 rounded-lg shadow-lg border border-gray-300 z-[200] text-sm font-medium flex items-center gap-4 ${background}`}
+    >
+      <span>{toast.message}</span>
+      <button
+        onClick={onClose}
+        className={`ml-3 px-3 py-1 text-sm font-semibold rounded-md transition ${buttonStyles}`}
+      >
+        OK
+      </button>
+    </div>
+  );
+}
+
 export default function AddOrder() {
+  const [toast, setToast] = useState(null);
+  const [submitting, setSubmitting] = useState(false);
   const [formData, setFormData] = useState({
     // Order basics
     orderNo: "",
@@ -44,6 +101,7 @@ export default function AddOrder() {
     pReq: "",
     desc: "",
     warranty: "",
+    warrantyField: "days",
     vin: "",
     partNo: "",
 
@@ -67,6 +125,12 @@ export default function AddOrder() {
 
   useEffect(() => {
     fetchParts();
+  }, []);
+
+  const normalizeWarrantyField = useCallback((quantity, unit) => {
+    const base = (unit || "").replace(/s$/i, "");
+    if (!quantity || quantity === 0) return `${base}s` || "days";
+    return quantity === 1 ? base : `${base}s`;
   }, []);
 
   async function fetchParts() {
@@ -95,63 +159,93 @@ export default function AddOrder() {
       setFormData({ ...formData, pReq: value });
     }
   }
-  let zipTimer;
+  const billingZipTimer = useRef(null);
+  const shippingZipTimer = useRef(null);
 
-  const handleZipChange = (zip, type) => {
-    clearTimeout(zipTimer);
-    zipTimer = setTimeout(async () => {
-      if (!zip) return;
+  const fetchZipDetails = useCallback(async (zipRaw) => {
+    const trimmed = (zipRaw || "").trim();
+    if (!trimmed) return null;
 
-      const cleanZip = zip.trim().toUpperCase().replace(/\s+/g, "");
+    const normalized = trimmed.replace(/\s+/g, "").toUpperCase();
 
-      try {
-        if (cleanZip.length === 5 && /^\d{5}$/.test(cleanZip)) {
-          const res = await axios.get(`https://api.zippopotam.us/us/${cleanZip}`);
-          const place = res.data.places[0];
+    try {
+      if (/^\d{5}$/.test(normalized)) {
+        const response = await fetch(`https://api.zippopotam.us/us/${normalized}`);
+        if (!response.ok) return null;
+        const data = await response.json();
+        const place = data?.places?.[0];
+        if (!place) return null;
+        return {
+          city: place["place name"] || "",
+          state: place["state abbreviation"] || "",
+          country: data?.["country abbreviation"] || "US",
+        };
+      }
 
-          setFormData((prev) => ({
-            ...prev,
-            ...(type === "b"
-              ? {
-                bAddressCity: place["place name"],
-                bAddressState: place["state abbreviation"],
-                bAddressAcountry: res.data["country abbreviation"],
-              }
-              : {
-                sAddressCity: place["place name"],
-                sAddressState: place["state abbreviation"],
-                sAddressAcountry: res.data["country abbreviation"],
-              }),
-          }));
-        }
-        // 🇨🇦 Canada ZIP Logic
-        else if (
-          cleanZip.length >= 3 &&
-          /^[A-Z]\d[A-Z]$/.test(cleanZip.slice(0, 3))
-        ) {
-          const res = await axios.get(
-            `https://api.zippopotam.us/CA/${cleanZip.slice(0, 3)}`
-          );
-          const place = res.data.places[0];
+      if (trimmed.length >= 4 && trimmed.includes(" ")) {
+        const segment = trimmed.slice(0, 3).toUpperCase();
+        if (!/^[A-Z]\d[A-Z]$/.test(segment)) return null;
+        const response = await fetch(`https://api.zippopotam.us/CA/${segment}`);
+        if (!response.ok) return null;
+        const data = await response.json();
+        const place = data?.places?.[0];
+        if (!place) return null;
+        return {
+          city: place["place name"] || "",
+          state: place["state abbreviation"] || "",
+          country: data?.country || "Canada",
+        };
+      }
+    } catch (error) {
+      console.debug("ZIP lookup skipped", error);
+    }
 
-          setFormData((prev) => ({
-            ...prev,
-            ...(type === "b"
-              ? {
-                bAddressState: place["state abbreviation"],
-                bAddressAcountry: res.data["country"],
-              }
-              : {
-                sAddressState: place["state abbreviation"],
-                sAddressAcountry: res.data["country"],
-              }),
-          }));
-        }
-      } catch (err) {
-        console.warn("Invalid ZIP:", cleanZip);
+    return null;
+  }, []);
+
+  useEffect(() => {
+    const zip = formData.bAddressZip;
+    if (billingZipTimer.current) clearTimeout(billingZipTimer.current);
+    if (!zip) return;
+
+    billingZipTimer.current = setTimeout(async () => {
+      const result = await fetchZipDetails(zip);
+      if (result) {
+        setFormData((prev) => ({
+          ...prev,
+          bAddressCity: result.city || prev.bAddressCity,
+          bAddressState: result.state || prev.bAddressState,
+          bAddressAcountry: result.country || prev.bAddressAcountry,
+        }));
       }
     }, 400);
-  };
+
+    return () => {
+      if (billingZipTimer.current) clearTimeout(billingZipTimer.current);
+    };
+  }, [formData.bAddressZip, fetchZipDetails]);
+
+  useEffect(() => {
+    const zip = formData.sAddressZip;
+    if (shippingZipTimer.current) clearTimeout(shippingZipTimer.current);
+    if (!zip) return;
+
+    shippingZipTimer.current = setTimeout(async () => {
+      const result = await fetchZipDetails(zip);
+      if (result) {
+        setFormData((prev) => ({
+          ...prev,
+          sAddressCity: result.city || prev.sAddressCity,
+          sAddressState: result.state || prev.sAddressState,
+          sAddressAcountry: result.country || prev.sAddressAcountry,
+        }));
+      }
+    }, 400);
+
+    return () => {
+      if (shippingZipTimer.current) clearTimeout(shippingZipTimer.current);
+    };
+  }, [formData.sAddressZip, fetchZipDetails]);
   useEffect(() => {
 
     // Get Dallas Time
@@ -222,11 +316,52 @@ export default function AddOrder() {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
+    setToast(null);
+
+    let missingFields = Object.entries(REQUIRED_FIELD_LABELS)
+      .filter(([key]) => {
+        const value = formData[key];
+        if (typeof value === "boolean") return false;
+        return String(value ?? "").trim() === "";
+      })
+      .map(([, label]) => label);
+
+    if (formData.programmingRequired && !String(formData.programmingCost || "").trim()) {
+      missingFields = [...missingFields, "Programming Cost"];
+    }
+
+    if (missingFields.length) {
+      setToast({
+        message: `Please fill all required fields: ${missingFields.join(", ")}.`,
+        variant: "error",
+      });
+      return;
+    }
+
+    if (!/^[\w-.]+@([\w-]+\.)+[\w-]{2,4}$/.test((formData.email || "").trim())) {
+      setToast({ message: "Enter a valid email address.", variant: "error" });
+      return;
+    }
+
+    if (!/^\d{10}$/.test((formData.phone || "").replace(/\D/g, ""))) {
+      setToast({ message: "Enter a 10-digit phone number.", variant: "error" });
+      return;
+    }
+
     try {
+      setSubmitting(true);
       const firstName = localStorage.getItem("firstName") || "";
+
+      const warrantyQty = parseInt(formData.warranty, 10) || 0;
+      const warrantyUnit = normalizeWarrantyField(
+        warrantyQty,
+        formData.warrantyField
+      );
 
       const payload = {
         ...formData,
+        warranty: warrantyQty,
+        warrantyField: warrantyUnit,
         customerName: `${formData.fName} ${formData.lName}`.trim(),
         programmingCostQuoted: formData.programmingRequired
           ? formData.programmingCost
@@ -238,15 +373,21 @@ export default function AddOrder() {
         payload
       );
 
-
-      alert(`Order ${res.data.newOrder.orderNo} created!`);
+      const createdOrderNo = res?.data?.orderNo || payload.orderNo || "";
+      setToast({ message: `Order ${createdOrderNo} created successfully!`, variant: "success" });
     } catch (err) {
       if (err.response && err.response.status === 409) {
-        alert("Order No already exists! Please enter a unique Order No.");
+        setToast({
+          message: "Order No already exists! Please enter a unique Order No.",
+          variant: "error",
+        });
       } else {
         console.error(err);
-        alert("Error saving order");
+        const message = err?.response?.data?.message || "Error saving order";
+        setToast({ message, variant: "error" });
       }
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -334,7 +475,6 @@ export default function AddOrder() {
             <Input placeholder="Zip" value={formData.bAddressZip}
               onChange={(e) => {
                 setFormData({ ...formData, bAddressZip: e.target.value });
-                handleZipChange(e.target.value, "b");
               }} />
           </Section>
 
@@ -384,7 +524,6 @@ export default function AddOrder() {
             <Input placeholder="Zip" value={formData.sAddressZip}
               onChange={(e) => {
                 setFormData({ ...formData, sAddressZip: e.target.value });
-                handleZipChange(e.target.value, "s");
               }} />
           </Section>
 
@@ -416,8 +555,34 @@ export default function AddOrder() {
             </select>
             <Input placeholder="Description" value={formData.desc}
               onChange={(e) => setFormData({ ...formData, desc: e.target.value })} />
-            <Input placeholder="Warranty" value={formData.warranty}
-              onChange={(e) => setFormData({ ...formData, warranty: e.target.value })} />
+            <div className="grid grid-cols-2 gap-2">
+              <Input
+                placeholder="Warranty"
+                type="number"
+                value={formData.warranty}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setFormData((prev) => ({ ...prev, warranty: value }));
+                }}
+              />
+              <select
+                className="w-full p-2 border border-gray-300 bg-white text-gray-900 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-400"
+                value={formData.warrantyField}
+                onChange={(e) =>
+                  setFormData((prev) => ({ ...prev, warrantyField: e.target.value }))
+                }
+              >
+                <option value="days" className="text-black">
+                  {Number(formData.warranty) === 1 ? "Day" : "Day(s)"}
+                </option>
+                <option value="months" className="text-black">
+                  {Number(formData.warranty) === 1 ? "Month" : "Month(s)"}
+                </option>
+                <option value="years" className="text-black">
+                  {Number(formData.warranty) === 1 ? "Year" : "Year(s)"}
+                </option>
+              </select>
+            </div>
             <Input placeholder="VIN" value={formData.vin}
               onChange={(e) => setFormData({ ...formData, vin: e.target.value })} />
             <Input placeholder="Part No" value={formData.partNo}
@@ -433,7 +598,6 @@ export default function AddOrder() {
               onChange={(e) => {
                 const val = e.target.value;
                 setFormData({ ...formData, soldP: val });
-                calculateProfit(val, formData.costP, formData.shippingFee);
               }}
             />
 
@@ -444,7 +608,6 @@ export default function AddOrder() {
               onChange={(e) => {
                 const val = e.target.value;
                 setFormData({ ...formData, costP: val });
-                calculateProfit(formData.soldP, val, formData.shippingFee);
               }}
             />
 
@@ -455,7 +618,6 @@ export default function AddOrder() {
               onChange={(e) => {
                 const val = e.target.value;
                 setFormData({ ...formData, shippingFee: val });
-                calculateProfit(formData.soldP, formData.costP, val);
               }}
             />
             <Input
@@ -504,12 +666,16 @@ export default function AddOrder() {
         <div className="flex mt-6">
           <button
             type="submit"
-            className="px-6 py-3 bg-gradient-to-r from-[#504fad] to-[#5a80c7] text-white font-semibold rounded-xl shadow-lg hover:scale-105 transition"
+            disabled={submitting}
+            className={`px-6 py-3 bg-gradient-to-r from-[#504fad] to-[#5a80c7] text-white font-semibold rounded-xl shadow-lg transition ${
+              submitting ? "opacity-70 cursor-not-allowed" : "hover:scale-105"
+            }`}
           >
-            Add / Edit Order
+            {submitting ? "Saving..." : "Add / Edit Order"}
           </button>
         </div>
       </form>
+      <Toast toast={toast} onClose={() => setToast(null)} />
     </div>
   );
 }

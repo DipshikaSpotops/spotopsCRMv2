@@ -13,7 +13,7 @@ const AgentDropdown = ({
       className={`
         px-3 py-2 rounded-md bg-[#04356d] hover:bg-[#3b89bf]
         text-white border border-white/20 text-sm text-center
-        focus:outline-none focus:ring-2 focus:ring-white/30 under
+        focus:outline-none focus:ring-2 focus:ring-white/30 under cursor-pointer
         ${className}
       `}
     >

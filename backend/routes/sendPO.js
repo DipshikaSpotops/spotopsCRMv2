@@ -311,13 +311,21 @@ router.post("/sendPOEmailYard/:orderNo", upload.any(), async (req, res) => {
       auth: { user: process.env.PURCHASE_EMAIL, pass: process.env.PURCHASE_PASS },
     });
 
+    const attachments = [
+      { filename: `${order.orderNo}-PO.pdf`, content: pdfBuffer },
+      ...req.files.map((file, index) => ({
+        filename: file.originalname || `attachment-${index + 1}`,
+        content: file.buffer,
+      })),
+    ];
+
     await transporter.sendMail({
       from: process.env.PURCHASE_EMAIL,
       to: yardEmail,
       bcc: "dipsikha.spotopsdigital@gmail.com",
       subject: `Purchase Order | ${order.orderNo} | ${order.year} ${order.make} ${order.model} | ${order.pReq}`,
       html: `<p>Dear ${yard.agentName},</p><p>Please find attached the Purchase Order.</p>`,
-      attachments: [{ filename: `${order.orderNo}-PO.pdf`, content: pdfBuffer }],
+      attachments,
     });
 
     // Update DB

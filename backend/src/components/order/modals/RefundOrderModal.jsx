@@ -8,9 +8,9 @@ export default function RefundOrderModal({ open, onClose, orderNo, onSubmit }) {
   const [pdfFile, setPdfFile] = useState(null);
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState("");
-  const [isRefundLocked, setIsRefundLocked] = useState(false); // 🔹 Track if refund amount should be readonly
+  const [isRefundLocked, setIsRefundLocked] = useState(false); 
 
-  const baseUrl = import.meta.env.VITE_API_BASE_URL_URL;
+  const baseUrl = import.meta.env.VITE_API_BASE_URL;
   const firstName = localStorage.getItem("firstName") || "System";
 
   // Prefill refund details when modal opens

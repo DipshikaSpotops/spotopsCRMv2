@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef } from "react";
-import Select from "../../ui/Select";
+import { useState, useEffect, useRef, useMemo } from "react";
+import API from "../../../api";
 
 /* ---------------------- Toast Banner ---------------------- */
 function Toast({ message, onClose }) {
@@ -9,6 +9,12 @@ function Toast({ message, onClose }) {
       <span>{message}</span>
       <button
         onClick={onClose}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            onClose?.();
+          }
+        }}
         className="ml-3 px-3 py-1 text-sm font-semibold bg-[#04356d] text-white rounded-md hover:bg-[#021f4b] transition"
       >
         OK
@@ -60,9 +66,13 @@ export default function EditYardStatusModal({
   const [showTracking, setShowTracking] = useState(false);
   const [showEsc, setShowEsc] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [savingAction, setSavingAction] = useState(null);
 
   const fileInputRef = useRef(null);
-  const baseUrl = import.meta.env.VITE_API_BASE || "http://localhost:5000";
+  const rootApiBase = useMemo(() => {
+    const base = API?.defaults?.baseURL || "";
+    return base.replace(/\/api$/, "");
+  }, []);
 
   /* ---------------------- useEffects ---------------------- */
   useEffect(() => {
@@ -100,10 +110,11 @@ export default function EditYardStatusModal({
 
   /* ---------------------- SAVE ---------------------- */
   const save = async () => {
-    if (loading) return;
+    if (savingAction) return;
 
     try {
       setLoading(true);
+      setSavingAction("save");
       setToast("");
 
       const firstName = localStorage.getItem("firstName") || "System";
@@ -121,141 +132,138 @@ export default function EditYardStatusModal({
         return;
       }
 
+      const prevEsc = String(yard?.escTicked ?? "").trim().toLowerCase();
+      const alreadyEscalated = prevEsc === "yes" || prevEsc === "true";
+
       const body = {
-      status,
-      escalationCause: showEsc ? t(escCause) : undefined,
-      escTicked: status === "Escalation" ? "Yes" : "No",
-      trackingNo: showTracking ? t(trackingNo) : undefined,
-      eta: showTracking ? t(eta) : undefined,
-      shipperName: showTracking ? chosenShipper : undefined,
-      trackingLink: showTracking ? t(trackingLink) : undefined,
-      orderStatus: ORDER_STATUS_MAP[status],
-    };
+        status,
+        escalationCause: showEsc ? t(escCause) : undefined,
+        trackingNo: showTracking ? t(trackingNo) : undefined,
+        eta: showTracking ? t(eta) : undefined,
+        shipperName: showTracking ? chosenShipper : undefined,
+        trackingLink: showTracking ? t(trackingLink) : undefined,
+        orderStatus: ORDER_STATUS_MAP[status],
+      };
 
-      const res = await fetch(
-        `${baseUrl}/orders/${encodeURIComponent(orderNo)}/additionalInfo/${yardIndex + 1}?firstName=${encodeURIComponent(firstName)}`,
-        {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
-        }
-      );
-
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setToast(data?.message || "Failed to update yard status");
-        setLoading(false);
-        return;
+      if (status === "Escalation" || alreadyEscalated) {
+        body.escTicked = "Yes";
       }
+
+      await API.put(
+        `/orders/${encodeURIComponent(orderNo)}/additionalInfo/${yardIndex + 1}`,
+        body,
+        { params: { firstName } }
+      );
 
       // Email logic
       if (status === "Part shipped" || status === "Part delivered") {
-        const emailUrl =
-          status === "Part shipped"
-            ? `${baseUrl}/emails/orders/sendTrackingInfo/${encodeURIComponent(orderNo)}`
-            : `${baseUrl}/emails/customer-delivered/${encodeURIComponent(orderNo)}?yardIndex=${yardIndex + 1}&firstName=${encodeURIComponent(firstName)}`;
-
-        const emailBody =
-          status === "Part shipped"
-            ? JSON.stringify({
+        try {
+          if (status === "Part shipped") {
+            await API.post(
+              `/emails/orders/sendTrackingInfo/${encodeURIComponent(orderNo)}`,
+              {
                 trackingNo,
                 eta,
                 shipperName: chosenShipper,
                 link: trackingLink,
                 firstName,
-              })
-            : undefined;
-
-        const emailRes = await fetch(emailUrl, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: emailBody,
-        });
-
-        setToast(
-          emailRes.ok
-            ? `Yard ${yardIndex + 1} status updated to ${status} — email sent successfully!`
-            : `Yard ${yardIndex + 1} status updated to ${status}, but email failed to send.`
-        );
+              }
+            );
+            setToast(
+              `Yard ${yardIndex + 1} status updated to ${status} — email sent successfully!`
+            );
+          } else {
+            await API.post(
+              `/emails/customer-delivered/${encodeURIComponent(orderNo)}`,
+              null,
+              { params: { yardIndex: yardIndex + 1, firstName } }
+            );
+            setToast(
+              `Yard ${yardIndex + 1} status updated to ${status} — email sent successfully!`
+            );
+          }
+        } catch (emailErr) {
+          console.error("Email sending failed", emailErr);
+          setToast(
+            `Yard ${yardIndex + 1} status updated to ${status}, but email failed to send.`
+          );
+        }
       } else {
-        setToast(`Yard ${yardIndex + 1} status updated to '${status}'.`);
+        setToast(`Yard ${yardIndex + 1} status updated to ${status}.`);
       }
     } catch (err) {
       console.error("Error updating yard:", err);
-      setToast("Error updating yard. Please try again.");
+      const message = err?.response?.data?.message || "Error updating yard. Please try again.";
+      setToast(message);
     } finally {
       setLoading(false);
+      setSavingAction(null);
     }
   };
 
   /* ---------------------- VOID LABEL ---------------------- */
   const voidLabel = async () => {
+    if (savingAction) return;
+
     try {
       setLoading(true);
+      setSavingAction("void");
       const firstName = localStorage.getItem("firstName") || "System";
       const orderNo = order?.orderNo;
 
-      const res = await fetch(
-        `${baseUrl}/orders/${encodeURIComponent(orderNo)}/additionalInfo/${yardIndex + 1}?firstName=${encodeURIComponent(firstName)}`,
-        {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ voidLabel: true }),
-        }
+      await API.put(
+        `/orders/${encodeURIComponent(orderNo)}/additionalInfo/${yardIndex + 1}`,
+        { voidLabel: true },
+        { params: { firstName } }
       );
-
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setToast(data?.message || "Failed to void label.");
-        return;
-      }
 
       setToast("Label voided successfully, and status updated to 'Yard PO Sent'.");
     } catch (e) {
       console.error(e);
-      setToast("Error voiding label. Please try again.");
+      const message = e?.response?.data?.message || "Error voiding label. Please try again.";
+      setToast(message);
     } finally {
       setLoading(false);
+      setSavingAction(null);
     }
   };
 
   /* ---------------------- CANCEL SHIPMENT ---------------------- */
   const cancelShipment = async () => {
+    if (savingAction) return;
+
     try {
       setLoading(true);
+      setSavingAction("cancelShipment");
       const firstName = localStorage.getItem("firstName") || "System";
       const orderNo = order?.orderNo;
 
-      const res = await fetch(
-        `${baseUrl}/orders/${encodeURIComponent(orderNo)}/cancelShipment?firstName=${encodeURIComponent(firstName)}`,
-        {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ yardIndex: yardIndex + 1 }),
-        }
+      await API.put(
+        `/orders/${encodeURIComponent(orderNo)}/cancelShipment`,
+        { yardIndex: yardIndex + 1 },
+        { params: { firstName } }
       );
-
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setToast(data?.message || "Failed to cancel shipment.");
-        return;
-      }
 
       setToast("Shipment cancelled and status moved to 'Yard PO Sent'.");
     } catch (e) {
       console.error(e);
-      setToast("Error cancelling shipment. Please try again.");
+      const message = e?.response?.data?.message || "Error cancelling shipment. Please try again.";
+      setToast(message);
     } finally {
       setLoading(false);
+      setSavingAction(null);
     }
   };
 
   /* ---------------------- SEND PO ---------------------- */
   const sendPO = async () => {
+    if (savingAction) return;
+
     try {
       setLoading(true);
+      setSavingAction("sendPO");
       const formData = new FormData();
-      formData.append("yardIndex", yardIndex);
+      formData.append("yardIndex", String(yardIndex));
 
       const files = fileInputRef.current?.files || [];
       for (let i = 0; i < files.length; i++) {
@@ -265,31 +273,27 @@ export default function EditYardStatusModal({
       const firstName = localStorage.getItem("firstName") || "System";
       const orderNo = order?.orderNo;
 
-      const res = await fetch(
-        `${baseUrl}/sendPOEmailYard/${encodeURIComponent(orderNo)}?firstName=${encodeURIComponent(firstName)}`,
-        { method: "POST", body: formData }
+      const { data } = await API.post(
+        `/sendPOEmailYard/${encodeURIComponent(orderNo)}`,
+        formData,
+        {
+          baseURL: rootApiBase || undefined,
+          params: { firstName },
+        }
       );
 
-      const text = await res.text();
-      let data = {};
-      try {
-        data = JSON.parse(text);
-      } catch {}
-
-      if (res.ok) {
-        setToast(
-          data?.message?.includes?.("No yard email")
-            ? "Yard email missing. PO not sent."
-            : "PO sent successfully!"
-        );
+      if (data?.message?.includes?.("No yard email")) {
+        setToast("Yard email missing. PO not sent.");
       } else {
-        setToast(data?.message || "Failed to send PO.");
+        setToast(data?.message || "PO sent successfully!");
       }
     } catch (err) {
       console.error("Error sending PO:", err);
-      setToast("Error sending PO");
+      const message = err?.response?.data?.message || "Error sending PO";
+      setToast(message);
     } finally {
       setLoading(false);
+      setSavingAction(null);
     }
   };
 
@@ -308,21 +312,32 @@ export default function EditYardStatusModal({
           </button>
         </header>
 
-        <div className="p-5 space-y-4 max-h-[80vh] overflow-y-auto">
+        <div
+          className="p-5 space-y-4 max-h-[80vh] overflow-y-auto"
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              const tag = e.target?.tagName?.toLowerCase();
+              if (tag && tag !== "textarea") {
+                e.preventDefault();
+                save();
+              }
+            }
+          }}
+        >
           {/* Status */}
           <div>
             <label className="block text-sm mb-1">Status</label>
-            <Select
+            <select
               value={status}
               onChange={(e) => setStatus(e.target.value)}
-              className="!bg-[#2b2d68] hover:!bg-[#090c6c]"
+              className="w-full rounded-lg px-3 py-2 bg-[#2b2d68] hover:bg-[#090c6c] border border-white/30 outline-none"
             >
               {STATUS_OPTIONS.map((s) => (
                 <option key={s} value={s}>
                   {s}
                 </option>
               ))}
-            </Select>
+            </select>
           </div>
 
           {/* PO Section */}
@@ -335,9 +350,40 @@ export default function EditYardStatusModal({
                 <button
                   type="button"
                   onClick={sendPO}
-                  className="px-3 py-1.5 rounded-md text-sm border bg-white/10 text-white border-white/20 hover:bg-white/20"
+                  disabled={savingAction === "sendPO"}
+                  className={`px-3 py-1.5 rounded-md text-sm border transition ${
+                    savingAction === "sendPO"
+                      ? "bg-white/20 text-white/70 border-white/30 cursor-not-allowed"
+                      : "bg-white/10 text-white border-white/20 hover:bg-white/20"
+                  }`}
                 >
-                  Send PO
+                  {savingAction === "sendPO" ? (
+                    <span className="flex items-center gap-2">
+                      <svg
+                        className="animate-spin h-4 w-4 text-white"
+                        xmlns="http://www.w3.org/2000/svg"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                      >
+                        <circle
+                          className="opacity-25"
+                          cx="12"
+                          cy="12"
+                          r="10"
+                          stroke="currentColor"
+                          strokeWidth="4"
+                        ></circle>
+                        <path
+                          className="opacity-75"
+                          fill="currentColor"
+                          d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 000 16v-4l-3 3 3 3v-4a8 8 0 01-8-8z"
+                        ></path>
+                      </svg>
+                      Sending…
+                    </span>
+                  ) : (
+                    "Send PO"
+                  )}
                 </button>
                 <input ref={fileInputRef} type="file" multiple accept="image/*" className="text-xs" />
               </div>
@@ -368,10 +414,10 @@ export default function EditYardStatusModal({
 
               <div>
                 <label className="block text-sm mb-1">Shipper</label>
-                <Select
+                <select
                   value={shipperName}
                   onChange={(e) => setShipperName(e.target.value)}
-                  className="!bg-[#2b2d68] hover:!bg-[#090c6c]"
+                  className="w-full rounded-lg px-3 py-2 bg-[#2b2d68] hover:bg-[#090c6c] border border-white/30 outline-none"
                 >
                   <option value="" disabled>
                     Select Shipper
@@ -380,7 +426,7 @@ export default function EditYardStatusModal({
                   <option value="World Wide Express">World Wide Express</option>
                   <option value="FedEx">FedEx</option>
                   <option value="Others">Others</option>
-                </Select>
+                </select>
 
                 {shipperName === "Others" && (
                   <input
@@ -408,9 +454,40 @@ export default function EditYardStatusModal({
                   <button
                     type="button"
                     onClick={voidLabel}
-                    className="px-3 py-1.5 rounded-md text-sm border bg-white text-[#04356d] hover:bg-white/90"
+                    disabled={savingAction === "void"}
+                    className={`px-3 py-1.5 rounded-md text-sm border transition ${
+                      savingAction === "void"
+                        ? "bg-white/70 text-[#04356d]/60 border-white/40 cursor-not-allowed"
+                        : "bg-white text-[#04356d] border-white/20 hover:bg-white/90"
+                    }`}
                   >
-                    Void Label
+                    {savingAction === "void" ? (
+                      <span className="flex items-center gap-2">
+                        <svg
+                          className="animate-spin h-4 w-4 text-[#04356d]"
+                          xmlns="http://www.w3.org/2000/svg"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                        >
+                          <circle
+                            className="opacity-25"
+                            cx="12"
+                            cy="12"
+                            r="10"
+                            stroke="currentColor"
+                            strokeWidth="4"
+                          ></circle>
+                          <path
+                            className="opacity-75"
+                            fill="currentColor"
+                            d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 000 16v-4l-3 3 3 3v-4a8 8 0 01-8-8z"
+                          ></path>
+                        </svg>
+                        Voiding…
+                      </span>
+                    ) : (
+                      "Void Label"
+                    )}
                   </button>
                 </div>
               )}
@@ -420,9 +497,40 @@ export default function EditYardStatusModal({
                   <button
                     type="button"
                     onClick={cancelShipment}
-                    className="px-3 py-1.5 rounded-md text-sm border bg-white text-[#04356d] hover:bg-white/90"
+                    disabled={savingAction === "cancelShipment"}
+                    className={`px-3 py-1.5 rounded-md text-sm border transition ${
+                      savingAction === "cancelShipment"
+                        ? "bg-white/70 text-[#04356d]/60 border-white/40 cursor-not-allowed"
+                        : "bg-white text-[#04356d] border-white/20 hover:bg-white/90"
+                    }`}
                   >
-                    Cancel Shipment
+                    {savingAction === "cancelShipment" ? (
+                      <span className="flex items-center gap-2">
+                        <svg
+                          className="animate-spin h-4 w-4 text-[#04356d]"
+                          xmlns="http://www.w3.org/2000/svg"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                        >
+                          <circle
+                            className="opacity-25"
+                            cx="12"
+                            cy="12"
+                            r="10"
+                            stroke="currentColor"
+                            strokeWidth="4"
+                          ></circle>
+                          <path
+                            className="opacity-75"
+                            fill="currentColor"
+                            d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 000 16v-4l-3 3 3 3v-4a8 8 0 01-8-8z"
+                          ></path>
+                        </svg>
+                        Cancelling…
+                      </span>
+                    ) : (
+                      "Cancel Shipment"
+                    )}
                   </button>
                 </div>
               )}
@@ -433,10 +541,10 @@ export default function EditYardStatusModal({
           {showEsc && (
             <div className="grid grid-cols-1 gap-2">
               <label className="text-sm">Reason</label>
-             <Select
+             <select
               value={escCause}
               onChange={(e) => setEscCause(e.target.value)}
-              className="!bg-[#2b2d68] hover:!bg-[#090c6c]"
+              className="w-full rounded-lg px-3 py-2 bg-[#2b2d68] hover:bg-[#090c6c] border border-white/30 outline-none"
             >
               <option value="">Choose</option>
               <option value="Damaged">Damaged</option>
@@ -444,21 +552,21 @@ export default function EditYardStatusModal({
               <option value="Incorrect">Incorrect</option>
               <option value="Not programming">Not programming</option>
               <option value="Personal reason">Personal reason</option>
-            </Select>
+            </select>
               <div className="mt-2 flex items-center gap-2 text-xs opacity-90">
-              <label className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={status === "Escalation"}
-                  readOnly
-                  className="w-4 h-4 accent-[#2b2d68] cursor-not-allowed"
-                />
-                <span className="font-semibold">
-                  Escalation Flag: {status === "Escalation" ? "Yes" : "No"}
-                </span>
-              </label>
-              <span className="italic opacity-70">(auto-updated)</span>
-            </div>
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked
+                    readOnly
+                    className="w-4 h-4 accent-[#2b2d68] cursor-not-allowed"
+                  />
+                  <span className="font-semibold">
+                    Escalation Flag: Yes
+                  </span>
+                </label>
+                <span className="italic opacity-70">(auto-updated)</span>
+              </div>
             </div>
           )}
         </div>
@@ -473,15 +581,15 @@ export default function EditYardStatusModal({
           </button>
           <button
             onClick={save}
-            disabled={loading}
+            disabled={!!savingAction}
             className={`px-3 py-1.5 rounded-md border transition ${
-              loading
+              savingAction
                 ? "bg-gray-400 text-gray-700 border-gray-300 cursor-not-allowed"
                 : "bg-white text-[#04356d] border-white/20 hover:bg-white/90 hover:scale-[1.02]"
             }`}
-            title={loading ? "Please wait..." : "Save changes"}
+            title={savingAction ? "Please wait..." : "Save changes"}
           >
-            {loading ? (
+            {savingAction === "save" ? (
               <span className="flex items-center gap-2">
                 <svg
                   className="animate-spin h-4 w-4 text-[#04356d]"
@@ -499,7 +607,7 @@ export default function EditYardStatusModal({
                   ></circle>
                   <path
                     className="opacity-75"
-                    fill="current...Color"
+                    fill="currentColor"
                     d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 000 16v-4l-3 3 3 3v-4a8 8 0 01-8-8z"
                   ></path>
                 </svg>
@@ -551,7 +659,6 @@ export default function EditYardStatusModal({
         onClose={() => {
           setToast("");
           onClose();
-          window.location.reload();
         }}
       />
     </div>

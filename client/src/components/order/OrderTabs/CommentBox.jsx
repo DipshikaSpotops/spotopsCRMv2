@@ -1,6 +1,6 @@
 // /client/src/components/order/OrderTabs/CommentBox.jsx
 import { useEffect, useState, useCallback, useRef } from "react";
-import axios from "axios";
+import API from "../../../api";
 import { getWhen } from "@spotops/shared";
 import useOrderRealtime from "../../../hooks/useOrderRealtime";
 
@@ -42,8 +42,6 @@ export default function CommentBox({
   mode = "support",
   yardIndex = null,
 }) {
-  const baseUrl = import.meta.env.VITE_API_BASE_URL;
-  console.log("API Base URL:", baseUrl);
   const [comments, setComments] = useState([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -66,7 +64,7 @@ export default function CommentBox({
     setLoading(true);
     try {
       const res = await retry(
-        () => axios.get(`${baseUrl}/api/orders/${orderNo}`),
+        () => API.get(`/orders/${orderNo}`),
         { retries: 2, delay: 400 }
       );
       if (mode === "support") {
@@ -80,7 +78,7 @@ export default function CommentBox({
     } finally {
       setLoading(false);
     }
-  }, [orderNo, mode, yardIndex, baseUrl]);
+  }, [orderNo, mode, yardIndex]);
 
   useEffect(() => {
     fetchComments();
@@ -119,16 +117,16 @@ export default function CommentBox({
 
     try {
       if (mode === "support") {
-        await axios.patch(`${baseUrl}/api/orders/${orderNo}/supportNotes`, {
+        await API.patch(`/orders/${orderNo}/supportNotes`, {
           note,
           author,
           timestamp: whenIso,
         });
       } else {
-        await axios.patch(
-       `${baseUrl}/api/orders/${orderNo}/additionalInfo/${yardIndex}/notes`,
-       { note, author, timestamp: whenIso }
-     );
+        await API.patch(
+        `/orders/${orderNo}/additionalInfo/${yardIndex}/notes`,
+        { note, author, timestamp: whenIso }
+      );
       }
 
       // success toast only for the actor on this tab

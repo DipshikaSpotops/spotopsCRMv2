@@ -1,13 +1,18 @@
 import axios from "axios";
 
-const API_BASE = (() => {
-  const envBase = import.meta.env.VITE_API_BASE_URL_URL?.replace(/\/$/, "");
-  if (envBase) return envBase;
+function withSingleApi(base) {
+  if (!base) return "";
+  const b = String(base).replace(/\/+$/, "");     // strip trailing slashes
+  return /\/api$/i.test(b) ? b : `${b}/api`;      // append /api if absent
+}
 
-  if (window.location.hostname === "localhost") {
+const API_BASE = (() => {
+  const envBase = import.meta.env.VITE_API_BASE_URL?.trim();
+  if (envBase) return withSingleApi(envBase);     // << key change
+
+  if (["localhost", "127.0.0.1"].includes(window.location.hostname)) {
     return "http://localhost:5000/api";
   }
-
   return "/api";
 })();
 
@@ -18,5 +23,13 @@ const API = axios.create({
   withCredentials: true,
   timeout: 15000,
 });
-
+// Attach Bearer token if present
+API.interceptors.request.use((cfg) => {
+  const token = localStorage.getItem("token");
+  if (token) {
+    cfg.headers = cfg.headers || {};
+    cfg.headers.Authorization = `Bearer ${token}`;
+  }
+  return cfg;
+});
 export default API;

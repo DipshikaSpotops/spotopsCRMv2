@@ -506,7 +506,7 @@ export default function OrderDetails() {
                   </button>
 
                   {/* Recalculate Actual GP */}
-                  <button
+                  {/* <button
                     onClick={async () => {
                       setConfirm({
                         open: true,
@@ -521,7 +521,7 @@ export default function OrderDetails() {
                     className="px-3 py-1 rounded-md text-sm bg-white/10 hover:bg-white/20"
                   >
                     Recalculate Actual GP
-                  </button>
+                  </button> */}
 
                   {/* Status Dropdown */}
                   <select
@@ -540,7 +540,7 @@ export default function OrderDetails() {
                         onConfirm: () => handleStatusChange(selectedValue),
                       });
                     }}
-                    className="px-2 py-1 rounded-md bg-[#2b2d68] hover:bg-[#090c6c] text-white border border-white/20 cursor-pointer"
+                    className="px-2 py-1 rounded-md bg-[#2b2d68] hover:bg-[#090c6c] text-white align-middle border border-white/20 cursor-pointer"
                   >
                     {STATUS_OPTIONS.map((opt) => (
                       <option key={opt.value} value={opt.value}>
@@ -669,6 +669,7 @@ export default function OrderDetails() {
         yardIndex={editDetailsIdx}
         initial={yards[editDetailsIdx]}
         order={order}
+        orderNo={order?.orderNo}
         onClose={() => setEditDetailsIdx(null)}
       />
 

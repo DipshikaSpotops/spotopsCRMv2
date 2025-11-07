@@ -8,7 +8,7 @@ export default function CardChargedModal({ open, onClose, onSubmit, orderNo, yar
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState("");
 
-  const baseUrl = import.meta.env.VITE_API_BASE_URL_URL;
+  const baseUrl = import.meta.env.VITE_API_BASE_URL;
 
   // 🔹 Prefill data from backend when modal opens
   useEffect(() => {
