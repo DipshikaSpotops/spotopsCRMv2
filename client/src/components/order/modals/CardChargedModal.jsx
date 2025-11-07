@@ -12,7 +12,18 @@ export default function CardChargedModal({ open, onClose, onSubmit, orderNo, yar
   // 🔹 Prefill data from backend when modal opens
   useEffect(() => {
     if (open && yard) {
-      setPaymentStatus(yard.paymentStatus || "");
+      const rawStatus = String(yard.paymentStatus || "")
+        .toLowerCase()
+        .trim();
+
+      if (rawStatus === "card charged" || rawStatus === "charged") {
+        setPaymentStatus("Card charged");
+      } else if (rawStatus === "card not charged" || rawStatus === "not charged") {
+        setPaymentStatus("Card not charged");
+      } else {
+        setPaymentStatus("");
+      }
+
       setCardChargedDate(
         yard.cardChargedDate
           ? yard.cardChargedDate.split("T")[0] // only show YYYY-MM-DD

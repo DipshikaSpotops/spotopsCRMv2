@@ -8,15 +8,15 @@ export default defineConfig({
     react(),
     visualizer({
       filename: "bundle-report.html",
-      open: true,
+      open: false,
       gzipSize: true,
       brotliSize: true,
-    })
+    }),
   ],
-    resolve: {
+  resolve: {
     alias: {
       "@": fileURLToPath(new URL("./src", import.meta.url)),
-      "@shared": fileURLToPath(new URL("../shared", import.meta.url)),
+      "@spotops/shared": fileURLToPath(new URL("../shared", import.meta.url)),
     },
   },
 
