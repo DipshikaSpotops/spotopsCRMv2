@@ -1,5 +1,4 @@
 import { useEffect, useState, useCallback } from "react";
-import Select, { SelectTrigger, SelectValue, SelectContent, SelectItem } from "../../ui/Select";
 import { getWhen, toDallasIso } from "@spotops/shared";
 import API from "../../../api";
 
@@ -102,18 +101,17 @@ export default function CardChargedModal({ open, onClose, onSubmit, orderNo, yar
         >
           <div>
             <label className="block text-sm mb-1">Card Charged:</label>
-            <Select
+            <select
               value={paymentStatus}
-              onValueChange={(val) => setPaymentStatus(val)}
+              onChange={(e) => setPaymentStatus(e.target.value)}
+              className="w-full rounded-lg px-3 py-2 bg-[#2b2d68] text-white border border-white/30 outline-none focus:ring-2 focus:ring-white/60 hover:bg-[#1f2760] transition-colors"
             >
-              <SelectTrigger className="!bg-[#2b2d68] hover:!bg-[#090c6c] w-full">
-                <SelectValue placeholder="Choose" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="Card charged">Charged</SelectItem>
-                <SelectItem value="Card not charged">Not charged</SelectItem>
-              </SelectContent>
-            </Select>
+              <option value="" disabled>
+                Choose...
+              </option>
+              <option value="Card charged">Charged</option>
+              <option value="Card not charged">Not charged</option>
+            </select>
           </div>
 
           <div>
