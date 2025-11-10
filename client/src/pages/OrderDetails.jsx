@@ -614,7 +614,7 @@ export default function OrderDetails() {
           </div>
 
           {/* 3 columns */}
-          <div className="grid grid-cols-12 gap-6 2xl:gap-8 items-stretch min-h-[calc(100vh-13rem)] pb-10">
+          <div className="grid grid-cols-12 gap-6 2xl:gap-8 items-start min-h-[calc(100vh-13rem)] pb-10">
             {/* LEFT: Order Details */}
             <aside className="col-span-12 xl:col-span-4 flex flex-col gap-4 h-full min-h-[600px]">
               <div className="flex-1 min-h-0">
@@ -711,7 +711,7 @@ export default function OrderDetails() {
             </section>
 
             {/* RIGHT: comments */}
-            <aside className="col-span-12 xl:col-span-4 flex flex-col gap-4 h-full">
+            <aside className="col-span-12 xl:col-span-4 flex flex-col gap-4 h-[calc(100vh-240px)] overflow-hidden">
               <div className="flex flex-wrap gap-2 shrink-0">
                 {yards?.map((_, i) => (
                   <button
