@@ -28,6 +28,7 @@ import emailsRouter from "./routes/emails.js";
 import ordersSearchRouter from "./routes/ordersSearch.js";
 import sendPORouter from "./routes/sendPO.js";
 import yardsRouter from "./routes/yards.js";
+import zipLookupRouter from "./routes/zipLookup.js";
 import debugRouter from "./routes/debug.js";
 
 
@@ -71,6 +72,7 @@ app.use("/emails", emailsRouter);
 app.use("/orders", ordersSearchRouter);
 app.use("/", sendPORouter);
 app.use("/api/yards", yardsRouter);
+app.use("/api/utils/zip-lookup", zipLookupRouter);
 app.use("/debug", debugRouter);
 // Catch-all /orders router LAST
 app.use("/api/orders", ordersRoute);

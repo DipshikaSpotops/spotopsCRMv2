@@ -17,29 +17,51 @@ export default function YardCard({
   const ownVal = y.ownShipping ?? extractOwn(y.shippingDetails);
   const yardVal = y.yardShipping ?? extractYard(y.shippingDetails);
 
-  // Collect all non-empty fields dynamically
+  const warrantyUnitLabel = (() => {
+    const unit = (y.yardWarrantyField || "days").toString();
+    const pretty = unit.charAt(0).toUpperCase() + unit.slice(1);
+    return `Warranty (${pretty})`;
+  })();
+
+  const normalizeValue = (raw) => {
+    if (raw === undefined || raw === null) return "";
+    if (Array.isArray(raw)) {
+      const joined = raw
+        .map((item) => String(item ?? "").trim())
+        .filter(Boolean)
+        .join(", ");
+      return joined;
+    }
+    const str = String(raw).trim();
+    return str;
+  };
+
+  const makeField = (label, raw) => {
+    const value = normalizeValue(raw);
+    if (!value) return null;
+    return { label, value };
+  };
+
   const fields = [
-    { label: "Part Price", value: y.partPrice },
-    { label: "Expected Shipping Date", value: y.expShipDate },
-    // Show only one of these two ↓
+    makeField("Part Price", y.partPrice),
+    makeField("Expected Shipping Date", y.expShipDate),
     ...(ownVal
-      ? [{ label: "Own Shipping ($)", value: ownVal }]
+      ? [makeField("Own Shipping ($)", ownVal)]
       : yardVal
-      ? [{ label: "Yard Shipping ($)", value: yardVal }]
+      ? [makeField("Yard Shipping ($)", yardVal)]
       : []),
-    { label: "Others", value: y.others },
-    { label: "Status", value: y.status },
-    { label: "Stock No", value: y.stockNo },
-    { label: "Warranty(in days)", value: y.warranty },
-    { label: "Payment status", value: y.paymentStatus  },
-    { label: "Tracking No", value: y.trackingNo },
-    { label: "ETA", value: y.eta },
-    { label: "Shipper", value: y.shipperName },
-    { label: "Delivered", value: y.deliveredDate || y.yardDeliveredDate },
-    { label: "Escalation Reason", value: y.escalationCause },
-    { label: "Yard Refund", value: y.refundedAmount },
-    
-  ].filter((f) => f.value !== undefined && f.value !== null && f.value !== "");
+    makeField("Others", y.others),
+    makeField("Status", y.status),
+    makeField("Stock No", y.stockNo),
+    makeField(warrantyUnitLabel, y.warranty),
+    makeField("Payment Status", y.paymentStatus),
+    makeField("Tracking No", y.trackingNo),
+    makeField("ETA", y.eta),
+    makeField("Shipper", y.shipperName),
+    makeField("Delivered", y.deliveredDate || y.yardDeliveredDate),
+    makeField("Escalation Reason", y.escalationCause),
+    makeField("Yard Refund", y.refundedAmount),
+  ].filter(Boolean);
 
   const hasAnyDetail = fields.length > 0;
 

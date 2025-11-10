@@ -1044,6 +1044,66 @@ router.patch("/:orderNo/additionalInfo/:yardIndex/refundStatus", async (req, res
     res.status(500).json({ message: "Server error", error: err.message });
   }
 });
+router.put("/:orderNo/reimbursement", async (req, res) => {
+  const { orderNo } = req.params;
+  const { reimbursementAmount, reimbursementDate } = req.body || {};
+  try {
+    const amount =
+      reimbursementAmount === null ||
+      reimbursementAmount === undefined ||
+      reimbursementAmount === ""
+        ? null
+        : Number(reimbursementAmount);
+
+    if (amount !== null && Number.isNaN(amount)) {
+      return res
+        .status(400)
+        .json({ message: "Invalid reimbursementAmount value" });
+    }
+
+    let dateValue = null;
+    if (reimbursementDate) {
+      const parsed = new Date(reimbursementDate);
+      if (Number.isNaN(parsed.getTime())) {
+        return res
+          .status(400)
+          .json({ message: "Invalid reimbursementDate value" });
+      }
+      dateValue = parsed;
+    }
+
+    const order = await Order.findOneAndUpdate(
+      { orderNo: String(orderNo) },
+      {
+        reimbursementAmount: amount,
+        reimbursementDate: dateValue,
+      },
+      { new: true }
+    );
+
+    if (!order) {
+      return res.status(404).json({ message: "Order not found" });
+    }
+
+    publish(req, orderNo, {
+      type: "REIMBURSEMENT_UPDATED",
+      reimbursementAmount: order.reimbursementAmount,
+      reimbursementDate: order.reimbursementDate,
+    });
+
+    res.json({
+      message: "Reimbursement details updated",
+      reimbursementAmount: order.reimbursementAmount,
+      reimbursementDate: order.reimbursementDate,
+      order,
+    });
+  } catch (error) {
+    console.error("Error updating reimbursement:", error);
+    res
+      .status(500)
+      .json({ message: "Server error", error: error?.message || String(error) });
+  }
+});
 // Updating Actual GP for an order
 router.put('/:orderNo/updateActualGP', async (req, res) => {
   console.log("[orders] PUT /orders/:orderNo/updateActualGP hit");

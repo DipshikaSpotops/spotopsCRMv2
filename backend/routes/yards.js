@@ -4,10 +4,20 @@ import Yard from "../models/Yards.js"; // your Yard model
 
 const router = express.Router();
 
+function normaliseWarrantyUnit(unit) {
+  const clean = String(unit || "").toLowerCase().trim();
+  if (clean === "months" || clean === "month") return "months";
+  if (clean === "years" || clean === "year") return "years";
+  return "days";
+}
+
 // Get all yards (for dropdown)
 router.get("/", async (req, res) => {
   try {
-    const yards = await Yard.find({}, "yardName yardRating phone altNo email street city state zipcode country");
+    const yards = await Yard.find(
+      {},
+      "yardName yardRating phone altNo email street city state zipcode country warranty yardWarrantyField"
+    );
     res.json(yards);
   } catch (err) {
     console.error(err);
@@ -67,6 +77,8 @@ router.post("/", async (req, res) => {
       state,
       zipcode,
       country = "US",
+      yardWarrantyField,
+      warranty,
     } = req.body;
 
     if (!yardName || !yardName.trim()) {
@@ -115,6 +127,8 @@ router.post("/", async (req, res) => {
             state,
             zipcode,
             country,
+          yardWarrantyField: normaliseWarrantyUnit(yardWarrantyField),
+          warranty,
           },
         },
         { new: true }
@@ -134,6 +148,8 @@ router.post("/", async (req, res) => {
       state,
       zipcode,
       country,
+      yardWarrantyField: normaliseWarrantyUnit(yardWarrantyField),
+      warranty,
     });
 
     await newYard.save();

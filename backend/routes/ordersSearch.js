@@ -83,40 +83,53 @@ router.get("/ordersPerPage", async (req, res) => {
       "additionalInfo.returnTrackingCust",
     ];
 
+    const shouldClauses = searchablePaths.flatMap((field) => [
+      {
+        autocomplete: {
+          query: searchTerm,
+          path: field,
+          tokenOrder: "any",
+          fuzzy: { maxEdits: 1, prefixLength: 1 },
+        },
+      },
+      {
+        text: {
+          query: searchTerm,
+          path: field,
+          fuzzy: { maxEdits: 1, prefixLength: 1 },
+        },
+      },
+    ]);
+
     const searchStage = {
       $search: {
         index: "default",
         compound: {
-          should: [
-            {
-              autocomplete: {
-                query: searchTerm,
-                path: searchablePaths,
-                tokenOrder: "any",
-                fuzzy: { maxEdits: 1, prefixLength: 1 },
-              },
-            },
-            {
-              text: {
-                query: searchTerm,
-                path: searchablePaths,
-                fuzzy: { maxEdits: 1, prefixLength: 1 },
-              },
-            },
-          ],
+          should: shouldClauses,
           minimumShouldMatch: 1,
         },
       },
     };
 
-    // 1) Page of results
-    const resultsPipeline = [
-      searchStage,
-      { $sort: { score: { $meta: "searchScore" }, orderDate: -1, _id: -1 } },
-      { $project: { ...PROJECTION, score: { $meta: "searchScore" } } },
-      { $skip: skip },
-      { $limit: limit },
-    ];
+    const makeResultsPipeline = (includeScoreSort = true) => {
+      const stages = [searchStage];
+
+      if (includeScoreSort) {
+        stages.push({
+          $sort: { score: { $meta: "searchScore" }, orderDate: -1, _id: -1 },
+        });
+        stages.push({
+          $project: { ...PROJECTION, score: { $meta: "searchScore" } },
+        });
+      } else {
+        stages.push({ $project: PROJECTION });
+        stages.push({ $sort: { orderDate: -1, _id: -1 } });
+      }
+
+      stages.push({ $skip: skip });
+      stages.push({ $limit: limit });
+      return stages;
+    };
 
     // 2) Total count via $searchMeta
     const metaPipeline = [
@@ -130,15 +143,57 @@ router.get("/ordersPerPage", async (req, res) => {
       { $project: { total: "$count.total" } },
     ];
 
-    const [orders, metaArr] = await Promise.all([
-      coll.aggregate(resultsPipeline).toArray(),
-      coll.aggregate(metaPipeline).toArray(),
-    ]);
+    try {
+      const [orders, metaArr] = await Promise.all([
+        coll.aggregate(makeResultsPipeline(true)).toArray(),
+        coll.aggregate(metaPipeline).toArray(),
+      ]);
 
-    const totalCount = metaArr?.[0]?.total ?? 0;
-    const totalPages = Math.max(1, Math.ceil(totalCount / limit));
+      const totalCount = metaArr?.[0]?.total ?? 0;
+      const totalPages = Math.max(1, Math.ceil(totalCount / limit));
 
-    return res.json({ orders, totalPages, totalCount });
+      return res.json({ orders, totalPages, totalCount });
+    } catch (aggregateError) {
+      if (aggregateError?.code === 224) {
+        console.warn(
+          "ordersPerPage: falling back to non-searchScore sort (FCV < 7.0)"
+        );
+        const [orders, metaArr] = await Promise.all([
+          coll.aggregate(makeResultsPipeline(false)).toArray(),
+          coll.aggregate(metaPipeline).toArray(),
+        ]);
+
+        const totalCount = metaArr?.[0]?.total ?? 0;
+        const totalPages = Math.max(1, Math.ceil(totalCount / limit));
+
+        return res.json({ orders, totalPages, totalCount });
+      }
+
+      console.warn(
+        "ordersPerPage: Atlas Search unavailable, using regex fallback",
+        aggregateError?.code,
+        aggregateError?.message
+      );
+
+      const orClauses = searchablePaths.map((field) => ({
+        [field]: { $regex: searchTerm, $options: "i" },
+      }));
+      const filter = { $or: orClauses };
+
+      const [orders, totalCount] = await Promise.all([
+        coll
+          .find(filter)
+          .project(PROJECTION)
+          .sort({ orderDate: -1, _id: -1 })
+          .skip(skip)
+          .limit(limit)
+          .toArray(),
+        coll.countDocuments(filter),
+      ]);
+
+      const totalPages = Math.max(1, Math.ceil((totalCount || 0) / limit));
+      return res.json({ orders, totalPages, totalCount });
+    }
   } catch (e) {
     console.error("ordersPerPage error:", e);
     return res.status(500).json({ error: "Failed to fetch orders" });

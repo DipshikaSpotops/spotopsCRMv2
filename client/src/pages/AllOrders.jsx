@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import axios from "axios";
+import API from "../api";
 import { formatInTimeZone } from "date-fns-tz";
 import { FaSort, FaSortUp, FaSortDown, FaChevronLeft, FaChevronRight } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
@@ -51,7 +51,7 @@ const AllOrders = () => {
       if (sBy) params.set("sortBy", sBy);
       if (sDir) params.set("sortOrder", sDir);
 
-      const { data } = await axios.get("http://localhost:5000/orders/ordersPerPage", { params });
+      const { data } = await API.get("/orders/ordersPerPage", { params });
 
       setOrders(data.orders || []);
       setTotalPages(data.totalPages || 1);

@@ -22,13 +22,13 @@ export default function OrderSummaryStats({ order, actualGPOverride }) {
   const orderDate = order?.orderDate;
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-3 mt-4">
-      <Stat label="Sales Agent" value={salesAgent} />
-      <Stat label="Quoted" value={quoted} />
-      <Stat label="Est. GP" value={estGP} />
-      <Stat label="Tax" value={tax} />
-      <Stat label="Actual GP" value={actualGP} />
-      <Stat label="Date" value={formatDallasDate(orderDate)} />
+    <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-2 mt-3">
+      <Stat label="Sales Agent" value={salesAgent} compact />
+      <Stat label="Quoted" value={quoted} compact />
+      <Stat label="Est. GP" value={estGP} compact />
+      <Stat label="Tax" value={tax} compact />
+      <Stat label="Actual GP" value={actualGP} compact />
+      <Stat label="Date" value={formatDallasDate(orderDate)} compact />
 
       {/* keep a hidden input if other code reads #actualGP directly */}
       <input id="actualGP" type="hidden" value={actualGpNum.toFixed(2)} readOnly />

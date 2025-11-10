@@ -22,6 +22,7 @@ export default function YardList({
 
   return (
     <GlassCard
+      className="h-full flex flex-col"
       title="Yards"
       actions={
         <div className="flex gap-2 rounded-lg p-1 bg-[#5c8bc1]/15 border border-[#5c8bc1]/30 dark:bg-white/10 dark:border-white/20">

@@ -1,8 +1,13 @@
-import { useEffect, useState } from "react";
-import axios from "axios";
+import { useEffect, useState, useRef, useCallback } from "react";
+import API from "../../../api";
 import Field from "../../ui/Field";
 import Input from "../../ui/Input";
-import Select from "../../ui/Select";
+import Select, {
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../../ui/Select";
 
 export default function YardAddModal({ open, onClose, onSubmit }) {
   const [yards, setYards] = useState([]);
@@ -27,6 +32,7 @@ export default function YardAddModal({ open, onClose, onSubmit }) {
     faxNo: "",
     expShipDate: "",
     warranty: "",
+    yardWarrantyField: "days",
     stockNo: "",
   });
   const [errors, setErrors] = useState({});
@@ -49,26 +55,44 @@ export default function YardAddModal({ open, onClose, onSubmit }) {
     }
   }, [open]);
 
-  // Auto-fill location from ZIP
-  useEffect(() => {
-    const zip = form.zipcode?.trim();
-    if (!zip) return;
+  const zipLookupTimer = useRef(null);
 
-    if (zip.length === 5 && /^[0-9]+$/.test(zip)) {
-      axios
-        .get(`https://api.zippopotam.us/us/${zip}`)
-        .then((res) => {
-          const place = res.data.places[0];
-          setForm((p) => ({
-            ...p,
-            city: place["place name"],
-            state: place["state abbreviation"],
-            country: res.data["country abbreviation"],
-          }));
-        })
-        .catch(() => console.error("Invalid US ZIP"));
+  const fetchZipDetails = useCallback(async (zipRaw) => {
+    const trimmed = (zipRaw || "").trim();
+    if (!trimmed) return null;
+
+    try {
+      const res = await API.get("/utils/zip-lookup", {
+        params: { zip: trimmed },
+      });
+      return res.data || null;
+    } catch (error) {
+      console.debug("ZIP lookup skipped", error);
+      return null;
     }
-  }, [form.zipcode]);
+  }, []);
+
+  useEffect(() => {
+    const zip = form.zipcode;
+    if (zipLookupTimer.current) clearTimeout(zipLookupTimer.current);
+    if (!zip) return undefined;
+
+    zipLookupTimer.current = setTimeout(async () => {
+      const result = await fetchZipDetails(zip);
+      if (result) {
+        setForm((prev) => ({
+          ...prev,
+          city: result.city || prev.city,
+          state: result.state || prev.state,
+          country: result.country || prev.country,
+        }));
+      }
+    }, 400);
+
+    return () => {
+      if (zipLookupTimer.current) clearTimeout(zipLookupTimer.current);
+    };
+  }, [form.zipcode, fetchZipDetails]);
 
   const ownSet =
     String(form.ownShipping ?? "").trim() !== "" &&
@@ -204,6 +228,7 @@ export default function YardAddModal({ open, onClose, onSubmit }) {
           faxNo: "",
           expShipDate: "",
           warranty: "",
+          yardWarrantyField: "days",
           stockNo: "",
         });
         return;
@@ -224,6 +249,8 @@ export default function YardAddModal({ open, onClose, onSubmit }) {
           state: selected.state,
           zipcode: selected.zipcode,
           country: selected.country,
+          yardWarrantyField: selected.yardWarrantyField || "days",
+          warranty: selected.warranty || "",
         }));
       }
     }}
@@ -248,6 +275,8 @@ export default function YardAddModal({ open, onClose, onSubmit }) {
           state: "",
           zipcode: "",
           country: "US",
+          warranty: "",
+          yardWarrantyField: "days",
         }));
       }
     }}
@@ -362,9 +391,22 @@ export default function YardAddModal({ open, onClose, onSubmit }) {
               {errors.zipcode && <p className="text-xs text-red-200">{errors.zipcode}</p>}
             </Field>
             <Field label="Country">
-              <Select value={form.country} onChange={set("country")}>
-                <option value="US">US</option>
-                <option value="Canada">Canada</option>
+              <Select
+                value={form.country}
+                onValueChange={(val) =>
+                  setForm((prev) => ({
+                    ...prev,
+                    country: val,
+                  }))
+                }
+              >
+                <SelectTrigger className="!bg-[#2b2d68] hover:!bg-[#090c6c]">
+                  <SelectValue placeholder="Select country" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="US">US</SelectItem>
+                  <SelectItem value="Canada">Canada</SelectItem>
+                </SelectContent>
               </Select>
             </Field>
             <div />
@@ -376,8 +418,34 @@ export default function YardAddModal({ open, onClose, onSubmit }) {
               <Input type="number" value={form.partPrice} onChange={set("partPrice")} />
               {errors.partPrice && <p className="text-xs text-red-200">{errors.partPrice}</p>}
             </Field>
-            <Field label="Warranty (days)">
-              <Input type="number" value={form.warranty} onChange={set("warranty")} />
+            <Field label="Warranty">
+              <div className="grid grid-cols-2 gap-2">
+                <Input type="number" value={form.warranty} onChange={set("warranty")} />
+                <Select
+                  value={form.yardWarrantyField}
+                  onValueChange={(val) =>
+                    setForm((prev) => ({
+                      ...prev,
+                      yardWarrantyField: val,
+                    }))
+                  }
+                >
+                  <SelectTrigger className="!bg-[#2b2d68] hover:!bg-[#090c6c]">
+                    <SelectValue placeholder="Units" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="days">
+                      {Number(form.warranty) === 1 ? "Day" : "Day(s)"}
+                    </SelectItem>
+                    <SelectItem value="months">
+                      {Number(form.warranty) === 1 ? "Month" : "Month(s)"}
+                    </SelectItem>
+                    <SelectItem value="years">
+                      {Number(form.warranty) === 1 ? "Year" : "Year(s)"}
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </Field>
             <Field label="Stock No.">
               <Input value={form.stockNo} onChange={set("stockNo")} />

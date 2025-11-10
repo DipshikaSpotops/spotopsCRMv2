@@ -2,16 +2,35 @@ import Field from "../../ui/Field";
 import Input from "../../ui/Input";
 
 export default function PartTab({ order }) {
+  const rows = [
+    [
+      {
+        label: "Year / Make / Model",
+        value: [order?.year, order?.make, order?.model]
+          .filter((part) => part !== undefined && part !== null && part !== "")
+          .join(" / "),
+      },
+      { label: "Part Required", value: order?.pReq },
+    ],
+    [
+      { label: "Description", value: order?.desc },
+      { label: "Warranty (days)", value: order?.warranty },
+    ],
+    [
+      { label: "VIN", value: order?.vin },
+      { label: "Part No.", value: order?.partNo },
+    ],
+  ];
+
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-      <Field label="Make"><Input readOnly value={order?.make || ""} /></Field>
-      <Field label="Model"><Input readOnly value={order?.model || ""} /></Field>
-      <Field label="Year"><Input readOnly value={order?.year || ""} /></Field>
-      <Field label="Part Required"><Input readOnly value={order?.pReq || ""} /></Field>
-      <Field label="Description"><Input readOnly value={order?.desc || ""} /></Field>
-      <Field label="Warranty (days)"><Input readOnly value={order?.warranty || ""} /></Field>
-      <Field label="VIN"><Input readOnly value={order?.vin || ""} /></Field>
-      <Field label="Part No."><Input readOnly value={order?.partNo || ""} /></Field>
+      {rows.map((cols, rowIdx) =>
+        cols.map((field, colIdx) => (
+          <Field key={`${rowIdx}-${colIdx}-${field.label}`} label={field.label}>
+            <Input readOnly value={field.value || ""} />
+          </Field>
+        ))
+      )}
     </div>
   );
 }

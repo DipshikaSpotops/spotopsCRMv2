@@ -130,6 +130,7 @@ const calcActualGP = (orderLike) => {
 
   const sp = parseFloat(orderLike.soldP) || 0;
   const tax = parseFloat(orderLike.salestax) || 0;
+  const orderReimb = parseFloat(orderLike.reimbursementAmount) || 0;
   const custRefundedAmount = parseFloat(
     orderLike.custRefundedAmount ||
     orderLike.cancelledRefAmount ||
@@ -170,16 +171,16 @@ const calcActualGP = (orderLike) => {
   const status = normalizeStatusForCalc(orderLike.orderStatus);
 
   if (hasCardCharged || poCancelledWithCardCharged) {
-    return sp - custRefundedAmount - tax - totalYardSpend;
+    return sp - custRefundedAmount - tax - totalYardSpend - orderReimb;
   } else if (
     ["Order Cancelled", "Refunded"].includes(status) ||
     (hasPOCancelled && !hasCardCharged)
   ) {
-    return sp - custRefundedAmount - tax;
+    return sp - custRefundedAmount - tax - orderReimb;
   } else if (["Dispute", "Dispute after Cancellation"].includes(status)) {
-    return 0 - (totalYardSpend + tax);
+    return 0 - (totalYardSpend + tax + orderReimb);
   }
-  return 0;
+  return 0 - orderReimb;
 };
 
 export default function OrderDetails() {
@@ -212,6 +213,9 @@ export default function OrderDetails() {
   const [toast, setToast] = useState("");
   const [newStatus, setNewStatus] = useState(order?.orderStatus || "");
   const [confirm, setConfirm] = useState({ open: false, title: "", message: "", onConfirm: null });
+  const [reimbursementAmount, setReimbursementAmount] = useState("");
+  const [reimbursementDate, setReimbursementDate] = useState("");
+  const [savingReimbursement, setSavingReimbursement] = useState(false);
 
   useEffect(() => {
     document.title = orderNo ? `Order No ${orderNo}` : "ORDER DETAILS";
@@ -242,6 +246,23 @@ export default function OrderDetails() {
     }
   }, [order]);
 
+  useEffect(() => {
+    const amount =
+      order?.reimbursementAmount !== undefined && order?.reimbursementAmount !== null
+        ? String(order.reimbursementAmount)
+        : "";
+    setReimbursementAmount(amount);
+
+    const orderDate = order?.reimbursementDate
+      ? new Date(order.reimbursementDate)
+      : null;
+    setReimbursementDate(
+      orderDate && !Number.isNaN(orderDate.getTime())
+        ? orderDate.toISOString().split("T")[0]
+        : ""
+    );
+  }, [order?.reimbursementAmount, order?.reimbursementDate]);
+
   /** DRY helper: recompute + persist + paint Actual GP */
   const recomputeAndPersistActualGP = async ({ useServer = true } = {}) => {
     try {
@@ -266,7 +287,15 @@ export default function OrderDetails() {
     }
   };
   const handleWsEvent = useCallback(async (msg) => {
-    if (["ORDER_UPDATED", "STATUS_CHANGED", "YARD_UPDATED", "REFUND_SAVED"].includes(msg.type)) {
+    if (
+      [
+        "ORDER_UPDATED",
+        "STATUS_CHANGED",
+        "YARD_UPDATED",
+        "REFUND_SAVED",
+        "REIMBURSEMENT_UPDATED",
+      ].includes(msg.type)
+    ) {
       await refresh(); // let the safety-effect decide if a PUT is needed
     }
   }, [refresh]);
@@ -325,6 +354,38 @@ export default function OrderDetails() {
     }
   };
 
+  const handleSaveReimbursement = async () => {
+    if (!orderNo) {
+      setToast("Order number not available yet.");
+      return;
+    }
+    const trimmedAmount = reimbursementAmount.trim();
+    const numericAmount =
+      trimmedAmount === "" ? null : Number(trimmedAmount);
+
+    if (numericAmount !== null && Number.isNaN(numericAmount)) {
+      setToast("Enter a valid reimbursement amount.");
+      return;
+    }
+
+    try {
+      setSavingReimbursement(true);
+      await API.put(`/orders/${orderNo}/reimbursement`, {
+        reimbursementAmount: numericAmount,
+        reimbursementDate: reimbursementDate || null,
+      });
+      if (typeof refresh === "function") {
+        await refresh();
+      }
+      setToast("Reimbursement details saved.");
+    } catch (err) {
+      console.error("Error saving reimbursement:", err);
+      setToast("Failed to save reimbursement details.");
+    } finally {
+      setSavingReimbursement(false);
+    }
+  };
+
   const handleAddYard = async (formData) => {
     try {
       const firstName = localStorage.getItem("firstName") || "Unknown";
@@ -348,6 +409,8 @@ export default function OrderDetails() {
           state: formData.state,
           zipcode: formData.zipcode,
           country: formData.country,
+          warranty: formData.warranty,
+          yardWarrantyField: formData.yardWarrantyField,
         });
       }
 
@@ -362,7 +425,7 @@ export default function OrderDetails() {
       // 4) Refresh data and close modal
       if (typeof refresh === "function") await refresh();
       setShowAdd(false);
-      setToast(`Yard “${formData.yardName}” added successfully.`);
+      setToast(`Yard ${formData.yardName} added successfully.`);
     } catch (err) {
       console.error("Error adding yard:", err);
       setToast("Error adding yard. Please try again.");
@@ -381,6 +444,7 @@ export default function OrderDetails() {
       order.custRefAmount ||
       0
     );
+    const orderReimb = parseFloat(order.reimbursementAmount) || 0;
 
     const orderStatus = normalizeStatusForCalc(order.orderStatus || "");
     const additionalInfo = Array.isArray(order.additionalInfo)
@@ -419,18 +483,18 @@ export default function OrderDetails() {
     let actualGP = 0;
 
     if (hasCardCharged || poCancelledWithCardCharged) {
-      actualGP = sp - custRefundedAmount - tax - totalYardSpend;
+      actualGP = sp - custRefundedAmount - tax - totalYardSpend - orderReimb;
     } else if (
       ["Order Cancelled", "Refunded"].includes(orderStatus) ||
       (hasPOCancelled && !hasCardCharged)
     ) {
-      actualGP = sp - custRefundedAmount - tax;
+      actualGP = sp - custRefundedAmount - tax - orderReimb;
     } else if (
       ["Dispute", "Dispute after Cancellation"].includes(orderStatus)
     ) {
-      actualGP = 0 - (totalYardSpend + tax);
+      actualGP = 0 - (totalYardSpend + tax + orderReimb);
     } else {
-      actualGP = 0;
+      actualGP = 0 - orderReimb;
     }
 
     // Paint view
@@ -470,6 +534,7 @@ export default function OrderDetails() {
     order?.custRefAmount,
     order?.cancelledRefAmount,
     order?.additionalInfo,
+    order?.reimbursementAmount,
   ]);
 
   // Mirror server value into view on arrival
@@ -482,13 +547,13 @@ export default function OrderDetails() {
 
   return (
     <>
-      <div className="min-h-screen text-sm text-[#04356d] bg-gradient-to-b from-[#70869c] via-[#51358a] to-[#4d6bb9] dark:bg-gradient-to-br dark:from-[#0b1c34] dark:via-[#2b2d68] dark:to-[#4b225e] dark:text-white">
+      <div className="min-h-screen text-sm text-[#04356d] bg-gradient-to-b from-[#5a6f87] via-[#51358a] to-[#4d6bb9] dark:bg-gradient-to-br dark:from-[#0b1c34] dark:via-[#2b2d68] dark:to-[#4b225e] dark:text-white">
         <NavbarForm />
 
         <div className="w-full px-4 sm:px-6 lg:px-8 2xl:px-12 pt-24 pb-6 min-h-[calc(100vh-6rem)] overflow-y-auto">
           {/* Header */}
           <div className="mb-6">
-            <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+            <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-6">
               <div>
                 <h1 className="text-3xl font-bold text-white">
                   ORDER DETAILS{" "}
@@ -496,7 +561,10 @@ export default function OrderDetails() {
                     - {orderNo || "—"}
                   </span>
                 </h1>
-                <div className="mt-2 flex gap-2 items-center">
+              </div>
+
+              <div className="flex flex-col items-end gap-3">
+                <div className="flex gap-2 items-center">
                   {/* Order History Button */}
                   <button
                     onClick={() => setShowHistory(true)}
@@ -504,24 +572,6 @@ export default function OrderDetails() {
                   >
                     View History
                   </button>
-
-                  {/* Recalculate Actual GP */}
-                  {/* <button
-                    onClick={async () => {
-                      setConfirm({
-                        open: true,
-                        title: "Recalculate Actual GP?",
-                        message: "We’ll fetch the latest order, recompute, and persist the value.",
-                        confirmText: "Recalculate",
-                        onConfirm: async () => {
-                          await recomputeAndPersistActualGP({ useServer: true });
-                        }
-                      });
-                    }}
-                    className="px-3 py-1 rounded-md text-sm bg-white/10 hover:bg-white/20"
-                  >
-                    Recalculate Actual GP
-                  </button> */}
 
                   {/* Status Dropdown */}
                   <select
@@ -533,14 +583,15 @@ export default function OrderDetails() {
                       if (selectedValue === newStatus) return;
 
                       setConfirm({
-                        open: true, title: "Change order status?",
+                        open: true,
+                        title: "Change order status?",
                         message: `Set status to “${selectedLabel}”?`,
                         confirmText: "Change",
                         cancelText: "Keep current",
                         onConfirm: () => handleStatusChange(selectedValue),
                       });
                     }}
-                    className="px-2 py-1 rounded-md bg-[#2b2d68] hover:bg-[#090c6c] text-white align-middle border border-white/20 cursor-pointer"
+                    className="px-2 py-1 rounded-md bg-[#2b2d68] hover:bg-[#090c6c] text-white align-middle border border-white/20 cursor-pointer transition-colors"
                   >
                     {STATUS_OPTIONS.map((opt) => (
                       <option key={opt.value} value={opt.value}>
@@ -549,12 +600,12 @@ export default function OrderDetails() {
                     ))}
                   </select>
                 </div>
-              </div>
 
-              <div className="hidden md:flex gap-2">
-                <Pill className={getStatusColor(statusPill)}>
-                  {displayStatus(statusPill)}
-                </Pill>
+                {/* <div className="hidden md:flex gap-2">
+                  <Pill className={getStatusColor(statusPill)}>
+                    {displayStatus(statusPill)}
+                  </Pill>
+                </div> */}
               </div>
             </div>
 
@@ -563,66 +614,112 @@ export default function OrderDetails() {
           </div>
 
           {/* 3 columns */}
-          <div className="grid grid-cols-12 gap-6 2xl:gap-8 items-stretch min-h-[calc(100vh-15rem)] pb-10">
+          <div className="grid grid-cols-12 gap-6 2xl:gap-8 items-stretch min-h-[calc(100vh-13rem)] pb-10">
             {/* LEFT: Order Details */}
-            <aside className="col-span-12 xl:col-span-4">
-              <GlassCard
-                title="Order Details"
-                actions={
-                  <div className="flex gap-2 rounded-lg p-1 bg-[#5c8bc1]/15 border border-[#5c8bc1]/30 dark:bg-white/10 dark:border-white/20">
-                    {["Customer", "Part", "Pricing", "Shipping"].map((t) => (
-                      <button
-                        key={t}
-                        onClick={() => setTab(t)}
-                        className={`px-3 py-1.5 rounded-md text-sm transition ${tab === t
-                          ? "bg-white border border-[#5c8bc1]/40 text-[#04356d] shadow dark:bg-black/20 dark:border-white/30 dark:text-white"
-                          : "text-[#04356d]/80 hover:text-[#04356d] dark:text-white/80 dark:hover:text-white"
-                          }`}
-                      >
-                        {t}
-                      </button>
-                    ))}
-                  </div>
-                }
-              >
-                {tab === "Customer" && <CustomerTab order={order} />}
-                {tab === "Part" && <PartTab order={order} />}
-                {tab === "Pricing" && <PricingTab order={order} />}
-                {tab === "Shipping" && <ShippingTab order={order} />}
-              </GlassCard>
+            <aside className="col-span-12 xl:col-span-4 flex flex-col gap-4 h-full min-h-[600px]">
+              <div className="flex-1 min-h-0">
+                <GlassCard
+                  className="h-full flex flex-col"
+                  title="Order Details"
+                  actions={
+                    <div className="flex gap-2 rounded-lg p-1 bg-[#29345a]/60 border border-[#43518a]/70 dark:bg-white/10 dark:border-white/20">
+                      {["Customer", "Part", "Pricing", "Other Details"].map((t) => (
+                        <button
+                          key={t}
+                          onClick={() => setTab(t)}
+                          className={`px-3 py-1.5 rounded-md text-sm transition ${tab === t
+                            ? "bg-[#38487a] text-white shadow-inner border border-[#5260a1] dark:bg-[#2b2d68] dark:border-white/30 dark:text-white"
+                            : "text-[#d4d9ea] hover:text-white border border-transparent dark:text-white/70 dark:hover:text-white"
+                            }`}
+                        >
+                          {t}
+                        </button>
+                      ))}
+                    </div>
+                  }
+                >
+                  {tab === "Customer" && <CustomerTab order={order} />}
+                  {tab === "Part" && <PartTab order={order} />}
+                  {tab === "Pricing" && <PricingTab order={order} />}
+                  {tab === "Other Details" && <ShippingTab order={order} />}
+                </GlassCard>
+              </div>
               <SaleNote orderNo={order?.orderNo} />
+              <div className="p-4 rounded-xl bg-white/10 border border-white/20 text-white backdrop-blur-sm">
+                <h3 className="text-base font-semibold mb-3 border-b border-white/20 pb-1">
+                  Reimbursement
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                  <div className="flex flex-col gap-1">
+                    <span className="text-white/80">Amount ($)</span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={reimbursementAmount}
+                      onChange={(e) => setReimbursementAmount(e.target.value)}
+                      className="w-full rounded-md bg-white/10 border border-white/30 px-3 py-2 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-white/60"
+                      placeholder="Enter reimbursement amount"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <span className="text-white/80">Reimbursement Date</span>
+                    <input
+                      type="date"
+                      value={reimbursementDate}
+                      onChange={(e) => setReimbursementDate(e.target.value)}
+                      className="w-full rounded-md bg-white/10 border border-white/30 px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-white/60"
+                    />
+                  </div>
+                </div>
+                <div className="mt-4 flex justify-end">
+                  <button
+                    onClick={handleSaveReimbursement}
+                    disabled={savingReimbursement || !orderNo}
+                    className={`px-4 py-2 rounded-md text-sm font-semibold border transition ${
+                      savingReimbursement
+                        ? "bg-white/20 text-white/70 border-white/20 cursor-not-allowed"
+                        : "bg-white text-[#04356d] border-white/30 hover:bg-white/90 dark:bg-[#2b2d68] dark:text-white dark:border-white/20 dark:hover:bg-[#1a1f4b]"
+                    }`}
+                  >
+                    {savingReimbursement ? "Saving..." : "Save Reimbursement"}
+                  </button>
+                </div>
+              </div>
             </aside>
 
             {/* CENTER: Yards */}
-            <section className="col-span-12 xl:col-span-4 flex flex-col gap-6">
-              <YardList
-                yards={yards}
-                expandedYards={expandedYards}
-                onToggle={(i) =>
-                  setExpandedYards((p) => ({ ...p, [i]: !p[i] }))
-                }
-                canAddNewYard={canAddNewYard}
-                onOpenAdd={() => setShowAdd(true)}
-                onEditStatus={(i) => setEditStatusIdx(i)}
-                onEditDetails={(i) => setEditDetailsIdx(i)}
-                onCardCharged={(i) => setCardChargedIdx(i)}
-                onRefundStatus={(i) => setRefundIdx(i)}
-                onEscalation={(i) => {
-                  /* same logic */
-                }}
-              />
+            <section className="col-span-12 xl:col-span-4 flex flex-col gap-4 h-full">
+              <div className="flex-1 min-h-0">
+                <YardList
+                  yards={yards}
+                  expandedYards={expandedYards}
+                  onToggle={(i) =>
+                    setExpandedYards((p) => ({ ...p, [i]: !p[i] }))
+                  }
+                  canAddNewYard={canAddNewYard}
+                  onOpenAdd={() => setShowAdd(true)}
+                  onEditStatus={(i) => setEditStatusIdx(i)}
+                  onEditDetails={(i) => setEditDetailsIdx(i)}
+                  onCardCharged={(i) => setCardChargedIdx(i)}
+                  onRefundStatus={(i) => setRefundIdx(i)}
+                  onEscalation={(i) => {
+                    /* same logic */
+                  }}
+                />
+              </div>
             </section>
 
             {/* RIGHT: comments */}
-            <aside className="col-span-12 xl:col-span-4 flex flex-col h-[calc(100vh-20rem)] min-h-0">
-              <div className="flex gap-2 mb-3">
-                {yards?.map((y, i) => (
+            <aside className="col-span-12 xl:col-span-4 flex flex-col gap-4 h-full">
+              <div className="flex flex-wrap gap-2 shrink-0">
+                {yards?.map((_, i) => (
                   <button
                     key={i}
                     onClick={() => setActiveSection(i)}
                     className={`px-3 py-1 rounded-md text-sm font-semibold transition ${activeSection === i
-                      ? "bg-white text-[#04356d]"
-                      : "bg-white/10 text-white hover:bg-white/20"
+                      ? "bg-[#38487a] text-white shadow-inner border border-[#5260a1] dark:bg-[#2b2d68] dark:text-white"
+                      : "bg-[#29345a]/70 text-white/80 hover:text-white border border-transparent dark:bg-white/10 dark:text-white/70 dark:hover:text-white"
                       }`}
                   >
                     Yard {i + 1}
@@ -631,19 +728,21 @@ export default function OrderDetails() {
                 <button
                   onClick={() => setActiveSection("support")}
                   className={`px-3 py-1 rounded-md text-sm font-semibold transition ${activeSection === "support"
-                    ? "bg-white text-[#04356d]"
-                    : "bg-white/10 text-white hover:bg-white/20"
+                    ? "bg-[#38487a] text-white shadow-inner border border-[#5260a1] dark:bg-[#2b2d68] dark:text-white"
+                    : "bg-[#29345a]/70 text-white/80 hover:text-white border border-transparent dark:bg-white/10 dark:text-white/70 dark:hover:text-white"
                     }`}
                 >
                   Order Comments
                 </button>
               </div>
 
-              <CommentBox
-                orderNo={order?.orderNo}
-                mode={activeSection === "support" ? "support" : "yard"}
-                yardIndex={activeSection === "support" ? null : activeSection}
-              />
+              <div className="flex-1 min-h-0">
+                <CommentBox
+                  orderNo={order?.orderNo}
+                  mode={activeSection === "support" ? "support" : "yard"}
+                  yardIndex={activeSection === "support" ? null : activeSection}
+                />
+              </div>
             </aside>
           </div>
         </div>

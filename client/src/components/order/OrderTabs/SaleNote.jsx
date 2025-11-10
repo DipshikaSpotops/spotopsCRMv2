@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import API from "../../../api";
-export default function SaleNote({ orderNo }) {
+import Field from "../../ui/Field";
+import Input from "../../ui/Input";
+export default function SaleNote({ orderNo, className = "" }) {
   const [noteData, setNoteData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -47,7 +49,9 @@ export default function SaleNote({ orderNo }) {
   }, [orderNo]);
 
   return (
-    <div className="mt-4 p-4 rounded-xl bg-white/10 border border-white/20 text-white max-h-[220px] overflow-y-auto backdrop-blur-sm">
+    <div
+      className={`p-4 rounded-xl bg-white/10 border border-white/20 text-white backdrop-blur-sm ${className}`}
+    >
       <h3 className="text-base font-semibold mb-2 border-b border-white/20 pb-1">
         Sale Notes
       </h3>
@@ -56,23 +60,20 @@ export default function SaleNote({ orderNo }) {
       {error && <p className="text-red-400 text-sm">{error}</p>}
 
       {!loading && !error && noteData && (
-        <div className="space-y-1 text-sm">
-          <p>
-            <strong>Sale Note:</strong>{" "}
-            <span className="text-gray-200">{noteData.notes}</span>
-          </p>
-          <p>
-            <strong>Programming Required:</strong>{" "}
-            <span className="text-gray-200">{noteData.programmingRequired}</span>
-          </p>
-          <p>
-            <strong>Programming Cost:</strong>{" "}
-            <span className="text-gray-200">${noteData.programmingCostQuoted}</span>
-          </p>
-          <p>
-            <strong>Expedite Shipping:</strong>{" "}
-            <span className="text-gray-200">{noteData.expediteShipping}</span>
-          </p>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <Field label="Programming Required">
+            <Input
+              readOnly
+              value={
+                noteData.programmingRequired === "Yes"
+                  ? `Yes ($${noteData.programmingCostQuoted})`
+                  : "No"
+              }
+            />
+          </Field>
+          <Field label="Expedite Shipping">
+            <Input readOnly value={noteData.expediteShipping} />
+          </Field>
         </div>
       )}
     </div>

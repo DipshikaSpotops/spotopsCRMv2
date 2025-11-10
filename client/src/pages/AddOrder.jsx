@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { STATES } from "../data/states";
 const SALES_AGENTS = ["David", "Dipshika", "John", "Mark", "Michael", "Richard", "Tristan"];
 const REQUIRED_FIELD_LABELS = {
@@ -35,6 +36,80 @@ const REQUIRED_FIELD_LABELS = {
 };
 import API from "../api";
 
+const getStoredFirstName = () => {
+  if (typeof window === "undefined") return "";
+  const stored = localStorage.getItem("firstName");
+  return stored ? stored.trim() : "";
+};
+
+const resolveSalesAgentValue = (value) => {
+  if (!value) return "";
+  const match = SALES_AGENTS.find(
+    (agent) => agent.toLowerCase() === value.toLowerCase()
+  );
+  return match || value;
+};
+
+const buildInitialFormData = (defaultSalesAgent = "") => ({
+  // Order basics
+  orderNo: "",
+  salesAgent: defaultSalesAgent,
+  orderDateDisplay: "",
+  orderDateISO: "",
+  orderStatus: "Placed",
+
+  // Customer Info
+  fName: "",
+  lName: "",
+  email: "",
+  phone: "",
+  altPhone: "",
+
+  // Billing Info
+  bName: "",
+  bAddressStreet: "",
+  bAddressCity: "",
+  bAddressState: "",
+  bAddressZip: "",
+  bAddressAcountry: "",
+
+  // Shipping Info
+  sAttention: "",
+  sAddressStreet: "",
+  sAddressCity: "",
+  sAddressState: "",
+  sAddressZip: "",
+  sAddressAcountry: "",
+  businessName: "",
+
+  // Part Info
+  make: "",
+  model: "",
+  year: "",
+  pReq: "",
+  desc: "",
+  warranty: "",
+  warrantyField: "days",
+  vin: "",
+  partNo: "",
+
+  // Price & GP
+  soldP: "",
+  costP: "",
+  shippingFee: "",
+  salestax: "",
+  grossProfit: "",
+  last4digits: "",
+  notes: "",
+
+  // Toggles
+  expediteShipping: false,
+  dsCall: false,
+  programmingRequired: false,
+  programmingCost: "",
+  sameAsBilling: false,
+});
+
 function Toast({ toast, onClose }) {
   if (!toast) return null;
 
@@ -60,67 +135,23 @@ function Toast({ toast, onClose }) {
 }
 
 export default function AddOrder() {
+  const navigate = useNavigate();
+  const defaultSalesAgent = useMemo(
+    () => resolveSalesAgentValue(getStoredFirstName()),
+    []
+  );
+  const salesAgentOptions = useMemo(() => {
+    if (!defaultSalesAgent) return SALES_AGENTS;
+    const exists = SALES_AGENTS.some(
+      (agent) => agent.toLowerCase() === defaultSalesAgent.toLowerCase()
+    );
+    return exists ? SALES_AGENTS : [defaultSalesAgent, ...SALES_AGENTS];
+  }, [defaultSalesAgent]);
   const [toast, setToast] = useState(null);
   const [submitting, setSubmitting] = useState(false);
-  const [formData, setFormData] = useState({
-    // Order basics
-    orderNo: "",
-    salesAgent: "",
-    orderDateDisplay: "",
-    orderDateISO: "",
-    orderStatus: "Placed",
-
-    // Customer Info
-    fName: "",
-    lName: "",
-    email: "",
-    phone: "",
-    altPhone: "",
-
-    // Billing Info
-    bName: "",
-    bAddressStreet: "",
-    bAddressCity: "",
-    bAddressState: "",
-    bAddressZip: "",
-    bAddressAcountry: "",
-
-    // Shipping Info
-    attention: "",
-    sAddressStreet: "",
-    sAddressCity: "",
-    sAddressState: "",
-    sAddressZip: "",
-    sAddressAcountry: "",
-    businessName: "",
-
-    // Part Info
-    make: "",
-    model: "",
-    year: "",
-    pReq: "",
-    desc: "",
-    warranty: "",
-    warrantyField: "days",
-    vin: "",
-    partNo: "",
-
-    // Price & GP
-    soldP: "",
-    costP: "",
-    shippingFee: "",
-    salestax: "",
-    grossProfit: "",
-    last4digits: "",
-    notes: "",
-
-    //  Toggles
-    expediteShipping: false,
-    dsCall: false,
-    programmingRequired: false,
-    programmingCost: "",
-    sameAsBilling: false,
-  });
+  const [formData, setFormData] = useState(() =>
+    buildInitialFormData(defaultSalesAgent)
+  );
   const [partNames, setPartNames] = useState([]);
 
   useEffect(() => {
@@ -166,41 +197,13 @@ export default function AddOrder() {
     const trimmed = (zipRaw || "").trim();
     if (!trimmed) return null;
 
-    const normalized = trimmed.replace(/\s+/g, "").toUpperCase();
-
     try {
-      if (/^\d{5}$/.test(normalized)) {
-        const response = await fetch(`https://api.zippopotam.us/us/${normalized}`);
-        if (!response.ok) return null;
-        const data = await response.json();
-        const place = data?.places?.[0];
-        if (!place) return null;
-        return {
-          city: place["place name"] || "",
-          state: place["state abbreviation"] || "",
-          country: data?.["country abbreviation"] || "US",
-        };
-      }
-
-      if (trimmed.length >= 4 && trimmed.includes(" ")) {
-        const segment = trimmed.slice(0, 3).toUpperCase();
-        if (!/^[A-Z]\d[A-Z]$/.test(segment)) return null;
-        const response = await fetch(`https://api.zippopotam.us/CA/${segment}`);
-        if (!response.ok) return null;
-        const data = await response.json();
-        const place = data?.places?.[0];
-        if (!place) return null;
-        return {
-          city: place["place name"] || "",
-          state: place["state abbreviation"] || "",
-          country: data?.country || "Canada",
-        };
-      }
+      const res = await API.get("/utils/zip-lookup", { params: { zip: trimmed } });
+      return res.data || null;
     } catch (error) {
       console.debug("ZIP lookup skipped", error);
+      return null;
     }
-
-    return null;
   }, []);
 
   useEffect(() => {
@@ -375,6 +378,8 @@ export default function AddOrder() {
 
       const createdOrderNo = res?.data?.orderNo || payload.orderNo || "";
       setToast({ message: `Order ${createdOrderNo} created successfully!`, variant: "success" });
+      setFormData(buildInitialFormData(defaultSalesAgent));
+      navigate("/monthly-orders");
     } catch (err) {
       if (err.response && err.response.status === 409) {
         setToast({
@@ -411,7 +416,7 @@ export default function AddOrder() {
           <Section title="Sales Agent">
             <Dropdown
               placeholder="Select Sales Agent"
-              options={SALES_AGENTS}
+              options={salesAgentOptions}
               value={formData.salesAgent}
               onChange={(e) =>
                 setFormData((prev) => ({ ...prev, salesAgent: e.target.value }))
@@ -566,7 +571,7 @@ export default function AddOrder() {
                 }}
               />
               <select
-                className="w-full p-2 border border-gray-300 bg-white text-gray-900 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-400"
+                className="w-full p-2 border border-gray-300 bg-white/20 text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-400"
                 value={formData.warrantyField}
                 onChange={(e) =>
                   setFormData((prev) => ({ ...prev, warrantyField: e.target.value }))
