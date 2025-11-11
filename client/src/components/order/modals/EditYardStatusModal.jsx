@@ -167,6 +167,9 @@ export default function EditYardStatusModal({
                 shipperName: chosenShipper,
                 link: trackingLink,
                 firstName,
+              },
+              {
+                baseURL: rootApiBase || undefined,
               }
             );
             setToast(
@@ -176,7 +179,10 @@ export default function EditYardStatusModal({
             await API.post(
               `/emails/customer-delivered/${encodeURIComponent(orderNo)}`,
               null,
-              { params: { yardIndex: yardIndex + 1, firstName } }
+              {
+                baseURL: rootApiBase || undefined,
+                params: { yardIndex: yardIndex + 1, firstName },
+              }
             );
             setToast(
               `Yard ${yardIndex + 1} status updated to ${status} — email sent successfully!`

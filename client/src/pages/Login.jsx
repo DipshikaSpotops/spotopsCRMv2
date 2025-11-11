@@ -122,8 +122,8 @@
 // /src/pages/LoginPage.jsx
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import axios from "axios";
 import API from "../api"; 
+import { persistStoredAuth } from "../utils/authStorage";
 
 const Login = () => {
   const [formData, setFormData] = useState({ email: "", password: "" });
@@ -140,12 +140,12 @@ const Login = () => {
     try {
       const res = await API.post("/auth/login", formData);
       if (res.data.token && res.data.user) {
-        // canonical
-        localStorage.setItem("auth", JSON.stringify({ user: res.data.user, token: res.data.token }));
-        // optional legacy keys
-        localStorage.setItem("token", res.data.token);
-        localStorage.setItem("firstName", res.data.user.firstName);
-        localStorage.setItem("role", res.data.user.role);
+        const authPayload = {
+          user: res.data.user,
+          token: res.data.token,
+          loginAt: Date.now(),
+        };
+        persistStoredAuth(authPayload);
 
         alert(`Welcome ${res.data.user.firstName}!`);
         navigate("/dashboard");

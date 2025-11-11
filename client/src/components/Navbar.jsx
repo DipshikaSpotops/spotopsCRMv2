@@ -3,6 +3,7 @@ import "@fortawesome/fontawesome-free/css/all.min.css";
 import { useNavigate } from "react-router-dom";
 import { useDispatch } from "react-redux";
 import { logout as logoutAction } from "../store/authSlice";
+import { clearStoredAuth } from "../utils/authStorage";
 
 export default function Navbar() {
   const navigate = useNavigate();
@@ -57,27 +58,12 @@ export default function Navbar() {
   // --- Single logout that clears ALL possible keys + Redux ---
   const handleLogout = () => {
     try {
-      // Clear any auth-related keys you’ve used (cover both old & new styles)
-      localStorage.removeItem("auth");        // unified object { user, token } (recommended going forward)
-      localStorage.removeItem("user");        // legacy
-      localStorage.removeItem("firstName");   // legacy
-      localStorage.removeItem("role");        // legacy
-      localStorage.removeItem("token");       // legacy naming
-      localStorage.removeItem("auth_token");  // your newer naming
-
-      // Optional: if you ever stored email, etc.
-      localStorage.removeItem("email");
-
-      // Clear Redux auth state
-      dispatch(logoutAction());
-
-      // Hard redirect to login so any in-memory state (axios, RTK cache) is clean
-      navigate("/login", { replace: true });
+      clearStoredAuth();
     } catch (e) {
       console.error("Logout error:", e);
-      dispatch(logoutAction());
-      navigate("/login", { replace: true });
     }
+    dispatch(logoutAction());
+    navigate("/login", { replace: true });
   };
 
   return (

@@ -118,17 +118,19 @@ export default function CommentBox({
     setInput("");
 
     try {
+      const firstName = localStorage.getItem("firstName") || "System";
       if (mode === "support") {
-        await API.patch(`/orders/${orderNo}/supportNotes`, {
-          note,
-          author,
-          timestamp: whenIso,
-        });
+        await API.patch(
+          `/orders/${orderNo}/supportNotes`,
+          { note, author, timestamp: whenIso },
+          { params: { firstName } }
+        );
       } else {
         await API.patch(
-        `/orders/${orderNo}/additionalInfo/${yardIndex}/notes`,
-        { note, author, timestamp: whenIso }
-      );
+          `/orders/${orderNo}/additionalInfo/${yardIndex}/notes`,
+          { note, author, timestamp: whenIso },
+          { params: { firstName } }
+        );
       }
 
       // success toast only for the actor on this tab

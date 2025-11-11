@@ -1,4 +1,5 @@
 import axios from "axios";
+import { clearStoredAuth } from "./utils/authStorage";
 
 function withSingleApi(base) {
   if (!base) return "";
@@ -32,4 +33,17 @@ API.interceptors.request.use((cfg) => {
   }
   return cfg;
 });
+
+API.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error?.response?.status === 401) {
+      clearStoredAuth();
+      if (window.location.pathname !== "/login") {
+        window.location.href = "/login";
+      }
+    }
+    return Promise.reject(error);
+  }
+);
 export default API;

@@ -4,6 +4,7 @@ import Signup from "./pages/Signup";
 import { lazy, Suspense } from "react";
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 import MainLayout from "./layouts/MainLayout";
+import RequireAuth from "./components/RequireAuth";
 import AddOrder from "./pages/AddOrder";
 import PlacedOrders from "./pages/PlacedOrders";
 import CustomerApproved from "./pages/CustomerApproved";
@@ -38,6 +39,15 @@ import SalesReport from "./pages/SalesReport";
 
 function App() {
   useAuthBootstrap(); // read localStorage and dispatch setCredentials once.
+
+  const withLayout = (node) => (
+    <RequireAuth>
+      <MainLayout>{node}</MainLayout>
+    </RequireAuth>
+  );
+
+  const requireAuth = (node) => <RequireAuth>{node}</RequireAuth>;
+
   return (
     <Router>
       <Routes>
@@ -50,52 +60,32 @@ function App() {
         <Route
           path="/dashboard"
           element={
-            <MainLayout>
+            withLayout(
               <Suspense fallback={<div className="text-center p-8">Loading dashboard...</div>}>
                 <Dashboard />
               </Suspense>
-            </MainLayout>
+            )
           }
         />
         <Route
           path="/add-order"
-          element={
-            <MainLayout>
-              <AddOrder />
-            </MainLayout>
-          }
+          element={withLayout(<AddOrder />)}
         />
         <Route
           path="/placed-orders"
-          element={
-            <MainLayout>
-              <PlacedOrders />
-            </MainLayout>
-          }
+          element={withLayout(<PlacedOrders />)}
         />
         <Route
           path="/customer-approved"
-          element={
-            <MainLayout>
-              <CustomerApproved />
-            </MainLayout>
-          }
+          element={withLayout(<CustomerApproved />)}
         />
         <Route
           path="/monthly-orders"
-          element={
-            <MainLayout>
-              <MonthlyOrders />
-            </MainLayout>
-          }
+          element={withLayout(<MonthlyOrders />)}
         />
         <Route
           path="/view-all-orders"
-          element={
-            <MainLayout>
-              <AllOrders />
-            </MainLayout>
-          }
+          element={withLayout(<AllOrders />)}
         />
         {/* <Route
           path="/order-details"
@@ -105,181 +95,87 @@ function App() {
         /> */}
         <Route
           path="/yard-processing"
-          element={
-               <MainLayout>
-              <YardProcessingOrders />
-              </MainLayout>
-          }
+          element={withLayout(<YardProcessingOrders />)}
         />
         <Route
           path="/in-transit"
-          element={
-               <MainLayout>
-              <InTransitOrders />
-              </MainLayout>
-          }
+          element={withLayout(<InTransitOrders />)}
         />
         <Route
           path="/cancelled-orders"
-          element={
-               <MainLayout>
-              <CancelledOrders />
-              </MainLayout>
-          }
+          element={withLayout(<CancelledOrders />)}
         />
         <Route
           path="/refunded-orders"
-          element={
-               <MainLayout>
-              <RefundedOrders />
-              </MainLayout>
-          }
+          element={withLayout(<RefundedOrders />)}
         />
         <Route
           path="/disputed-orders"
-          element={
-               <MainLayout>
-              <DisputedOrders />
-              </MainLayout>
-          }
+          element={withLayout(<DisputedOrders />)}
         />
         <Route
           path="/fulfilled-orders"
-          element={
-               <MainLayout>
-              <FulfilledOrders />
-              </MainLayout>
-          }
+          element={withLayout(<FulfilledOrders />)}
         />
         <Route
           path="/overall-escalation"
-          element={
-               <MainLayout>
-              <OverallEscalationOrders />
-              </MainLayout>
-          }
+          element={withLayout(<OverallEscalationOrders />)}
         />
         <Route
           path="/ongoing-escalation"
-          element={
-               <MainLayout>
-              <OngoingEscalationOrders />
-              </MainLayout>
-          }
+          element={withLayout(<OngoingEscalationOrders />)}
         />
         <Route          
         path="/create-user"
-        element={
-            <MainLayout>
-              <CreateUser/>
-            </MainLayout>
-          }
+        element={withLayout(<CreateUser />)}
         />
         <Route
         path="/view-users"
-        element={
-          <MainLayout>
-            <ViewUsers/>
-          </MainLayout>
-        }
+        element={withLayout(<ViewUsers />)}
         />
           <Route
         path="/order-details"
-        element={
-            <OrderDetails />
-        }/>
-        <Route path="/order-details/:orderNo" element={<OrderDetails />} />
+        element={requireAuth(<OrderDetails />)}/>
+        <Route path="/order-details/:orderNo" element={requireAuth(<OrderDetails />)} />
         <Route
         path="/cancelled-refunded-report"
-        element={
-          <MainLayout>
-            <CancelledRefundedOrders/>
-          </MainLayout>
-        }/>
+        element={withLayout(<CancelledRefundedOrders />)}/>
         <Route
         path="/card-not-charged-report"
-        element={
-          <MainLayout>
-            <CardNotCharged />
-          </MainLayout>
-        }/>
+        element={withLayout(<CardNotCharged />)}/>
         <Route
         path="/collect-refund"
-        element={
-          <MainLayout>
-            <CollectRefund/>
-          </MainLayout>
-        }/>
+        element={withLayout(<CollectRefund />)}/>
         <Route
         path="/ups-claims"
-        element={
-          <MainLayout>
-            <UPSClaims/>
-          </MainLayout>
-        }/>
+        element={withLayout(<UPSClaims />)}/>
         <Route
         path="/delivery-time"
-        element={
-          <MainLayout>
-            <DeliveryTimeReport/>
-          </MainLayout>
-        }/>
+        element={withLayout(<DeliveryTimeReport />)}/>
         <Route
         path="/monthly-disputes"
-        element={
-          <MainLayout>
-            <MonthlyDisputes/>
-          </MainLayout>
-        }/>
+        element={withLayout(<MonthlyDisputes />)}/>
         <Route
         path="/purchases"
-        element={
-          <MainLayout>
-            <Purchases/>
-          </MainLayout>
-        }/>
+        element={withLayout(<Purchases />)}/>
         <Route
         path="/po-report"
-        element={
-          <MainLayout>
-            <POReport/>
-          </MainLayout>
-        }/>
+        element={withLayout(<POReport />)}/>
         <Route
         path="/shipping-expenses"
-        element={
-          <MainLayout>
-            <ShippingExpenses/>
-          </MainLayout>
-        }/>
+        element={withLayout(<ShippingExpenses />)}/>
         <Route
         path="/store-credit"
-        element={
-          <MainLayout>
-            <StoreCredits/>
-          </MainLayout>
-        }/>
+        element={withLayout(<StoreCredits />)}/>
         <Route
         path="/tracking-info"
-        element={
-          <MainLayout>
-            <TrackingInfo/>
-          </MainLayout>
-        }/>
+        element={withLayout(<TrackingInfo />)}/>
         <Route
         path="/sales-data"
-        element={
-          <MainLayout>
-            <SalesData/>
-          </MainLayout>
-        }/>
+        element={withLayout(<SalesData />)}/>
         <Route
         path="/sales-report"
-        element={
-          <MainLayout>
-            <SalesReport/>
-          </MainLayout>
-        }
+        element={withLayout(<SalesReport />)}
           />
       </Routes>
     </Router>

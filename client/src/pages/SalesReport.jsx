@@ -5,7 +5,7 @@ import {
   BarChart, Bar, Legend, LabelList
 } from "recharts";
 import moment from "moment-timezone";
-import api from "../api/axios";
+import api from "../api";
 import AgentDropdown from "../components/AgentDropdown";
 
 /* ----------------------------- Constants / helpers ----------------------------- */

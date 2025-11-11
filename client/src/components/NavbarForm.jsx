@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from "react";
 import "@fortawesome/fontawesome-free/css/all.min.css";
 import { useNavigate } from "react-router-dom";
-
+import { clearStoredAuth } from "../utils/authStorage";
 
 export default function NavbarForm() {
   const navigate = useNavigate();
@@ -188,8 +188,11 @@ export default function NavbarForm() {
                 <li
                   className="px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
                   onClick={() => {
-                    localStorage.removeItem("token");
-                    localStorage.removeItem("user");
+                    try {
+                      clearStoredAuth();
+                    } catch (e) {
+                      console.error("Error clearing auth on logout:", e);
+                    }
                     window.location.href = "/login";
                   }}
                 >

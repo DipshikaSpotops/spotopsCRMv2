@@ -413,7 +413,7 @@ router.put("/:orderNo/custRefund", async (req, res) => {
 
     Object.assign(order, updateFields);
     order.markModified(`additionalInfo.${i}`);
-    await order.save();
+    await order.save({ validateBeforeSave: false });
       publish(req, orderNo, {
       type: "REFUND_SAVED",
       status: order.orderStatus,
@@ -522,7 +522,7 @@ router.post("/:orderNo/additionalInfo", async (req, res) => {
       }
     }
 
-    await order.save();
+    await order.save({ validateBeforeSave: false });
     publish(req, orderNo, {
       type: "YARD_ADDED",
       yardIndex: order.additionalInfo.length, 
@@ -667,6 +667,8 @@ router.put("/:orderNo/additionalInfo/:index", async (req, res) => {
       getters: false,
     });
 
+    sanitizeYardDateFields(subdoc);
+
     const changed = [];
     for (const k of allowed) {
       const a = before?.[k];
@@ -798,6 +800,7 @@ router.put("/:orderNo/additionalInfo/:index", async (req, res) => {
       }
     }
 
+    order.additionalInfo.forEach(sanitizeYardDateFields);
     order.markModified(`additionalInfo.${idx0}`);
     await order.save();
     publish(req, orderNo, {
