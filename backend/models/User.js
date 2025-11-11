@@ -6,10 +6,10 @@ const userSchema = new mongoose.Schema({
   lastName:  { type: String, required: true },
   email:     { type: String, required: true, unique: true },
   password:  { type: String, required: true },
-  team:      {
+  team: {
     type: String,
     enum: ['Shankar', 'Vinutha'],
-    required: true,
+    required: false,
   },
   role: {
     type: String,

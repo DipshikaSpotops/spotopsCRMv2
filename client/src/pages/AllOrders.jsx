@@ -1,8 +1,9 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import API from "../api";
 import { formatInTimeZone } from "date-fns-tz";
 import { FaSort, FaSortUp, FaSortDown, FaChevronLeft, FaChevronRight } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
+import StickyXScrollbar from "../components/StickyXScrollbar";
 
 const rowsPerPage = 25;
 
@@ -153,6 +154,8 @@ const AllOrders = () => {
   const formatDate = (dateStr) =>
     formatInTimeZone(new Date(dateStr), "America/Chicago", "do MMM, yyyy");
 
+  const tableScrollRef = useRef(null);
+
   // -----------------------------------------------------------------------
   if (loading) return <div className="p-6 text-center text-white">⏳ Loading Orders...</div>;
   if (error) return <div className="p-6 text-center text-red-300">{error}</div>;
@@ -224,7 +227,10 @@ const AllOrders = () => {
       </div>
 
       {/* Table */}
-      <div className="max-h-[80vh] overflow-y-auto scrollbar scrollbar-thin scrollbar-thumb-[#4986bf] scrollbar-track-[#98addb]">
+      <div
+        ref={tableScrollRef}
+        className="max-h-[76vh] overflow-y-auto overflow-x-auto rounded-xl ring-1 ring-white/10 shadow scrollbar scrollbar-thin scrollbar-thumb-[#4986bf] scrollbar-track-[#98addb]"
+      >
         <table className="min-w-[1200px] w-full bg-black/20 backdrop-blur-md text-white">
           <thead className="sticky top-0 bg-[#5c8bc1] z-20">
             <tr>
@@ -353,6 +359,7 @@ const AllOrders = () => {
           </tbody>
         </table>
       </div>
+      <StickyXScrollbar targetRef={tableScrollRef} bottom={0} height={14} />
     </div>
   );
 };

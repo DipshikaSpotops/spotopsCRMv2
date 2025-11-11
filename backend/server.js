@@ -67,6 +67,7 @@ app.use("/api/orders/fulfilledOrders", FulfilledOrders);
 app.use("/api/orders/overallEscalationOrders", OverallEscalationOrders);
 app.use("/api/orders/ongoingEscalationOrders", OngoingEscalationOrders);
 app.use("/users", usersRouter);
+app.use("/api/users", usersRouter);
 app.use("/orders/storeCredits", StoreCredits);
 app.use("/emails", emailsRouter);
 app.use("/orders", ordersSearchRouter);

@@ -25,7 +25,7 @@ export default function YardList({
       className="h-full flex flex-col"
       title="Yards"
       actions={
-        <div className="flex gap-2 rounded-lg p-1 bg-[#5c8bc1]/15 border border-[#5c8bc1]/30 dark:bg-white/10 dark:border-white/20">
+        <div className="flex gap-2 rounded-lg p-1 bg-[#29345a]/60 border border-[#43518a]/70 dark:bg-white/10 dark:border-white/20">
           {yards?.map((_, idx) => (
             <button
               key={idx}
@@ -40,9 +40,21 @@ export default function YardList({
             </button>
           ))}
           <button
-            onClick={onOpenAdd}
+            onClick={() => {
+              if (canAddNewYard) {
+                onOpenAdd?.();
+              }
+            }}
+            onMouseEnter={(e) => {
+              if (!canAddNewYard) {
+                e.currentTarget.setAttribute(
+                  "title",
+                  "You cannot add a new yard until the current yard status is either PO Cancelled or Escalation and the escalation process is Return or Junked."
+                );
+              }
+            }}
             disabled={!canAddNewYard}
-            className={`px-3 py-1.5 rounded-md text-sm border ${
+            className={`px-3 py-1.5 rounded-md text-sm border focus:outline-none focus:ring-2 focus:ring-white/40 ${
               canAddNewYard
                 ? "bg-white text-[#04356d] border-white/30 hover:bg-white/90"
                 : "bg-white/10 text-white/70 border-white/20 cursor-not-allowed"

@@ -119,6 +119,7 @@ const PlacedOrders = () => {
   const [searchTerm, setSearchTerm] = useState("");
   // Keep the latest date filter (month/year or start/end) so search reuses it
   const [currentFilter, setCurrentFilter] = useState(null);
+  const [copiedOrderId, setCopiedOrderId] = useState(null);
 
   const firstName = localStorage.getItem("firstName") || "";
 
@@ -299,15 +300,18 @@ const PlacedOrders = () => {
       <h2 className="text-3xl font-bold text-white underline decoration-1 leading-tight -mb-0.5">
         Placed Orders
       </h2>
-      <div className="mt-1 flex flex-col sm:flex-row sm:items-center gap-4">
+      <div className="mt-1 flex flex-col lg:flex-row lg:items-center gap-3">
         <p className="text-sm text-white/70">
           Total Orders: <strong>{orders.length}</strong>
         </p>
-        {currentFilter && (
-          <span className="inline-flex items-center gap-2 rounded-full bg-white/5 border border-white/15 px-3 py-1 text-xs text-white/70">
-            {prettyFilterLabel(currentFilter)}
-          </span>
-        )}
+        <div className="flex items-center gap-3">
+          {currentFilter && (
+            <span className="inline-flex items-center gap-2 rounded-full bg-white/5 border border-white/15 px-3 py-1 text-xs text-white/70">
+              {prettyFilterLabel(currentFilter)}
+            </span>
+          )}
+          <UnifiedDatePicker onFilterChange={handleFilterChange} />
+        </div>
       </div>
     </div>
   </div>
@@ -341,9 +345,6 @@ const PlacedOrders = () => {
     <input type="submit" hidden />
   </form>
 
-  <div className="shrink-0">
-    <UnifiedDatePicker onFilterChange={handleFilterChange} />
-  </div>
 </div>
 </div>
 
@@ -380,11 +381,15 @@ const PlacedOrders = () => {
                 <h3 className="text-lg font-semibold text-white">{order.orderNo}</h3>
                 <button
                   type="button"
-                  onClick={() => navigator.clipboard?.writeText(String(order.orderNo || ""))}
+                  onClick={() => {
+                    navigator.clipboard?.writeText(String(order.orderNo || ""));
+                    setCopiedOrderId(order._id);
+                    setTimeout(() => setCopiedOrderId((prev) => (prev === order._id ? null : prev)), 1500);
+                  }}
                   className="text-xs px-2 py-1 rounded-md border border-white/20 text-white/70 hover:text-white hover:border-white/40 transition"
                   title="Copy order number"
                 >
-                  Copy
+                  {copiedOrderId === order._id ? "Copied" : "Copy"}
                 </button>
               </div>
 

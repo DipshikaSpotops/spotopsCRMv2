@@ -109,12 +109,24 @@ export default function Navbar() {
         {/* Right: Search + Dark Mode Toggle + User */}
         <div className="flex items-center space-x-4" ref={dropdownRef}>
           {/* Search */}
-          <input
-            type="text"
-            placeholder="Search..."
-            className={`px-3 py-1 rounded-md focus:outline-none focus:ring focus:ring-[#c40505] w-40 sm:w-52 
-              ${isDarkMode ? "bg-gray-800 text-white border border-gray-600" : "bg-white text-black"}`}
-          />
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              const value = e.target.elements.orderSearch?.value?.trim();
+              if (value) {
+                navigate(`/order-details?orderNo=${encodeURIComponent(value)}`);
+                setDropdownOpen(false);
+              }
+            }}
+          >
+            <input
+              name="orderSearch"
+              type="text"
+              placeholder="Search order no."
+              className={`px-3 py-1 rounded-md focus:outline-none focus:ring focus:ring-[#c40505] w-40 sm:w-52 
+                ${isDarkMode ? "bg-gray-800 text-white border border-gray-600" : "bg-white text-black"}`}
+            />
+          </form>
 
           {/* Hi User */}
           <span className="hidden sm:block text-lg font-medium">

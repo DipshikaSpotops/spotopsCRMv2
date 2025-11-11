@@ -41,6 +41,8 @@ export default function CommentBox({
   orderNo,
   mode = "support",
   yardIndex = null,
+  buttonTone = "primary",
+  compact = false,
 }) {
   const [comments, setComments] = useState([]);
   const [input, setInput] = useState("");
@@ -166,14 +168,22 @@ export default function CommentBox({
   /* -------------------- Render -------------------- */
   return (
     <>
-      <div className="flex flex-col h-full bg-white/5 rounded-xl border border-white/10 backdrop-blur-md">
+      <div
+        className={`flex flex-col h-full ${
+          compact
+            ? ""
+            : "bg-white/5 rounded-xl border border-white/10 backdrop-blur-md"
+        }`}
+      >
         {/* Header */}
-        <div className="px-4 py-3 border-b border-white/10 font-semibold text-white/90">
-          {mode === "support" ? "Support Comments" : `Yard ${yardIndex + 1} Notes`}
-        </div>
+        {!compact && (
+          <div className="px-4 py-3 border-b border-white/10 font-semibold text-white/90">
+            {mode === "support" ? "Support Comments" : `Yard ${yardIndex + 1} Notes`}
+          </div>
+        )}
 
         {/* Content */}
-        <div className="flex flex-col flex-1 min-h-0">
+        <div className={`flex flex-col flex-1 min-h-0 ${compact ? "" : ""}`}>
           {/* Scrollable comments */}
           <div
             ref={listRef}
@@ -215,9 +225,11 @@ export default function CommentBox({
               <button
                 type="submit"
                 disabled={loading || !input.trim()}
-                className={`px-4 py-2 rounded-lg bg-white text-[#04356d] font-medium border border-white/20 hover:bg-white/90 transition ${
-                  (loading || !input.trim()) && "opacity-70 cursor-not-allowed"
-                }`}
+                className={`px-4 py-2 rounded-lg font-medium border transition ${
+                  buttonTone === "primary"
+                    ? "bg-white text-[#04356d] border-white/20 hover:bg-white/90 dark:bg-[#2b2d68] dark:text-white dark:border-white/20 dark:hover:bg-[#1a1f4b]"
+                    : "bg-white/10 text-white border-white/20 hover:bg-white/20"
+                } ${(loading || !input.trim()) ? "opacity-70 cursor-not-allowed" : ""}`}
               >
                 {loading ? "Saving…" : "Comment"}
               </button>

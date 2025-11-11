@@ -540,8 +540,12 @@ export default function OrderDetails() {
         .put(`/orders/${orderNo}/updateActualGP`, { actualGP })
         .then(async () => {
           await refresh();
-          setToast(`Actual GP updated to $${actualGP.toFixed(2)}`);
-          setTimeout(() => setToast(""), 3000);
+          if (Math.abs(actualGP) > 0.009) {
+            setToast(`Actual GP updated to $${actualGP.toFixed(2)}`);
+            setTimeout(() => setToast(""), 3000);
+          } else {
+            setToast("");
+          }
         })
         .catch((err) => {
           console.error("Error updating actualGP:", err);
@@ -738,37 +742,47 @@ export default function OrderDetails() {
 
             {/* RIGHT: comments */}
             <aside className="col-span-12 xl:col-span-4 flex flex-col gap-4 h-[calc(100vh-240px)] overflow-hidden">
-              <div className="flex flex-wrap gap-2 shrink-0">
-                {yards?.map((_, i) => (
-                  <button
-                    key={i}
-                    onClick={() => setActiveSection(i)}
-                    className={`px-3 py-1 rounded-md text-sm font-semibold transition ${activeSection === i
-                      ? "bg-[#38487a] text-white shadow-inner border border-[#5260a1] dark:bg-[#2b2d68] dark:text-white"
-                      : "bg-[#29345a]/70 text-white/80 hover:text-white border border-transparent dark:bg-white/10 dark:text-white/70 dark:hover:text-white"
+              <GlassCard
+                className="h-full flex flex-col"
+                title="Support Comments"
+                actions={
+                  <div className="flex gap-2 rounded-lg p-1 bg-[#29345a]/60 border border-[#43518a]/70 dark:bg-white/10 dark:border-white/20">
+                    {yards?.map((_, i) => (
+                      <button
+                        key={i}
+                        onClick={() => setActiveSection(i)}
+                        className={`px-3 py-1.5 rounded-md text-sm font-semibold transition ${
+                          activeSection === i
+                            ? "bg-white text-[#04356d] border border-white/30 shadow dark:bg-black/20 dark:border-white/30 dark:text-white"
+                            : "text-white/80 hover:text-white border border-transparent dark:text-white/70 dark:hover:text-white"
+                        }`}
+                      >
+                        Yard {i + 1}
+                      </button>
+                    ))}
+                    <button
+                      onClick={() => setActiveSection("support")}
+                      className={`px-3 py-1.5 rounded-md text-sm font-semibold transition ${
+                        activeSection === "support"
+                          ? "bg-white text-[#04356d] border border-white/30 shadow dark:bg-black/20 dark:border-white/30 dark:text-white"
+                          : "text-white/80 hover:text-white border border-transparent dark:text-white/70 dark:hover:text-white"
                       }`}
-                  >
-                    Yard {i + 1}
-                  </button>
-                ))}
-                <button
-                  onClick={() => setActiveSection("support")}
-                  className={`px-3 py-1 rounded-md text-sm font-semibold transition ${activeSection === "support"
-                    ? "bg-[#38487a] text-white shadow-inner border border-[#5260a1] dark:bg-[#2b2d68] dark:text-white"
-                    : "bg-[#29345a]/70 text-white/80 hover:text-white border border-transparent dark:bg-white/10 dark:text-white/70 dark:hover:text-white"
-                    }`}
-                >
-                  Order Comments
-                </button>
-              </div>
-
-              <div className="flex-1 min-h-0">
-                <CommentBox
-                  orderNo={order?.orderNo}
-                  mode={activeSection === "support" ? "support" : "yard"}
-                  yardIndex={activeSection === "support" ? null : activeSection}
-                />
-              </div>
+                    >
+                      Order Comments
+                    </button>
+                  </div>
+                }
+              >
+                <div className="flex-1 min-h-0">
+                  <CommentBox
+                    orderNo={order?.orderNo}
+                    mode={typeof activeSection === "number" ? "yard" : "support"}
+                    yardIndex={typeof activeSection === "number" ? activeSection : null}
+                    buttonTone="primary"
+                    compact
+                  />
+                </div>
+              </GlassCard>
             </aside>
           </div>
         </div>

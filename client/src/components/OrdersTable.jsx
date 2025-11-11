@@ -887,7 +887,7 @@ export default function OrdersTable({
       {/* ===== Desktop table ===== */}
       <div
         ref={tableScrollRef}
-        className="hidden md:block max-h-[80vh] overflow-y-auto overflow-x-auto rounded-xl ring-1 ring-white/10 shadow
+        className="hidden md:block max-h-[76vh] overflow-y-auto overflow-x-auto rounded-xl ring-1 ring-white/10 shadow
                    scrollbar scrollbar-thin scrollbar-thumb-[#4986bf] scrollbar-track-[#98addb]"
       >
         <table className="min-w-[1200px] w-full bg-black/20 backdrop-blur-md text-white">

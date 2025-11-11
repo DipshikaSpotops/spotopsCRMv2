@@ -8,8 +8,8 @@ router.post("/", async (req, res) => {
   try {
     const { firstName, lastName, email, password, team, role } = req.body;
 
-    if (!firstName || !lastName || !email || !password || !team || !role) {
-      return res.status(400).json({ message: "All fields are required." });
+    if (!firstName || !lastName || !email || !password || !role) {
+      return res.status(400).json({ message: "First name, last name, email, password, and role are required." });
     }
 
     // Optional: check if email exists
@@ -18,7 +18,9 @@ router.post("/", async (req, res) => {
       return res.status(409).json({ message: "Email already exists." });
     }
     //password will be hashed
-    const user = new User({ firstName, lastName, email, password, team, role });
+    const payload = { firstName, lastName, email, password, role };
+    if (team) payload.team = team;
+    const user = new User(payload);
     const saved = await user.save();
     // never return password
     const { password: _, ...safe } = saved.toObject();
@@ -28,8 +30,8 @@ router.post("/", async (req, res) => {
     if (err?.code === 11000) {
       return res.status(409).json({ message: "Email already exists." });
     }
-    console.error(err);
-    return res.status(500).json({ message: "Server error creating user." });
+    console.error("Error creating user:", err);
+    return res.status(500).json({ message: err?.message || "Server error creating user." });
   }
 });
 
