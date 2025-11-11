@@ -1,15 +1,14 @@
 import { useEffect, useState } from "react";
-import Select from "../../ui/Select";
 import { getWhen, toDallasIso } from "@spotops/shared";
+import API from "../../../api";
 
 export default function RefundModal({ open, onClose, onSubmit, orderNo, yardIndex, yard }) {
-  const baseUrl = import.meta.env.VITE_API_BASE || "http://localhost:5000";
-
   const [refundStatus, setRefundStatus] = useState("");
   const [refundedAmount, setRefundedAmount] = useState("");
   const [refundToCollect, setRefundToCollect] = useState("");
   const [refundedDate, setRefundedDate] = useState("");
   const [refundReason, setRefundReason] = useState("");
+  const [returnTrackingNo, setReturnTrackingNo] = useState("");
   const [collectRefund, setCollectRefund] = useState(false);
   const [upsClaim, setUpsClaim] = useState(false);
   const [storeCredit, setStoreCredit] = useState(false);
@@ -25,6 +24,7 @@ export default function RefundModal({ open, onClose, onSubmit, orderNo, yardInde
       setRefundToCollect(yard.refundToCollect || "");
       setRefundedDate(yard.refundedDate ? yard.refundedDate.split("T")[0] : "");
       setRefundReason(yard.refundReason || "");
+      setReturnTrackingNo(yard.returnTrackingCust || "");
       setCollectRefund(yard.collectRefundCheckbox === "Ticked");
       setUpsClaim(yard.upsClaimCheckbox === "Ticked");
       setStoreCredit(yard.storeCreditCheckbox === "Ticked");
@@ -33,7 +33,35 @@ export default function RefundModal({ open, onClose, onSubmit, orderNo, yardInde
 
   if (!open) return null;
 
+  const validateBeforeSubmit = () => {
+    const trimmedCollect = String(refundToCollect ?? "").trim();
+    const trimmedRefundedAmount = String(refundedAmount ?? "").trim();
+
+    if ((collectRefund || upsClaim) && !trimmedCollect) {
+      setToast("Refund To Be Collected is required when Collect Refund or UPS Claim is ticked.");
+      return false;
+    }
+
+    if (!collectRefund && !upsClaim) {
+      if (!refundStatus) {
+        setToast("Please choose a value for Refund Collected.");
+        return false;
+      }
+      if (!trimmedRefundedAmount) {
+        setToast("Refunded Amount is required when no refund is pending.");
+        return false;
+      }
+      if (!refundedDate) {
+        setToast("Refunded Date is required when no refund is pending.");
+        return false;
+      }
+    }
+    return true;
+  };
+
   const handleSubmit = async () => {
+    if (!validateBeforeSubmit()) return;
+
     setLoading(true);
     try {
       const firstName = localStorage.getItem("firstName");
@@ -49,26 +77,20 @@ export default function RefundModal({ open, onClose, onSubmit, orderNo, yardInde
         refundToCollect,
         refundReason,
         storeCreditCheckbox: storeCredit ? "Ticked" : "Unticked",
+        returnTrackingCust: returnTrackingNo || "",
       };
 
-      const res = await fetch(
-        `${baseUrl}/orders/${encodeURIComponent(orderNo)}/additionalInfo/${yardIndex + 1}/refundStatus?firstName=${encodeURIComponent(firstName)}`,
-        {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        }
+      const { data } = await API.patch(
+        `/orders/${encodeURIComponent(orderNo)}/additionalInfo/${yardIndex + 1}/refundStatus`,
+        payload,
+        { params: { firstName } }
       );
-
-      if (!res.ok) throw new Error("Failed to update refund data");
-      const data = await res.json();
 
       setToast("Refund details saved successfully!");
       await onSubmit?.(data);
       setTimeout(() => {
         setToast("");
         onClose();
-        window.location.reload();
       }, 1000);
     } catch (err) {
       console.error("Refund error:", err);
@@ -90,25 +112,30 @@ export default function RefundModal({ open, onClose, onSubmit, orderNo, yardInde
   const handleSendRefundEmail = async () => {
     if (!file) return setToast("Attach a PO PDF first.");
 
+    if ((collectRefund || upsClaim) && !String(refundToCollect ?? "").trim()) {
+      setToast("Refund To Be Collected is required before sending the refund email.");
+      return;
+    }
+
     try {
       setLoading(true);
       const formData = new FormData();
       formData.append("pdfFile", file); // ✅ match backend field name
-      formData.append("firstName", localStorage.getItem("firstName"));
 
-      const query = new URLSearchParams({
-        yardIndex: yardIndex + 1,
-        refundReason: refundReason || "",
-        refundToCollect: refundToCollect || "",
-        firstName: localStorage.getItem("firstName") || ""
-        });
-
-        const res = await fetch(
-        `${baseUrl}/emails/orders/sendRefundEmail/${encodeURIComponent(orderNo)}?${query.toString()}`,
-        { method: "POST", body: formData }
-        );
-
-      if (!res.ok) throw new Error(`Failed to send email (${res.status})`);
+      await API.post(
+        `/emails/orders/sendRefundEmail/${encodeURIComponent(orderNo)}`,
+        formData,
+        {
+          params: {
+            yardIndex: yardIndex + 1,
+            refundReason: refundReason || "",
+            refundToCollect: refundToCollect || "",
+            returnTracking: returnTrackingNo || "",
+            firstName: localStorage.getItem("firstName") || "",
+          },
+          headers: { "Content-Type": "multipart/form-data" },
+        }
+      );
       setToast("Refund email sent successfully!");
     } catch (err) {
       console.error("Send refund email error:", err);
@@ -130,66 +157,81 @@ export default function RefundModal({ open, onClose, onSubmit, orderNo, yardInde
         </header>
 
         <div className="p-5 space-y-4 max-h-[80vh] overflow-y-auto text-sm">
-          {/* Refund status */}
-          <div>
-            <label className="block mb-1">Refund Collected:</label>
-            <Select
-              value={refundStatus}
-              onChange={(e) => setRefundStatus(e.target.value)}
-              className="!bg-[#2b2d68] hover:!bg-[#090c6c] w-full"
-            >
-              <option value="">Choose</option>
-              <option value="Refund collected">Yes</option>
-              <option value="Refund not collected">No</option>
-            </Select>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block mb-1">Refund Collected:</label>
+              <select
+                value={refundStatus}
+                onChange={(e) => setRefundStatus(e.target.value)}
+                className="w-full rounded-lg px-3 py-2 bg-[#2b2d68] text-white border border-white/30 outline-none focus:ring-2 focus:ring-white/60 text-center hover:bg-[#1f2760] transition-colors"
+              >
+                <option value="">Select</option>
+                <option value="Refund collected">Yes</option>
+                <option value="Refund not collected">No</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block mb-1">Refunded Amount ($):</label>
+              <input
+                type="number"
+                value={refundedAmount}
+                onChange={(e) => setRefundedAmount(e.target.value)}
+                className="w-full rounded-lg px-3 py-2 bg-white/10 border border-white/30 outline-none text-center"
+              />
+            </div>
           </div>
 
-          <div>
-            <label className="block mb-1">Refunded Amount ($):</label>
-            <input
-              type="number"
-              value={refundedAmount}
-              onChange={(e) => setRefundedAmount(e.target.value)}
-              className="w-full rounded-lg px-3 py-2 bg-white/10 border border-white/30 outline-none text-center"
-            />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block mb-1">Refunded Date:</label>
+              <input
+                type="date"
+                value={refundedDate}
+                onChange={(e) => setRefundedDate(e.target.value)}
+                className="w-full rounded-lg px-3 py-2 bg-white/10 border border-white/30 outline-none text-center"
+              />
+            </div>
+
+            <div>
+              <label className="block mb-1">Refund Reason:</label>
+              <select
+                value={refundReason}
+                onChange={(e) => setRefundReason(e.target.value)}
+                className="w-full rounded-lg px-3 py-2 bg-[#2b2d68] text-white border border-white/30 outline-none focus:ring-2 focus:ring-white/60 text-center hover:bg-[#1f2760] transition-colors"
+              >
+                <option value="">Choose</option>
+                <option value="Damaged">Damaged</option>
+                <option value="Defective">Defective</option>
+                <option value="Incorrect">Incorrect</option>
+                <option value="Lost">Lost</option>
+                <option value="Not programming">Not programming</option>
+                <option value="Personal reason">Personal reason</option>
+                <option value="PO cancelled">PO cancelled</option>
+              </select>
+            </div>
           </div>
 
-          <div>
-            <label className="block mb-1">Refunded Date:</label>
-            <input
-              type="date"
-              value={refundedDate}
-              onChange={(e) => setRefundedDate(e.target.value)}
-              className="w-full rounded-lg px-3 py-2 bg-white/10 border border-white/30 outline-none text-center"
-            />
-          </div>
-
-          <div>
-            <label className="block mb-1">Refund Reason:</label>
-            <Select
-              value={refundReason}
-              onChange={(e) => setRefundReason(e.target.value)}
-              className="!bg-[#2b2d68] hover:!bg-[#090c6c] w-full"
-            >
-              <option value="">Choose</option>
-              <option value="Damaged">Damaged</option>
-              <option value="Defective">Defective</option>
-              <option value="Incorrect">Incorrect</option>
-              <option value="Lost">Lost</option>
-              <option value="Not programming">Not programming</option>
-              <option value="Personal reason">Personal reason</option>
-              <option value="PO cancelled">PO cancelled</option>
-            </Select>
-          </div>
-
-          <div>
-            <label className="block mb-1">Refund To Be Collected ($):</label>
-            <input
-              type="number"
-              value={refundToCollect}
-              onChange={(e) => setRefundToCollect(e.target.value)}
-              className="w-full rounded-lg px-3 py-2 bg-white/10 border border-white/30 outline-none text-center"
-            />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block mb-1">Refund To Be Collected ($):</label>
+              <input
+                type="number"
+                value={refundToCollect}
+                onChange={(e) => setRefundToCollect(e.target.value)}
+                className="w-full rounded-lg px-3 py-2 bg-white/10 border border-white/30 outline-none text-center"
+              />
+            </div>
+            <div>
+              <label className="block mb-1">Return Tracking No.</label>
+              <input
+                type="text"
+                value={returnTrackingNo}
+                onChange={(e) => setReturnTrackingNo(e.target.value)}
+                placeholder="Enter tracking no."
+                className="w-full rounded-lg px-3 py-2 bg-white/10 border border-white/30 outline-none text-center"
+              />
+            </div>
           </div>
 
           <div className="flex flex-wrap gap-4">

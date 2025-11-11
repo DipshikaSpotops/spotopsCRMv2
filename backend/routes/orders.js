@@ -28,6 +28,78 @@ const publish = (req, orderNo, payload = {}) => {
     console.warn("[ws] emit failed", e);
   }
 };
+const coerceDate = (value) => {
+  if (value === null || value === undefined || value === "") return null;
+  if (value instanceof Date) return value;
+  if (moment.isMoment(value)) {
+    const asDate = value.toDate();
+    return Number.isNaN(asDate.getTime()) ? null : asDate;
+  }
+  if (typeof value === "number") {
+    const fromNumber = new Date(value);
+    return Number.isNaN(fromNumber.getTime()) ? null : fromNumber;
+  }
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    const formats = [
+      moment.ISO_8601,
+      "YYYY-MM-DD",
+      "YYYY-MM-DDTHH:mm:ss.SSSZ",
+      "MM/DD/YYYY",
+      "MM/DD/YYYY HH:mm",
+      "M/D/YYYY",
+      "M/D/YYYY HH:mm",
+      "Do MMM, YYYY",
+      "Do MMM, YYYY H:mm",
+      "Do MMM, YYYY h:mm A",
+      "MMM D, YYYY",
+      "MMM D, YYYY H:mm",
+      "MMM D, YYYY h:mm A",
+    ];
+    let parsed = moment.tz(trimmed, formats, true, "America/Chicago");
+    if (!parsed.isValid()) {
+      parsed = moment(trimmed, formats, true);
+    }
+    if (!parsed.isValid()) {
+      parsed = moment(trimmed);
+    }
+    if (parsed.isValid()) {
+      const asDate = parsed.toDate();
+      return Number.isNaN(asDate.getTime()) ? null : asDate;
+    }
+    const fallback = new Date(trimmed);
+    return Number.isNaN(fallback.getTime()) ? null : fallback;
+  }
+  if (value && typeof value === "object" && typeof value.toDate === "function") {
+    const fromObj = value.toDate();
+    if (fromObj instanceof Date && !Number.isNaN(fromObj.getTime())) {
+      return fromObj;
+    }
+    return null;
+  }
+  return null;
+};
+const sanitizeYardDateFields = (yard) => {
+  if (!yard || typeof yard !== "object") return;
+  const dateKeys = ["poSentDate", "cardChargedDate", "refundedDate"];
+  for (const key of dateKeys) {
+    if (!(key in yard)) continue;
+    const current = yard[key];
+    if (current === null || current === undefined || current === "") {
+      yard[key] = null;
+      continue;
+    }
+    if (current instanceof Date) continue;
+    const coerced = coerceDate(current);
+    if (coerced) {
+      yard[key] = coerced;
+    } else {
+      console.warn(`[orders] Unable to coerce ${key}`, current);
+      yard[key] = null;
+    }
+  }
+};
 const isInactiveStatus = (s) => {
   const t = String(s ?? "").trim().toLowerCase();
   return (
@@ -340,6 +412,7 @@ router.put("/:orderNo/custRefund", async (req, res) => {
     }
 
     Object.assign(order, updateFields);
+    order.markModified(`additionalInfo.${i}`);
     await order.save();
       publish(req, orderNo, {
       type: "REFUND_SAVED",
@@ -862,6 +935,9 @@ router.patch("/:orderNo/additionalInfo/:index", async (req, res) => {
     };
 
     const changes = [];
+    const prevOwnShipping = normalize(yard.ownShipping);
+    const prevYardShipping = normalize(yard.yardShipping);
+    const prevShippingDetails = yard.shippingDetails || "";
 
     // 3️Detect changed fields
     for (const [key, newValRaw] of Object.entries(updates)) {
@@ -889,19 +965,63 @@ router.patch("/:orderNo/additionalInfo/:index", async (req, res) => {
     }
 
     // 5️ Only rebuild shippingDetails if shipping actually changed
-    const hasShippingChange =
-      (updates.ownShipping !== undefined &&
-        normalize(updates.ownShipping) !== normalize(yard.ownShipping)) ||
-      (updates.yardShipping !== undefined &&
-        normalize(updates.yardShipping) !== normalize(yard.yardShipping));
+    const normalizedOwnUpdate =
+      updates.ownShipping !== undefined ? normalize(updates.ownShipping) : null;
+    const normalizedYardUpdate =
+      updates.yardShipping !== undefined ? normalize(updates.yardShipping) : null;
+    const hasOwnShippingChange =
+      updates.ownShipping !== undefined && normalizedOwnUpdate !== prevOwnShipping;
+    const hasYardShippingChange =
+      updates.yardShipping !== undefined && normalizedYardUpdate !== prevYardShipping;
 
-    if (hasShippingChange) {
-      yard.shippingDetails = [
-        yard.ownShipping ? `Own shipping: ${yard.ownShipping}` : "",
-        yard.yardShipping ? `Yard shipping: ${yard.yardShipping}` : "",
-      ]
-        .filter(Boolean)
-        .join(" | ");
+    if (hasOwnShippingChange || hasYardShippingChange) {
+      if (hasOwnShippingChange && normalizedOwnUpdate) {
+        yard.shippingDetails = `Own shipping: ${normalizedOwnUpdate}`;
+        yard.ownShipping = normalizedOwnUpdate;
+        yard.yardShipping = "";
+      } else if (hasYardShippingChange && normalizedYardUpdate) {
+        yard.shippingDetails = `Yard shipping: ${normalizedYardUpdate}`;
+        yard.yardShipping = normalizedYardUpdate;
+        yard.ownShipping = "";
+      } else {
+        yard.shippingDetails = "";
+        yard.ownShipping = "";
+        yard.yardShipping = "";
+      }
+      const newShippingDetails = yard.shippingDetails || "";
+      if (newShippingDetails !== prevShippingDetails) {
+        changes.push(
+          `Shipping Details ${prevShippingDetails || "—"} → ${
+            newShippingDetails || "—"
+          }`
+        );
+      }
+    } else if (
+      updates.shippingDetails !== undefined &&
+      typeof updates.shippingDetails === "string"
+    ) {
+      const trimmed = updates.shippingDetails.trim();
+      yard.shippingDetails = trimmed;
+      if (/^Own shipping:/i.test(trimmed)) {
+        const val = trimmed.replace(/^Own shipping:\s*/i, "");
+        yard.ownShipping = val;
+        yard.yardShipping = "";
+      } else if (/^Yard shipping:/i.test(trimmed)) {
+        const val = trimmed.replace(/^Yard shipping:\s*/i, "");
+        yard.yardShipping = val;
+        yard.ownShipping = "";
+      } else {
+        yard.ownShipping = "";
+        yard.yardShipping = "";
+      }
+      const newShippingDetails = yard.shippingDetails || "";
+      if (newShippingDetails !== prevShippingDetails) {
+        changes.push(
+          `Shipping Details ${prevShippingDetails || "—"} → ${
+            newShippingDetails || "—"
+          }`
+        );
+      }
     }
 
     // 6️ Log note only if something changed
@@ -915,6 +1035,7 @@ router.patch("/:orderNo/additionalInfo/:index", async (req, res) => {
       yard.notes.push(noteText);
     }
     await order.save();
+    const updatedOrder = await Order.findOne({ orderNo }).lean();
     publish(req, orderNo, {
       type: "YARD_UPDATED",
       yardIndex: i + 1,
@@ -926,6 +1047,7 @@ router.patch("/:orderNo/additionalInfo/:index", async (req, res) => {
           ? `Yard ${i + 1} updated successfully`
           : "No meaningful changes detected",
       changes,
+      order: updatedOrder,
     });
   } catch (err) {
     console.error("PATCH /orders/:orderNo/additionalInfo/:index error:", err);
@@ -937,6 +1059,7 @@ router.patch("/:orderNo/additionalInfo/:index", async (req, res) => {
    - Partial update for payment/card charged info
 ------------------------------------------------------------------------ */
 router.patch("/:orderNo/additionalInfo/:yardIndex/paymentStatus", async (req, res) => {
+  console.log("REQ BODY:", JSON.stringify(req.body, null, 2));
   try {
     const { orderNo, yardIndex } = req.params;
     const idx0 = Number(yardIndex) - 1;
@@ -956,7 +1079,16 @@ router.patch("/:orderNo/additionalInfo/:yardIndex/paymentStatus", async (req, re
 
     const patch = {};
     if (normalize(paymentStatus)) patch.paymentStatus = paymentStatus;
-    if (normalize(cardChargedDate)) patch.cardChargedDate = cardChargedDate;
+    const normalizedCardChargedDate = normalize(cardChargedDate);
+    if (normalizedCardChargedDate !== null) patch.cardChargedDate = normalizedCardChargedDate;
+    if (patch.cardChargedDate !== undefined) {
+      const coerced = coerceDate(patch.cardChargedDate);
+      if (coerced || patch.cardChargedDate === null) {
+        patch.cardChargedDate = coerced;
+      } else {
+        return res.status(400).json({ message: "Invalid cardChargedDate format" });
+      }
+    }
 
     const changes = [];
     for (const [key, newVal] of Object.entries(patch)) {
@@ -968,9 +1100,16 @@ router.patch("/:orderNo/additionalInfo/:yardIndex/paymentStatus", async (req, re
     }
 
     if (changes.length > 0) {
+      if (Array.isArray(order.additionalInfo)) {
+        order.additionalInfo.forEach(sanitizeYardDateFields);
+      }
+      if (!Array.isArray(order.orderHistory)) {
+        order.orderHistory = [];
+      }
       order.orderHistory.push(
         `Yard ${idx0 + 1} payment details updated (${changes.join("; ")}) by ${firstName} on ${when}`
       );
+      order.markModified("orderHistory");
       order.markModified(`additionalInfo.${idx0}`);
       await order.save();
       publish(req, orderNo, {

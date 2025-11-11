@@ -22,6 +22,7 @@ import CancelOrderModal from "../components/order/modals/CancelOrderModal";
 import DisputeOrderModal from "../components/order/modals/DisputeOrderModal";
 import RefundOrderModal from "../components/order/modals/RefundOrderModal";
 import useOrderRealtime from "../hooks/useOrderRealtime";
+import { extractOwn, extractYard } from "../utils/yards";
 import API from "../api";
 
 // popup intaed of alert or confirm:
@@ -124,6 +125,25 @@ const normalizeStatusForCalc = (raw) => {
   return s;
 };
 
+const parseMoneyValue = (value) => {
+  if (value === null || value === undefined) return 0;
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  const str = String(value).trim();
+  if (!str) return 0;
+  const numeric = Number(str);
+  if (!Number.isNaN(numeric)) return numeric;
+  const match = str.match(/-?\d+(?:\.\d+)?/);
+  return match ? Number(match[0]) : 0;
+};
+
+const getShippingAmounts = (yard) => {
+  const ownRaw = yard?.ownShipping ?? extractOwn(yard?.shippingDetails);
+  const yardRaw = yard?.yardShipping ?? extractYard(yard?.shippingDetails);
+  const own = parseMoneyValue(ownRaw);
+  const yardShip = parseMoneyValue(yardRaw);
+  return { own, yard: yardShip, total: own + yardShip };
+};
+
 /** Single source of truth for Actual GP math */
 const calcActualGP = (orderLike) => {
   if (!orderLike) return 0;
@@ -153,18 +173,22 @@ const calcActualGP = (orderLike) => {
     const refund = parseFloat(yard.refundedAmount) || 0;
     const reimb = parseFloat(yard.reimbursementAmount) || 0;
 
-    let shipVal = 0;
-    const shipStr = yard.shippingDetails || "";
-    if (shipStr.includes(":")) shipVal = parseFloat(shipStr.split(":")[1]) || 0;
+    const shipping = getShippingAmounts(yard);
 
-    totalYardSpend += part + others + shipVal + reimb - refund;
+    const paymentStatus = (yard.paymentStatus || "").trim().toLowerCase();
+    const statusStr = (yard.status || "").trim().toLowerCase();
+    const isCardCharged = paymentStatus === "card charged";
 
-    if (yard.paymentStatus === "Card charged") hasCardCharged = true;
+    if (isCardCharged) {
+      totalYardSpend += part + others + shipping.total + reimb - refund;
+      hasCardCharged = true;
+    }
 
-    const statusStr = (yard.status || "").toLowerCase();
-    if (statusStr.includes("po cancel")) hasPOCancelled = true; // matches "po cancel" and "po cancelled"
-    if (statusStr.includes("po cancel") && yard.paymentStatus === "Card charged") {
-      poCancelledWithCardCharged = true;
+    if (statusStr.includes("po cancel")) {
+      hasPOCancelled = true;
+      if (isCardCharged) {
+        poCancelledWithCardCharged = true;
+      }
     }
   });
 
@@ -194,6 +218,7 @@ export default function OrderDetails() {
     yards,
     canAddNewYard,
     refresh,
+    mutateOrder,
   } = useOrderDetails();
 
   const [tab, setTab] = useState("Customer");
@@ -457,28 +482,29 @@ export default function OrderDetails() {
     let poCancelledWithCardCharged = false;
 
     additionalInfo.forEach((yard) => {
-      const part = parseFloat(yard.partPrice) || 0;
-      const others = parseFloat(yard.others) || 0;
-      const refund = parseFloat(yard.refundedAmount) || 0;
-      const reimb = parseFloat(yard.reimbursementAmount) || 0;
+    const part = parseFloat(yard.partPrice) || 0;
+    const others = parseFloat(yard.others) || 0;
+    const refund = parseFloat(yard.refundedAmount) || 0;
+    const reimb = parseFloat(yard.reimbursementAmount) || 0;
 
-      let shipVal = 0;
-      const shipStr = yard.shippingDetails || "";
-      if (shipStr.includes(":")) {
-        const val = parseFloat(shipStr.split(":")[1]) || 0;
-        shipVal = val;
-      }
+    const shipping = getShippingAmounts(yard);
 
-      totalYardSpend += part + others + shipVal + reimb - refund;
+    const paymentStatus = (yard.paymentStatus || "").trim().toLowerCase();
+    const statusStr = (yard.status || "").trim().toLowerCase();
+    const isCardCharged = paymentStatus === "card charged";
 
-      if (yard.paymentStatus === "Card charged") hasCardCharged = true;
+    if (isCardCharged) {
+      totalYardSpend += part + others + shipping.total + reimb - refund;
+      hasCardCharged = true;
+    }
 
-      const statusStr = (yard.status || "").toLowerCase();
-      if (statusStr.includes("po cancel")) hasPOCancelled = true;
-      if (statusStr.includes("po cancel") && yard.paymentStatus === "Card charged") {
+    if (statusStr.includes("po cancel")) {
+      hasPOCancelled = true;
+      if (isCardCharged) {
         poCancelledWithCardCharged = true;
       }
-    });
+    }
+  });
 
     let actualGP = 0;
 
@@ -509,7 +535,7 @@ export default function OrderDetails() {
       return;
     }
 
-    if (Math.abs(currentGP - actualGP) > 0.01) {
+    if (Math.abs(currentGP - actualGP) > 0.0001) {
       API
         .put(`/orders/${orderNo}/updateActualGP`, { actualGP })
         .then(async () => {
@@ -770,6 +796,13 @@ export default function OrderDetails() {
         order={order}
         orderNo={order?.orderNo}
         onClose={() => setEditDetailsIdx(null)}
+        onSubmit={async (updatedOrder) => {
+          if (updatedOrder) {
+            mutateOrder(updatedOrder);
+          }
+          await refresh();
+          await recomputeAndPersistActualGP({ useServer: true });
+        }}
       />
 
       <EditYardStatusModal

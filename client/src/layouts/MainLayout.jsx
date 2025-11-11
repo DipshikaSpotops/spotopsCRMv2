@@ -26,7 +26,7 @@ export default function MainLayout({ children }) {
       {/* One continuous background (covers sidebar + content) */}
       <div
         className="flex flex-1
-                   bg-gradient-to-b from-[#6793c0] via-[#553790] to-[#727298]
+                   bg-gradient-to-b from-[#3271a5] via-[#553790] to-[#727298]
                    dark:from-[#0f172a] dark:via-[#1e293b] dark:to-[#0f172a]"
       >
         {/* Sidebar: fixed on desktop, off-canvas on mobile */}

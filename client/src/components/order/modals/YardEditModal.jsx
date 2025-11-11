@@ -4,6 +4,12 @@ import Input from "../../ui/Input";
 import Select from "../../ui/Select";
 import API from "../../../api";
 import { extractOwn, extractYard } from "../../../utils/yards";
+
+const ALLOWED_COUNTRIES = ["US", "Canada"];
+const normalizeCountry = (value) => {
+  const normalized = String(value ?? "").trim();
+  return ALLOWED_COUNTRIES.includes(normalized) ? normalized : "US";
+};
 function Toast({ message, onClose }) {
   if (!message) return null;
   return (
@@ -97,43 +103,50 @@ export default function YardEditModal({ open, initial, order, orderNo, yardIndex
   }, []);
 
   useEffect(() => {
-    if (open) {
-      setForm({
-        yardName: initial?.yardName || "",
-        agentName: initial?.agentName || "",
-        yardRating: initial?.yardRating || "",
-        phone: initial?.phone || "",
-        altPhone: initial?.altPhone || "",
-        ext: initial?.ext || "",
-        email: initial?.email || "",
-        street: initial?.street || initial?.address || "",
-        city: initial?.city || "",
-        state: initial?.state || "",
-        zipcode: initial?.zipcode || "",
-        country: initial?.country || "US",
-        partPrice: initial?.partPrice || "",
-        status: initial?.status || "Yard located",
-        ownShipping:
-          initial?.ownShipping ?? extractOwn(initial?.shippingDetails) ?? "",
-        yardShipping:
-          initial?.yardShipping ?? extractYard(initial?.shippingDetails) ?? "",
-        others: initial?.others || "",
-        faxNo: initial?.faxNo || "",
-        expShipDate: initial?.expShipDate || "",
-        warranty: initial?.warranty || "",
-        stockNo: initial?.stockNo || "",
-        trackingNo: initial?.trackingNo || "",
-        eta: initial?.eta || initial?.yardTrackingETA || "",
-      });
-      setErrors({});
-    }
+    if (!open) return;
+    setForm({
+      yardName: initial?.yardName || "",
+      agentName: initial?.agentName || "",
+      yardRating: initial?.yardRating || "",
+      phone: initial?.phone || "",
+      altPhone: initial?.altPhone || "",
+      ext: initial?.ext || "",
+      email: initial?.email || "",
+      street: initial?.street || initial?.address || "",
+      city: initial?.city || "",
+      state: initial?.state || "",
+      zipcode: initial?.zipcode || "",
+      country: normalizeCountry(initial?.country || "US"),
+      partPrice: initial?.partPrice || "",
+      status: initial?.status || "Yard located",
+      ownShipping:
+        extractOwn(initial?.shippingDetails) ??
+        initial?.ownShipping ??
+        "",
+      yardShipping:
+        extractYard(initial?.shippingDetails) ??
+        initial?.yardShipping ??
+        "",
+      others: initial?.others || "",
+      faxNo: initial?.faxNo || "",
+      expShipDate: initial?.expShipDate || "",
+      warranty: initial?.warranty || "",
+      stockNo: initial?.stockNo || "",
+      trackingNo: initial?.trackingNo || "",
+      eta: initial?.eta || initial?.yardTrackingETA || "",
+    });
+    setErrors({});
   }, [open, initial]);
 
-  const set = (k) => (ev) =>
+  const set = (k) => (ev) => {
+    const raw =
+      ev.target.type === "checkbox" ? ev.target.checked : ev.target.value;
+    const value = k === "country" ? normalizeCountry(raw) : raw;
     setForm((p) => ({
       ...p,
-      [k]: ev.target.type === "checkbox" ? ev.target.checked : ev.target.value,
+      [k]: value,
     }));
+  };
 
   const ownSet =
     String(form.ownShipping ?? "").trim() !== "" &&
@@ -226,18 +239,27 @@ export default function YardEditModal({ open, initial, order, orderNo, yardIndex
       }
     });
 
-    if (changedFields.ownShipping !== undefined) {
-      const oldOwn = (initial?.ownShipping ?? extractOwn(initial?.shippingDetails) ?? "").toString().trim();
-      const newOwn = String(form.ownShipping ?? "").trim();
-      if (oldOwn === newOwn) delete changedFields.ownShipping;
-    }
-    if (changedFields.yardShipping !== undefined) {
-      const oldYard = (initial?.yardShipping ?? extractYard(initial?.shippingDetails) ?? "").toString().trim();
-      const newYard = String(form.yardShipping ?? "").trim();
-      if (oldYard === newYard) delete changedFields.yardShipping;
-    }
+    const oldOwn = (initial?.ownShipping ?? extractOwn(initial?.shippingDetails) ?? "").toString().trim();
+    const oldYard = (initial?.yardShipping ?? extractYard(initial?.shippingDetails) ?? "").toString().trim();
+    const nextOwn = String(form.ownShipping ?? "").trim();
+    const nextYard = String(form.yardShipping ?? "").trim();
 
-    if (Object.keys(changedFields).length === 0) {
+    const ownChanged = nextOwn !== oldOwn;
+    const yardChanged = nextYard !== oldYard;
+
+    if (ownChanged) {
+      changedFields.shippingDetails = nextOwn ? `Own shipping: ${nextOwn}` : "";
+    } else if (yardChanged) {
+      changedFields.shippingDetails = nextYard ? `Yard shipping: ${nextYard}` : "";
+    } else {
+      delete changedFields.shippingDetails;
+    }
+    delete changedFields.ownShipping;
+    delete changedFields.yardShipping;
+
+    const shippingChanged = ownChanged || yardChanged;
+
+    if (Object.keys(changedFields).length === 0 && !shippingChanged) {
       setToast("No changes detected.");
       return;
     }
@@ -246,14 +268,7 @@ export default function YardEditModal({ open, initial, order, orderNo, yardIndex
       changedFields.address = `${form.street} ${form.city} ${form.state} ${form.zipcode}`.trim();
     }
 
-    if (changedFields.ownShipping || changedFields.yardShipping) {
-      changedFields.shippingDetails = [
-        String(form.ownShipping || "").trim() !== "" ? `Own shipping: ${form.ownShipping}` : "",
-        String(form.yardShipping || "").trim() !== "" ? `Yard shipping: ${form.yardShipping}` : "",
-      ]
-        .filter(Boolean)
-        .join(" | ");
-    }
+    const shippingLabel = shippingChanged ? "Shipping Details" : null;
 
     try {
       const { data } = await API.patch(
@@ -262,7 +277,58 @@ export default function YardEditModal({ open, initial, order, orderNo, yardIndex
         { params: { firstName } }
       );
 
-      setToast(data?.message || `Yard ${yardIndex + 1} details updated successfully!`);
+      const message =
+        data?.message || `Yard ${yardIndex + 1} details updated successfully!`;
+      const changes = Array.isArray(data?.changes) ? data.changes : [];
+      if (message.toLowerCase().includes("no meaningful changes")) {
+        setToast("No changes detected. Please enter a different value.");
+        return;
+      }
+
+      setToast(message);
+      const refreshedOrder = data?.order ?? null;
+      if (refreshedOrder && typeof yardIndex === "number") {
+        const latestYard =
+          refreshedOrder.additionalInfo?.[yardIndex] ??
+          refreshedOrder.additionalInfo?.[Number(yardIndex)] ??
+          null;
+        if (latestYard) {
+          setForm({
+            yardName: latestYard.yardName || "",
+            agentName: latestYard.agentName || "",
+            yardRating: latestYard.yardRating || "",
+            phone: latestYard.phone || "",
+            altPhone: latestYard.altPhone || "",
+            ext: latestYard.ext || "",
+            email: latestYard.email || "",
+            street: latestYard.street || latestYard.address || "",
+            city: latestYard.city || "",
+            state: latestYard.state || "",
+            zipcode: latestYard.zipcode || "",
+            country: normalizeCountry(latestYard.country || "US"),
+            partPrice: latestYard.partPrice || "",
+            status: latestYard.status || "Yard located",
+            ownShipping:
+              extractOwn(latestYard.shippingDetails) ??
+              latestYard.ownShipping ??
+              "",
+            yardShipping:
+              extractYard(latestYard.shippingDetails) ??
+              latestYard.yardShipping ??
+              "",
+            others: latestYard.others || "",
+            faxNo: latestYard.faxNo || "",
+            expShipDate: latestYard.expShipDate || "",
+            warranty: latestYard.warranty || "",
+            stockNo: latestYard.stockNo || "",
+            trackingNo: latestYard.trackingNo || "",
+            eta: latestYard.eta || latestYard.yardTrackingETA || "",
+          });
+        }
+      }
+      if (typeof onSubmit === "function") {
+        await onSubmit(refreshedOrder ?? data ?? null);
+      }
     } catch (err) {
       console.error("Error updating yard:", err);
       const message = err?.response?.data?.message || "Server error while updating yard.";

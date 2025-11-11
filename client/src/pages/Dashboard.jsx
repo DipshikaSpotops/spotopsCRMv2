@@ -9,17 +9,74 @@ import {
 
 /* --------------------------- Helpers / Constants -------------------------- */
 
-// Parse numbers such as "$1,234.56", "1,234.56", " 1234.56 "
+// Parse strings like "$1,234.56", "Own shipping: 25", etc.
 const toNumber = (v) => {
-  if (typeof v === "number") return v;
+  if (typeof v === "number" && Number.isFinite(v)) return v;
   if (v == null) return 0;
-  const n = parseFloat(String(v).replace(/[^0-9.-]/g, ""));
-  return Number.isFinite(n) ? n : 0;
+  const str = String(v).replace(/,/g, "").trim();
+  if (!str) return 0;
+  const direct = Number(str);
+  if (!Number.isNaN(direct)) return direct;
+  const match = str.match(/-?\d+(?:\.\d+)?/);
+  return match ? Number(match[0]) : 0;
 };
 
 // Month label helper (1..12 -> "Jan"...)
 const monthLabel = (i) =>
   new Date(0, i - 1).toLocaleString("default", { month: "short" });
+
+const CARD_CHARGED = "card charged";
+
+const computePurchasesFromOrders = (orders = []) => {
+  let total = 0;
+  for (const order of orders || []) {
+    const yards = Array.isArray(order?.additionalInfo) ? order.additionalInfo : [];
+    for (const yard of yards) {
+      const status = String(yard?.paymentStatus || "").trim().toLowerCase();
+      if (status !== CARD_CHARGED) continue;
+      const partPrice = toNumber(yard?.partPrice);
+      const others = toNumber(yard?.others);
+      const shipping = toNumber(
+        yard?.shipping?.total ??
+        yard?.shippingTotal ??
+        yard?.ownShipping ??
+        yard?.yardShipping ??
+        yard?.shippingDetails
+      );
+      const refunded = toNumber(
+        yard?.refundedAmount ??
+        yard?.custRefundedAmount ??
+        yard?.refundAmount ??
+        yard?.refund ??
+        0
+      );
+      total += partPrice + shipping + others - refunded;
+    }
+  }
+  return Number(total.toFixed(2));
+};
+
+const fetchAllMonthlyOrders = async (monthShort, year) => {
+  const orders = [];
+  const limit = 200;
+  let page = 1;
+  try {
+    while (true) {
+      const { data } = await API.get("/orders/monthlyOrders", {
+        params: { month: monthShort, year, page, limit },
+      });
+      const fetched = data?.orders || [];
+      if (!fetched.length) break;
+      orders.push(...fetched);
+      const totalPages = Number(data?.totalPages || 1);
+      if (page >= totalPages) break;
+      page += 1;
+    }
+  } catch (error) {
+    console.error("Failed to fetch monthly orders for purchases", error);
+  }
+  return orders;
+};
 
 // Date like 2025-10-01 -> "Oct 1st 2025"
 function formatBestDay(dateish) {
@@ -107,6 +164,12 @@ export default function Dashboard() {
     cancelled: 0, refunded: 0, disputed: 0, refundAmount: 0
   });
   const [reimburseData, setReimburseData] = useState({ count: 0, amount: 0 });
+  const [statusMetrics, setStatusMetrics] = useState({
+    totalOrders: 0,
+    successRate: 0,
+    escalationRate: 0,
+    cancellationRate: 0,
+  });
 
   // Cache strict year overview per year
   const [yearOverviewCache, setYearOverviewCache] = useState({}); // { [year]: [{month, actualGP}] }
@@ -126,7 +189,24 @@ export default function Dashboard() {
           bestDay: bday,
         } = res.data || {};
 
-        setSummary({ totalOrders, totalSales, totalGp, actualGp, purchases });
+        let purchasesTotal = Number(purchases) || 0;
+        if (purchasesTotal === 0) {
+          try {
+            const monthShort = monthLabel(selectedMonth);
+            const monthlyOrders = await fetchAllMonthlyOrders(monthShort, selectedYear);
+            purchasesTotal = computePurchasesFromOrders(monthlyOrders);
+          } catch (e) {
+            console.warn("Failed to compute purchases from monthly orders", e);
+          }
+        }
+
+        setSummary({
+          totalOrders,
+          totalSales,
+          totalGp,
+          actualGp,
+          purchases: purchasesTotal,
+        });
         setmonthlyAgentGP(magp);
         setBestDay(bday);
         settopAgentToday(topToday);
@@ -136,11 +216,16 @@ export default function Dashboard() {
           .sort((a, b) => b.gp - a.gp);
         setTopAgents(agents);
 
-        const dailyChartData = Object.entries(daily || {}).map(([day, values]) => ({
-          day,
-          orders: values.orders,
-          gp: Number((values.gp ?? 0).toFixed(2)),
-        }));
+        const daysInMonth = new Date(selectedYear, selectedMonth, 0).getDate();
+        const dailyChartData = Array.from({ length: daysInMonth }, (_, idx) => {
+          const dayKey = String(idx + 1);
+          const values = daily?.[dayKey] || {};
+          return {
+            day: dayKey,
+            orders: Number(values.orders || 0),
+            gp: Number((values.gp ?? 0).toFixed(2)),
+          };
+        });
         setDailyData(dailyChartData);
 
         const pieChartData = Object.entries(statusBreakdown || {}).map(([name, value]) => ({
@@ -149,6 +234,26 @@ export default function Dashboard() {
           color: STATUS_COLORS[name] || "#a1a1aa",
         }));
         setPieData(pieChartData);
+
+        const totalStatusOrders = Object.values(statusBreakdown || {}).reduce(
+          (sum, count) => sum + (Number(count) || 0),
+          0
+        );
+        const fulfilled = Number(statusBreakdown?.["Order Fulfilled"] || 0);
+        const escalated = Number(statusBreakdown?.["Escalation"] || 0);
+        const cancelledLike = ["Order Cancelled", "Refunded", "Dispute"].reduce(
+          (sum, key) => sum + (Number(statusBreakdown?.[key] || 0)),
+          0
+        );
+
+        const rate = (numerator) =>
+          totalStatusOrders > 0 ? Number(((numerator / totalStatusOrders) * 100).toFixed(2)) : 0;
+
+        setStatusMetrics({
+          successRate: rate(fulfilled),
+          escalationRate: rate(escalated),
+          cancellationRate: rate(cancelledLike),
+        });
       } catch (err) {
         console.error("Error loading monthly dashboard data:", err);
       }
@@ -221,8 +326,13 @@ export default function Dashboard() {
           months.map(async (m) => {
            const res = await API.get(`/orders/dashboard?month=${m}&year=${selectedYear}`
             );
-            const actual = res.data?.actualGp ?? res.data?.actualGP ?? 0;
-            return { month: monthLabel(m), actualGP: Number(actual) || 0 };
+          const rawActual = res.data?.actualGp ?? res.data?.actualGP ?? 0;
+          const actual = Number.isFinite(Number(rawActual)) ? Number(rawActual).toFixed(2) : 0;
+          return {
+            month: monthLabel(m),
+            actualGP: Number(actual),
+            actualGPDisplay: Number(actual).toFixed(2),
+          };
           })
         );
 
@@ -328,31 +438,52 @@ export default function Dashboard() {
           </button>
         </div>
 
-        {/* Summary Cards */}
-        <div className="flex flex-wrap gap-3">
-          {[
-            { label: "Total Orders", value: summary.totalOrders },
-            { label: "Total Sales", value: `$${(summary.totalSales || 0).toFixed(2)}` },
-            { label: "Purchases", value: `$${(summary.purchases || 0).toFixed(2)}` },
-            { label: "Total GP", value: `$${(summary.totalGp || 0).toFixed(2)}` },
-            { label: "Actual GP", value: `$${(summary.actualGp || 0).toFixed(2)}` },
-          ].map((item, i) => (
-            <div
-              key={i}
-              className="backdrop-blur-md bg-white/10 shadow-lg rounded-xl 
-                         px-3 py-2 flex items-center gap-2 text-sm sm:text-base w-auto"
-            >
-              <span className="font-medium opacity-80 whitespace-nowrap">{item.label}:</span>
-              <span className="font-semibold">{item.value}</span>
-            </div>
-          ))}
-        </div>
-
         {/* Main Grid (Aligned + Equal Heights) */}
         <div className="grid grid-cols-1 xl:grid-cols-2 2xl:grid-cols-3 gap-6 items-stretch">
           {/* Row 1 Left: Daily */}
           <div className="xl:col-span-1 2xl:col-span-2 flex flex-col">
-            <ChartSection title="Daily Orders & Gross Profit" fullHeight>
+            <ChartSection
+              title={
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                  <span>Daily Orders & Gross Profit</span>
+                  <div className="flex flex-wrap gap-2 text-xs sm:text-sm">
+                    <BadgePill
+                      tone="primary"
+                      label="Total Sales"
+                      value={`$${(summary.totalSales || 0).toLocaleString(undefined, {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })}`}
+                    />
+                    <BadgePill
+                      tone="neutral"
+                      label="Purchases"
+                      value={`$${(summary.purchases || 0).toLocaleString(undefined, {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })}`}
+                    />
+                    <BadgePill
+                      tone="primary"
+                      label="Total GP"
+                      value={`$${(summary.totalGp || 0).toLocaleString(undefined, {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })}`}
+                    />
+                    <BadgePill
+                      tone="primary"
+                      label="Actual GP"
+                      value={`$${(summary.actualGp || 0).toLocaleString(undefined, {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })}`}
+                    />
+                  </div>
+                </div>
+              }
+              fullHeight
+            >
               <div className="w-full h-64 md:h-72 xl:h-80 2xl:h-[24rem]">
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={dailyData}>
@@ -372,34 +503,65 @@ export default function Dashboard() {
 
           {/* Row 1 Right: Donut */}
           <div className="flex flex-col">
-            <ChartSection title="Order Status Breakdown" fullHeight>
+            <ChartSection
+              title={
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                  <span>Order Status Breakdown</span>
+                  <BadgePill
+                    tone="neutral"
+                    label="Total Orders"
+                    value={summary.totalOrders.toLocaleString()}
+                  />
+                </div>
+              }
+              fullHeight
+            >
               {pieData.length > 0 ? (
-                <div className="w-full h-64 md:h-72 xl:h-80 2xl:h-[24rem]">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart margin={{ top: 12, right: 20, bottom: 12, left: 20 }}>
-                      <Pie
-                        data={pieData}
-                        dataKey="value"
-                        nameKey="name"
-                        cx="48%"
-                        cy="50%"
-                        outerRadius={70}
-                        innerRadius={45}
-                      >
-                        {pieData.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={entry.color} />
-                        ))}
-                      </Pie>
-                      <Tooltip />
-                      <Legend
-                        wrapperStyle={{ fontSize: "0.875rem", lineHeight: 1.25 }} 
-                        content={<CustomLegend />}
-                        layout="vertical"
-                        align="right"
-                        verticalAlign="middle"
-                      />
-                    </PieChart>
-                  </ResponsiveContainer>
+                <div className="w-full flex flex-col items-center">
+                  <div className="w-full h-64 md:h-72">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart margin={{ top: 0, right: 20, bottom: 0, left: 20 }}>
+                        <Pie
+                          data={pieData}
+                          dataKey="value"
+                          nameKey="name"
+                          cx="45%"
+                          cy="45%"
+                          outerRadius={68}
+                          innerRadius={42}
+                        >
+                          {pieData.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.color} />
+                          ))}
+                        </Pie>
+                        <Tooltip />
+                        <Legend
+                          wrapperStyle={{ fontSize: "0.85rem", lineHeight: 1.35 }}
+                          content={<CustomLegend />}
+                          layout="vertical"
+                          align="right"
+                          verticalAlign="middle"
+                        />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <div className="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-3 w-full">
+                    <MetricPill
+                      label="Success Rate"
+                      value={`${statusMetrics.successRate}%`}
+                      tone="success"
+                    />
+                    <MetricPill
+                      label="Escalation Rate"
+                      value={`${statusMetrics.escalationRate}%`}
+                      tone="warning"
+                    />
+                    <MetricPill
+                      label="Cancellation Rate"
+                      value={`${statusMetrics.cancellationRate}%`}
+                      tone="danger"
+                    />
+                  </div>
                 </div>
               ) : (
                 <p className="text-center text-gray-300">No order status data available</p>
@@ -412,11 +574,11 @@ export default function Dashboard() {
             <ChartSection title="Monthly Actual GP (Year Overview)" fullHeight>
               <div className="w-full h-64 md:h-72 xl:h-80 2xl:h-[24rem]">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={yearlyGPData}>
+          <BarChart data={yearlyGPData}>
                     <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.3} />
                     <XAxis dataKey="month" stroke="currentColor" />
                     <YAxis stroke="currentColor" />
-                    <Tooltip />
+            <Tooltip formatter={(value) => Number(value).toFixed(2)} />
                     <Legend />
                     <Bar dataKey="actualGP" fill="#9955a5" name="Actual GP" />
                   </BarChart>
@@ -457,25 +619,11 @@ export default function Dashboard() {
 
               {/* One-line KPI tiles with horizontal scroll fallback */}
             {/* One-line, compact KPI chips (perfectly centered) */}
-<div className="mt-3 grid grid-cols-3 gap-2">
-  <div className="inline-flex items-center justify-center rounded-lg bg-[#b05052] px-3 h-10 sm:h-11">
-    <span className="font-semibold text-[12px] sm:text-sm leading-none text-white/90">
-      Cancelled Orders <span className="font-extrabold text-white">&nbsp;{cancelRefundData.cancelled}</span>
-    </span>
-  </div>
-
-  <div className="inline-flex items-center justify-center rounded-lg bg-[#805f89] px-3 h-10 sm:h-11">
-    <span className="font-semibold text-[12px] sm:text-sm leading-none text-white/90">
-      Refunded Orders <span className="font-extrabold text-white">&nbsp;{cancelRefundData.refunded}</span>
-    </span>
-  </div>
-
-  <div className="inline-flex items-center justify-center rounded-lg bg-[#8f814b] px-3 h-10 sm:h-11">
-    <span className="font-semibold text-[12px] sm:text-sm leading-none text-white/90">
-      Disputed Orders <span className="font-extrabold text-white text-center">&nbsp;{cancelRefundData.disputed}</span>
-    </span>
-  </div>
-</div>
+              <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <BadgePill tone="danger" label="Cancelled" value={cancelRefundData.cancelled} />
+                <BadgePill tone="purple" label="Refunded" value={cancelRefundData.refunded} />
+                <BadgePill tone="warning" label="Disputed" value={cancelRefundData.disputed} />
+              </div>
 
               {/* <p className="text-[#f8dbdf] font-semibold text-center mt-3 whitespace-nowrap">
                 Total Refund Amount: ${cancelRefundData.refundAmount.toFixed(2)}
@@ -513,6 +661,50 @@ function Card({ title, value }) {
     <div className="bg-white/30 dark:bg-white/5 text-white px-5 py-3 rounded-xl shadow-md backdrop-blur-sm flex items-center justify-center text-base sm:text-lg font-medium">
       <span className="opacity-80 mr-1">{title}:</span>
       <span className="font-bold">{value}</span>
+    </div>
+  );
+}
+
+const toneStyles = {
+  success:
+    "bg-[#d7f2ec] text-[#0f3d33] dark:bg-[#0f4237]/80 dark:text-emerald-100 dark:border dark:border-emerald-400/60",
+  warning:
+    "bg-[#f6edcf] text-[#5b4c1d] dark:bg-[#8f814b]/80 dark:text-white dark:border dark:border-[#b8a35c]",
+  danger:
+    "bg-[#fbe4e4] text-[#6f1e1e] dark:bg-[#b05052]/80 dark:text-white dark:border dark:border-[#d76b6d]",
+  neutral:
+    "bg-[#e8ecf2] text-[#2f3640] dark:bg-slate-600/30 dark:text-white dark:border dark:border-slate-500",
+};
+
+function MetricPill({ label, value, tone = "neutral" }) {
+  return (
+    <div
+      className={`inline-flex items-center justify-center whitespace-nowrap rounded-full px-2.5 py-1 backdrop-blur-sm shadow-sm text-[11px] sm:text-xs font-semibold ${toneStyles[tone] || toneStyles.neutral}`}
+    >
+      {label}: <span className="ml-1 font-bold">{value}</span>
+    </div>
+  );
+}
+
+const badgeToneStyles = {
+  danger:
+    "bg-[#fbe4e5] text-[#64212e] dark:bg-[#b05052]/80 dark:text-white dark:border dark:border-[#d76b6d]",
+  purple:
+    "bg-[#efe4f6] text-[#3f2654] dark:bg-[#805f89]/80 dark:text-white dark:border dark:border-[#9a7da6]",
+  warning:
+    "bg-[#f6edcf] text-[#5b4c1d] dark:bg-[#8f814b]/80 dark:text-white dark:border dark:border-[#b8a35c]",
+  primary:
+    "bg-[#e3ecf7] text-[#274060] dark:bg-slate-500/30 dark:text-white dark:border dark:border-slate-400",
+  neutral:
+    "bg-[#e8ecf2] text-[#2f3640] dark:bg-slate-600/30 dark:text-white dark:border dark:border-slate-500",
+};
+
+function BadgePill({ label, value, tone = "warning" }) {
+  return (
+    <div
+      className={`inline-flex items-center justify-center whitespace-nowrap rounded-full px-3 py-1 text-xs sm:text-sm font-semibold backdrop-blur-sm ${badgeToneStyles[tone] || badgeToneStyles.warning}`}
+    >
+      {label}: <span className="ml-1 font-bold">{value}</span>
     </div>
   );
 }

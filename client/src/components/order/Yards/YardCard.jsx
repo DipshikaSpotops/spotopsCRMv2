@@ -14,8 +14,8 @@ export default function YardCard({
 }) {
   const y = yard || {};
 
-  const ownVal = y.ownShipping ?? extractOwn(y.shippingDetails);
-  const yardVal = y.yardShipping ?? extractYard(y.shippingDetails);
+  const ownVal = extractOwn(y.shippingDetails) ?? y.ownShipping;
+  const yardVal = extractYard(y.shippingDetails) ?? y.yardShipping;
 
   const warrantyUnitLabel = (() => {
     const unit = (y.yardWarrantyField || "days").toString();

@@ -57,6 +57,7 @@ export default function Sidebar() {
     { text: "Cancellations & Refunds", to: "/cancelled-refunded-report" },
     { text: "Card Not Charged", to: "/card-not-charged-report" },
     { text: "Collect Refunds", to: "/collect-refund" },
+    { text: "UPS Claims", to: "/ups-claims" },
     { text: "Monthly Disputes", to: "/monthly-disputes" },
     { text: "Sales Report", to: "/sales-report" },
     { text: "Purchases", to: "/purchases" },

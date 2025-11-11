@@ -24,6 +24,7 @@ import OrderDetails from "./pages/OrderDetails";
 import CancelledRefundedOrders from "./pages/CancelledRefundedReport";
 import CardNotCharged from "./pages/CardNotCharged";
 import CollectRefund from "./pages/CollectRefund";
+import UPSClaims from "./pages/UPSClaims";
 import DeliveryTimeReport from "./pages/DeliveryReport";
 import MonthlyDisputes from "./pages/MonthlyDisputes";
 import Purchases from "./pages/Purchases";
@@ -207,6 +208,13 @@ function App() {
         element={
           <MainLayout>
             <CollectRefund/>
+          </MainLayout>
+        }/>
+        <Route
+        path="/ups-claims"
+        element={
+          <MainLayout>
+            <UPSClaims/>
           </MainLayout>
         }/>
         <Route

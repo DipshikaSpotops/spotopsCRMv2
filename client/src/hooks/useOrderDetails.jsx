@@ -55,5 +55,14 @@ export default function useOrderDetails() {
     return yards.every(isInactiveYard);
   }, [yards]);
 
-  return { orderNo, order, loading, error: err, timeline, yards, canAddNewYard, refresh };
+  const mutateOrder = (next) => {
+    setOrder((prev) => {
+      if (typeof next === "function") {
+        return next(prev);
+      }
+      return next || null;
+    });
+  };
+
+  return { orderNo, order, loading, error: err, timeline, yards, canAddNewYard, refresh, mutateOrder };
 }

@@ -9,6 +9,12 @@ import Select, {
   SelectValue,
 } from "../../ui/Select";
 
+const ALLOWED_COUNTRIES = ["US", "Canada"];
+const normalizeCountry = (value) => {
+  const normalized = String(value ?? "").trim();
+  return ALLOWED_COUNTRIES.includes(normalized) ? normalized : "US";
+};
+
 export default function YardAddModal({ open, onClose, onSubmit }) {
   const [yards, setYards] = useState([]);
   const [form, setForm] = useState({
@@ -84,7 +90,7 @@ export default function YardAddModal({ open, onClose, onSubmit }) {
           ...prev,
           city: result.city || prev.city,
           state: result.state || prev.state,
-          country: result.country || prev.country,
+          country: normalizeCountry(result.country || prev.country),
         }));
       }
     }, 400);
@@ -101,11 +107,14 @@ export default function YardAddModal({ open, onClose, onSubmit }) {
     String(form.yardShipping ?? "").trim() !== "" &&
     !Number.isNaN(Number(form.yardShipping));
 
-  const set = (k) => (ev) =>
+  const set = (k) => (ev) => {
+    const value =
+      k === "country" ? normalizeCountry(ev.target.value) : ev.target.value;
     setForm((p) => ({
       ...p,
-      [k]: ev.target.value,
+      [k]: value,
     }));
+  };
 
   const onOwnChange = (ev) => {
     const v = ev.target.value;
@@ -142,14 +151,23 @@ export default function YardAddModal({ open, onClose, onSubmit }) {
     req.forEach((k) => {
       if (!String(form[k] || "").trim()) e[k] = "Required";
     });
-    const bothSet =
-      String(form.ownShipping ?? "").trim() !== "" &&
-      String(form.yardShipping ?? "").trim() !== "" &&
-      !Number.isNaN(Number(form.ownShipping)) &&
-      !Number.isNaN(Number(form.yardShipping));
-    if (bothSet) {
+    const ownTrim = String(form.ownShipping ?? "").trim();
+    const yardTrim = String(form.yardShipping ?? "").trim();
+    const ownIsNumber = ownTrim !== "" && !Number.isNaN(Number(ownTrim));
+    const yardIsNumber = yardTrim !== "" && !Number.isNaN(Number(yardTrim));
+    if (ownTrim && yardTrim) {
       e.ownShipping = "Choose either Own or Yard shipping, not both";
       e.yardShipping = "Choose either Own or Yard shipping, not both";
+    }
+    if (!ownTrim && !yardTrim) {
+      e.ownShipping = "Enter an amount in Own or Yard shipping";
+      e.yardShipping = "Enter an amount in Own or Yard shipping";
+    }
+    if (ownTrim && !ownIsNumber) {
+      e.ownShipping = "Enter a valid number";
+    }
+    if (yardTrim && !yardIsNumber) {
+      e.yardShipping = "Enter a valid number";
     }
     setErrors(e);
     return Object.keys(e).length === 0;
@@ -248,7 +266,7 @@ export default function YardAddModal({ open, onClose, onSubmit }) {
           city: selected.city,
           state: selected.state,
           zipcode: selected.zipcode,
-          country: selected.country,
+          country: normalizeCountry(selected.country),
           yardWarrantyField: selected.yardWarrantyField || "days",
           warranty: selected.warranty || "",
         }));
@@ -393,12 +411,12 @@ export default function YardAddModal({ open, onClose, onSubmit }) {
             <Field label="Country">
               <Select
                 value={form.country}
-                onValueChange={(val) =>
-                  setForm((prev) => ({
-                    ...prev,
-                    country: val,
-                  }))
-                }
+            onValueChange={(val) =>
+              setForm((prev) => ({
+                ...prev,
+                country: normalizeCountry(val),
+              }))
+            }
               >
                 <SelectTrigger className="!bg-[#2b2d68] hover:!bg-[#090c6c]">
                   <SelectValue placeholder="Select country" />
@@ -475,13 +493,21 @@ export default function YardAddModal({ open, onClose, onSubmit }) {
           <button
             onClick={() => {
               if (!validate()) return;
+              const ownTrim = String(form.ownShipping || "").trim();
+              const yardTrim = String(form.yardShipping || "").trim();
+              const normalizedCountry = normalizeCountry(form.country);
               onSubmit({
                 ...form,
+                country: normalizedCountry,
+                ownShipping: ownTrim,
+                yardShipping: yardTrim,
                 address: `${form.street} ${form.city} ${form.state} ${form.zipcode}`.trim(),
                 shippingDetails: [
-                  String(form.ownShipping || "").trim() !== "" ? `Own shipping: ${form.ownShipping}` : "",
-                  String(form.yardShipping || "").trim() !== "" ? `Yard shipping: ${form.yardShipping}` : "",
-                ].filter(Boolean).join(" | "),
+                  ownTrim ? `Own shipping: ${ownTrim}` : "",
+                  yardTrim ? `Yard shipping: ${yardTrim}` : "",
+                ]
+                  .filter(Boolean)
+                  .join(" | "),
               });
             }}
             className="px-3 py-1.5 rounded-md bg-white text-[#04356d] border border-white/20 hover:bg-white/90"

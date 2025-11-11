@@ -66,6 +66,7 @@ export default function NavbarForm() {
       ["Cancellations & Refunds", "/cancelled-refunded-report"],
       ["Card not Charged", "/card-not-charged-report"],
       ["Collect Refunds", "/collect-refund"],
+      ["UPS Claims", "/ups-claims"],
       ["Delivery Report", "/delivery-time"],
       ["Monthly Disputes", "/monthly-disputes"],
       ["My Sales Report", "/my-sales-report"],
@@ -89,18 +90,21 @@ export default function NavbarForm() {
     >
       <div className="flex flex-wrap items-center justify-between">
         {/* Logo */}
-        <a href="/" className="flex items-center">
-          <img
-          id="logoImg"
-          src="https://assets-autoparts.s3.ap-south-1.amazonaws.com/images/darkLogo.png"
-          alt="Logo"
-          className="h-9 w-auto cursor-pointer"
+        <button
+          type="button"
+          className="flex items-center bg-transparent border-0 p-0"
           onClick={() => navigate("/dashboard")}
-          role="button"
-          tabIndex={0}
-          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") navigate("/dashboard"); }}
-        />
-        </a>
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") navigate("/dashboard");
+          }}
+        >
+          <img
+            id="logoImg"
+            src="https://assets-autoparts.s3.ap-south-1.amazonaws.com/images/darkLogo.png"
+            alt="Logo"
+            className="h-9 w-auto cursor-pointer"
+          />
+        </button>
 
         {/* Menus */}
         <div className="flex gap-6 text-sm font-medium items-center" ref={dropdownRef}>
