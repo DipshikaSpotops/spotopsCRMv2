@@ -187,7 +187,7 @@ const calcActualGP = (orderLike) => {
     if (statusStr.includes("po cancel")) {
       hasPOCancelled = true;
       if (isCardCharged) {
-        poCancelledWithCardCharged = true;
+      poCancelledWithCardCharged = true;
       }
     }
   });
@@ -482,10 +482,10 @@ export default function OrderDetails() {
     let poCancelledWithCardCharged = false;
 
     additionalInfo.forEach((yard) => {
-    const part = parseFloat(yard.partPrice) || 0;
-    const others = parseFloat(yard.others) || 0;
-    const refund = parseFloat(yard.refundedAmount) || 0;
-    const reimb = parseFloat(yard.reimbursementAmount) || 0;
+      const part = parseFloat(yard.partPrice) || 0;
+      const others = parseFloat(yard.others) || 0;
+      const refund = parseFloat(yard.refundedAmount) || 0;
+      const reimb = parseFloat(yard.reimbursementAmount) || 0;
 
     const shipping = getShippingAmounts(yard);
 
@@ -503,8 +503,8 @@ export default function OrderDetails() {
       if (isCardCharged) {
         poCancelledWithCardCharged = true;
       }
-    }
-  });
+      }
+    });
 
     let actualGP = 0;
 
@@ -541,8 +541,8 @@ export default function OrderDetails() {
         .then(async () => {
           await refresh();
           if (Math.abs(actualGP) > 0.009) {
-            setToast(`Actual GP updated to $${actualGP.toFixed(2)}`);
-            setTimeout(() => setToast(""), 3000);
+          setToast(`Actual GP updated to $${actualGP.toFixed(2)}`);
+          setTimeout(() => setToast(""), 3000);
           } else {
             setToast("");
           }
@@ -746,15 +746,15 @@ export default function OrderDetails() {
                 className="h-full flex flex-col"
                 title="Support Comments"
                 actions={
-                  <div className="flex gap-2 rounded-lg p-1 bg-[#29345a]/60 border border-[#43518a]/70 dark:bg-white/10 dark:border-white/20">
+                  <div className="flex gap-2 rounded-lg p-1 bg-[#29345a]/60 border border-[#43518a]/70">
                     {yards?.map((_, i) => (
                       <button
                         key={i}
                         onClick={() => setActiveSection(i)}
                         className={`px-3 py-1.5 rounded-md text-sm font-semibold transition ${
                           activeSection === i
-                            ? "bg-white text-[#04356d] border border-white/30 shadow dark:bg-black/20 dark:border-white/30 dark:text-white"
-                            : "text-white/80 hover:text-white border border-transparent dark:text-white/70 dark:hover:text-white"
+                            ? "bg-[#38487a] text-white shadow-inner border border-[#5260a1]"
+                            : "text-[#d4d9ea] hover:text-white border border-transparent"
                         }`}
                       >
                         Yard {i + 1}
@@ -764,8 +764,8 @@ export default function OrderDetails() {
                       onClick={() => setActiveSection("support")}
                       className={`px-3 py-1.5 rounded-md text-sm font-semibold transition ${
                         activeSection === "support"
-                          ? "bg-white text-[#04356d] border border-white/30 shadow dark:bg-black/20 dark:border-white/30 dark:text-white"
-                          : "text-white/80 hover:text-white border border-transparent dark:text-white/70 dark:hover:text-white"
+                          ? "bg-[#38487a] text-white shadow-inner border border-[#5260a1]"
+                          : "text-[#d4d9ea] hover:text-white border border-transparent"
                       }`}
                     >
                       Order Comments
@@ -773,15 +773,15 @@ export default function OrderDetails() {
                   </div>
                 }
               >
-                <div className="flex-1 min-h-0">
-                  <CommentBox
-                    orderNo={order?.orderNo}
-                    mode={typeof activeSection === "number" ? "yard" : "support"}
-                    yardIndex={typeof activeSection === "number" ? activeSection : null}
+              <div className="flex-1 min-h-0">
+                <CommentBox
+                  orderNo={order?.orderNo}
+                  mode={activeSection === "support" ? "support" : "yard"}
+                  yardIndex={activeSection === "support" ? null : activeSection}
                     buttonTone="primary"
                     compact
-                  />
-                </div>
+                />
+              </div>
               </GlassCard>
             </aside>
           </div>
