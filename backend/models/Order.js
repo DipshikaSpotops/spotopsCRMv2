@@ -32,6 +32,8 @@ storeCreditUsedFor: [
 ],
 refundedDate:Date,
 collectRefundCheckbox: String,
+upsClaimCheckbox: String,
+storeCreditCheckbox: String,
 refundToCollect: Number,
 refundReason: String,
 trackingNo: [String],

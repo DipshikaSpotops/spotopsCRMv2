@@ -319,13 +319,79 @@ router.post("/sendPOEmailYard/:orderNo", upload.any(), async (req, res) => {
       })),
     ];
 
+    const {
+      year,
+      make,
+      model,
+      pReq,
+      desc,
+      vin,
+      partNo,
+      attention,
+      fName,
+      lName,
+    } = order;
+
+    const stockNo = yard.stockNo || "NA";
+    const warranty = yard.warranty || "NA";
+    const firstNameTrimmed = (firstName || "Auto Parts Group").trim();
+
     await transporter.sendMail({
-      from: process.env.PURCHASE_EMAIL,
+      from: "purchase@auto-partsgroup.com",
       to: yardEmail,
       bcc: "dipsikha.spotopsdigital@gmail.com",
-      subject: `Purchase Order | ${order.orderNo} | ${order.year} ${order.make} ${order.model} | ${order.pReq}`,
-      html: `<p>Dear ${yard.agentName},</p><p>Please find attached the Purchase Order.</p>`,
-      attachments,
+      subject: `Purchase Order | ${order.orderNo} | ${year} ${make} ${model} | ${pReq}`,
+      html: `
+        <p style="font-size: 14px;">Dear ${yard.agentName || "Team"},</p>
+        <p style="font-size: 14px;">Please find attached the Purchase Order for the following:</p>
+        <ul style="font-size: 14px;">
+          <li><strong>Order No:</strong> ${orderNo}</li>
+          <li><strong>Year/Make/Model:</strong> ${year} ${make} ${model}</li>
+          <li><strong>Part:</strong> ${pReq}</li>
+          <li><strong>Description:</strong> ${desc}</li>
+          <li><strong>VIN:</strong> ${vin || "NA"}</li>
+          <li><strong>Part No:</strong> ${partNo || "NA"}</li>
+          <li><strong>Stock No:</strong> ${stockNo}</li>
+          <li><strong>Warranty:</strong> ${warranty} days</li>
+        </ul>
+        <p><strong>Purchase Order To:</strong> ${yard.yardName}<br>
+        <strong>Part Price:</strong> $${partPrice.toFixed(2)}<br>
+        <strong>Shipping:</strong> ${shippingValue}</p>
+
+        <p style="font-size: 14px;">
+          Notes:<br>
+          Please provide the transaction receipt after you have charged our card.<br>
+          Also, make sure it's blind shipping, and don't add any tags or labels during the shipment.<br>
+          Please ensure that the items are delivered as specified above and in accordance with the agreed-upon terms and conditions.<br>
+          If there are any discrepancies or questions regarding this order, please contact us immediately.
+        </p>
+
+        <p>
+          <strong style="background-color: #ffff00; font-size: 20px; color: black; font-weight: bold; padding: 4px; display: inline-block;margin-bottom:4px;">
+            NOTE: BLIND SHIPPING
+          </strong><br>
+          <strong style="background-color: #ff0000; font-size: 20px; color: black; font-weight: bold; padding: 4px; display: inline-block;margin-bottom:4px;">
+            NOTE: PROVIDE PICTURES BEFORE SHIPPING
+          </strong>
+        </p>
+
+        <p><img src="cid:logo" alt="logo" style="width: 180px; height: 100px;"></p>
+        <p style="font-size: 16px;">
+          ${firstNameTrimmed}<br>
+          Auto Parts Group Corp<br>
+          +1 (866) 207-5533 | purchase@auto-partsgroup.com
+        </p>
+      `,
+      attachments: [
+        ...attachments,
+        {
+          filename: "logo.png",
+          path:
+            process.env.LOGO_URL ||
+            "https://assets-autoparts.s3.ap-south-1.amazonaws.com/images/logo.png",
+          cid: "logo",
+        },
+      ],
     });
 
     // Update DB

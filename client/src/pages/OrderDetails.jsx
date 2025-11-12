@@ -22,7 +22,6 @@ import CancelOrderModal from "../components/order/modals/CancelOrderModal";
 import DisputeOrderModal from "../components/order/modals/DisputeOrderModal";
 import RefundOrderModal from "../components/order/modals/RefundOrderModal";
 import useOrderRealtime from "../hooks/useOrderRealtime";
-import { extractOwn, extractYard } from "../utils/yards";
 import API from "../api";
 
 // popup intaed of alert or confirm:
@@ -125,32 +124,14 @@ const normalizeStatusForCalc = (raw) => {
   return s;
 };
 
-const parseMoneyValue = (value) => {
-  if (value === null || value === undefined) return 0;
-  if (typeof value === "number" && Number.isFinite(value)) return value;
-  const str = String(value).trim();
-  if (!str) return 0;
-  const numeric = Number(str);
-  if (!Number.isNaN(numeric)) return numeric;
-  const match = str.match(/-?\d+(?:\.\d+)?/);
-  return match ? Number(match[0]) : 0;
-};
-
-const getShippingAmounts = (yard) => {
-  const ownRaw = yard?.ownShipping ?? extractOwn(yard?.shippingDetails);
-  const yardRaw = yard?.yardShipping ?? extractYard(yard?.shippingDetails);
-  const own = parseMoneyValue(ownRaw);
-  const yardShip = parseMoneyValue(yardRaw);
-  return { own, yard: yardShip, total: own + yardShip };
-};
-
 /** Single source of truth for Actual GP math */
 const calcActualGP = (orderLike) => {
   if (!orderLike) return 0;
 
   const sp = parseFloat(orderLike.soldP) || 0;
   const tax = parseFloat(orderLike.salestax) || 0;
-  const orderReimb = parseFloat(orderLike.reimbursementAmount) || 0;
+  const spMinusTax =
+    parseFloat(orderLike.spMinusTax) || sp - tax;
   const custRefundedAmount = parseFloat(
     orderLike.custRefundedAmount ||
     orderLike.cancelledRefAmount ||
@@ -162,49 +143,82 @@ const calcActualGP = (orderLike) => {
     ? orderLike.additionalInfo
     : [];
 
-  let totalYardSpend = 0;
-  let hasCardCharged = false;
-  let hasPOCancelled = false;
-  let poCancelledWithCardCharged = false;
+  const status = normalizeStatusForCalc(orderLike.orderStatus);
+  const isDispute = ["Dispute", "Dispute after Cancellation"].includes(status);
+  const isCancelledOrRefunded =
+    status === "Order Cancelled" || status === "Refunded";
+
+  if (!additionalInfo.length) {
+    return isDispute ? 0 - tax : 0;
+  }
+
+  let totalSum = 0;
+  let actualGP = parseFloat(orderLike.actualGP) || 0;
 
   additionalInfo.forEach((yard) => {
-    const part = parseFloat(yard.partPrice) || 0;
-    const others = parseFloat(yard.others) || 0;
-    const refund = parseFloat(yard.refundedAmount) || 0;
-    const reimb = parseFloat(yard.reimbursementAmount) || 0;
+    const paymentStatus = (yard.paymentStatus || "").trim();
 
-    const shipping = getShippingAmounts(yard);
+    if (paymentStatus === "Card charged") {
+      const yardPP = parseFloat(yard.partPrice) || 0;
+      const yardOSorYS = yard.shippingDetails || "";
+      let shippingValueYard = 0;
+      if (yardOSorYS && yardOSorYS.includes(":")) {
+        const [, valuePart] = yardOSorYS.split(":");
+        shippingValueYard = parseFloat(valuePart) || 0;
+      }
 
-    const paymentStatus = (yard.paymentStatus || "").trim().toLowerCase();
-    const statusStr = (yard.status || "").trim().toLowerCase();
-    const isCardCharged = paymentStatus === "card charged";
+      const yardOthers = parseFloat(yard.others) || 0;
+      const escOwnShipReturn = parseFloat(yard.custOwnShippingReturn) || 0;
+      const escOwnShipReplacement =
+        parseFloat(yard.custOwnShippingReplacement) || 0;
+      const yardOwnShippingReplacement =
+        parseFloat(yard.yardOwnShipping) || 0;
+      const yardRefundAmount = parseFloat(yard.refundedAmount) || 0;
+      const escReimbursement = parseFloat(yard.reimbursementAmount) || 0;
 
-    if (isCardCharged) {
-      totalYardSpend += part + others + shipping.total + reimb - refund;
-      hasCardCharged = true;
-    }
+      const yardSpent =
+        yardPP +
+        shippingValueYard +
+        yardOthers +
+        escOwnShipReturn +
+        escOwnShipReplacement +
+        yardOwnShippingReplacement +
+        escReimbursement -
+        yardRefundAmount;
 
-    if (statusStr.includes("po cancel")) {
-      hasPOCancelled = true;
-      if (isCardCharged) {
-      poCancelledWithCardCharged = true;
+      totalSum += yardSpent;
+
+      if (isDispute) {
+        actualGP = 0 - (totalSum + tax);
+      } else {
+        const subtractRefund = spMinusTax - custRefundedAmount;
+        actualGP = subtractRefund - totalSum;
+      }
+    } else if (!paymentStatus || paymentStatus === "Card not charged") {
+      if (isCancelledOrRefunded) {
+        actualGP = sp - custRefundedAmount - tax;
+      } else if (isDispute) {
+        actualGP = 0 - (tax + totalSum);
+      } else {
+        actualGP = 0;
       }
     }
   });
 
-  const status = normalizeStatusForCalc(orderLike.orderStatus);
+  const allYardsNotCharged = additionalInfo.every((yard) => {
+    const paymentStatus = (yard.paymentStatus || "").trim();
+    return !paymentStatus || paymentStatus === "Card not charged";
+  });
 
-  if (hasCardCharged || poCancelledWithCardCharged) {
-    return sp - custRefundedAmount - tax - totalYardSpend - orderReimb;
-  } else if (
-    ["Order Cancelled", "Refunded"].includes(status) ||
-    (hasPOCancelled && !hasCardCharged)
-  ) {
-    return sp - custRefundedAmount - tax - orderReimb;
-  } else if (["Dispute", "Dispute after Cancellation"].includes(status)) {
-    return 0 - (totalYardSpend + tax + orderReimb);
+  if (allYardsNotCharged) {
+    if (isDispute) {
+      actualGP = 0 - tax;
+    } else {
+      actualGP = sp - custRefundedAmount - tax;
+    }
   }
-  return 0 - orderReimb;
+
+  return Number.isFinite(actualGP) ? actualGP : 0;
 };
 
 export default function OrderDetails() {
@@ -368,14 +382,26 @@ export default function OrderDetails() {
         setPendingAlertLabel(label);
         setShowDisputeModal(true);
       } else {
-        // No modal (including "Dispute 2")
         await refresh();
+        await recomputeAndPersistActualGP({ useServer: true });
+        if (value === "Dispute") {
+          try {
+            await refresh();
+            await recomputeAndPersistActualGP({ useServer: true });
+          } catch (e) {
+            console.warn("GP recompute after dispute failed:", e);
+          }
+        }
         setToast(`Order status updated to ${label}`);
       }
     } catch (err) {
+      const message =
+        err?.response?.data?.message ||
+        err?.message ||
+        "Error updating order status";
       console.error("Error updating status:", err);
-      await recomputeAndPersistActualGP({ useServer: true })
-      setToast("Error updating order status");
+      await recomputeAndPersistActualGP({ useServer: true });
+      setToast(message);
     }
   };
 
@@ -461,74 +487,12 @@ export default function OrderDetails() {
   useEffect(() => {
     if (!orderNo || !order) return;
 
-    const sp = parseFloat(order.soldP) || 0;
-    const tax = parseFloat(order.salestax) || 0;
-    const custRefundedAmount = parseFloat(
-      order.custRefundedAmount ||
-      order.cancelledRefAmount ||
-      order.custRefAmount ||
-      0
-    );
-    const orderReimb = parseFloat(order.reimbursementAmount) || 0;
+    const actualGP = calcActualGP(order);
 
-    const orderStatus = normalizeStatusForCalc(order.orderStatus || "");
-    const additionalInfo = Array.isArray(order.additionalInfo)
-      ? order.additionalInfo
-      : [];
-
-    let totalYardSpend = 0;
-    let hasCardCharged = false;
-    let hasPOCancelled = false;
-    let poCancelledWithCardCharged = false;
-
-    additionalInfo.forEach((yard) => {
-      const part = parseFloat(yard.partPrice) || 0;
-      const others = parseFloat(yard.others) || 0;
-      const refund = parseFloat(yard.refundedAmount) || 0;
-      const reimb = parseFloat(yard.reimbursementAmount) || 0;
-
-    const shipping = getShippingAmounts(yard);
-
-    const paymentStatus = (yard.paymentStatus || "").trim().toLowerCase();
-    const statusStr = (yard.status || "").trim().toLowerCase();
-    const isCardCharged = paymentStatus === "card charged";
-
-    if (isCardCharged) {
-      totalYardSpend += part + others + shipping.total + reimb - refund;
-      hasCardCharged = true;
-    }
-
-    if (statusStr.includes("po cancel")) {
-      hasPOCancelled = true;
-      if (isCardCharged) {
-        poCancelledWithCardCharged = true;
-      }
-      }
-    });
-
-    let actualGP = 0;
-
-    if (hasCardCharged || poCancelledWithCardCharged) {
-      actualGP = sp - custRefundedAmount - tax - totalYardSpend - orderReimb;
-    } else if (
-      ["Order Cancelled", "Refunded"].includes(orderStatus) ||
-      (hasPOCancelled && !hasCardCharged)
-    ) {
-      actualGP = sp - custRefundedAmount - tax - orderReimb;
-    } else if (
-      ["Dispute", "Dispute after Cancellation"].includes(orderStatus)
-    ) {
-      actualGP = 0 - (totalYardSpend + tax + orderReimb);
-    } else {
-      actualGP = 0 - orderReimb;
-    }
-
-    // Paint view
     setActualGPView(actualGP.toFixed(2));
     const gpField = document.querySelector("#actualGP");
     if (gpField) gpField.value = actualGP.toFixed(2);
 
-    // Skip one cycle if we just wrote optimistically
     const currentGP = parseFloat(order.actualGP) || 0;
     if (gpWriteGuardRef.current) {
       gpWriteGuardRef.current = false;
@@ -536,15 +500,12 @@ export default function OrderDetails() {
     }
 
     if (Math.abs(currentGP - actualGP) > 0.0001) {
-      API
-        .put(`/orders/${orderNo}/updateActualGP`, { actualGP })
+      API.put(`/orders/${orderNo}/updateActualGP`, { actualGP })
         .then(async () => {
           await refresh();
           if (Math.abs(actualGP) > 0.009) {
-          setToast(`Actual GP updated to $${actualGP.toFixed(2)}`);
-          setTimeout(() => setToast(""), 3000);
-          } else {
-            setToast("");
+            setToast(`Actual GP updated to $${actualGP.toFixed(2)}`);
+            setTimeout(() => setToast(""), 3000);
           }
         })
         .catch((err) => {
@@ -577,7 +538,7 @@ export default function OrderDetails() {
 
   return (
     <>
-      <div className="min-h-screen text-sm text-[#04356d] bg-gradient-to-b from-[#5a6f87] via-[#51358a] to-[#4d6bb9] dark:bg-gradient-to-br dark:from-[#0b1c34] dark:via-[#2b2d68] dark:to-[#4b225e] dark:text-white">
+      <div className="min-h-screen text-sm text-[#04356d] bg-gradient-to-b from-[#5a86ad] via-[#51358a] to-[#4d6bb9] dark:bg-gradient-to-br dark:from-[#0b1c34] dark:via-[#2b2d68] dark:to-[#4b225e] dark:text-white">
         <NavbarForm />
 
         <div className="w-full px-4 sm:px-6 lg:px-8 2xl:px-12 pt-24 pb-6 min-h-[calc(100vh-6rem)] overflow-y-auto">
@@ -598,7 +559,7 @@ export default function OrderDetails() {
                   {/* Order History Button */}
                   <button
                     onClick={() => setShowHistory(true)}
-                    className="px-3 py-1 rounded-md text-sm bg-white/10 hover:bg-white/20"
+                    className="rounded-md border border-white/30 bg-white px-3 py-1 text-sm font-semibold text-[#04356d] shadow-sm transition hover:bg-white/90 hover:scale-[1.02] dark:border-white/20 dark:bg-[#2b2d68] dark:text-white dark:hover:bg-[#1a1f4b]"
                   >
                     View History
                   </button>
@@ -675,10 +636,7 @@ export default function OrderDetails() {
                 </GlassCard>
               </div>
               <SaleNote orderNo={order?.orderNo} />
-              <div className="p-4 rounded-xl bg-white/10 border border-white/20 text-white backdrop-blur-sm">
-                <h3 className="text-base font-semibold mb-3 border-b border-white/20 pb-1">
-                  Reimbursement
-                </h3>
+              <GlassCard title="Reimbursement">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
                   <div className="flex flex-col gap-1">
                     <span className="text-white/80">Amount ($)</span>
@@ -709,17 +667,17 @@ export default function OrderDetails() {
                     className={`px-4 py-2 rounded-md text-sm font-semibold border transition ${
                       savingReimbursement
                         ? "bg-white/20 text-white/70 border-white/20 cursor-not-allowed"
-                        : "bg-white text-[#04356d] border-white/30 hover:bg-white/90 dark:bg-[#2b2d68] dark:text-white dark:border-white/20 dark:hover:bg-[#1a1f4b]"
+                        : "bg-white text-[#04356d] border-white/30 hover:bg-white/90 hover:scale-[1.02] shadow-md dark:bg-[#2b2d68] dark:text-white dark:border-white/20 dark:hover:bg-[#1a1f4b]"
                     }`}
                   >
                     {savingReimbursement ? "Saving..." : "Save Reimbursement"}
                   </button>
                 </div>
-              </div>
+              </GlassCard>
             </aside>
 
             {/* CENTER: Yards */}
-            <section className="col-span-12 xl:col-span-4 flex flex-col gap-4 h-full">
+            <section className="col-span-12 xl:col-span-4 flex flex-col gap-4 h-full relative z-10">
               <div className="flex-1 min-h-0">
                 <YardList
                   yards={yards}
@@ -742,8 +700,8 @@ export default function OrderDetails() {
 
             {/* RIGHT: comments */}
             <aside className="col-span-12 xl:col-span-4 flex flex-col gap-4 h-[calc(100vh-240px)] overflow-hidden">
-              <GlassCard
-                className="h-full flex flex-col"
+      <GlassCard
+        className="relative h-full flex flex-col z-20"
                 title="Support Comments"
                 actions={
                   <div className="flex gap-2 rounded-lg p-1 bg-[#29345a]/60 border border-[#43518a]/70">
@@ -878,13 +836,9 @@ export default function OrderDetails() {
         open={showDisputeModal}
         onClose={() => setShowDisputeModal(false)}
         orderNo={orderNo}
-        refresh={async () => {
+        onSubmit={async () => {
           await refresh();
-          await recomputeAndPersistActualGP({ useServer: true, showAlert: false });
-          if (pendingAlertLabel) {
-            alert(`Order status updated to ${pendingAlertLabel}`);
-            setPendingAlertLabel(null);
-          }
+          await recomputeAndPersistActualGP({ useServer: true });
         }}
       />
       <ConfirmModal

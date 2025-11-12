@@ -1,6 +1,6 @@
 const AUTH_KEYS = ["auth", "token", "firstName", "role", "loginAt"];
 
-export const SESSION_DURATION_MS = 10 * 60 * 60 * 1000; // 10 hours
+export const SESSION_DURATION_MS = 12 * 60 * 60 * 1000; // 12 hours
 
 export function readStoredAuth() {
   try {
@@ -37,10 +37,7 @@ export function clearStoredAuth() {
 }
 
 export function ensureLoginTimestamp(auth) {
-  if (!auth) return null;
-  if (auth.loginAt) return auth;
-  const updated = { ...auth, loginAt: Date.now() };
-  persistStoredAuth(updated);
-  return updated;
+  if (!auth || !auth.loginAt) return null;
+  return auth;
 }
 

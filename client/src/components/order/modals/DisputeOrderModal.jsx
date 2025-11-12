@@ -42,10 +42,6 @@ export default function DisputeOrderModal({ open, onClose, orderNo, onSubmit }) 
       setToast("Reason for dispute is required.");
       return false;
     }
-    if (refundAmount === "" || refundAmount === null) {
-      setToast("Refunded amount is required.");
-      return false;
-    }
     return true;
   };
 
@@ -54,10 +50,12 @@ export default function DisputeOrderModal({ open, onClose, orderNo, onSubmit }) 
     setLoading(true);
     try {
       const payload = {
-        // Backend sets status to "Dispute"; send ISO now for persistence
         disputedDate: getWhen("iso"),
         disputeReason,
-        disputedRefAmount: Number(refundAmount),
+        disputedRefAmount:
+          refundAmount !== "" && refundAmount !== null
+            ? Number(refundAmount)
+            : undefined,
       };
 
       await API.put(

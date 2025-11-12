@@ -15,27 +15,21 @@ function useSessionTimeout(token) {
   useEffect(() => {
     if (!token) return;
 
-    const stored = readStoredAuth();
-    if (!stored || !stored.token) return;
-
-    let loginAt = Number(stored.loginAt || localStorage.getItem("loginAt"));
-    if (!loginAt) {
-      loginAt = Date.now();
-      try {
-        const updated = { ...stored, loginAt };
-        localStorage.setItem("auth", JSON.stringify(updated));
-        localStorage.setItem("loginAt", String(loginAt));
-      } catch {
-        // ignore storage failures
-      }
-    }
-
     const expire = () => {
       clearStoredAuth();
       dispatch(logout());
       navigate("/login", { replace: true });
       alert("Session expired. Please log in again.");
     };
+
+    const stored = readStoredAuth();
+    if (!stored || !stored.token) return;
+
+    const loginAt = Number(stored.loginAt || localStorage.getItem("loginAt"));
+    if (!loginAt) {
+      expire();
+      return;
+    }
 
     const elapsed = Date.now() - loginAt;
     if (elapsed >= SESSION_DURATION_MS) {
@@ -54,10 +48,16 @@ export default function RequireAuth({ children }) {
 
   const stored = readStoredAuth();
   const effectiveToken = token || stored?.token || localStorage.getItem("token");
+  const loginAt = Number(stored?.loginAt || localStorage.getItem("loginAt"));
 
   useSessionTimeout(effectiveToken);
 
-  if (!effectiveToken) {
+  if (!effectiveToken || !loginAt) {
+    clearStoredAuth();
+    return <Navigate to="/login" replace state={{ from: location }} />;
+  }
+
+  if (Date.now() - loginAt > SESSION_DURATION_MS) {
     clearStoredAuth();
     return <Navigate to="/login" replace state={{ from: location }} />;
   }

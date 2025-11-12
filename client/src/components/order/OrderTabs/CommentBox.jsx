@@ -228,10 +228,12 @@ export default function CommentBox({
                 type="submit"
                 disabled={loading || !input.trim()}
                 className={`px-4 py-2 rounded-lg font-medium border transition ${
-                  buttonTone === "primary"
-                    ? "bg-white text-[#04356d] border-white/20 hover:bg-white/90 dark:bg-[#2b2d68] dark:text-white dark:border-white/20 dark:hover:bg-[#1a1f4b]"
+                  loading || !input.trim()
+                    ? "opacity-70 cursor-not-allowed bg-white/20 text-white/70 border-white/20"
+                    : buttonTone === "primary"
+                    ? "bg-white text-[#04356d] border-white/30 hover:bg-white/90 hover:scale-[1.02] shadow-md dark:bg-[#2b2d68] dark:text-white dark:border-white/20 dark:hover:bg-[#1a1f4b]"
                     : "bg-white/10 text-white border-white/20 hover:bg-white/20"
-                } ${(loading || !input.trim()) ? "opacity-70 cursor-not-allowed" : ""}`}
+                }`}
               >
                 {loading ? "Saving…" : "Comment"}
               </button>

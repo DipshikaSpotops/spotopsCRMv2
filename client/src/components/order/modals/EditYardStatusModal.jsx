@@ -223,7 +223,7 @@ export default function EditYardStatusModal({
         { params: { firstName } }
       );
 
-      setToast("Label voided successfully, and status updated to 'Yard PO Sent'.");
+      setToast("Label voided successfully, and status updated to Yard PO Sent.");
     } catch (e) {
       console.error(e);
       const message = e?.response?.data?.message || "Error voiding label. Please try again.";

@@ -520,6 +520,18 @@ export default function AddOrder() {
               onChange={(e) => setFormData({ ...formData, sAddressStreet: e.target.value })} />
             <Input placeholder="City" value={formData.sAddressCity}
               onChange={(e) => setFormData({ ...formData, sAddressCity: e.target.value })} />
+            <select
+              className="w-full p-2 border border-gray-300 bg-white/20 text-white rounded-md"
+              value={formData.sAddressState}
+              onChange={(e) => setFormData({ ...formData, sAddressState: e.target.value })}
+            >
+              <option value="">Select State/Province</option>
+              {STATES.map((s) => (
+                <option key={s.code} value={s.code} className="text-black">
+                  {s.name}
+                </option>
+              ))}
+            </select>
             <Dropdown
               placeholder="Country"
               options={["US", "Canada"]}

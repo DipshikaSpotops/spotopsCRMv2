@@ -329,7 +329,11 @@ const AllOrders = () => {
                   {order.additionalInfo?.[0]?.yardName || ""}
                   {expandedIds.has(order._id) && order.additionalInfo?.[0] && (
                     <div className="mt-2 border-t border-white/20 pt-2 text-xs space-y-1">
-                      <div><b>Email:</b> {order.additionalInfo[0].email}</div>
+                      <div><b>Part price:</b> ${order.additionalInfo[0].partPrice}</div>
+                      <div><b>Shipping:</b> {order.additionalInfo[0].shippingDetails}</div>
+                      {order.additionalInfo?.[0]?.others && (
+                        <div><b>Others:</b> ${order.additionalInfo[0].others}</div>
+                      )}
                       <div><b>Phone:</b> {order.additionalInfo[0].phone}</div>
                       <div><b>Status:</b> {order.additionalInfo[0].status}</div>
                       <div><b>Stock #:</b> {order.additionalInfo[0].stockNo}</div>

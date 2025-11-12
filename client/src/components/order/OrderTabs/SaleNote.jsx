@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import API from "../../../api";
 import Field from "../../ui/Field";
 import Input from "../../ui/Input";
+import GlassCard from "../../ui/GlassCard";
 export default function SaleNote({ orderNo, className = "" }) {
   const [noteData, setNoteData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -49,15 +50,9 @@ export default function SaleNote({ orderNo, className = "" }) {
   }, [orderNo]);
 
   return (
-    <div
-      className={`p-4 rounded-xl bg-white/10 border border-white/20 text-white backdrop-blur-sm ${className}`}
-    >
-      <h3 className="text-base font-semibold mb-2 border-b border-white/20 pb-1">
-        Sale Notes
-      </h3>
-
-      {loading && <p className="text-gray-400 text-sm">Loading sale notes...</p>}
-      {error && <p className="text-red-400 text-sm">{error}</p>}
+    <GlassCard title="Sale Notes" className={className}>
+      {loading && <p className="text-white/70 text-sm">Loading sale notes...</p>}
+      {error && <p className="text-red-300 text-sm">{error}</p>}
 
       {!loading && !error && noteData && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -76,6 +71,6 @@ export default function SaleNote({ orderNo, className = "" }) {
           </Field>
         </div>
       )}
-    </div>
+    </GlassCard>
   );
 }

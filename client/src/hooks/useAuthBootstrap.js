@@ -18,13 +18,22 @@ export default function useAuthBootstrap() {
       const stored = readStoredAuth();
       if (stored?.user && stored?.token) {
         const loginAt = Number(stored.loginAt || localStorage.getItem("loginAt"));
-        if (loginAt && Date.now() - loginAt > SESSION_DURATION_MS) {
+
+        if (!loginAt) {
           clearStoredAuth();
           dispatch(logout());
           return;
         }
+
+        if (Date.now() - loginAt > SESSION_DURATION_MS) {
+          clearStoredAuth();
+          dispatch(logout());
+          return;
+        }
+
         const ensured = ensureLoginTimestamp(stored) || stored;
         dispatch(setCredentials(ensured));
+        persistStoredAuth({ ...ensured, loginAt }); // keep timestamp synced
         return;
       }
       // legacy fallback

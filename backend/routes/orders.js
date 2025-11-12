@@ -412,7 +412,6 @@ router.put("/:orderNo/custRefund", async (req, res) => {
     }
 
     Object.assign(order, updateFields);
-    order.markModified(`additionalInfo.${i}`);
     await order.save({ validateBeforeSave: false });
       publish(req, orderNo, {
       type: "REFUND_SAVED",

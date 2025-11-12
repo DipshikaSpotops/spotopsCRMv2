@@ -16,6 +16,20 @@ export default function RefundModal({ open, onClose, onSubmit, orderNo, yardInde
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState("");
 
+  const applySelection = (option) => {
+    setCollectRefund(option === "collect");
+    setUpsClaim(option === "ups");
+    setStoreCredit(option === "store");
+  };
+
+  const handleSelectionChange = (option) => (event) => {
+    if (event.target.checked) {
+      applySelection(option);
+    } else {
+      applySelection(null);
+    }
+  };
+
   // 🔹 Prefill backend data
   useEffect(() => {
     if (open && yard) {
@@ -25,9 +39,14 @@ export default function RefundModal({ open, onClose, onSubmit, orderNo, yardInde
       setRefundedDate(yard.refundedDate ? yard.refundedDate.split("T")[0] : "");
       setRefundReason(yard.refundReason || "");
       setReturnTrackingNo(yard.returnTrackingCust || "");
-      setCollectRefund(yard.collectRefundCheckbox === "Ticked");
-      setUpsClaim(yard.upsClaimCheckbox === "Ticked");
-      setStoreCredit(yard.storeCreditCheckbox === "Ticked");
+      const initialCollect = yard.collectRefundCheckbox === "Ticked";
+      const initialUps = yard.upsClaimCheckbox === "Ticked";
+      const initialStore = yard.storeCreditCheckbox === "Ticked";
+
+      if (initialCollect) applySelection("collect");
+      else if (initialUps) applySelection("ups");
+      else if (initialStore) applySelection("store");
+      else applySelection(null);
     }
   }, [open, yard]);
 
@@ -37,12 +56,17 @@ export default function RefundModal({ open, onClose, onSubmit, orderNo, yardInde
     const trimmedCollect = String(refundToCollect ?? "").trim();
     const trimmedRefundedAmount = String(refundedAmount ?? "").trim();
 
-    if ((collectRefund || upsClaim) && !trimmedCollect) {
-      setToast("Refund To Be Collected is required when Collect Refund or UPS Claim is ticked.");
+    if ((collectRefund || upsClaim || storeCredit) && !trimmedCollect) {
+      setToast("Refund To Be Collected is required when you select a refund action.");
       return false;
     }
 
-    if (!collectRefund && !upsClaim) {
+    if ((collectRefund || upsClaim || storeCredit) && !refundReason) {
+      setToast("Refund Reason is required when you select a refund action.");
+      return false;
+    }
+
+    if (!collectRefund && !upsClaim && !storeCredit) {
       if (!refundStatus) {
         setToast("Please choose a value for Refund Collected.");
         return false;
@@ -109,23 +133,33 @@ export default function RefundModal({ open, onClose, onSubmit, orderNo, yardInde
     } else setToast("Please attach a valid PDF file.");
   };
 
+  const rootApiBase = (API?.defaults?.baseURL || "").replace(/\/api$/, "");
+
   const handleSendRefundEmail = async () => {
     if (!file) return setToast("Attach a PO PDF first.");
 
-    if ((collectRefund || upsClaim) && !String(refundToCollect ?? "").trim()) {
+    const trimmedCollect = String(refundToCollect ?? "").trim();
+
+    if (!trimmedCollect) {
       setToast("Refund To Be Collected is required before sending the refund email.");
+      return;
+    }
+
+    if (!refundReason) {
+      setToast("Refund Reason is required before sending the refund email.");
       return;
     }
 
     try {
       setLoading(true);
       const formData = new FormData();
-      formData.append("pdfFile", file); // ✅ match backend field name
+      formData.append("pdfFile", file);
 
-      await API.post(
+      const response = await API.post(
         `/emails/orders/sendRefundEmail/${encodeURIComponent(orderNo)}`,
         formData,
         {
+          baseURL: rootApiBase || undefined,
           params: {
             yardIndex: yardIndex + 1,
             refundReason: refundReason || "",
@@ -136,7 +170,11 @@ export default function RefundModal({ open, onClose, onSubmit, orderNo, yardInde
           headers: { "Content-Type": "multipart/form-data" },
         }
       );
-      setToast("Refund email sent successfully!");
+      if (response?.data?.message) {
+        setToast(response.data.message);
+      } else {
+        setToast("Refund email sent successfully!");
+      }
     } catch (err) {
       console.error("Send refund email error:", err);
       setToast("Error sending refund email.");
@@ -237,15 +275,30 @@ export default function RefundModal({ open, onClose, onSubmit, orderNo, yardInde
 
           <div className="flex flex-wrap gap-4">
             <label className="flex items-center gap-2">
-              <input type="checkbox" checked={collectRefund} onChange={(e) => setCollectRefund(e.target.checked)} className="accent-[#2b2d68] w-4 h-4" />
+              <input
+                type="checkbox"
+                checked={collectRefund}
+                onChange={handleSelectionChange("collect")}
+                className="accent-[#2b2d68] w-4 h-4"
+              />
               Collect Refund
             </label>
             <label className="flex items-center gap-2">
-              <input type="checkbox" checked={upsClaim} onChange={(e) => setUpsClaim(e.target.checked)} className="accent-[#2b2d68] w-4 h-4" />
+              <input
+                type="checkbox"
+                checked={upsClaim}
+                onChange={handleSelectionChange("ups")}
+                className="accent-[#2b2d68] w-4 h-4"
+              />
               UPS Claim
             </label>
             <label className="flex items-center gap-2">
-              <input type="checkbox" checked={storeCredit} onChange={(e) => setStoreCredit(e.target.checked)} className="accent-[#2b2d68] w-4 h-4" />
+              <input
+                type="checkbox"
+                checked={storeCredit}
+                onChange={handleSelectionChange("store")}
+                className="accent-[#2b2d68] w-4 h-4"
+              />
               Store Credit
             </label>
           </div>
