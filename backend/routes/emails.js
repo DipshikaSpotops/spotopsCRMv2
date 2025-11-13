@@ -83,7 +83,7 @@ router.post("/order-cancel/:orderNo", async (req, res) => {
         <b>We have cancelled your order and will refund you $${cancelledRefAmount}  to the same source account.</b>
         Please call us if you have any questions. Rest assured, any payment made for the cancelled order will be promptly refunded to your original payment method. You can expect to see the refund reflected in your account within 3-5 business days.<br>
         <p>We understand the importance of timely and efficient service, and we sincerely apologize for any inconvenience this cancellation may have caused. Our team is working diligently to prevent such occurrences in the future.<br>
-        If you have any questions or require further assistance, please don't hesitate to contact our customer support team at <b>+1(888)-653-2808</b>. We are here to assist you in any way we can.Thank you for your understanding and continued support.<br></p>
+        If you have any questions or require further assistance, please don't hesitate to contact our customer support team at <b>+1(888)-732-8680</b>. We are here to assist you in any way we can.Thank you for your understanding and continued support.<br></p>
         <p><b>Please reply to this email with a quick confirmation to acknowledge and approve this cancellation request.</b></p>
         <p><img src="cid:logo" alt="logo" style="width: 180px; height: 100px;"></p>
         <p>${firstName},<br>Customer Service Team<br>50 STARS AUTO PARTS<br>+1 (888) 732-8680<br>service@50starsautoparts.com<br>www.50starsautoparts.com</p>`,
