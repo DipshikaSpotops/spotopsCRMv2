@@ -1406,6 +1406,28 @@ useEffect(() => {
             </section>
           )}
         </div>
+        <footer className="flex justify-end gap-3 border-t border-white/20 bg-white/5 px-6 py-4 text-sm">
+          <button
+            type="button"
+            onClick={() => (!saving && !sendingEmail ? onClose?.() : null)}
+            className="rounded-md border border-white/25 bg-white/10 px-4 py-2 font-semibold text-white hover:bg-white/20"
+            disabled={saving || sendingEmail}
+          >
+            Close
+          </button>
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={saving || sendingEmail}
+            className={`rounded-md border px-4 py-2 font-semibold transition ${
+              saving || sendingEmail
+                ? "cursor-not-allowed border-white/30 bg-white/20 text-white/70"
+                : "border-white/30 bg-white text-[#04356d] hover:bg-white/90 hover:scale-[1.02] shadow-md"
+            }`}
+          >
+            {saving ? "Saving..." : "Save Escalation"}
+          </button>
+        </footer>
         {pendingConfirmation && (
           <div className="absolute bottom-4 left-1/2 z-[120] flex -translate-x-1/2 items-center gap-3 rounded-lg border border-amber-300/70 bg-amber-100/90 px-6 py-3 text-sm font-semibold text-amber-900 shadow-lg">
             <span>
