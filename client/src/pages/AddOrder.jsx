@@ -432,7 +432,7 @@ export default function AddOrder() {
           </div>
 
           {/* Main Sections */}
-          <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 mb-6">
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-6 mb-6">
 
             {/* 🟦 Customer Info */}
             <Section title="Customer Info">
