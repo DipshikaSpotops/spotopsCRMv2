@@ -70,6 +70,7 @@ app.use("/users", usersRouter);
 app.use("/api/users", usersRouter);
 app.use("/orders/storeCredits", StoreCredits);
 app.use("/emails", emailsRouter);
+app.use("/api/emails", emailsRouter);
 app.use("/orders", ordersSearchRouter);
 app.use("/", sendPORouter);
 app.use("/api/yards", yardsRouter);
