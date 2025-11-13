@@ -400,283 +400,275 @@ export default function AddOrder() {
     <div className="h-screen flex flex-col p-6">
       <h1 className="text-3xl font-bold text-white mb-4">Add New Order</h1>
 
-      <form className="flex-1 overflow-y-auto" onSubmit={handleSubmit}>
-        {/* 🔹 Order Header */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-          <Section title="Order No">
-            <Input
-              placeholder="Enter Order No"
-              value={formData.orderNo}
-              onChange={(e) =>
-                setFormData({ ...formData, orderNo: e.target.value })
-              }
-            />
-          </Section>
-
-          <Section title="Sales Agent">
-            <Dropdown
-              placeholder="Select Sales Agent"
-              options={salesAgentOptions}
-              value={formData.salesAgent}
-              onChange={(e) =>
-                setFormData((prev) => ({ ...prev, salesAgent: e.target.value }))
-              }
-            />
-          </Section>
-
-          <Section title="Order Date">
-            <Input placeholder="Order Date" value={formData.orderDateDisplay} disabled />
-            <input type="hidden" value={formData.orderDateISO} />
-          </Section>
-        </div>
-
-        {/* Main Sections */}
-        <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 mb-6">
-
-          {/* 🟦 Customer Info */}
-          <Section title="Customer Info">
-            <Input placeholder="First Name" value={formData.fName}
-              onChange={(e) => setFormData({ ...formData, fName: e.target.value })} />
-            <Input placeholder="Last Name" value={formData.lName}
-              onChange={(e) => setFormData({ ...formData, lName: e.target.value })} />
-            <Input placeholder="Email" type="email" value={formData.email}
-              onChange={(e) => setFormData({ ...formData, email: e.target.value })} />
-            <Input placeholder="Phone" value={formData.phone}
-              onChange={(e) => setFormData({ ...formData, phone: e.target.value })} />
-            <Input placeholder="Alt Phone" value={formData.altPhone}
-              onChange={(e) => setFormData({ ...formData, altPhone: e.target.value })} />
-          </Section>
-
-          {/* 🟧 Billing Info */}
-          <Section title="Billing Info">
-            <Input placeholder="Billing Name" value={formData.bName}
-              onChange={(e) => setFormData({ ...formData, bName: e.target.value })} />
-            <Input placeholder="Address" value={formData.bAddressStreet}
-              onChange={(e) => setFormData({ ...formData, bAddressStreet: e.target.value })} />
-            <Input placeholder="City" value={formData.bAddressCity}
-              onChange={(e) => setFormData({ ...formData, bAddressCity: e.target.value })} />
-
-            {/* ✅ State Dropdown */}
-            <select
-              className="w-full p-2 border border-gray-300 bg-white/20 text-white rounded-md"
-              value={formData.bAddressState}
-              onChange={(e) => setFormData({ ...formData, bAddressState: e.target.value })}
-            >
-              <option value="">Select State/Province</option>
-              {STATES.map((s) => (
-                <option key={s.code} value={s.code} className="text-black">
-                  {s.name}
-                </option>
-              ))}
-            </select>
-
-            <Dropdown
-              placeholder="Country"
-              options={["US", "Canada"]}
-              value={formData.bAddressAcountry}
-              onChange={(e) => setFormData({ ...formData, bAddressAcountry: e.target.value })}
-            />
-
-            <Input placeholder="Zip" value={formData.bAddressZip}
-              onChange={(e) => {
-                setFormData({ ...formData, bAddressZip: e.target.value });
-              }} />
-          </Section>
-
-          {/* Shipping Info */}
-          <Section title="Shipping Info">
-            <Checkbox
-              label="Same as Billing"
-              checked={formData.sameAsBilling}
-              onChange={(e) => {
-                const isChecked = e.target.checked;
-                setFormData((prev) => ({
-                  ...prev,
-                  sameAsBilling: isChecked,
-                  ...(isChecked
-                    ? {
-                      sAttention: prev.bName,
-                      sAddressStreet: prev.bAddressStreet,
-                      sAddressCity: prev.bAddressCity,
-                      sAddressState: prev.bAddressState,
-                      sAddressZip: prev.bAddressZip,
-                      sAddressAcountry: prev.bAddressAcountry,
-                    }
-                    : {
-                      sAttention: "",
-                      sAddressStreet: "",
-                      sAddressCity: "",
-                      sAddressState: "",
-                      sAddressZip: "",
-                      sAddressAcountry: "",
-                    }),
-                }));
-              }}
-            />
-
-            <Input placeholder="Attention" value={formData.sAttention}
-              onChange={(e) => setFormData({ ...formData, sAttention: e.target.value })} />
-            <Input placeholder="Address" value={formData.sAddressStreet}
-              onChange={(e) => setFormData({ ...formData, sAddressStreet: e.target.value })} />
-            <Input placeholder="City" value={formData.sAddressCity}
-              onChange={(e) => setFormData({ ...formData, sAddressCity: e.target.value })} />
-            <select
-              className="w-full p-2 border border-gray-300 bg-white/20 text-white rounded-md"
-              value={formData.sAddressState}
-              onChange={(e) => setFormData({ ...formData, sAddressState: e.target.value })}
-            >
-              <option value="">Select State/Province</option>
-              {STATES.map((s) => (
-                <option key={s.code} value={s.code} className="text-black">
-                  {s.name}
-                </option>
-              ))}
-            </select>
-            <Dropdown
-              placeholder="Country"
-              options={["US", "Canada"]}
-              value={formData.sAddressAcountry}
-              onChange={(e) => setFormData({ ...formData, sAddressAcountry: e.target.value })}
-            />
-            <Input placeholder="Zip" value={formData.sAddressZip}
-              onChange={(e) => {
-                setFormData({ ...formData, sAddressZip: e.target.value });
-              }} />
-          </Section>
-
-          {/* Part Info */}
-          <Section title="Part Info">
-            <Input placeholder="Make" value={formData.make}
-              onChange={(e) => setFormData({ ...formData, make: e.target.value })} />
-            <Input placeholder="Model" value={formData.model}
-              onChange={(e) => setFormData({ ...formData, model: e.target.value })} />
-            <Input
-              placeholder="Year"
-              value={formData.year}
-              onChange={(e) => setFormData({ ...formData, year: e.target.value })}
-            />
-            <select
-              className="w-full p-2 border border-gray-300 bg-white/20 text-white rounded-md"
-              value={formData.pReq}
-              onChange={(e) => handlePartChange(e.target.value)}
-            >
-              <option value="">Select Part Required</option>
-              {partNames.map((p) => (
-                <option key={p._id} value={p.name} className="text-black">
-                  {p.name}
-                </option>
-              ))}
-              <option value="add_new_part" className="text-blue-600 font-semibold">
-                Add New Part
-              </option>
-            </select>
-            <Input placeholder="Description" value={formData.desc}
-              onChange={(e) => setFormData({ ...formData, desc: e.target.value })} />
-            <div className="grid grid-cols-2 gap-2">
+      <form className="flex-1 overflow-y-auto overflow-x-auto" onSubmit={handleSubmit}>
+        <div className="min-w-[1100px] md:min-w-0 md:w-full">
+          {/* 🔹 Order Header */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+            <Section title="Order No">
               <Input
-                placeholder="Warranty"
-                type="number"
-                value={formData.warranty}
+                placeholder="Enter Order No"
+                value={formData.orderNo}
+                onChange={(e) =>
+                  setFormData({ ...formData, orderNo: e.target.value })
+                }
+              />
+            </Section>
+
+            <Section title="Sales Agent">
+              <Dropdown
+                placeholder="Select Sales Agent"
+                options={salesAgentOptions}
+                value={formData.salesAgent}
+                onChange={(e) =>
+                  setFormData((prev) => ({ ...prev, salesAgent: e.target.value }))
+                }
+              />
+            </Section>
+
+            <Section title="Order Date">
+              <Input placeholder="Order Date" value={formData.orderDateDisplay} disabled />
+              <input type="hidden" value={formData.orderDateISO} />
+            </Section>
+          </div>
+
+          {/* Main Sections */}
+          <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 mb-6">
+
+            {/* 🟦 Customer Info */}
+            <Section title="Customer Info">
+              <Input placeholder="First Name" value={formData.fName}
+                onChange={(e) => setFormData({ ...formData, fName: e.target.value })} />
+              <Input placeholder="Last Name" value={formData.lName}
+                onChange={(e) => setFormData({ ...formData, lName: e.target.value })} />
+              <Input placeholder="Email" type="email" value={formData.email}
+                onChange={(e) => setFormData({ ...formData, email: e.target.value })} />
+              <Input placeholder="Phone" value={formData.phone}
+                onChange={(e) => setFormData({ ...formData, phone: e.target.value })} />
+              <Input placeholder="Alt Phone" value={formData.altPhone}
+                onChange={(e) => setFormData({ ...formData, altPhone: e.target.value })} />
+            </Section>
+
+            {/* 🟧 Billing Info */}
+            <Section title="Billing Info">
+              <Input placeholder="Billing Name" value={formData.bName}
+                onChange={(e) => setFormData({ ...formData, bName: e.target.value })} />
+              <Input placeholder="Address" value={formData.bAddressStreet}
+                onChange={(e) => setFormData({ ...formData, bAddressStreet: e.target.value })} />
+              <Input placeholder="City" value={formData.bAddressCity}
+                onChange={(e) => setFormData({ ...formData, bAddressCity: e.target.value })} />
+
+              {/* ✅ State Dropdown */}
+              <select
+                className="w-full p-2 border border-gray-300 bg-white/20 text-white rounded-md"
+                value={formData.bAddressState}
+                onChange={(e) => setFormData({ ...formData, bAddressState: e.target.value })}
+              >
+                <option value="">Select State/Province</option>
+                {STATES.map((s) => (
+                  <option key={s.code} value={s.code} className="text-black">
+                    {s.name}
+                  </option>
+                ))}
+              </select>
+
+              <Dropdown
+                placeholder="Country"
+                options={["US", "Canada"]}
+                value={formData.bAddressAcountry}
+                onChange={(e) => setFormData({ ...formData, bAddressAcountry: e.target.value })}
+              />
+
+              <Input placeholder="Zip" value={formData.bAddressZip}
                 onChange={(e) => {
-                  const value = e.target.value;
-                  setFormData((prev) => ({ ...prev, warranty: value }));
+                  setFormData({ ...formData, bAddressZip: e.target.value });
+                }} />
+            </Section>
+
+            {/* Shipping Info */}
+            <Section title="Shipping Info">
+              <Checkbox
+                label="Same as Billing"
+                checked={formData.sameAsBilling}
+                onChange={(e) => {
+                  const isChecked = e.target.checked;
+                  setFormData((prev) => ({
+                    ...prev,
+                    sameAsBilling: isChecked,
+                    ...(isChecked
+                      ? {
+                        sAttention: prev.bName,
+                        sAddressStreet: prev.bAddressStreet,
+                        sAddressCity: prev.bAddressCity,
+                        sAddressState: prev.bAddressState,
+                        sAddressZip: prev.bAddressZip,
+                        sAddressAcountry: prev.bAddressAcountry,
+                      }
+                      : {
+                        sAttention: "",
+                        sAddressStreet: "",
+                        sAddressCity: "",
+                        sAddressState: "",
+                        sAddressZip: "",
+                        sAddressAcountry: "",
+                      }),
+                  }));
                 }}
               />
+
+              <Input placeholder="Attention" value={formData.sAttention}
+                onChange={(e) => setFormData({ ...formData, sAttention: e.target.value })} />
+              <Input placeholder="Address" value={formData.sAddressStreet}
+                onChange={(e) => setFormData({ ...formData, sAddressStreet: e.target.value })} />
+              <Input placeholder="City" value={formData.sAddressCity}
+                onChange={(e) => setFormData({ ...formData, sAddressCity: e.target.value })} />
               <select
-                className="w-full p-2 border border-gray-300 bg-white/20 text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-400"
-                value={formData.warrantyField}
-                onChange={(e) =>
-                  setFormData((prev) => ({ ...prev, warrantyField: e.target.value }))
-                }
+                className="w-full p-2 border border-gray-300 bg-white/20 text-white rounded-md"
+                value={formData.sAddressState}
+                onChange={(e) => setFormData({ ...formData, sAddressState: e.target.value })}
               >
-                <option value="days" className="text-black">
-                  {Number(formData.warranty) === 1 ? "Day" : "Day(s)"}
-                </option>
-                <option value="months" className="text-black">
-                  {Number(formData.warranty) === 1 ? "Month" : "Month(s)"}
-                </option>
-                <option value="years" className="text-black">
-                  {Number(formData.warranty) === 1 ? "Year" : "Year(s)"}
+                <option value="">Select State/Province</option>
+                {STATES.map((s) => (
+                  <option key={s.code} value={s.code} className="text-black">
+                    {s.name}
+                  </option>
+                ))}
+              </select>
+              <Dropdown
+                placeholder="Country"
+                options={["US", "Canada"]}
+                value={formData.sAddressAcountry}
+                onChange={(e) => setFormData({ ...formData, sAddressAcountry: e.target.value })}
+              />
+              <Input placeholder="Zip" value={formData.sAddressZip}
+                onChange={(e) => {
+                  setFormData({ ...formData, sAddressZip: e.target.value });
+                }} />
+            </Section>
+
+            {/* Part Info */}
+            <Section title="Part Info">
+              <Input placeholder="Year" value={formData.year}
+                onChange={(e) => setFormData({ ...formData, year: e.target.value })} />
+              <Input placeholder="Make" value={formData.make}
+                onChange={(e) => setFormData({ ...formData, make: e.target.value })} />
+              <Input placeholder="Model" value={formData.model}
+                onChange={(e) => setFormData({ ...formData, model: e.target.value })} />
+              <select
+                className="w-full p-2 border border-gray-300 bg-white/20 text-white rounded-md"
+                value={formData.pReq}
+                onChange={(e) => handlePartChange(e.target.value)}
+              >
+                <option value="">Select Part Required</option>
+                {partNames.map((p) => (
+                  <option key={p._id} value={p.name} className="text-black">
+                    {p.name}
+                  </option>
+                ))}
+                <option value="add_new_part" className="text-blue-600 font-semibold">
+                  Add New Part
                 </option>
               </select>
-            </div>
-            <Input placeholder="VIN" value={formData.vin}
-              onChange={(e) => setFormData({ ...formData, vin: e.target.value })} />
-            <Input placeholder="Part No" value={formData.partNo}
-              onChange={(e) => setFormData({ ...formData, partNo: e.target.value })} />
-          </Section>
+              <Input placeholder="Description" value={formData.desc}
+                onChange={(e) => setFormData({ ...formData, desc: e.target.value })} />
+              <div className="grid grid-cols-2 gap-2">
+                <Input
+                  placeholder="Warranty"
+                  type="number"
+                  value={formData.warranty}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setFormData((prev) => ({ ...prev, warranty: value }));
+                  }}
+                />
+                <select
+                  className="w-full p-2 border border-gray-300 bg-white/20 text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-400"
+                  value={formData.warrantyField}
+                  onChange={(e) =>
+                    setFormData((prev) => ({ ...prev, warrantyField: e.target.value }))
+                  }
+                >
+                  <option value="days" className="text-black">
+                    {Number(formData.warranty) === 1 ? "Day" : "Day(s)"}
+                  </option>
+                  <option value="months" className="text-black">
+                    {Number(formData.warranty) === 1 ? "Month" : "Month(s)"}
+                  </option>
+                  <option value="years" className="text-black">
+                    {Number(formData.warranty) === 1 ? "Year" : "Year(s)"}
+                  </option>
+                </select>
+              </div>
+              <Input placeholder="VIN" value={formData.vin}
+                onChange={(e) => setFormData({ ...formData, vin: e.target.value })} />
+              <Input placeholder="Part No" value={formData.partNo}
+                onChange={(e) => setFormData({ ...formData, partNo: e.target.value })} />
+            </Section>
 
-          {/* Price & GP */}
-          <Section title="Price & GP">
-            <Input
-              placeholder="Sale Price"
-              prefix="$"
-              value={formData.soldP}
-              onChange={(e) => {
-                const val = e.target.value;
-                setFormData({ ...formData, soldP: val });
-              }}
-            />
+            {/* Price & GP */}
+            <Section title="Price & GP">
+              <Input
+                placeholder="Sale Price"
+                prefix="$"
+                value={formData.soldP}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setFormData({ ...formData, soldP: val });
+                }}
+              />
+              <Input
+                placeholder="Est. Yard Price"
+                prefix="$"
+                value={formData.costP}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setFormData({ ...formData, costP: val });
+                }}
+              />
+              <Input
+                placeholder="Est. Shipping"
+                prefix="$"
+                value={formData.shippingFee}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setFormData({ ...formData, shippingFee: val });
+                }}
+              />
+              <Input placeholder="Sales Tax" prefix="%" value="5" disabled />
+              <Input placeholder="Estimated GP" prefix="$" value={formData.grossProfit}
+                onChange={(e) => setFormData({ ...formData, grossProfit: e.target.value })} />
+              <Input placeholder="Last 4 Digits" value={formData.last4digits}
+                onChange={(e) => setFormData({ ...formData, last4digits: e.target.value })} />
+              <Input placeholder="Order Notes" value={formData.notes}
+                onChange={(e) => setFormData({ ...formData, notes: e.target.value })} />
 
-            <Input
-              placeholder="Est. Yard Price"
-              prefix="$"
-              value={formData.costP}
-              onChange={(e) => {
-                const val = e.target.value;
-                setFormData({ ...formData, costP: val });
-              }}
-            />
-
-            <Input
-              placeholder="Est. Shipping"
-              prefix="$"
-              value={formData.shippingFee}
-              onChange={(e) => {
-                const val = e.target.value;
-                setFormData({ ...formData, shippingFee: val });
-              }}
-            />
-            <Input
-              placeholder="Sales Tax"
-              prefix="%"
-              value="5"
-              disabled
-            />
-            <Input placeholder="Estimated GP" prefix="$" value={formData.grossProfit}
-              onChange={(e) => setFormData({ ...formData, grossProfit: e.target.value })} />
-            <Input placeholder="Last 4 Digits" value={formData.last4digits}
-              onChange={(e) => setFormData({ ...formData, last4digits: e.target.value })} />
-            <Input placeholder="Order Notes" value={formData.notes}
-              onChange={(e) => setFormData({ ...formData, notes: e.target.value })} />
-
-            <Checkbox
-              label="Expedite Shipping"
-              checked={formData.expediteShipping}
-              onChange={(e) => setFormData({ ...formData, expediteShipping: e.target.checked })}
-            />
-            <Checkbox
-              label="DS Call"
-              checked={formData.dsCall}
-              onChange={(e) => setFormData({ ...formData, dsCall: e.target.checked })}
-            />
-            <Checkbox
-              label="Programming Required"
-              checked={formData.programmingRequired}
-              onChange={(e) =>
-                setFormData({
-                  ...formData,
-                  programmingRequired: e.target.checked,
-                  programmingCost: e.target.checked ? "70" : "",
-                })
-              }
-            />
-            {formData.programmingRequired && (
-              <Input placeholder="Programming Cost" prefix="$"
-                value={formData.programmingCost}
-                onChange={(e) => setFormData({ ...formData, programmingCost: e.target.value })} />
-            )}
-          </Section>
+              <Checkbox
+                label="Expedite Shipping"
+                checked={formData.expediteShipping}
+                onChange={(e) => setFormData({ ...formData, expediteShipping: e.target.checked })}
+              />
+              <Checkbox
+                label="DS Call"
+                checked={formData.dsCall}
+                onChange={(e) => setFormData({ ...formData, dsCall: e.target.checked })}
+              />
+              <Checkbox
+                label="Programming Required"
+                checked={formData.programmingRequired}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    programmingRequired: e.target.checked,
+                    programmingCost: e.target.checked ? "70" : "",
+                  })
+                }
+              />
+              {formData.programmingRequired && (
+                <Input placeholder="Programming Cost" prefix="$"
+                  value={formData.programmingCost}
+                  onChange={(e) => setFormData({ ...formData, programmingCost: e.target.value })} />
+              )}
+            </Section>
+          </div>
         </div>
 
         {/* Submit Button */}
