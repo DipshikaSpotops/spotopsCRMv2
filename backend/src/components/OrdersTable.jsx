@@ -110,7 +110,7 @@ function calculateCurrentGP(order) {
     const shippingValueYard = parseShippingValue(info?.shippingDetails || "");
     const yardOthers = parseFloat(info?.others) || 0;
     const escOwnShipReturn = parseFloat(info?.custOwnShippingReturn) || 0;
-    const escOwnShipReplacement = parseFloat(info?.custOwnShippingReplacement) || 0;
+    const escOwnShipReplacement = parseFloat(info?.custOwnShipReplacement) || 0;
     const yardOwnShippingReplacement = parseFloat(info?.yardOwnShipping) || 0;
     const yardRefundAmount = parseFloat(info?.refundedAmount) || 0;
 

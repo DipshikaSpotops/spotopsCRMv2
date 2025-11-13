@@ -145,6 +145,15 @@ export default function EditYardStatusModal({
         orderStatus: ORDER_STATUS_MAP[status],
       };
 
+      if (status === "Escalation") {
+        if (!t(escCause)) {
+          setToast("Select an escalation reason before saving.");
+          setLoading(false);
+          setSavingAction(null);
+          return;
+        }
+      }
+
       if (status === "Escalation" || alreadyEscalated) {
         body.escTicked = "Yes";
       }

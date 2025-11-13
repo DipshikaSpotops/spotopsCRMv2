@@ -21,6 +21,7 @@ import RefundModal from "../components/order/modals/YardRefundCollectModal";
 import CancelOrderModal from "../components/order/modals/CancelOrderModal";
 import DisputeOrderModal from "../components/order/modals/DisputeOrderModal";
 import RefundOrderModal from "../components/order/modals/RefundOrderModal";
+import YardEscalationModal from "../components/order/modals/YardEscalationModal";
 import useOrderRealtime from "../hooks/useOrderRealtime";
 import API from "../api";
 
@@ -170,7 +171,7 @@ const calcActualGP = (orderLike) => {
       const yardOthers = parseFloat(yard.others) || 0;
       const escOwnShipReturn = parseFloat(yard.custOwnShippingReturn) || 0;
       const escOwnShipReplacement =
-        parseFloat(yard.custOwnShippingReplacement) || 0;
+        parseFloat(yard.custOwnShipReplacement) || 0;
       const yardOwnShippingReplacement =
         parseFloat(yard.yardOwnShipping) || 0;
       const yardRefundAmount = parseFloat(yard.refundedAmount) || 0;
@@ -244,11 +245,21 @@ export default function OrderDetails() {
   const [editStatusIdx, setEditStatusIdx] = useState(null);
   const [cardChargedIdx, setCardChargedIdx] = useState(null);
   const [refundIdx, setRefundIdx] = useState(null);
+  const [escalationIdx, setEscalationIdx] = useState(null);
   const [showHistory, setShowHistory] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [showRefundModal, setShowRefundModal] = useState(false);
   const [showDisputeModal, setShowDisputeModal] = useState(false);
   const [activeSection, setActiveSection] = useState("support");
+
+  const focusCommentsOnYard = useCallback(
+    (yardIdx) => {
+      if (typeof yardIdx === "number" && yardIdx >= 0) {
+        setActiveSection(yardIdx);
+      }
+    },
+    []
+  );
   const [toast, setToast] = useState("");
   const [newStatus, setNewStatus] = useState(order?.orderStatus || "");
   const [confirm, setConfirm] = useState({ open: false, title: "", message: "", onConfirm: null });
@@ -309,15 +320,23 @@ export default function OrderDetails() {
         ? (await API.get(`/orders/${orderNo}`)).data
         : order;
       const gp = calcActualGP(orderLike);
+      const previousGP = parseFloat(orderLike?.actualGP ?? "0") || 0;
+      const hasMeaningfulChange = Math.abs(previousGP - gp) > 0.0001;
 
       setActualGPView(Number(gp).toFixed(2));
       const gpField = document.querySelector("#actualGP");
       if (gpField) gpField.value = Number(gp).toFixed(2);
 
-      await API.put(`/orders/${orderNo}/updateActualGP`, { actualGP: gp });
-      gpWriteGuardRef.current = true;
+      if (hasMeaningfulChange) {
+        await API.put(`/orders/${orderNo}/updateActualGP`, { actualGP: gp });
+        gpWriteGuardRef.current = true;
+        setToast(`Actual GP recalculated: $${gp.toFixed(2)}`);
+      } else {
+        console.log(
+          `Skipped Actual GP update — unchanged at ${gp.toFixed(2)}`
+        );
+      }
 
-      setToast(`Actual GP recalculated: $${gp.toFixed(2)}`);
       return gp;
     } catch (err) {
       console.error("Error recalculating Actual GP:", err);
@@ -425,6 +444,27 @@ export default function OrderDetails() {
         reimbursementAmount: numericAmount,
         reimbursementDate: reimbursementDate || null,
       });
+      const firstName = localStorage.getItem("firstName") || "System";
+      if (Array.isArray(yards)) {
+        const reimbursementIdx = yards.findIndex(
+          (y) => String(y?.escalationProcess || "").trim() === "Reimbursement"
+        );
+        if (reimbursementIdx >= 0) {
+          try {
+            await API.put(
+              `/orderAndYardStatus/${orderNo}`,
+              {
+                orderStatus: "Order Fulfilled",
+                yardStatus: "Part delivered",
+                yardIndex: reimbursementIdx + 1,
+              },
+              { params: { firstName } }
+            );
+          } catch (statusErr) {
+            console.error("Error updating reimbursement order status:", statusErr);
+          }
+        }
+      }
       if (typeof refresh === "function") {
         await refresh();
       }
@@ -687,12 +727,31 @@ export default function OrderDetails() {
                   }
                   canAddNewYard={canAddNewYard}
                   onOpenAdd={() => setShowAdd(true)}
-                  onEditStatus={(i) => setEditStatusIdx(i)}
-                  onEditDetails={(i) => setEditDetailsIdx(i)}
-                  onCardCharged={(i) => setCardChargedIdx(i)}
-                  onRefundStatus={(i) => setRefundIdx(i)}
+                  onEditStatus={(i) => {
+                    focusCommentsOnYard(i);
+                    setEditStatusIdx(i);
+                  }}
+                  onEditDetails={(i) => {
+                    focusCommentsOnYard(i);
+                    setEditDetailsIdx(i);
+                  }}
+                  onCardCharged={(i) => {
+                    focusCommentsOnYard(i);
+                    setCardChargedIdx(i);
+                  }}
+                  onRefundStatus={(i) => {
+                    focusCommentsOnYard(i);
+                    setRefundIdx(i);
+                  }}
                   onEscalation={(i) => {
-                    /* same logic */
+                    const yardEntry = Array.isArray(yards) ? yards[i] : null;
+                    const status = String(yardEntry?.status || "").trim();
+                    if (status !== "Escalation") {
+                      setToast("Set the yard status to Escalation before opening escalation details.");
+                      return;
+                    }
+                    focusCommentsOnYard(i);
+                    setEscalationIdx(i);
                   }}
                 />
               </div>
@@ -802,6 +861,22 @@ export default function OrderDetails() {
         orderNo={orderNo}
         yardIndex={refundIdx}
         yard={refundIdx !== null ? yards[refundIdx] : null}
+      />
+
+      <YardEscalationModal
+        open={escalationIdx !== null}
+        onClose={() => setEscalationIdx(null)}
+        yardIndex={typeof escalationIdx === "number" ? escalationIdx : 0}
+        yard={
+          escalationIdx !== null && Array.isArray(yards)
+            ? yards[escalationIdx]
+            : null
+        }
+        order={order}
+        onSaved={async () => {
+          await refresh();
+          await recomputeAndPersistActualGP({ useServer: true });
+        }}
       />
 
       <CancelOrderModal

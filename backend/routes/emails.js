@@ -292,6 +292,64 @@ router.post("/orders/sendTrackingInfo/:orderNo", async (req, res) => {
       },
     });
 
+    const textLines = [
+      `Hi ${customerName},`,
+      "Your order with 50 Stars Auto Parts has been shipped.",
+    ];
+    if (shipperName && trackingNo) {
+      textLines.push(`Tracking: ${shipperName} - ${trackingNo}`);
+    } else if (shipperName) {
+      textLines.push(`Carrier: ${shipperName}`);
+    } else if (trackingNo) {
+      textLines.push(`Tracking #: ${trackingNo}`);
+    }
+    if (eta) {
+      textLines.push(`ETA: ${eta}`);
+    }
+    if (link) {
+      textLines.push(`Link: ${link}`);
+    }
+    textLines.push(
+      "If you have any questions, contact us at +1 (888) 732-8680 or service@50starsautoparts.com."
+    );
+    const textBody = textLines.join("\n");
+
+    const htmlSections = [
+      `<p>Hi ${customerName},</p>`,
+      `<p>This email is regarding the order you placed with <strong>50 Stars Auto Parts</strong>. Below are your tracking details:</p>`,
+    ];
+    if (shipperName && trackingNo) {
+      htmlSections.push(`<p><strong>${shipperName}</strong> – ${trackingNo}</p>`);
+    } else if (shipperName) {
+      htmlSections.push(`<p><strong>Carrier:</strong> ${shipperName}</p>`);
+    } else if (trackingNo) {
+      htmlSections.push(`<p><strong>Tracking #:</strong> ${trackingNo}</p>`);
+    }
+    if (eta) {
+      htmlSections.push(`<p><strong>ETA (YYYY-MM-DD):</strong> ${eta}</p>`);
+    }
+    if (link) {
+      htmlSections.push(
+        `<p><strong>Tracking Link:</strong> <a href="${link}" target="_blank" rel="noopener noreferrer">${link}</a></p>`
+      );
+    }
+    htmlSections.push(
+      "<p>Please note: If the ETA is not updated yet, it may take up to 24 hours to appear on the carrier’s site.</p>"
+    );
+    htmlSections.push("<p>Feel free to call us if you have any questions.</p>");
+    htmlSections.push(
+      `<p><img src="cid:logo" alt="logo" style="width: 180px; height: 100px;"></p>`
+    );
+    htmlSections.push(
+      `<p>${firstName}<br>
+      Customer Service Team<br>
+      50 STARS AUTO PARTS<br>
+      +1 (888) 732-8680<br>
+      service@50starsautoparts.com<br>
+      <a href="https://www.50starsautoparts.com">www.50starsautoparts.com</a></p>`
+    );
+    const htmlBody = htmlSections.join("\n");
+
     const mailOptions = {
       from: `"50 Stars Auto Parts" <${process.env.SERVICE_EMAIL}>`,
       to: order.email,
@@ -299,29 +357,10 @@ router.post("/orders/sendTrackingInfo/:orderNo", async (req, res) => {
       subject: `Tracking Details / Order No. ${req.params.orderNo}`,
 
       // Add plain-text version (boosts deliverability)
-      text: `Hi ${customerName},
-Your order with 50 Stars Auto Parts has been shipped.
-Tracking: ${shipperName} - ${trackingNo}
-ETA: ${eta}
-Link: ${link}
-If you have any questions, contact us at +1 (888) 732-8680 or service@50starsautoparts.com.`,
+      text: textBody,
 
       // Clean, minimal HTML
-      html: `
-        <p>Hi ${customerName},</p>
-        <p>This email is regarding the order you placed with <strong>50 Stars Auto Parts</strong>. Below are your tracking details:</p>
-        <p><strong>${shipperName}</strong> – ${trackingNo}</p>
-        <p><strong>ETA (YYYY-MM-DD):</strong> ${eta}</p>
-        <p><strong>Tracking Link:</strong> <a href="${link}" target="_blank" rel="noopener noreferrer">${link}</a></p>
-        <p>Please note: If the ETA is not updated yet, it may take up to 24 hours to appear on the carrier’s site.</p>
-        <p>Feel free to call us if you have any questions.</p>
-        <p><img src="cid:logo" alt="logo" style="width: 180px; height: 100px;"></p>
-        <p>${firstName}<br>
-        Customer Service Team<br>
-        50 STARS AUTO PARTS<br>
-        +1 (888) 732-8680<br>
-        service@50starsautoparts.com<br>
-        <a href="https://www.50starsautoparts.com">www.50starsautoparts.com</a></p>`,
+      html: htmlBody,
 
       attachments: [
         {
@@ -459,6 +498,293 @@ router.post("/orders/sendRefundEmail/:orderNo", upload.single("pdfFile"), async 
     res.status(500).json({ message: "Server error", error: error.message });
   }
 });
+
+/* ---------------- Replacement Emails ---------------- */
+router.post("/orders/sendReplaceEmailCustomerShipping/:orderNo", async (req, res) => {
+  try {
+    const { orderNo } = req.params;
+    const firstName =
+      (req.query.firstName ?? req.body?.firstName ?? "Customer Success Team")
+        .toString()
+        .trim() || "Customer Success Team";
+    const retAddressReplacement = (req.query.retAddressReplacement ?? "").toString();
+    const order = await Order.findOne({ orderNo });
+    if (!order) return res.status(400).json({ message: "Order not found" });
+
+    const transporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: {
+        user: process.env.SERVICE_EMAIL,
+        pass: process.env.SERVICE_PASS,
+      },
+    });
+
+    const [firstLineRaw, rest] = retAddressReplacement.split(/,(.+)/);
+    const line1 = (firstLineRaw || "").trim() || " ";
+    const lineRest = (rest || "").trim() || " ";
+    const customerName = order.customerName || order.fName || "Customer";
+    const bccList =
+      process.env.SUPPORT_BCC ||
+      "service@50starsautoparts.com,dipsikha.spotopsdigital@gmail.com";
+    const logoUrl =
+      process.env.LOGO_URL ||
+      "https://assets-autoparts.s3.ap-south-1.amazonaws.com/images/logo.png";
+
+    const mailOptions = {
+      from: `"50 Stars Auto Parts" <${process.env.SERVICE_EMAIL}>`,
+      to: order.email,
+      bcc: bccList,
+      subject: `Return Required for Replacement of ABS Module Order | Order ${orderNo}`,
+      html: `
+        <p>Dear ${customerName},</p>
+        <p>We are sorry to hear that there was an issue with the ABS module you received. We are happy to offer a replacement to ensure you receive a fully functional part.</p>
+        <p>Please return the part to the following address:</p>
+        <p>${line1}<br/>${lineRest}</p>
+        <p>Please note that the shipping costs for the return are your responsibility. Once we receive the part, we will process and ship out the replacement within 1-3 business days. We will notify you with tracking information once the replacement part is on its way.</p>
+        <p>If you have any questions about the process or need further assistance, please feel free to contact us.</p>
+        <p>Thank you for giving us an opportunity to make this right.</p>
+        <p><img src="cid:logo" alt="logo" style="width:180px;height:100px;" /></p>
+        <p>${firstName}<br/>
+        Customer Service Team<br/>
+        50 STARS AUTO PARTS<br/>
+        +1 (866) 207-5533<br/>
+        service@50starsautoparts.com<br/>
+        <a href="https://www.50starsautoparts.com">www.50starsautoparts.com</a></p>
+      `,
+      attachments: [
+        {
+          filename: "logo.png",
+          path: logoUrl,
+          cid: "logo",
+        },
+      ],
+    };
+
+    await transporter.sendMail(mailOptions);
+    res.json({ message: "Replacement email (customer shipping) sent successfully." });
+  } catch (error) {
+    console.error("[emails] sendReplaceEmailCustomerShipping error:", error);
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+});
+
+router.post(
+  "/orders/sendReplaceEmailOwn_Yard/:orderNo",
+  upload.single("pdfFile"),
+  async (req, res) => {
+    try {
+      const { orderNo } = req.params;
+      const firstName =
+        (req.query.firstName ?? req.body?.firstName ?? "Customer Success Team")
+          .toString()
+          .trim() || "Customer Success Team";
+
+      if (!req.file) {
+        return res.status(400).json({ message: "Attach the required document (pdfFile)." });
+      }
+
+      const order = await Order.findOne({ orderNo });
+      if (!order) return res.status(400).json({ message: "Order not found" });
+
+      const transporter = nodemailer.createTransport({
+        service: "gmail",
+        auth: {
+          user: process.env.SERVICE_EMAIL,
+          pass: process.env.SERVICE_PASS,
+        },
+      });
+
+      const customerName = order.customerName || order.fName || "Customer";
+      const bccList =
+        process.env.SUPPORT_BCC ||
+        "service@50starsautoparts.com,dipsikha.spotopsdigital@gmail.com";
+      const logoUrl =
+        process.env.LOGO_URL ||
+        "https://assets-autoparts.s3.ap-south-1.amazonaws.com/images/logo.png";
+
+      const mailOptions = {
+        from: `"50 Stars Auto Parts" <${process.env.SERVICE_EMAIL}>`,
+        to: order.email,
+        bcc: bccList,
+        subject: `Replacement Instructions & Shipping Document | Order ${orderNo}`,
+        html: `
+          <p>Dear ${customerName},</p>
+          <p>Please find the attached shipping document for the replacement of your part. Kindly print and include it with the package when it is handed over to the carrier.</p>
+          <p>Once the package is on its way, feel free to share the tracking number so we can monitor the shipment and expedite the replacement.</p>
+          <p><img src="cid:logo" alt="logo" style="width:180px;height:100px;" /></p>
+          <p>${firstName}<br/>
+          Customer Service Team<br/>
+          50 STARS AUTO PARTS<br/>
+          +1 (866) 207-5533<br/>
+          service@50starsautoparts.com<br/>
+          <a href="https://www.50starsautoparts.com">www.50starsautoparts.com</a></p>
+        `,
+        attachments: [
+          {
+            filename: req.file.originalname || "replacement.pdf",
+            content: req.file.buffer,
+          },
+          {
+            filename: "logo.png",
+            path: logoUrl,
+            cid: "logo",
+          },
+        ],
+      };
+
+      await transporter.sendMail(mailOptions);
+      res.json({ message: "Replacement email (own/yard shipping) sent successfully." });
+    } catch (error) {
+      console.error("[emails] sendReplaceEmailOwn_Yard error:", error);
+      res.status(500).json({ message: "Server error", error: error.message });
+    }
+  }
+);
+
+/* ---------------- Return Emails ---------------- */
+router.post("/orders/sendReturnEmailCustomerShipping/:orderNo", async (req, res) => {
+  try {
+    const { orderNo } = req.params;
+    const firstName =
+      (req.query.firstName ?? req.body?.firstName ?? "Customer Success Team")
+        .toString()
+        .trim() || "Customer Success Team";
+    const retAddress = (req.query.retAddress ?? "").toString();
+
+    const order = await Order.findOne({ orderNo });
+    if (!order) return res.status(400).json({ message: "Order not found" });
+
+    const transporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: {
+        user: process.env.SERVICE_EMAIL,
+        pass: process.env.SERVICE_PASS,
+      },
+    });
+
+    const [firstLineRaw, rest] = retAddress.split(/,(.+)/);
+    const line1 = (firstLineRaw || "").trim() || " ";
+    const lineRest = (rest || "").trim() || " ";
+    const customerName = order.customerName || order.fName || "Customer";
+    const bccList =
+      process.env.SUPPORT_BCC ||
+      "service@50starsautoparts.com,dipsikha.spotopsdigital@gmail.com";
+    const logoUrl =
+      process.env.LOGO_URL ||
+      "https://assets-autoparts.s3.ap-south-1.amazonaws.com/images/logo.png";
+
+    const mailOptions = {
+      from: `"50 Stars Auto Parts" <${process.env.SERVICE_EMAIL}>`,
+      to: order.email,
+      bcc: bccList,
+      subject: `Return Instructions for Your Order ${orderNo}`,
+      html: `
+        <p>Dear ${customerName},</p>
+        <p>Please ship the part back to the following address so we can continue processing your return:</p>
+        <p>${line1}<br/>${lineRest}</p>
+        <p>Kindly share the tracking number once the package is on its way. As soon as we receive and inspect the part, we will continue with the necessary next steps.</p>
+        <p><img src="cid:logo" alt="logo" style="width:180px;height:100px;" /></p>
+        <p>${firstName}<br/>
+        Customer Service Team<br/>
+        50 STARS AUTO PARTS<br/>
+        +1 (866) 207-5533<br/>
+        service@50starsautoparts.com<br/>
+        <a href="https://www.50starsautoparts.com">www.50starsautoparts.com</a></p>
+      `,
+      attachments: [
+        {
+          filename: "logo.png",
+          path: logoUrl,
+          cid: "logo",
+        },
+      ],
+    };
+
+    await transporter.sendMail(mailOptions);
+    res.json({ message: "Return email (customer shipping) sent successfully." });
+  } catch (error) {
+    console.error("[emails] sendReturnEmailCustomerShipping error:", error);
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+});
+
+router.post(
+  "/orders/sendReturnEmailOwn_Yard/:orderNo",
+  upload.single("pdfFile"),
+  async (req, res) => {
+    try {
+      const { orderNo } = req.params;
+      const firstName =
+        (req.query.firstName ?? req.body?.firstName ?? "Customer Success Team")
+          .toString()
+          .trim() || "Customer Success Team";
+      const retAddress = (req.query.retAddress ?? "").toString();
+
+      if (!req.file) {
+        return res.status(400).json({ message: "Attach the required document (pdfFile)." });
+      }
+
+      const order = await Order.findOne({ orderNo });
+      if (!order) return res.status(400).json({ message: "Order not found" });
+
+      const transporter = nodemailer.createTransport({
+        service: "gmail",
+        auth: {
+          user: process.env.SERVICE_EMAIL,
+          pass: process.env.SERVICE_PASS,
+        },
+      });
+
+      const [firstLineRaw, rest] = retAddress.split(/,(.+)/);
+      const line1 = (firstLineRaw || "").trim() || " ";
+      const lineRest = (rest || "").trim() || " ";
+      const customerName = order.customerName || order.fName || "Customer";
+      const bccList =
+        process.env.SUPPORT_BCC ||
+        "service@50starsautoparts.com,dipsikha.spotopsdigital@gmail.com";
+      const logoUrl =
+        process.env.LOGO_URL ||
+        "https://assets-autoparts.s3.ap-south-1.amazonaws.com/images/logo.png";
+
+      const mailOptions = {
+        from: `"50 Stars Auto Parts" <${process.env.SERVICE_EMAIL}>`,
+        to: order.email,
+        bcc: bccList,
+        subject: `Return Instructions & Shipping Document | Order ${orderNo}`,
+        html: `
+          <p>Dear ${customerName},</p>
+          <p>Please find the attached shipping document for the return of your part. Kindly attach it to the package before handing it over to the carrier.</p>
+          <p>Return Address:<br/>${line1}<br/>${lineRest}</p>
+          <p>Once shipped, please share the tracking number so we can monitor the return and process the resolution quickly.</p>
+          <p><img src="cid:logo" alt="logo" style="width:180px;height:100px;" /></p>
+          <p>${firstName}<br/>
+          Customer Service Team<br/>
+          50 STARS AUTO PARTS<br/>
+          +1 (866) 207-5533<br/>
+          service@50starsautoparts.com<br/>
+          <a href="https://www.50starsautoparts.com">www.50starsautoparts.com</a></p>
+        `,
+        attachments: [
+          {
+            filename: req.file.originalname || "return-label.pdf",
+            content: req.file.buffer,
+          },
+          {
+            filename: "logo.png",
+            path: logoUrl,
+            cid: "logo",
+          },
+        ],
+      };
+
+      await transporter.sendMail(mailOptions);
+      res.json({ message: "Return email (own/yard shipping) sent successfully." });
+    } catch (error) {
+      console.error("[emails] sendReturnEmailOwn_Yard error:", error);
+      res.status(500).json({ message: "Server error", error: error.message });
+    }
+  }
+);
 
 
 export default router;

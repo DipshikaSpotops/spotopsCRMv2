@@ -112,6 +112,81 @@ const isInactiveStatus = (s) => {
   );
 };
 
+const HUMAN_FIELD_LABELS = {
+  escalationCause: "Escalation",
+  escalationProcess: "Process",
+  custReason: "Reason",
+  customerShippingMethodReplacement: "Shipping method",
+  custOwnShipReplacement: "Own shipping value",
+  customerShipperReplacement: "Shipper",
+  customerTrackingNumberReplacement: "Tracking number",
+  customerETAReplacement: "ETA",
+  custreplacementDelivery: "Delivery status",
+  yardShippingStatus: "Shipping status (yard)",
+  yardShippingMethod: "Shipping method (yard)",
+  yardOwnShipping: "Own shipping (yard)",
+  yardShipper: "Shipper (yard)",
+  yardTrackingNumber: "Tracking number (yard)",
+  yardTrackingETA: "ETA (yard)",
+  yardTrackingLink: "Tracking link",
+  custShipToRep: "Ship to (replacement)",
+  customerShippingMethodReturn: "Shipping method (return)",
+  custOwnShippingReturn: "Own shipping value (return)",
+  customerShipperReturn: "Shipper (return)",
+  returnTrackingCust: "Tracking number (return)",
+  custretPartETA: "ETA (return)",
+  custReturnDelivery: "Delivery status (return)",
+  custShipToRet: "Ship to (return)",
+};
+
+const categorizeField = (field) => {
+  if (field === "escalationCause") return "General";
+  if (field.startsWith("customer") || field.startsWith("cust")) {
+    return "Replacement (Part from customer)";
+  }
+  if (field.startsWith("yard")) return "Replacement (Part from yard)";
+  if (
+    field.startsWith("return") ||
+    field.startsWith("custret") ||
+    field.startsWith("custReturn") ||
+    field.startsWith("custShipToRet") ||
+    field === "customerShippingMethodReturn" ||
+    field === "custOwnShippingReturn"
+  ) {
+    return "Return (Part from customer)";
+  }
+  return "General";
+};
+
+const toHumanLabel = (field) => {
+  if (HUMAN_FIELD_LABELS[field]) return HUMAN_FIELD_LABELS[field];
+  const spaced = field
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/_/g, " ")
+    .trim();
+  return spaced
+    .split(" ")
+    .filter(Boolean)
+    .map((segment) => segment[0]?.toUpperCase() + segment.slice(1))
+    .join(" ");
+};
+
+const formatNote = (author, when, message) => {
+  const name = (author || "System").toString().trim() || "System";
+  const stamp = when || getWhen();
+  return `${name}, ${stamp} : ${message}`;
+};
+
+const pushUniqueNote = (notesArr, noteText) => {
+  if (!Array.isArray(notesArr) || !noteText) return false;
+  const trimmed = noteText.trim();
+  if (!trimmed) return false;
+  const last = notesArr[notesArr.length - 1];
+  if (last && last.trim() === trimmed) return false;
+  notesArr.push(trimmed);
+  return true;
+};
+
 /* ---------------------------- Routes ----------------------------- */
 
 // Yearly aggregation (for bar chart)
@@ -595,17 +670,61 @@ router.put("/:orderNo/additionalInfo/:index", async (req, res) => {
       "expShipDate",
       "warranty",
       "stockNo",
-      "trackingNo",
-      "eta",
-      "deliveredDate",
-      "shipperName",
-      "trackingLink",
+    "trackingNo",
+    "eta",
+    "deliveredDate",
+    "shipperName",
+    "trackingLink",
       "paymentStatus",
       "refundedAmount",
       "refundStatus",
       "escTicked",
       "escalationCause",
       "escalationProcess",
+    "escalationDate",
+    "custReason",
+    "customerShippingMethodReplacement",
+    "customerShipperReplacement",
+    "customerTrackingNumberReplacement",
+    "customerETAReplacement",
+    "custOwnShipReplacement",
+    "custreplacementDelivery",
+    "yardShippingStatus",
+    "yardShippingMethod",
+    "yardShipper",
+    "yardTrackingNumber",
+    "yardOwnShipping",
+    "yardTrackingETA",
+    "yardTrackingLink",
+    "customerShippingMethodReturn",
+    "custretPartETA",
+    "customerShipperReturn",
+    "custOwnShippingReturn",
+    "returnTrackingCust",
+    "custReturnDelivery",
+    "inTransitpartCustDate",
+    "repPartCustDeliveredDate",
+    "inTransitpartYardDate",
+    "yardDeliveredDate",
+    "inTransitReturnDate",
+    "returnDeliveredDate",
+    "custShipToRet",
+    "custShipToRep",
+    "escRetTrackingDate",
+    "escRepCustTrackingDate",
+    "escRepYardTrackingDate",
+    "escReturnTrackingHistory",
+    "escReturnETAHistory",
+    "escReturnShipperNameHistory",
+    "escReturnBOLhistory",
+    "escRepTrackingHistoryCust",
+    "escRepETAHistoryCust",
+    "escRepShipperNameHistoryCust",
+    "escrepBOLhistoryCust",
+    "escRepTrackingHistoryYard",
+    "escRepETAHistoryYard",
+    "escRepShipperNameHistoryYard",
+    "escrepBOLhistoryYard",
     ];
 
     const patch = {};
@@ -637,9 +756,12 @@ router.put("/:orderNo/additionalInfo/:index", async (req, res) => {
       order.orderStatus = ORDER_STATUS_MAP["Yard PO Sent"];
 
       const summary = removed.length
-        ? `Label voided by ${firstName} on ${when}. Cleared → ${removed.join(", ")}.`
-        : `Label voided by ${firstName} on ${when}. (No label details found)`;
-      subdoc.notes.push(`[${when}] (${firstName}) ${summary}`);
+        ? `Label voided. Cleared → ${removed.join(", ")}.`
+        : "Label voided. (No label details found)";
+      const noteAdded = pushUniqueNote(subdoc.notes, formatNote(firstName, when, summary));
+      if (noteAdded) {
+        publish(req, orderNo, { type: "YARD_NOTE_ADDED", yardIndex: idx1 });
+      }
 
       order.orderHistory.push(`Yard ${idx1} label voided by ${firstName} on ${when}`);
 
@@ -692,32 +814,78 @@ router.put("/:orderNo/additionalInfo/:index", async (req, res) => {
     /* ---------------- NON-STATUS FIELD NOTES ---------------- */
     const nonStatusChanges = changed.filter((f) => f !== "status");
     if (nonStatusChanges.length > 0) {
-      const noteDetails = nonStatusChanges
-        .map((field) => {
-          const oldVal = before?.[field] || "—";
-          const newVal = after?.[field] || "—";
-          return `${field}: "${oldVal}" → "${newVal}"`;
-        })
-        .join("; ");
-      subdoc.notes.push(`[${when}] (${firstName}) Updated (${noteDetails})`);
+      const grouped = nonStatusChanges.reduce((acc, field) => {
+        const section = categorizeField(field);
+        const oldVal = before?.[field] ?? "";
+        const newVal = after?.[field] ?? "";
+        const label = toHumanLabel(field);
+        const cleanOld =
+          oldVal === "" || oldVal === null || oldVal === undefined
+            ? "—"
+            : String(oldVal).trim();
+        const cleanNew =
+          newVal === "" || newVal === null || newVal === undefined
+            ? "—"
+            : String(newVal).trim();
+        acc[section] = acc[section] || [];
+        acc[section].push(`${label}: ${cleanOld} → ${cleanNew}`);
+        return acc;
+      }, {});
+
+      const orderedSections = ["Replacement (Part from customer)", "Replacement (Part from yard)", "Return (Part from customer)", "General"];
+      let noteAdded = false;
+      orderedSections.forEach((section) => {
+        if (!grouped[section]) return;
+        const header =
+          section === "General" ? "Updated" : `Updated • Escalation — ${section}`;
+        const messageLines = [header, ...grouped[section].map((entry) => `  • ${entry}`)];
+        const message = messageLines.join("\n");
+        const added = pushUniqueNote(
+          subdoc.notes,
+          formatNote(firstName, when, message)
+        );
+        if (added) {
+          noteAdded = true;
+        }
+      });
+      if (noteAdded) {
+        publish(req, orderNo, { type: "YARD_NOTE_ADDED", yardIndex: idx1 });
+      }
     }
 
     /* ---------------- CLEARED FIELDS (PO Cancelled) ---------------- */
     const clearedFields = req.body?.updatedYardData?._clearedFields;
     if (clearedFields && typeof clearedFields === "object") {
       const clearedEntries = Object.entries(clearedFields)
-        .map(([key, val]) => `${key}: "${val || "—"}"`)
+        .map(([key, val]) => `${toHumanLabel(key)}: "${val || "—"}"`)
         .join("; ");
-      subdoc.notes.push(
-        `[${when}] (${firstName}) PO Cancelled. Cleared → ${clearedEntries}`
+      const noteAdded = pushUniqueNote(
+        subdoc.notes,
+        formatNote(firstName, when, `PO Cancelled. Cleared → ${clearedEntries}`)
       );
+      if (noteAdded) {
+        publish(req, orderNo, { type: "YARD_NOTE_ADDED", yardIndex: idx1 });
+      }
     }
 
     /* ---------------- ESCALATION ---------------- */
     if (newStatus === "Escalation" && subdoc.escalationCause) {
-      subdoc.notes.push(
-        `[${when}] (${firstName}) Escalation Reason: "${subdoc.escalationCause}"`
-      );
+      const lastMatch = subdoc.notes
+        .slice()
+        .reverse()
+        .find((entry) => entry.includes("Escalation Reason:"));
+      const alreadyRecorded =
+        lastMatch &&
+        lastMatch.trim().endsWith(`Escalation Reason: "${subdoc.escalationCause}"`);
+      if (!alreadyRecorded) {
+        const noteAdded = pushUniqueNote(
+          subdoc.notes,
+          formatNote(firstName, when, `Escalation Reason: "${subdoc.escalationCause}"`)
+        );
+        if (noteAdded) {
+          publish(req, orderNo, { type: "YARD_NOTE_ADDED", yardIndex: idx1 });
+        }
+      }
     }
 
     /* ---------------- TRACKING SNAPSHOT ---------------- */
@@ -728,7 +896,13 @@ router.put("/:orderNo/additionalInfo/:index", async (req, res) => {
         `Shipper: ${subdoc.shipperName || "—"}`,
         `Tracking Link: ${subdoc.trackingLink || "—"}`,
       ].join("; ");
-      subdoc.notes.push(`[Tracking snapshot → ${trackAudit} on ${when} by ${firstName}`);
+      const noteAdded = pushUniqueNote(
+        subdoc.notes,
+        formatNote(firstName, when, `Tracking snapshot → ${trackAudit}`)
+      );
+      if (noteAdded) {
+        publish(req, orderNo, { type: "YARD_NOTE_ADDED", yardIndex: idx1 });
+      }
     }
 
     /* ---------------- SEND TRACKING EMAIL ---------------- */
@@ -867,10 +1041,13 @@ router.put("/:orderNo/cancelShipment", async (req, res) => {
     order.orderStatus = ORDER_STATUS_MAP["Yard PO Sent"];
 
     const summary = removed.length
-      ? `Shipment cancelled by ${firstName} on ${when}. Cleared → ${removed.join(", ")}.`
-      : `Shipment cancelled by ${firstName} on ${when}. (No tracking details found)`;
+      ? `Shipment cancelled. Cleared → ${removed.join(", ")}.`
+      : "Shipment cancelled. (No tracking details found)";
 
-    subdoc.notes.push(`[${when}] (${firstName}) ${summary}`);
+    const noteAdded = pushUniqueNote(subdoc.notes, formatNote(firstName, when, summary));
+    if (noteAdded) {
+      publish(req, orderNo, { type: "YARD_NOTE_ADDED", yardIndex: idx1 });
+    }
     order.orderHistory.push(
       `Yard ${idx1} shipment cancelled (was "${prevStatus}") by ${firstName} on ${when}`
     );
@@ -1033,8 +1210,12 @@ router.patch("/:orderNo/additionalInfo/:index", async (req, res) => {
       const when = getWhen();       // formatted date for display
      const isoNow = getWhen("iso");
 
-      const noteText = `Updated: ${changes.join(", ")} on ${when} by ${firstName || "System"}`;
-      yard.notes.push(noteText);
+      const noteLines = [`Updated`, ...changes.map((entry) => `  • ${entry}`)];
+      const noteText = formatNote(firstName, when, noteLines.join("\n"));
+      const added = pushUniqueNote(yard.notes, noteText);
+      if (added) {
+        publish(req, orderNo, { type: "YARD_NOTE_ADDED", yardIndex: idx1 });
+      }
     }
     await order.save();
     const updatedOrder = await Order.findOne({ orderNo }).lean();
@@ -1292,10 +1473,12 @@ router.patch('/:orderNo/supportNotes', async (req, res) => {
     if (!order) return res.status(404).json({ message: 'Order not found.' });
 
     order.supportNotes = order.supportNotes || [];
-    order.supportNotes.push(supportNote);
+    const added = pushUniqueNote(order.supportNotes, supportNote);
 
     await order.save();
-    publish(req, orderNo, { type: "SUPPORT_NOTE_ADDED" });
+    if (added) {
+      publish(req, orderNo, { type: "SUPPORT_NOTE_ADDED" });
+    }
     res.json({ message: 'Support comment added', supportNotes: order.supportNotes });
   } catch (err) {
     console.error("PATCH /supportNotes error:", err);
@@ -1329,10 +1512,13 @@ router.patch("/:orderNo/additionalInfo/:index/notes", async (req, res) => {
     }
 
     // Add new note
-    order.additionalInfo[index].notes.push(`${author}, ${when} : ${note}`);
+    const formatted = `${author}, ${when} : ${note}`;
+    const noteAdded = pushUniqueNote(order.additionalInfo[index].notes, formatted);
 
     await order.save();
-    publish(req, orderNo, { type: "YARD_NOTE_ADDED", yardIndex: Number(index) + 1 });
+    if (noteAdded) {
+      publish(req, orderNo, { type: "YARD_NOTE_ADDED", yardIndex: Number(index) + 1 });
+    }
     return res.json({
       message: "Yard note added successfully.",
       notes: order.additionalInfo[index].notes,
