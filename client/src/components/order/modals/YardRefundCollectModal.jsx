@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { getWhen, toDallasIso } from "@spotops/shared";
 import API from "../../../api";
-
+// hhtp
 export default function RefundModal({ open, onClose, onSubmit, orderNo, yardIndex, yard }) {
   const [refundStatus, setRefundStatus] = useState("");
   const [refundedAmount, setRefundedAmount] = useState("");
@@ -133,6 +133,19 @@ export default function RefundModal({ open, onClose, onSubmit, orderNo, yardInde
     } else setToast("Please attach a valid PDF file.");
   };
 
+  const resolveEmailsBase = () => {
+    const base = (API?.defaults?.baseURL || window.location.origin || "").trim();
+    if (!base) return "";
+    return base.replace(/\/api\/?$/, "").replace(/\/$/, "");
+  };
+
+  const getRequestConfig = () => {
+    if (isLocalDev()) {
+      return {};
+    }
+    return { baseURL: (API?.defaults?.baseURL || "").replace(/\/$/, "") };
+  };
+
   const handleSendRefundEmail = async () => {
     if (!file) return setToast("Attach a PO PDF first.");
 
@@ -157,6 +170,7 @@ export default function RefundModal({ open, onClose, onSubmit, orderNo, yardInde
         `/emails/orders/sendRefundEmail/${encodeURIComponent(orderNo)}`,
         formData,
         {
+          baseURL: `${resolveEmailsBase()}/`,
           params: {
             yardIndex: yardIndex + 1,
             refundReason: refundReason || "",
@@ -179,6 +193,8 @@ export default function RefundModal({ open, onClose, onSubmit, orderNo, yardInde
       setLoading(false);
     }
   };
+
+  const isLocalDev = () => typeof window !== "undefined" && window.location.hostname === "localhost";
 
   return (
     <div className="fixed inset-0 z-[90] flex items-center justify-center p-4">
