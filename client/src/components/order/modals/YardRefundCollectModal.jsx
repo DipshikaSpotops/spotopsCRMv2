@@ -135,10 +135,9 @@ export default function RefundModal({ open, onClose, onSubmit, orderNo, yardInde
 
   const getEmailsBase = () => {
     const apiBase = API?.defaults?.baseURL || "";
-    if (apiBase) {
-      return apiBase.replace(/\/api\/?$/, "");
-    }
-    return window.location.origin;
+    const candidate = apiBase ? apiBase.replace(/\/api\/?$/, "") : "";
+    const base = candidate && candidate.trim().length > 0 ? candidate : window.location.origin;
+    return base.replace(/\/$/, "");
   };
 
   const handleSendRefundEmail = async () => {
