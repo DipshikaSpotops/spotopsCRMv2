@@ -161,9 +161,10 @@ export default function RefundModal({ open, onClose, onSubmit, orderNo, yardInde
       formData.append("pdfFile", file);
 
       const response = await API.post(
-        `${getEmailsBase()}/emails/orders/sendRefundEmail/${encodeURIComponent(orderNo)}`,
+        `/emails/orders/sendRefundEmail/${encodeURIComponent(orderNo)}`,
         formData,
         {
+          baseURL: `${getEmailsBase()}/`,
           params: {
             yardIndex: yardIndex + 1,
             refundReason: refundReason || "",
