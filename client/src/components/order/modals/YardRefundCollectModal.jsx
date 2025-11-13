@@ -133,7 +133,7 @@ export default function RefundModal({ open, onClose, onSubmit, orderNo, yardInde
     } else setToast("Please attach a valid PDF file.");
   };
 
-  const rootApiBase = (API?.defaults?.baseURL || "").replace(/\/api$/, "");
+  const rootApiBase = (API?.defaults?.baseURL || "").replace(/\/api\/?$/, "");
 
   const handleSendRefundEmail = async () => {
     if (!file) return setToast("Attach a PO PDF first.");

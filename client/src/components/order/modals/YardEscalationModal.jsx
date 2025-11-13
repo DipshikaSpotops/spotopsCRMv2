@@ -78,6 +78,7 @@ export default function YardEscalationModal({
   const [sendingEmail, setSendingEmail] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const [toast, setToast] = useState("");
+  const [toastPersistent, setToastPersistent] = useState(false);
   const [replacementEmailTarget, setReplacementEmailTarget] = useState(
     "Part from Customer"
   );
@@ -277,9 +278,11 @@ useEffect(() => {
     if (closeTimerRef.current) {
       clearTimeout(closeTimerRef.current);
     }
+    if (delay === null) return;
     closeTimerRef.current = setTimeout(() => {
       closeTimerRef.current = null;
-      onClose?.();
+      setToast("");
+      setToastPersistent(false);
     }, delay);
   };
 
@@ -384,24 +387,29 @@ useEffect(() => {
 
   const persistEscalation = async ({ skipToast = false } = {}) => {
     if (!order?.orderNo) {
+      setToastPersistent(true);
       setToast("Order info missing.");
       return null;
     }
     if (!state.escalationCause) {
+      setToastPersistent(true);
       setToast("Escalation reason is required.");
       return null;
     }
 
     if (state.customerShippingMethodReplacement === "Own shipping") {
       if (!requireField(state.custOwnShipReplacement)) {
+        setToastPersistent(true);
         setToast("Enter the own shipping value before saving.");
         return null;
       }
       if (!requireField(state.customerShipperReplacement)) {
+        setToastPersistent(true);
         setToast("Select the shipper name before saving.");
         return null;
       }
       if (!requireField(state.customerTrackingNumberReplacement)) {
+        setToastPersistent(true);
         setToast("Enter the tracking number before saving.");
         return null;
       }
@@ -409,14 +417,17 @@ useEffect(() => {
 
     if (state.yardShippingMethod === "Own shipping") {
       if (!requireField(state.yardOwnShipping)) {
+        setToastPersistent(true);
         setToast("Enter the own shipping value before saving.");
         return null;
       }
       if (!requireField(state.yardShipper)) {
+        setToastPersistent(true);
         setToast("Select the shipper before saving.");
         return null;
       }
       if (!requireField(state.yardTrackingNumber)) {
+        setToastPersistent(true);
         setToast("Enter the tracking number before saving.");
         return null;
       }
@@ -424,14 +435,17 @@ useEffect(() => {
 
     if (state.customerShippingMethodReturn === "Own shipping") {
       if (!requireField(state.custOwnShippingReturn)) {
+        setToastPersistent(true);
         setToast("Enter the own shipping return value before saving.");
         return null;
       }
       if (!requireField(state.customerShipperReturn)) {
+        setToastPersistent(true);
         setToast("Select the return shipper before saving.");
         return null;
       }
       if (!requireField(state.returnTrackingCust)) {
+        setToastPersistent(true);
         setToast("Enter the customer's return tracking number before saving.");
         return null;
       }
@@ -451,6 +465,7 @@ useEffect(() => {
         { params: { firstName } }
       );
       if (!skipToast) {
+        setToastPersistent(false);
         setToast("Escalation details saved.");
       }
       onSaved?.();
@@ -461,6 +476,7 @@ useEffect(() => {
         err?.response?.data?.message ||
         err?.message ||
         "Failed to save escalation details.";
+      setToastPersistent(true);
       setToast(message);
       return null;
     } finally {
@@ -477,21 +493,25 @@ useEffect(() => {
 
   const handleReplacementSendEmail = async () => {
     if (disableCustomerEmailActions) {
+      setToastPersistent(true);
       setToast("Part from Customer flow is disabled when the reason is Junked.");
       return;
     }
     if (!order?.orderNo) {
+      setToastPersistent(true);
       setToast("Order info missing.");
       return;
     }
 
     const shippingMethod = state.customerShippingMethodReplacement;
     if (!shippingMethod) {
+      setToastPersistent(true);
       setToast("Select the customer shipping method before sending email.");
       return;
     }
 
     if (!state.shipToReplacement) {
+      setToastPersistent(true);
       setToast("Enter the replacement ship-to address before sending email.");
       return;
     }
@@ -509,6 +529,7 @@ useEffect(() => {
         !requireField(state.yardTrackingNumber) ||
         !requireField(state.yardTrackingLink)
       ) {
+        setToastPersistent(true);
         setToast(
           "Fill yard shipping status, method, shipper, tracking number, and tracking link before sending email."
         );
@@ -521,6 +542,7 @@ useEffect(() => {
           await handleSendTrackingEmail();
         },
       });
+      setToastPersistent(true);
       setToast("Ready to send Part from Yard email — click Confirm to proceed.");
       return;
     }
@@ -536,6 +558,7 @@ useEffect(() => {
         await sendCustomerReplacementEmail(orderNo, shippingMethod, firstName);
       },
     });
+    setToastPersistent(true);
     setToast("Ready to send Part from Customer email — click Confirm to proceed.");
   };
 
@@ -557,15 +580,18 @@ useEffect(() => {
             },
           }
         );
+        setToastPersistent(false);
         setToast("Escalation details saved and replacement email sent (Customer shipping).");
         scheduleAutoClose();
       } else if (shippingMethod === "Own shipping" || shippingMethod === "Yard shipping") {
         if (shippingMethod === "Own shipping" && !requireField(state.custOwnShipReplacement)) {
+          setToastPersistent(true);
           setToast("Enter the own shipping value before sending this email.");
           setSendingEmail(false);
           return;
         }
         if (!replacementFile) {
+          setToastPersistent(true);
           setToast("Attach the document before sending this email.");
           setSendingEmail(false);
           return;
@@ -581,11 +607,13 @@ useEffect(() => {
           }
         );
         const methodLabel = shippingMethod === "Own shipping" ? "Own shipping" : "Yard shipping";
+        setToastPersistent(false);
         setToast(
           `Escalation details saved and replacement email sent (${methodLabel}).`
         );
         scheduleAutoClose();
       } else {
+        setToastPersistent(true);
         setToast("Unsupported shipping method for replacement flow.");
       }
     } catch (err) {
@@ -594,6 +622,7 @@ useEffect(() => {
         err?.response?.data?.message ||
         err?.message ||
         "Failed to send replacement email.";
+      setToastPersistent(true);
       setToast(message);
     } finally {
       setSendingEmail(false);
@@ -603,19 +632,23 @@ useEffect(() => {
 
   const handleReturnSendEmail = async () => {
     if (!order?.orderNo) {
+      setToastPersistent(true);
       setToast("Order info missing.");
       return;
     }
     const shippingMethod = state.customerShippingMethodReturn;
     if (!shippingMethod) {
+      setToastPersistent(true);
       setToast("Select the return shipping method before sending email.");
       return;
     }
     if (!state.shipToReturn) {
+      setToastPersistent(true);
       setToast("Enter the return ship-to address before sending email.");
       return;
     }
     if (shippingMethod === "Own shipping" && !returnFile) {
+      setToastPersistent(true);
       setToast("Attach the document before sending this email.");
       return;
     }
@@ -644,10 +677,12 @@ useEffect(() => {
             },
           }
         );
+        setToastPersistent(false);
         setToast("Escalation details saved and return email sent (Customer shipping).");
         scheduleAutoClose();
       } else if (shippingMethod === "Own shipping" || shippingMethod === "Yard shipping") {
         if (!returnFile) {
+          setToastPersistent(true);
           setToast("Attach the document before sending this email.");
           setSendingEmail(false);
           return;
@@ -667,10 +702,12 @@ useEffect(() => {
           }
         );
         const methodLabel = shippingMethod === "Own shipping" ? "Own shipping" : "Yard shipping";
+        setToastPersistent(false);
         setToast(`Escalation details saved and return email sent (${methodLabel}).`);
         scheduleAutoClose();
       } else {
-        setToast("Unsupported shipping method for return flow.");
+        setToastPersistent(true);
+        setToast("Unsupported return shipping method.");
       }
     } catch (err) {
       console.error("Return email failed:", err);
@@ -678,6 +715,7 @@ useEffect(() => {
         err?.response?.data?.message ||
         err?.message ||
         "Failed to send return email.";
+      setToastPersistent(true);
       setToast(message);
     } finally {
       setSendingEmail(false);
@@ -686,6 +724,7 @@ useEffect(() => {
 
   const handleVoidReplacement = async (target) => {
     if (!order?.orderNo || !yard) {
+      setToastPersistent(true);
       setToast("Order or yard information is missing.");
       return;
     }
@@ -738,6 +777,7 @@ useEffect(() => {
         }));
       }
 
+      setToastPersistent(false);
       setToast("Label voided successfully.");
       onSaved?.();
     } catch (err) {
@@ -746,6 +786,7 @@ useEffect(() => {
         err?.response?.data?.message ||
         err?.message ||
         "Failed to void the label.";
+      setToastPersistent(true);
       setToast(message);
     } finally {
       setActionLoading(false);
@@ -754,6 +795,7 @@ useEffect(() => {
 
   const handleVoidReturn = async () => {
     if (!order?.orderNo || !yard) {
+      setToastPersistent(true);
       setToast("Order or yard information is missing.");
       return;
     }
@@ -787,6 +829,7 @@ useEffect(() => {
         custOwnShippingReturn: "",
         custReturnDelivery: "",
       }));
+      setToastPersistent(false);
       setToast("Return label voided successfully.");
       onSaved?.();
     } catch (err) {
@@ -795,6 +838,7 @@ useEffect(() => {
         err?.response?.data?.message ||
         err?.message ||
         "Failed to void the return label.";
+      setToastPersistent(true);
       setToast(message);
     } finally {
       setActionLoading(false);
@@ -803,6 +847,7 @@ useEffect(() => {
 
   const handleSendTrackingEmail = async () => {
     if (!order?.orderNo) {
+      setToastPersistent(true);
       setToast("Order info missing.");
       return;
     }
@@ -812,6 +857,7 @@ useEffect(() => {
       !requireField(state.yardShipper) ||
       !requireField(state.yardTrackingNumber)
     ) {
+      setToastPersistent(true);
       setToast(
         "Provide yard shipping status, method, shipper, and tracking number before sending email."
       );
@@ -834,6 +880,7 @@ useEffect(() => {
           baseURL: rootApiBase || undefined,
         }
       );
+      setToastPersistent(false);
       setToast("Tracking email sent successfully.");
     } catch (err) {
       console.error("Tracking email failed:", err);
@@ -841,6 +888,7 @@ useEffect(() => {
         err?.response?.data?.message ||
         err?.message ||
         "Failed to send tracking email.";
+      setToastPersistent(true);
       setToast(message);
     } finally {
       setSendingEmail(false);
@@ -1369,6 +1417,7 @@ useEffect(() => {
                   await pendingConfirmation.onConfirm?.();
                 } finally {
                   setPendingConfirmation(null);
+                  setToastPersistent(false);
                 }
               }}
               className="rounded-md bg-amber-600 px-3 py-1 text-white hover:bg-amber-700"
@@ -1378,6 +1427,7 @@ useEffect(() => {
             <button
               onClick={() => {
                 setPendingConfirmation(null);
+                setToastPersistent(false);
                 setToast("Email send canceled.");
               }}
               className="rounded-md border border-amber-600 px-3 py-1 text-amber-700 hover:bg-amber-200"
@@ -1387,7 +1437,31 @@ useEffect(() => {
           </div>
         )}
         {toast && (
-          <Toast message={toast} onClose={() => setToast("")} />
+          <div className="fixed bottom-6 left-1/2 z-[200] flex -translate-x-1/2 items-center gap-4 rounded-lg border border-gray-300 bg-white px-6 py-3 text-sm font-medium text-black shadow-lg">
+            <span>{toast}</span>
+            {!toastPersistent && (
+              <button
+                onClick={() => {
+                  setToast("");
+                  setToastPersistent(false);
+                }}
+                className="rounded-md bg-[#04356d] px-3 py-1 text-sm font-semibold text-white transition hover:bg-[#021f4b]"
+              >
+                OK
+              </button>
+            )}
+            {toastPersistent && (
+              <button
+                onClick={() => {
+                  setToast("");
+                  setToastPersistent(false);
+                }}
+                className="rounded-md border border-[#04356d] px-3 py-1 text-sm font-semibold text-[#04356d] transition hover:bg-[#04356d]/10"
+              >
+                Close
+              </button>
+            )}
+          </div>
         )}
       </div>
     </div>
