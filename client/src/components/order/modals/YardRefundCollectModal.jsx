@@ -170,7 +170,6 @@ export default function RefundModal({ open, onClose, onSubmit, orderNo, yardInde
         `/emails/orders/sendRefundEmail/${encodeURIComponent(orderNo)}`,
         formData,
         {
-          baseURL: `${resolveEmailsBase()}/`,
           params: {
             yardIndex: yardIndex + 1,
             refundReason: refundReason || "",
