@@ -401,11 +401,21 @@ router.post("/orders/sendRefundEmail/:orderNo", upload.single("pdfFile"), async 
     const pdfFile = req.file;
     if (!pdfFile) return res.status(400).send("No PDF file uploaded");
 
+    const purchaseEmail = process.env.PURCHASE_EMAIL?.trim();
+    const purchasePass = process.env.PURCHASE_PASS?.trim();
+
+    if (!purchaseEmail || !purchasePass) {
+      console.error("[emails] PURCHASE_EMAIL or PURCHASE_PASS not set in environment");
+      return res.status(500).json({ message: "Email configuration missing" });
+    }
+
+    console.log("[emails] Using PURCHASE_EMAIL:", purchaseEmail);
+
     const transporter = nodemailer.createTransport({
       service: "gmail",
       auth: {
-        user: process.env.PURCHASE_EMAIL,
-        pass: process.env.PURCHASE_PASS,
+        user: purchaseEmail,
+        pass: purchasePass,
       },
     });
 
@@ -430,8 +440,11 @@ router.post("/orders/sendRefundEmail/:orderNo", upload.single("pdfFile"), async 
       return res.status(400).json({ message: "No yard email found for this yard entry" });
     }
 
+    const fromAddress = `"Auto Parts Group Corp" <${purchaseEmail}>`;
+    console.log("[emails] Sending refund email from:", fromAddress);
+
     const mailOptions = {
-      from: `"Auto Parts Group Corp" <${process.env.PURCHASE_EMAIL}>`,
+      from: fromAddress,
       to: yardEmail,
       bcc: `dipsikha.spotopsdigital@gmail.com`,
       subject: `Request for Yard Refund | ${order.orderNo}`,
