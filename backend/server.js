@@ -73,6 +73,7 @@ app.use("/emails", emailsRouter);
 app.use("/api/emails", emailsRouter);
 app.use("/orders", ordersSearchRouter);
 app.use("/", sendPORouter);
+app.use("/api", sendPORouter);
 app.use("/api/yards", yardsRouter);
 app.use("/api/utils/zip-lookup", zipLookupRouter);
 app.use("/debug", debugRouter);

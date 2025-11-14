@@ -292,7 +292,6 @@ export default function EditYardStatusModal({
         `/sendPOEmailYard/${encodeURIComponent(orderNo)}`,
         formData,
         {
-          baseURL: rootApiBase || undefined,
           params: { firstName },
         }
       );
@@ -300,7 +299,29 @@ export default function EditYardStatusModal({
       if (data?.message?.includes?.("No yard email")) {
         setToast("Yard email missing. PO not sent.");
       } else {
-        setToast(data?.message || "PO sent successfully!");
+        // Update status to "Yard PO Sent" via API (backend already does this, but this ensures consistency)
+        try {
+          await API.put(
+            `/orders/${encodeURIComponent(orderNo)}/additionalInfo/${yardIndex + 1}`,
+            {
+              status: "Yard PO Sent",
+              orderStatus: "Yard Processing",
+            },
+            { params: { firstName } }
+          );
+          // Update local status to reflect the change
+          setStatus("Yard PO Sent");
+          setToast(data?.message || "PO sent successfully and status updated!");
+          // Close popup after a short delay
+          setTimeout(() => {
+            onClose();
+          }, 2000);
+        } catch (statusErr) {
+          console.error("Error updating status:", statusErr);
+          // Even if status update fails, PO was sent
+          setStatus("Yard PO Sent");
+          setToast(data?.message || "PO sent successfully, but status update failed.");
+        }
       }
     } catch (err) {
       console.error("Error sending PO:", err);
