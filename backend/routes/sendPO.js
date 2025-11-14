@@ -316,10 +316,39 @@ router.post("/sendPOEmailYard/:orderNo", upload.any(), async (req, res) => {
       let executablePath = process.env.CHROMIUM_PATH;
       if (!executablePath) {
         try {
-          executablePath = execSync('which chromium-browser || which chromium || which google-chrome || echo ""', { encoding: 'utf8' }).trim() || undefined;
+          // Try multiple common paths for chromium
+          const paths = [
+            '/usr/bin/chromium-browser',
+            '/usr/bin/chromium',
+            '/usr/bin/google-chrome',
+            '/snap/bin/chromium',
+          ];
+          
+          for (const path of paths) {
+            try {
+              execSync(`test -f "${path}" && test -x "${path}"`, { encoding: 'utf8' });
+              executablePath = path;
+              console.log(`[sendPO] Found system chromium at: ${path}`);
+              break;
+            } catch (e) {
+              // Continue to next path
+            }
+          }
+          
+          // If not found in common paths, try which command
+          if (!executablePath) {
+            const whichResult = execSync('which chromium-browser 2>/dev/null || which chromium 2>/dev/null || which google-chrome 2>/dev/null || echo ""', { encoding: 'utf8' }).trim();
+            if (whichResult) {
+              executablePath = whichResult;
+              console.log(`[sendPO] Found system chromium via which: ${executablePath}`);
+            }
+          }
         } catch (e) {
+          console.log(`[sendPO] Could not find system chromium: ${e.message}`);
           executablePath = undefined;
         }
+      } else {
+        console.log(`[sendPO] Using CHROMIUM_PATH from env: ${executablePath}`);
       }
       
       const launchOptions = {
@@ -331,14 +360,17 @@ router.post("/sendPOEmailYard/:orderNo", upload.any(), async (req, res) => {
           "--disable-gpu",
           "--disable-software-rasterizer",
           "--disable-extensions",
+          "--disable-background-timer-throttling",
+          "--disable-backgrounding-occluded-windows",
+          "--disable-renderer-backgrounding",
         ],
       };
       
       if (executablePath) {
         launchOptions.executablePath = executablePath;
-        console.log(`[sendPO] Using system chromium at: ${executablePath}`);
+        console.log(`[sendPO] Launching with system chromium: ${executablePath}`);
       } else {
-        console.log(`[sendPO] Using bundled Chrome from Puppeteer`);
+        console.log(`[sendPO] Using bundled Chrome from Puppeteer (may require additional dependencies)`);
       }
       
       browser = await puppeteer.launch(launchOptions);
