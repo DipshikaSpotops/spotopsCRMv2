@@ -17,6 +17,12 @@ export function SelectContent({ children }) {
   return <>{children}</>;
 }
 
+// Store references for comparison (needed for production builds where function names might be minified)
+const SelectItemRef = SelectItem;
+const SelectValueRef = SelectValue;
+const SelectTriggerRef = SelectTrigger;
+const SelectContentRef = SelectContent;
+
 export default function Select({ value, onValueChange, children }) {
   let triggerClassName = "";
   let placeholder;
@@ -24,22 +30,33 @@ export default function Select({ value, onValueChange, children }) {
 
   React.Children.forEach(children, (child) => {
     if (!React.isValidElement(child)) return;
-    const type = child.type?.name;
+    const type = child.type;
+    const typeName = type?.name || type?.displayName;
+    // Also check if it's the actual function reference (for production builds)
+    const isSelectTrigger = typeName === "SelectTrigger" || type === SelectTriggerRef;
+    const isSelectContent = typeName === "SelectContent" || type === SelectContentRef;
+    const isSelectValue = typeName === "SelectValue" || type === SelectValueRef;
+    const isSelectItem = typeName === "SelectItem" || type === SelectItemRef;
 
-    if (type === "SelectTrigger") {
+    if (isSelectTrigger) {
       triggerClassName = child.props?.className || "";
       React.Children.forEach(child.props?.children, (inner) => {
         if (!React.isValidElement(inner)) return;
-        if (inner.type?.name === "SelectValue") {
+        const innerType = inner.type;
+        const innerTypeName = innerType?.name || innerType?.displayName;
+        if (innerTypeName === "SelectValue" || innerType === SelectValueRef) {
           placeholder = inner.props?.placeholder;
         }
       });
     }
 
-    if (type === "SelectContent") {
+    if (isSelectContent) {
       React.Children.forEach(child.props?.children, (itemNode) => {
         if (!React.isValidElement(itemNode)) return;
-        if (itemNode.type?.name === "SelectItem") {
+        const itemType = itemNode.type;
+        const itemTypeName = itemType?.name || itemType?.displayName;
+        // Check by component reference or name (works in both dev and production)
+        if (itemTypeName === "SelectItem" || itemType === SelectItemRef) {
           items.push({
             value: itemNode.props?.value,
             label: itemNode.props?.children,

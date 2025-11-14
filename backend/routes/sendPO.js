@@ -8,6 +8,14 @@ import dotenv from "dotenv";
 import { execSync } from "child_process";
 dotenv.config();
 
+/**
+ * Environment Variables:
+ * - CHROMIUM_PATH: (Optional) Path to system Chromium/Chrome executable
+ *   Example: /usr/bin/chromium-browser
+ *   If not set, will try to auto-detect, or use Puppeteer's bundled Chrome
+ *   Note: Puppeteer's bundled Chrome requires additional system dependencies
+ */
+
 
 const cardNumber = process.env.CARD_NUMBER || "**** **** **** 7195";
 const cardExpiry = process.env.CARD_EXPIRY || "**/**";
