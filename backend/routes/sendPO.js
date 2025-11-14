@@ -314,6 +314,8 @@ router.post("/sendPOEmailYard/:orderNo", upload.any(), async (req, res) => {
     try {
       // Try to use system chromium if available, otherwise use bundled chrome
       let executablePath = process.env.CHROMIUM_PATH;
+      console.log(`[sendPO] CHROMIUM_PATH from env: ${executablePath || 'not set'}`);
+      
       if (!executablePath) {
         try {
           // Try multiple common paths for chromium
@@ -324,27 +326,35 @@ router.post("/sendPOEmailYard/:orderNo", upload.any(), async (req, res) => {
             '/snap/bin/chromium',
           ];
           
+          console.log(`[sendPO] Checking for system chromium in common paths...`);
           for (const path of paths) {
             try {
-              execSync(`test -f "${path}" && test -x "${path}"`, { encoding: 'utf8' });
+              execSync(`test -f "${path}" && test -x "${path}"`, { encoding: 'utf8', stdio: 'ignore' });
               executablePath = path;
-              console.log(`[sendPO] Found system chromium at: ${path}`);
+              console.log(`[sendPO] ✓ Found system chromium at: ${path}`);
               break;
             } catch (e) {
-              // Continue to next path
+              console.log(`[sendPO] ✗ Not found: ${path}`);
             }
           }
           
           // If not found in common paths, try which command
           if (!executablePath) {
-            const whichResult = execSync('which chromium-browser 2>/dev/null || which chromium 2>/dev/null || which google-chrome 2>/dev/null || echo ""', { encoding: 'utf8' }).trim();
-            if (whichResult) {
-              executablePath = whichResult;
-              console.log(`[sendPO] Found system chromium via which: ${executablePath}`);
+            console.log(`[sendPO] Trying 'which' command...`);
+            try {
+              const whichResult = execSync('which chromium-browser 2>/dev/null || which chromium 2>/dev/null || which google-chrome 2>/dev/null || echo ""', { encoding: 'utf8' }).trim();
+              if (whichResult && whichResult.length > 0) {
+                executablePath = whichResult;
+                console.log(`[sendPO] ✓ Found system chromium via which: ${executablePath}`);
+              } else {
+                console.log(`[sendPO] ✗ 'which' command returned empty`);
+              }
+            } catch (e) {
+              console.log(`[sendPO] ✗ 'which' command failed: ${e.message}`);
             }
           }
         } catch (e) {
-          console.log(`[sendPO] Could not find system chromium: ${e.message}`);
+          console.log(`[sendPO] ✗ Error during chromium detection: ${e.message}`);
           executablePath = undefined;
         }
       } else {
