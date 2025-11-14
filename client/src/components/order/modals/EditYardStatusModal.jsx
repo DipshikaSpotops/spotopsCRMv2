@@ -325,8 +325,11 @@ export default function EditYardStatusModal({
       }
     } catch (err) {
       console.error("Error sending PO:", err);
-      const message = err?.response?.data?.message || "Error sending PO";
-      setToast(message);
+      const errorMessage = err?.response?.data?.error || err?.response?.data?.message || err?.message || "Error sending PO";
+      const fullMessage = err?.response?.data?.message 
+        ? `${err.response.data.message}: ${errorMessage}`
+        : errorMessage;
+      setToast(fullMessage);
     } finally {
       setLoading(false);
       setSavingAction(null);

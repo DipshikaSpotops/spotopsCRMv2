@@ -22,13 +22,25 @@ router.post("/sendPOEmailYard/:orderNo", upload.any(), async (req, res) => {
     const firstName = req.query.firstName || "System";
 
     const yardIndex = parseInt(req.body.yardIndex, 10);
-    console.log(`Sending PO for order ${orderNo}, yard index ${yardIndex}`);
+    console.log(`[sendPO] Sending PO for order ${orderNo}, yard index ${yardIndex}`);
+    
+    if (isNaN(yardIndex) || yardIndex < 0) {
+      console.error("[sendPO] Invalid yardIndex:", req.body.yardIndex);
+      return res.status(400).json({ message: "Invalid yard index" });
+    }
 
     const order = await Order.findOne({ orderNo });
-    if (!order) return res.status(404).json({ message: "Order not found" });
+    if (!order) {
+      console.error("[sendPO] Order not found:", orderNo);
+      return res.status(404).json({ message: "Order not found" });
+    }
 
+    if (!order.additionalInfo || !Array.isArray(order.additionalInfo) || !order.additionalInfo[yardIndex]) {
+      console.error("[sendPO] Invalid yard index:", yardIndex, "for order:", orderNo);
+      return res.status(400).json({ message: "Invalid yard index" });
+    }
+    
     const yard = order.additionalInfo[yardIndex];
-    if (!yard) return res.status(400).json({ message: "Invalid yard index" });
 
     const yardEmail = (yard.email || "").trim();
     if (!yardEmail) {
@@ -296,14 +308,29 @@ router.post("/sendPOEmailYard/:orderNo", upload.any(), async (req, res) => {
 `;
 
     // Generate PDF
-    const browser = await puppeteer.launch({
-      headless: "new",
-      args: ["--no-sandbox", "--disable-setuid-sandbox"],
-    });
-    const page = await browser.newPage();
-    await page.setContent(html, { waitUntil: "networkidle0" });
-    const pdfBuffer = await page.pdf({ format: "A4", printBackground: true });
-    await browser.close();
+    let browser;
+    let pdfBuffer;
+    try {
+      browser = await puppeteer.launch({
+        headless: "new",
+        args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
+      });
+      const page = await browser.newPage();
+      await page.setContent(html, { waitUntil: "networkidle0" });
+      pdfBuffer = await page.pdf({ format: "A4", printBackground: true });
+      await browser.close();
+    } catch (puppeteerErr) {
+      console.error("[sendPO] Puppeteer error:", puppeteerErr);
+      if (browser) {
+        try {
+          await browser.close();
+        } catch {}
+      }
+      return res.status(500).json({ 
+        message: "Failed to generate PDF", 
+        error: puppeteerErr.message 
+      });
+    }
 
     // Send email
     const purchaseEmail = process.env.PURCHASE_EMAIL?.trim();
@@ -344,7 +371,8 @@ router.post("/sendPOEmailYard/:orderNo", upload.any(), async (req, res) => {
     const warranty = yard.warranty || "NA";
     const firstNameTrimmed = (firstName || "Auto Parts Group").trim();
 
-    await transporter.sendMail({
+    try {
+      await transporter.sendMail({
       from: `"Auto Parts Group Corp" <${purchaseEmail}>`,
       to: yardEmail,
       bcc: "dipsikha.spotopsdigital@gmail.com",
@@ -401,6 +429,13 @@ router.post("/sendPOEmailYard/:orderNo", upload.any(), async (req, res) => {
         },
       ],
     });
+    } catch (emailErr) {
+      console.error("[sendPO] Email sending error:", emailErr);
+      return res.status(500).json({ 
+        message: "Failed to send email", 
+        error: emailErr.message 
+      });
+    }
 
     // Update DB
     const nowDallas = moment().tz("America/Chicago");
@@ -421,12 +456,17 @@ order.additionalInfo[yardIndex].notes.push(`${yardLabel} PO sent by ${firstName}
 order.orderStatus = "Yard Processing";
 order.orderHistory.push(`${yardLabel} PO sent by ${firstName} on ${formattedDate}`);
 
-await order.save();
+    await order.save();
 
     res.json({ message: "PO email sent and status updated" });
   } catch (err) {
-    console.error("Error sending PO:", err);
-    res.status(500).json({ message: "Failed to send PO", error: err.message });
+    console.error("[sendPO] Error sending PO:", err);
+    console.error("[sendPO] Error stack:", err.stack);
+    res.status(500).json({ 
+      message: "Failed to send PO", 
+      error: err.message,
+      details: process.env.NODE_ENV === "development" ? err.stack : undefined
+    });
   }
 });
 
