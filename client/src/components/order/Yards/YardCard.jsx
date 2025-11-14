@@ -74,28 +74,28 @@ export default function YardCard({
   </div>
 
   {/* Responsive Contact Info */}
-  <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-white/80 leading-relaxed">
+  <div className="flex flex-wrap gap-x-3 gap-y-1 text-sm text-white/80 leading-relaxed">
     {y.address && (
       <div className="flex items-start min-w-[200px]">
-        <span className="font-semibold text-white/80 mr-1">Address:</span>
+        <span className="font-semibold text-white/80 mr-1 underline">Address:</span>
         <span className="break-words">{y.address}</span>
       </div>
     )}
     {y.phone && (
-      <div className="flex items-start min-w-[120px]">
-        <span className="font-semibold text-white/80 mr-1">Phone:</span>
+      <div className="flex items-start min-w-[180px]">
+        <span className="font-semibold text-white/80 mr-1 underline">Phone:</span>
         <span>{y.phone}</span>
       </div>
     )}
     {y.faxNo && (
       <div className="flex items-start min-w-[120px]">
-        <span className="font-semibold text-white/80 mr-1">Fax:</span>
+        <span className="font-semibold text-white/80 mr-1 underline">Fax:</span>
         <span>{y.faxNo}</span>
       </div>
     )}
     {y.email && (
       <div className="flex items-start min-w-[220px]">
-        <span className="font-semibold text-white/80 mr-1">Email:</span>
+        <span className="font-semibold text-white/80 mr-1 underline">Email:</span>
         <a
           href={`mailto:${y.email}`}
           className="text-blue-300 hover:underline break-all"
@@ -106,7 +106,7 @@ export default function YardCard({
     )}
     {y.agentName && (
       <div className="flex items-start min-w-[150px]">
-        <span className="font-semibold text-white/80 mr-1">Agent:</span>
+        <span className="font-semibold text-white/80 mr-1 underline">Agent:</span>
         <span>{y.agentName}</span>
       </div>
     )}
