@@ -337,7 +337,7 @@ router.post("/sendPOEmailYard/:orderNo", upload.any(), async (req, res) => {
     const firstNameTrimmed = (firstName || "Auto Parts Group").trim();
 
     await transporter.sendMail({
-      from: `"Auto Parts Group Corp" <${process.env.PURCHASE_EMAIL}>`,
+      from: `"Auto Parts Group Corp" <${'process.env.PURCHASE_EMAIL'}>`,
       to: yardEmail,
       bcc: "dipsikha.spotopsdigital@gmail.com",
       subject: `Purchase Order | ${order.orderNo} | ${year} ${make} ${model} | ${pReq}`,

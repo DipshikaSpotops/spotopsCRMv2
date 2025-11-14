@@ -404,8 +404,8 @@ router.post("/orders/sendRefundEmail/:orderNo", upload.single("pdfFile"), async 
     const transporter = nodemailer.createTransport({
       service: "gmail",
       auth: {
-        user: process.env.SERVICE_EMAIL,
-        pass: process.env.SERVICE_PASS,
+        user: process.env.PURCHASE_EMAIL,
+        pass: process.env.PURCHASE_PASS,
       },
     });
 
