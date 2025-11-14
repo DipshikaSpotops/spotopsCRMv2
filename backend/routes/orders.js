@@ -889,21 +889,22 @@ router.put("/:orderNo/additionalInfo/:index", async (req, res) => {
     }
 
     /* ---------------- TRACKING SNAPSHOT ---------------- */
-    if (["Label created", "Part shipped"].includes(newStatus)) {
-      const trackAudit = [
-        `Tracking No: ${subdoc.trackingNo || "—"}`,
-        `ETA: ${subdoc.eta || "—"}`,
-        `Shipper: ${subdoc.shipperName || "—"}`,
-        `Tracking Link: ${subdoc.trackingLink || "—"}`,
-      ].join("; ");
-      const noteAdded = pushUniqueNote(
-        subdoc.notes,
-        formatNote(firstName, when, `Tracking snapshot → ${trackAudit}`)
-      );
-      if (noteAdded) {
-        publish(req, orderNo, { type: "YARD_NOTE_ADDED", yardIndex: idx1 });
-      }
-    }
+    // Removed: Tracking snapshot comment is redundant - the "Updated" comment already shows tracking info in a cleaner format
+    // if (["Label created", "Part shipped"].includes(newStatus)) {
+    //   const trackAudit = [
+    //     `Tracking No: ${subdoc.trackingNo || "—"}`,
+    //     `ETA: ${subdoc.eta || "—"}`,
+    //     `Shipper: ${subdoc.shipperName || "—"}`,
+    //     `Tracking Link: ${subdoc.trackingLink || "—"}`,
+    //   ].join("; ");
+    //   const noteAdded = pushUniqueNote(
+    //     subdoc.notes,
+    //     formatNote(firstName, when, `Tracking snapshot → ${trackAudit}`)
+    //   );
+    //   if (noteAdded) {
+    //     publish(req, orderNo, { type: "YARD_NOTE_ADDED", yardIndex: idx1 });
+    //   }
+    // }
 
     /* ---------------- SEND TRACKING EMAIL ---------------- */
     if (changed.includes("status") && newStatus === "Part shipped") {

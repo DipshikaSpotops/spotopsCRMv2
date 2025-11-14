@@ -1,6 +1,6 @@
 // src/pages/ViewUserActivity.jsx
 import React, { useEffect, useMemo, useState } from "react";
-import axios from "axios";
+import API from "../api";
 import {
   FaSort, FaSortUp, FaSortDown,
   FaChevronLeft, FaChevronRight,
@@ -22,11 +22,31 @@ const TYPE_META = {
   action:       { label: "Action",       accent: "bg-indigo-600",   icon: "⚡"  },
 };
 
+// Memoized date formatting with cache for performance
+const dateFormatCache = new Map();
+const MAX_CACHE_SIZE = 1000;
+
 function formatDate(dt) {
   if (!dt) return "—";
+  
+  // Check cache first
+  if (dateFormatCache.has(dt)) {
+    return dateFormatCache.get(dt);
+  }
+  
   const d = new Date(dt);
-  if (isNaN(d)) return "—";
-  return formatInTimeZone(d, "America/Chicago", "dd MMM yyyy, hh:mm a zzz");
+  if (isNaN(d.getTime())) return "—";
+  
+  const formatted = formatInTimeZone(d, "America/Chicago", "dd MMM yyyy, hh:mm a zzz");
+  
+  // Cache the result (with size limit to prevent memory issues)
+  if (dateFormatCache.size >= MAX_CACHE_SIZE) {
+    const firstKey = dateFormatCache.keys().next().value;
+    dateFormatCache.delete(firstKey);
+  }
+  dateFormatCache.set(dt, formatted);
+  
+  return formatted;
 }
 
 export default function ViewUserActivity() {
@@ -53,16 +73,32 @@ export default function ViewUserActivity() {
       setLoading(true); setError("");
       try {
         // get users for filter dropdown (optional)
-        const usersRes = await axios.get("http://localhost:5000/api/users");
+        // API base URL already includes /api, so path should be "/users" (not "/api/users")
+        // Remove leading slash to avoid axios path joining issues
+        const usersRes = await API.get("users");
         if (mounted) setUsers(Array.isArray(usersRes.data) ? usersRes.data : []);
-      } catch {}
+      } catch (err) {
+        console.error("Error fetching users:", err);
+        console.error("Request URL:", err?.config?.url);
+        console.error("API Base URL:", API.defaults?.baseURL);
+        // Don't set error for users fetch failure, just log it
+      }
       try {
         const params = buildParams({ ...dateFilter, userId, type, search: search || undefined });
-        const { data } = await axios.get("http://localhost:5000/api/user-activity", { params });
+        // Note: /user-activity endpoint may not exist yet in backend
+        // Remove leading slash to avoid axios path joining issues
+        const { data } = await API.get("user-activity", { params });
         if (mounted) setActivities(Array.isArray(data) ? data : []);
       } catch (e) {
-        console.error(e);
-        if (mounted) setError("Failed to load activity.");
+        console.error("Error fetching activity:", e);
+        console.error("Request URL:", e?.config?.url);
+        if (mounted) {
+          if (e?.response?.status === 404) {
+            setError("User activity endpoint not found. Please ensure the backend route is configured.");
+          } else {
+            setError("Failed to load activity.");
+          }
+        }
       } finally {
         if (mounted) setLoading(false);
       }

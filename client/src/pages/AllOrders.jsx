@@ -11,7 +11,7 @@ const AllOrders = () => {
   const navigate = useNavigate();
 
   const [orders, setOrders] = useState([]);
-  const [loading, setLoading] = useState(true);        // big loader (first load only)
+  const [loading, setLoading] = useState(true);        // big loader (first 
   const [isFetching, setIsFetching] = useState(false); // tiny/silent fetch for sort/page/search
   const [error, setError] = useState("");
 

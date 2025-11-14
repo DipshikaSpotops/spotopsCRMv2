@@ -289,7 +289,7 @@ export default function OrdersTable({
   fetchOverride,
   totalLabel,
   showTotalsNearPill = false,
-  
+  hideDefaultActions = false, // New prop to hide default Actions column
 }) {
   const navigate = useNavigate();
 
@@ -950,25 +950,29 @@ export default function OrdersTable({
                   </div>
                 </th>
               ))}
-              <th className="p-3 text-left whitespace-nowrap">Actions</th>
+              {!hideDefaultActions && <th className="p-3 text-left whitespace-nowrap">Actions</th>}
             </tr>
           </thead>
 
           <tbody>
             {pageRows.length === 0 ? (
               <tr>
-                <td colSpan={columns.length + 1} className="p-6 text-center text-white/80">
+                <td colSpan={columns.length + (hideDefaultActions ? 0 : 1)} className="p-6 text-center text-white/80">
                   No orders found.
                 </td>
               </tr>
             ) : (
               pageRows.map((row) => {
-                const isHighlighted = highlightedOrderNo === String(row.orderNo);
+                const rowId = row.orderNo || row._id || `${row.orderDate || ""}-${Math.random()}`;
+                const isHighlighted = highlightedOrderNo === String(row.orderNo || row._id);
                 return (
                   <tr
-                    key={row.orderNo || `${row.orderDate}-${Math.random()}`}
-                    id={`row-${row.orderNo}`}
-                    onClick={() => toggleHighlight(row.orderNo)}
+                    key={rowId}
+                    id={`row-${rowId}`}
+                    onClick={() => {
+                      if (row.orderNo) toggleHighlight(row.orderNo);
+                      else if (row._id) toggleHighlight(row._id);
+                    }}
                     className={`transition text-sm cursor-pointer ${isHighlighted
                       ? "bg-yellow-500/20 ring-2 ring-yellow-400"
                       : "even:bg-white/5 odd:bg-white/10 hover:bg-white/20"
@@ -984,26 +988,30 @@ export default function OrdersTable({
                           : row[col.key] ?? "—"}
                       </td>
                     ))}
-                    <td className="p-2.5">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (tableScrollRef.current) {
-                            sessionStorage.setItem(
-                              SCROLL_KEY,
-                              String(tableScrollRef.current.scrollTop || 0)
-                            );
-                          }
-                          setLS(LS_HILITE_KEY, String(row.orderNo));
-                          setLS(LS_PAGE_KEY, String(safePage));
-                          setHighlightedOrderNo(String(row.orderNo));
-                          navigate(gotoPath(row));
-                        }}
-                        className="px-3 py-1 text-xs rounded bg-[#2c5d81] hover:bg-blue-700 text-white"
-                      >
-                        View
-                      </button>
-                    </td>
+                    {!hideDefaultActions && (
+                      <td className="p-2.5">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (tableScrollRef.current) {
+                              sessionStorage.setItem(
+                                SCROLL_KEY,
+                                String(tableScrollRef.current.scrollTop || 0)
+                              );
+                            }
+                            if (row.orderNo) {
+                              setLS(LS_HILITE_KEY, String(row.orderNo));
+                              setLS(LS_PAGE_KEY, String(safePage));
+                              setHighlightedOrderNo(String(row.orderNo));
+                              navigate(gotoPath(row));
+                            }
+                          }}
+                          className="px-3 py-1 text-xs rounded bg-[#2c5d81] hover:bg-blue-700 text-white"
+                        >
+                          View
+                        </button>
+                      </td>
+                    )}
                   </tr>
                 );
               })
