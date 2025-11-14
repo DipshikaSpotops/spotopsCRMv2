@@ -151,11 +151,17 @@ const calcActualGP = (orderLike) => {
 
   // CASE 1 — No yards at all
   if (!additionalInfo.length) {
-    return isDispute ? 0 - tax : 0;
+    if (isDispute) {
+      return 0 - tax;
+    } else if (isCancelledOrRefunded) {
+      // For cancelled/refunded orders with no yards
+      return sp - custRefundedAmount - tax;
+    } else {
+      return 0;
+    }
   }
 
   let totalSum = 0;
-  let actualGP = 0;
 
   // CASE 2 — Iterate through yards and only calculate totalSum from "Card charged" yards
   additionalInfo.forEach((yard) => {
@@ -194,37 +200,47 @@ const calcActualGP = (orderLike) => {
     }
   });
 
-  // Calculate actualGP based on totalSum (only from "Card charged" yards)
-  if (totalSum > 0) {
+  let actualGP = 0;
+
+  // CASE 3 — All yards not charged
+  const allYardsNotCharged = additionalInfo.every((yard) => {
+    const paymentStatus = (yard.paymentStatus || "").trim();
+    return !paymentStatus || paymentStatus === "Card not charged";
+  });
+
+  if (allYardsNotCharged) {
+    // All yards not charged
+    if (isDispute) {
+      actualGP = 0 - tax;
+    } else if (isCancelledOrRefunded) {
+      actualGP = sp - custRefundedAmount - tax;
+    } else {
+      // Normal order with all yards not charged
+      actualGP = 0;
+    }
+  } else if (totalSum > 0) {
     // At least one yard is "Card charged"
     if (isDispute) {
       actualGP = 0 - (totalSum + tax);
+    } else if (isCancelledOrRefunded) {
+      // Cancelled/Refunded with at least one "Card charged" yard
+      const subtractRefund = spMinusTax - custRefundedAmount;
+      actualGP = subtractRefund - totalSum;
     } else {
+      // Normal order with at least one "Card charged" yard
       const subtractRefund = spMinusTax - custRefundedAmount;
       actualGP = subtractRefund - totalSum;
     }
   } else {
-    // CASE 3 — All yards not charged (or no yards charged)
-    const allYardsNotCharged = additionalInfo.every((yard) => {
-      const paymentStatus = (yard.paymentStatus || "").trim();
-      return !paymentStatus || paymentStatus === "Card not charged";
-    });
-
-    if (allYardsNotCharged) {
-      if (isDispute) {
-        actualGP = 0 - tax;
-      } else if (isCancelledOrRefunded) {
-        actualGP = sp - custRefundedAmount - tax;
-      } else {
-        actualGP = 0;
-      }
+    // Mixed case: some yards might have other statuses, but none are charged
+    if (isDispute) {
+      actualGP = 0 - tax;
+    } else if (isCancelledOrRefunded) {
+      // Cancelled/Refunded with mixed statuses (none charged)
+      actualGP = sp - custRefundedAmount - tax;
     } else {
-      // Mixed case: some yards might have other statuses, but none are charged
-      if (isDispute) {
-        actualGP = 0 - tax;
-      } else {
-        actualGP = 0;
-      }
+      // Normal order with mixed statuses (none charged)
+      actualGP = 0;
     }
   }
 
@@ -549,19 +565,25 @@ export default function OrderDetails() {
     }
 
     // Only update if there's a meaningful difference AND at least one yard has "Card charged"
-    // This prevents incorrect updates when no yards are charged
+    // OR if it's a cancelled/refunded/dispute order (which have special GP calculations)
     const hasCardChargedYard = Array.isArray(order.additionalInfo) && 
       order.additionalInfo.some((yard) => {
         const paymentStatus = (yard.paymentStatus || "").trim();
         return paymentStatus === "Card charged";
       });
 
+    const status = normalizeStatusForCalc(order.orderStatus);
+    const isDispute = ["Dispute", "Dispute after Cancellation"].includes(status);
+    const isCancelledOrRefunded = status === "Order Cancelled" || status === "Refunded";
+    const hasSpecialStatus = isDispute || isCancelledOrRefunded;
+
     // Only auto-update if:
     // 1. There's a meaningful difference, AND
-    // 2. Either there's a "Card charged" yard (so calculation is based on real data), OR
+    // 2. Either there's a "Card charged" yard, OR
+    //    it's a cancelled/refunded/dispute order (which need special GP calculations), OR
     //    the currentGP is non-zero (meaning it was previously calculated and might need correction)
     const shouldUpdate = Math.abs(currentGP - actualGP) > 0.0001 && 
-      (hasCardChargedYard || Math.abs(currentGP) > 0.0001);
+      (hasCardChargedYard || hasSpecialStatus || Math.abs(currentGP) > 0.0001);
 
     if (shouldUpdate) {
       API.put(`/orders/${orderNo}/updateActualGP`, { actualGP })

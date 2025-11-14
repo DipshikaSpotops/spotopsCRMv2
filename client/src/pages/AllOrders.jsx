@@ -324,21 +324,44 @@ const AllOrders = () => {
                   )}
                 </td>
 
-                {/* Yard Name (first yard) */}
-                <td className="p-2.5 border-r border-white/20 whitespace-nowrap text-bodyText">
-                  {order.additionalInfo?.[0]?.yardName || ""}
-                  {expandedIds.has(order._id) && order.additionalInfo?.[0] && (
-                    <div className="mt-2 border-t border-white/20 pt-2 text-xs space-y-1">
-                      <div><b>Part price:</b> ${order.additionalInfo[0].partPrice}</div>
-                      <div><b>Shipping:</b> {order.additionalInfo[0].shippingDetails}</div>
-                      {order.additionalInfo?.[0]?.others && (
-                        <div><b>Others:</b> ${order.additionalInfo[0].others}</div>
-                      )}
-                      <div><b>Phone:</b> {order.additionalInfo[0].phone}</div>
-                      <div><b>Status:</b> {order.additionalInfo[0].status}</div>
-                      <div><b>Stock #:</b> {order.additionalInfo[0].stockNo}</div>
-                    </div>
-                  )}
+                {/* Yard Name (all yards) */}
+                <td className="p-2.5 border-r border-white/20 text-bodyText">
+                  {(() => {
+                    const yards = Array.isArray(order.additionalInfo) ? order.additionalInfo : [];
+                    const hasAnyYard = yards.some((y) => (y?.yardName || "").trim().length > 0);
+                    
+                    if (!hasAnyYard) return <span></span>;
+                    
+                    return (
+                      <div className="space-y-2">
+                        <div className="flex-1 text-white">
+                          {yards.map((y, idx) => (
+                            <div key={idx} className="font-medium whitespace-nowrap">
+                              {y?.yardName || ""}
+                            </div>
+                          ))}
+                        </div>
+                        
+                        {expandedIds.has(order._id) && (
+                          <div className="whitespace-nowrap mt-2 text-xs text-white/80 space-y-2">
+                            {yards.map((yard, i) => (
+                              <div key={i} className="border-t border-white/15 pt-2">
+                                <div><b>Yard:</b> {yard?.yardName || "N/A"}</div>
+                                <div><b>Part price:</b> ${yard?.partPrice || 0}</div>
+                                <div><b>Shipping:</b> {yard?.shippingDetails || "N/A"}</div>
+                                {yard?.others && (
+                                  <div><b>Others:</b> ${yard.others}</div>
+                                )}
+                                <div><b>Phone:</b> {yard?.phone || "N/A"}</div>
+                                <div><b>Status:</b> {yard?.status || "N/A"}</div>
+                                <div><b>Stock #:</b> {yard?.stockNo || "N/A"}</div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </td>
 
                 <td className="p-2.5 border-r border-white/20 whitespace-nowrap text-bodyText">
