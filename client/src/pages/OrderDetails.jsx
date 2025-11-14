@@ -149,16 +149,19 @@ const calcActualGP = (orderLike) => {
   const isCancelledOrRefunded =
     status === "Order Cancelled" || status === "Refunded";
 
+  // CASE 1 — No yards at all
   if (!additionalInfo.length) {
     return isDispute ? 0 - tax : 0;
   }
 
   let totalSum = 0;
-  let actualGP = parseFloat(orderLike.actualGP) || 0;
+  let actualGP = 0;
 
+  // CASE 2 — Iterate through yards and only calculate totalSum from "Card charged" yards
   additionalInfo.forEach((yard) => {
     const paymentStatus = (yard.paymentStatus || "").trim();
 
+    // Only calculate yardSpent if paymentStatus is "Card charged"
     if (paymentStatus === "Card charged") {
       const yardPP = parseFloat(yard.partPrice) || 0;
       const yardOSorYS = yard.shippingDetails || "";
@@ -188,34 +191,40 @@ const calcActualGP = (orderLike) => {
         yardRefundAmount;
 
       totalSum += yardSpent;
-
-      if (isDispute) {
-        actualGP = 0 - (totalSum + tax);
-      } else {
-        const subtractRefund = spMinusTax - custRefundedAmount;
-        actualGP = subtractRefund - totalSum;
-      }
-    } else if (!paymentStatus || paymentStatus === "Card not charged") {
-      if (isCancelledOrRefunded) {
-        actualGP = sp - custRefundedAmount - tax;
-      } else if (isDispute) {
-        actualGP = 0 - (tax + totalSum);
-      } else {
-        actualGP = 0;
-      }
     }
   });
 
-  const allYardsNotCharged = additionalInfo.every((yard) => {
-    const paymentStatus = (yard.paymentStatus || "").trim();
-    return !paymentStatus || paymentStatus === "Card not charged";
-  });
-
-  if (allYardsNotCharged) {
+  // Calculate actualGP based on totalSum (only from "Card charged" yards)
+  if (totalSum > 0) {
+    // At least one yard is "Card charged"
     if (isDispute) {
-      actualGP = 0 - tax;
+      actualGP = 0 - (totalSum + tax);
     } else {
-      actualGP = sp - custRefundedAmount - tax;
+      const subtractRefund = spMinusTax - custRefundedAmount;
+      actualGP = subtractRefund - totalSum;
+    }
+  } else {
+    // CASE 3 — All yards not charged (or no yards charged)
+    const allYardsNotCharged = additionalInfo.every((yard) => {
+      const paymentStatus = (yard.paymentStatus || "").trim();
+      return !paymentStatus || paymentStatus === "Card not charged";
+    });
+
+    if (allYardsNotCharged) {
+      if (isDispute) {
+        actualGP = 0 - tax;
+      } else if (isCancelledOrRefunded) {
+        actualGP = sp - custRefundedAmount - tax;
+      } else {
+        actualGP = 0;
+      }
+    } else {
+      // Mixed case: some yards might have other statuses, but none are charged
+      if (isDispute) {
+        actualGP = 0 - tax;
+      } else {
+        actualGP = 0;
+      }
     }
   }
 
