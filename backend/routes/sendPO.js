@@ -5,6 +5,7 @@ import nodemailer from "nodemailer";
 import moment from "moment-timezone";
 import multer from "multer";
 import dotenv from "dotenv";
+import { execSync } from "child_process";
 dotenv.config();
 
 
@@ -311,10 +312,36 @@ router.post("/sendPOEmailYard/:orderNo", upload.any(), async (req, res) => {
     let browser;
     let pdfBuffer;
     try {
-      browser = await puppeteer.launch({
+      // Try to use system chromium if available, otherwise use bundled chrome
+      let executablePath = process.env.CHROMIUM_PATH;
+      if (!executablePath) {
+        try {
+          executablePath = execSync('which chromium-browser || which chromium || which google-chrome || echo ""', { encoding: 'utf8' }).trim() || undefined;
+        } catch (e) {
+          executablePath = undefined;
+        }
+      }
+      
+      const launchOptions = {
         headless: "new",
-        args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
-      });
+        args: [
+          "--no-sandbox",
+          "--disable-setuid-sandbox",
+          "--disable-dev-shm-usage",
+          "--disable-gpu",
+          "--disable-software-rasterizer",
+          "--disable-extensions",
+        ],
+      };
+      
+      if (executablePath) {
+        launchOptions.executablePath = executablePath;
+        console.log(`[sendPO] Using system chromium at: ${executablePath}`);
+      } else {
+        console.log(`[sendPO] Using bundled Chrome from Puppeteer`);
+      }
+      
+      browser = await puppeteer.launch(launchOptions);
       const page = await browser.newPage();
       await page.setContent(html, { waitUntil: "networkidle0" });
       pdfBuffer = await page.pdf({ format: "A4", printBackground: true });
