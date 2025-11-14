@@ -306,9 +306,17 @@ router.post("/sendPOEmailYard/:orderNo", upload.any(), async (req, res) => {
     await browser.close();
 
     // Send email
+    const purchaseEmail = process.env.PURCHASE_EMAIL?.trim();
+    const purchasePass = process.env.PURCHASE_PASS?.trim();
+
+    if (!purchaseEmail || !purchasePass) {
+      console.error("[sendPO] PURCHASE_EMAIL or PURCHASE_PASS not set in environment");
+      return res.status(500).json({ message: "Email configuration missing" });
+    }
+
     const transporter = nodemailer.createTransport({
       service: "gmail",
-      auth: { user: process.env.PURCHASE_EMAIL, pass: process.env.PURCHASE_PASS },
+      auth: { user: purchaseEmail, pass: purchasePass },
     });
 
     const attachments = [
@@ -337,7 +345,7 @@ router.post("/sendPOEmailYard/:orderNo", upload.any(), async (req, res) => {
     const firstNameTrimmed = (firstName || "Auto Parts Group").trim();
 
     await transporter.sendMail({
-      from: `"Auto Parts Group Corp" <${'process.env.PURCHASE_EMAIL'}>`,
+      from: `"Auto Parts Group Corp" <${purchaseEmail}>`,
       to: yardEmail,
       bcc: "dipsikha.spotopsdigital@gmail.com",
       subject: `Purchase Order | ${order.orderNo} | ${year} ${make} ${model} | ${pReq}`,

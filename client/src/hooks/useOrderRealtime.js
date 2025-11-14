@@ -5,12 +5,27 @@ import { getActorId } from "../utils/actorId";
 
 const myActorId = getActorId(); // stable per-browser id
 
+// Derive Socket.IO URL from API base URL if VITE_SOCKET_URL is not set
+function getSocketUrl() {
+  if (import.meta.env.VITE_SOCKET_URL) {
+    return import.meta.env.VITE_SOCKET_URL;
+  }
+  // If VITE_API_BASE_URL is set, use it (remove /api if present)
+  const apiBase = import.meta.env.VITE_API_BASE_URL;
+  if (apiBase) {
+    // Remove trailing /api if present, and any trailing slashes
+    return apiBase.replace(/\/api\/?$/, "").replace(/\/$/, "");
+  }
+  // Fallback to localhost for development
+  return "http://localhost:5000";
+}
+
 export default function useOrderRealtime(
   orderNo,
   {
     onEvent,
     enabled = true,
-    url = import.meta.env.VITE_SOCKET_URL || "http://localhost:5000",
+    url = getSocketUrl(),
   } = {}
 ) {
   const socketRef = useRef(null);
