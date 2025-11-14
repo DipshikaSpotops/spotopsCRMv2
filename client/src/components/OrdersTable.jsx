@@ -29,13 +29,36 @@ const TZ = "America/Chicago";
 const ROWS_PER_PAGE = 25;
 const BAD_STATUSES = new Set(["Order Cancelled", "Refunded", "Dispute"]);
 
-// utils
+// utils - memoized for performance
 const currency = (n) => `$${(Number(n) || 0).toFixed(2)}`;
+
+// Memoize date formatting to avoid recreating Date objects on every render
+// Using a simple cache for frequently accessed dates
+const dateFormatCache = new Map();
+const MAX_CACHE_SIZE = 1000;
+
 const formatDateSafe = (dateStr) => {
   if (!dateStr) return "—";
+  
+  // Check cache first
+  if (dateFormatCache.has(dateStr)) {
+    return dateFormatCache.get(dateStr);
+  }
+  
   const d = new Date(dateStr);
-  if (isNaN(d)) return "—";
-  return formatInTimeZone(d, TZ, "do MMM, yyyy");
+  if (isNaN(d.getTime())) return "—";
+  
+  const formatted = formatInTimeZone(d, TZ, "do MMM, yyyy");
+  
+  // Cache the result (with size limit to prevent memory issues)
+  if (dateFormatCache.size >= MAX_CACHE_SIZE) {
+    // Clear oldest entries (simple FIFO)
+    const firstKey = dateFormatCache.keys().next().value;
+    dateFormatCache.delete(firstKey);
+  }
+  dateFormatCache.set(dateStr, formatted);
+  
+  return formatted;
 };
 
 const buildDefaultFilter = () => {
@@ -493,9 +516,12 @@ export default function OrdersTable({
     fetchDenominator();
   }, [fetchDenominator]);
 
-  // derived rows
+  // derived rows - optimized to avoid unnecessary object spreading
   const rowsWithDerived = useMemo(() => {
+    if (!orders || orders.length === 0) return [];
+    
     return orders.map((o) => {
+      // Only compute GP if needed
       const currentGP = showGP ? calculateCurrentGP(o) : 0;
       let actualGP = parseFloat(o?.actualGP);
       if (isNaN(actualGP)) actualGP = 0;
@@ -504,13 +530,14 @@ export default function OrdersTable({
         o?.fName && o?.lName ? `${o.fName} ${o.lName}` : o?.customerName || "";
       const partName = o?.pReq || o?.partName || "";
 
-      // NEW: derived fields for sorting
+      // Derived fields for sorting - only compute if needed
       const yards = Array.isArray(o?.additionalInfo) ? o.additionalInfo : [];
-      const firstYardName = yards[0]?.yardName || ""; // sort by this for "Yard Details"
+      const firstYardName = yards[0]?.yardName || "";
       const refundedBy = getRefundedByFromHistory(o) || o?.refundedBy || "";
       const cancelledBy = getCancelledByFromHistory(o) || o?.cancelledBy || "";
       const totalYardSpend = computeTotalYardSpend(o);
 
+      // Create new object with derived fields (avoid spreading entire object if possible)
       return {
         ...o,
         _currentGP: currentGP,
@@ -522,7 +549,6 @@ export default function OrdersTable({
         _cancelledBy: cancelledBy,
         _totalYardSpend: totalYardSpend,
         cancelledBy,
-
       };
     });
   }, [orders, showGP]);
@@ -560,39 +586,58 @@ export default function OrdersTable({
     );
   }, [filteredByRole, userRole, selectedAgent]);
 
-  // search filter
+  // search filter - optimized with early returns
   const searchedRows = useMemo(() => {
     const value = (appliedQuery || "").trim().toLowerCase();
     if (!value) return agentFiltered;
+    if (agentFiltered.length === 0) return agentFiltered;
 
-    const match = (txt) =>
-      typeof txt === "string"
+    // Pre-compile regex for faster matching (if value is long enough)
+    const useRegex = value.length > 2;
+    const regex = useRegex ? new RegExp(value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i') : null;
+
+    const match = (txt) => {
+      if (txt == null) return false;
+      if (useRegex && regex) {
+        return regex.test(String(txt));
+      }
+      return typeof txt === "string"
         ? txt.toLowerCase().includes(value)
         : typeof txt === "number" && String(txt).toLowerCase().includes(value);
+    };
 
     return agentFiltered.filter((order) => {
-      const basic =
+      // Check basic fields first (most common matches)
+      if (
+        match(order.orderNo) ||
+        match(order._customerName || order.customerName) ||
+        match(order.salesAgent) ||
+        match(order._partName || order.pReq || order.partName) ||
+        match(order.orderStatus)
+      ) {
+        return true;
+      }
+
+      // Check other fields
+      if (
         match(order.soldP) ||
         match(order.grossProfit) ||
         match(order.actualGP) ||
         match(order.orderDate) ||
-        match(order.salesAgent) ||
-        match(order.orderNo) ||
-        match(order.customerName) ||
-        match(order.pReq || order.partName) ||
-        match(order.orderStatus) ||
         match(order.email) ||
         match(order.phone) ||
         match(order.make) ||
         match(order.year) ||
-        match(order.model);
+        match(order.model)
+      ) {
+        return true;
+      }
 
-      const yardSearch =
-        Array.isArray(order.additionalInfo) &&
-        order.additionalInfo.some((info, idx) => {
-          const yardLabel = `yard ${idx + 1}`;
+      // Check yard info (only if additionalInfo exists)
+      if (Array.isArray(order.additionalInfo) && order.additionalInfo.length > 0) {
+        return order.additionalInfo.some((info, idx) => {
           return (
-            match(yardLabel) ||
+            match(`yard ${idx + 1}`) ||
             match(info?.yardName) ||
             match(info?.email) ||
             match(info?.status) ||
@@ -600,8 +645,9 @@ export default function OrdersTable({
             match(info?.trackingNo)
           );
         });
+      }
 
-      return basic || yardSearch;
+      return false;
     });
   }, [agentFiltered, appliedQuery]);
 

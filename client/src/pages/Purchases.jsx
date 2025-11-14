@@ -2,9 +2,6 @@
 import React, { useCallback, useMemo, useState } from "react";
 import API from "../api";
 import OrdersTable from "../components/OrdersTable";
-import { formatInTimeZone } from "date-fns-tz";
-
-const TZ = "America/Chicago";
 
 /* ---------- Columns ---------- */
 const columns = [
@@ -124,7 +121,7 @@ export default function Purchases() {
 
   /* render cell */
   const renderCell = useCallback(
-    (row, key) => {
+    (row, key, formatDateSafe) => {
       const isExpanded = expandedIds.has(row.orderNo);
 
       switch (key) {
@@ -132,8 +129,7 @@ export default function Purchases() {
           return row.orderNo || "—";
 
         case "orderDate":
-          if (!row.orderDate) return "—";
-          return formatInTimeZone(new Date(row.orderDate), TZ, "do MMM, yyyy");
+          return formatDateSafe(row.orderDate);
 
         case "yardDetails":
           return (

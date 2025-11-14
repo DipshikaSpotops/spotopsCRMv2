@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, useCallback } from "react";
 import API from "../api";
 import { formatInTimeZone } from "date-fns-tz";
 import { FaSort, FaSortUp, FaSortDown, FaChevronLeft, FaChevronRight } from "react-icons/fa";
@@ -151,8 +151,68 @@ const AllOrders = () => {
     });
   };
 
-  const formatDate = (dateStr) =>
-    formatInTimeZone(new Date(dateStr), "America/Chicago", "do MMM, yyyy");
+  // Memoize formatDate with caching to avoid recreating Date objects
+  const dateCache = useRef(new Map());
+  const formatDate = useCallback((dateStr) => {
+    if (!dateStr) return "—";
+    
+    // Check cache first
+    if (dateCache.current.has(dateStr)) {
+      return dateCache.current.get(dateStr);
+    }
+    
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return "—";
+    
+    const formatted = formatInTimeZone(d, "America/Chicago", "do MMM, yyyy");
+    
+    // Cache the result (limit cache size to prevent memory issues)
+    if (dateCache.current.size >= 500) {
+      const firstKey = dateCache.current.keys().next().value;
+      dateCache.current.delete(firstKey);
+    }
+    dateCache.current.set(dateStr, formatted);
+    
+    return formatted;
+  }, []);
+
+  // Memoize yard rendering logic
+  const renderYardCell = useCallback((order, isExpanded) => {
+    const yards = Array.isArray(order.additionalInfo) ? order.additionalInfo : [];
+    const hasAnyYard = yards.some((y) => (y?.yardName || "").trim().length > 0);
+    
+    if (!hasAnyYard) return <span></span>;
+    
+    return (
+      <div className="space-y-2">
+        <div className="flex-1 text-white">
+          {yards.map((y, idx) => (
+            <div key={idx} className="font-medium whitespace-nowrap">
+              {y?.yardName || ""}
+            </div>
+          ))}
+        </div>
+        
+        {isExpanded && (
+          <div className="whitespace-nowrap mt-2 text-xs text-white/80 space-y-2">
+            {yards.map((yard, i) => (
+              <div key={i} className="border-t border-white/15 pt-2">
+                <div><b>Yard:</b> {yard?.yardName || "N/A"}</div>
+                <div><b>Part price:</b> ${yard?.partPrice || 0}</div>
+                <div><b>Shipping:</b> {yard?.shippingDetails || "N/A"}</div>
+                {yard?.others && (
+                  <div><b>Others:</b> ${yard.others}</div>
+                )}
+                <div><b>Phone:</b> {yard?.phone || "N/A"}</div>
+                <div><b>Status:</b> {yard?.status || "N/A"}</div>
+                <div><b>Stock #:</b> {yard?.stockNo || "N/A"}</div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }, []);
 
   const tableScrollRef = useRef(null);
 
@@ -326,42 +386,7 @@ const AllOrders = () => {
 
                 {/* Yard Name (all yards) */}
                 <td className="p-2.5 border-r border-white/20 text-bodyText">
-                  {(() => {
-                    const yards = Array.isArray(order.additionalInfo) ? order.additionalInfo : [];
-                    const hasAnyYard = yards.some((y) => (y?.yardName || "").trim().length > 0);
-                    
-                    if (!hasAnyYard) return <span></span>;
-                    
-                    return (
-                      <div className="space-y-2">
-                        <div className="flex-1 text-white">
-                          {yards.map((y, idx) => (
-                            <div key={idx} className="font-medium whitespace-nowrap">
-                              {y?.yardName || ""}
-                            </div>
-                          ))}
-                        </div>
-                        
-                        {expandedIds.has(order._id) && (
-                          <div className="whitespace-nowrap mt-2 text-xs text-white/80 space-y-2">
-                            {yards.map((yard, i) => (
-                              <div key={i} className="border-t border-white/15 pt-2">
-                                <div><b>Yard:</b> {yard?.yardName || "N/A"}</div>
-                                <div><b>Part price:</b> ${yard?.partPrice || 0}</div>
-                                <div><b>Shipping:</b> {yard?.shippingDetails || "N/A"}</div>
-                                {yard?.others && (
-                                  <div><b>Others:</b> ${yard.others}</div>
-                                )}
-                                <div><b>Phone:</b> {yard?.phone || "N/A"}</div>
-                                <div><b>Status:</b> {yard?.status || "N/A"}</div>
-                                <div><b>Stock #:</b> {yard?.stockNo || "N/A"}</div>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })()}
+                  {renderYardCell(order, expandedIds.has(order._id))}
                 </td>
 
                 <td className="p-2.5 border-r border-white/20 whitespace-nowrap text-bodyText">
