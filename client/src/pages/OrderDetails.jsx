@@ -548,7 +548,22 @@ export default function OrderDetails() {
       return;
     }
 
-    if (Math.abs(currentGP - actualGP) > 0.0001) {
+    // Only update if there's a meaningful difference AND at least one yard has "Card charged"
+    // This prevents incorrect updates when no yards are charged
+    const hasCardChargedYard = Array.isArray(order.additionalInfo) && 
+      order.additionalInfo.some((yard) => {
+        const paymentStatus = (yard.paymentStatus || "").trim();
+        return paymentStatus === "Card charged";
+      });
+
+    // Only auto-update if:
+    // 1. There's a meaningful difference, AND
+    // 2. Either there's a "Card charged" yard (so calculation is based on real data), OR
+    //    the currentGP is non-zero (meaning it was previously calculated and might need correction)
+    const shouldUpdate = Math.abs(currentGP - actualGP) > 0.0001 && 
+      (hasCardChargedYard || Math.abs(currentGP) > 0.0001);
+
+    if (shouldUpdate) {
       API.put(`/orders/${orderNo}/updateActualGP`, { actualGP })
         .then(async () => {
           await refresh();
