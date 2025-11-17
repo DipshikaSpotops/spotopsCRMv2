@@ -624,7 +624,7 @@ export default function OrderDetails() {
 
   return (
     <>
-      <div className="min-h-screen text-sm text-[#04356d] bg-gradient-to-b from-[#5a86ad] via-[#51358a] to-[#4d6bb9] dark:bg-gradient-to-br dark:from-[#0b1c34] dark:via-[#2b2d68] dark:to-[#4b225e] dark:text-white">
+      <div className="min-h-screen text-sm text-[#04356d] bg-gradient-to-b from-[#c0c0c0] via-[#51358a] to-[#4d6bb9] dark:bg-gradient-to-br dark:from-[#0b1c34] dark:via-[#2b2d68] dark:to-[#4b225e] dark:text-white">
         <NavbarForm />
 
         <div className="w-full px-4 sm:px-6 lg:px-8 2xl:px-12 pt-24 pb-6 min-h-[calc(100vh-6rem)] overflow-y-auto">

@@ -1215,7 +1215,7 @@ router.patch("/:orderNo/additionalInfo/:index", async (req, res) => {
       const noteText = formatNote(firstName, when, noteLines.join("\n"));
       const added = pushUniqueNote(yard.notes, noteText);
       if (added) {
-        publish(req, orderNo, { type: "YARD_NOTE_ADDED", yardIndex: idx1 });
+        publish(req, orderNo, { type: "YARD_NOTE_ADDED", yardIndex: i + 1 });
       }
     }
     await order.save();
