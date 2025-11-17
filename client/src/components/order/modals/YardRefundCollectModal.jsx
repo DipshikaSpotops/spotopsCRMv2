@@ -23,12 +23,32 @@ export default function RefundModal({ open, onClose, onSubmit, orderNo, yardInde
   };
 
   const handleSelectionChange = (option) => (event) => {
-    if (event.target.checked) {
+    const isChecked = event.target.checked;
+    if (isChecked) {
       applySelection(option);
+      if (option === "collect" || option === "ups") {
+        setRefundStatus("Refund not collected");
+      }
     } else {
       applySelection(null);
+      if (option === "collect" || option === "ups") {
+        setRefundStatus("Refund collected");
+      }
     }
   };
+
+  useEffect(() => {
+    if (refundStatus === "Refund collected") {
+      if (collectRefund) setCollectRefund(false);
+      if (upsClaim) setUpsClaim(false);
+    }
+  }, [refundStatus, collectRefund, upsClaim]);
+
+  useEffect(() => {
+    if (refundStatus === "Refund not collected") {
+      setRefundedAmount("0");
+    }
+  }, [refundStatus]);
 
   // 🔹 Prefill backend data
   useEffect(() => {
