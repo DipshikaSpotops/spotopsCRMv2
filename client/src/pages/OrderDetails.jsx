@@ -40,13 +40,13 @@ function ConfirmModal({
   return (
     <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/50 backdrop-blur-sm">
       {/* Panel */}
-      <div className="relative w-[90vw] max-w-md rounded-2xl border border-white/15 bg-[#0b1c34]/90 text-white shadow-2xl">
+      <div className="relative w-[90vw] max-w-md rounded-2xl border border-gray-200 bg-blue-50 text-[#09325d] shadow-2xl overflow-hidden dark:border-white/15 dark:bg-[#0b1c34]/90 dark:text-white">
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-white/10">
-          <h3 className="text-lg font-semibold">{title}</h3>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200 dark:border-white/10">
+          <h3 className="text-lg font-semibold text-[#09325d] dark:text-white">{title}</h3>
           <button
             onClick={onClose}
-            className="h-8 w-8 grid place-items-center rounded-md bg-white/10 hover:bg-white/20 border border-white/15"
+            className="h-8 w-8 grid place-items-center rounded-md bg-blue-200 hover:bg-blue-300 border border-blue-300 text-blue-800 shadow-sm hover:shadow-md transition-all dark:bg-white/10 dark:hover:bg-white/20 dark:border-white/15 dark:text-white"
             aria-label="Close"
           >
             ×
@@ -54,15 +54,15 @@ function ConfirmModal({
         </div>
 
         {/* Body */}
-        <div className="px-5 py-4 text-white/90">
+        <div className="px-5 py-4 text-[#09325d] dark:text-white/90">
           <p className="leading-relaxed">{message}</p>
         </div>
 
         {/* Footer */}
-        <div className="flex justify-end gap-3 px-5 py-4 border-t border-white/10">
+        <div className="flex justify-end gap-3 px-5 py-4 border-t border-gray-200 dark:border-white/10">
           <button
             onClick={onClose}
-            className="px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 border border-white/20 text-white"
+            className="px-4 py-2 rounded-lg bg-blue-200 hover:bg-blue-300 border border-blue-300 text-blue-800 shadow-sm hover:shadow-md transition-all dark:bg-white/10 dark:hover:bg-white/20 dark:border-white/20 dark:text-white"
           >
             {cancelText}
           </button>
@@ -71,7 +71,7 @@ function ConfirmModal({
               onConfirm?.();
               onClose?.();
             }}
-            className="px-5 py-2 rounded-lg bg-white text-[#04356d] font-medium border border-white/20 hover:bg-white/90"
+            className="px-5 py-2 rounded-lg bg-[#04356d] text-white font-medium border border-[#04356d] hover:bg-[#021f4b] shadow-sm dark:bg-[#2b2d68] dark:border-white/20 dark:hover:bg-[#1a1f4b]"
           >
             {confirmText}
           </button>
@@ -86,17 +86,19 @@ function HistoryModal({ open, onClose, timeline, loading, error }) {
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="w-full max-w-lg max-h-[80vh] overflow-y-auto bg-[#0b1c34] text-white rounded-xl shadow-xl p-6">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-bold">Order History</h2>
+      <div className="w-full max-w-lg max-h-[80vh] bg-blue-50 text-[#09325d] rounded-xl shadow-xl overflow-hidden flex flex-col dark:bg-[#0b1c34] dark:text-white">
+        <div className="flex justify-between items-center mb-4 p-6 pb-4">
+          <h2 className="text-xl font-bold text-[#09325d] dark:text-white">Order History</h2>
           <button
             onClick={onClose}
-            className="px-3 py-1 rounded-md bg-white/10 hover:bg-white/20"
+            className="px-3 py-1 rounded-md bg-blue-200 hover:bg-blue-300 border border-blue-300 text-blue-800 shadow-sm hover:shadow-md transition-all dark:bg-white/10 dark:hover:bg-white/20 dark:border-white/20 dark:text-white"
           >
             Close
           </button>
         </div>
-        <OrderHistory timeline={timeline} loading={loading} error={error} />
+        <div className="flex-1 overflow-y-auto px-6 pb-6">
+          <OrderHistory timeline={timeline} loading={loading} error={error} />
+        </div>
       </div>
     </div>
   );
@@ -106,7 +108,7 @@ function HistoryModal({ open, onClose, timeline, loading, error }) {
 function Toast({ message, onClose }) {
   if (!message) return null;
   return (
-    <div className="fixed bottom-5 left-1/2 -translate-x-1/2 bg-white text-black px-6 py-3 rounded-lg shadow-lg border border-gray-300 z-[200] text-sm font-medium flex items-center gap-4">
+    <div className="fixed bottom-5 left-1/2 -translate-x-1/2 bg-gray-50 text-black px-6 py-3 rounded-lg shadow-lg border border-gray-300 z-[200] text-sm font-medium flex items-center gap-4">
       <span>{message}</span>
       <button
         onClick={onClose}
@@ -624,7 +626,7 @@ export default function OrderDetails() {
 
   return (
     <>
-      <div className="min-h-screen text-sm text-[#04356d] bg-gradient-to-b from-[#c0c0c0] via-[#51358a] to-[#4d6bb9] dark:bg-gradient-to-br dark:from-[#0b1c34] dark:via-[#2b2d68] dark:to-[#4b225e] dark:text-white">
+      <div className="min-h-screen text-sm bg-gradient-to-br from-gray-50 via-blue-50/30 to-purple-50/20 dark:bg-gradient-to-br dark:from-[#0b1c34] dark:via-[#2b2d68] dark:to-[#4b225e] text-[#09325d] dark:text-white">
         <NavbarForm />
 
         <div className="w-full px-4 sm:px-6 lg:px-8 2xl:px-12 pt-24 pb-6 min-h-[calc(100vh-6rem)] overflow-y-auto">
@@ -632,9 +634,9 @@ export default function OrderDetails() {
           <div className="mb-6">
             <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-6">
               <div>
-                <h1 className="text-3xl font-bold text-white">
+                <h1 className="text-3xl font-bold text-[#09325d] dark:text-white">
                   ORDER DETAILS{" "}
-                  <span className="ml-2 font-normal text-white/80">
+                  <span className="ml-2 font-normal text-[#09325d]/80 dark:text-white/80">
                     - {orderNo || "—"}
                   </span>
                 </h1>
@@ -645,7 +647,7 @@ export default function OrderDetails() {
                   {/* Order History Button */}
                   <button
                     onClick={() => setShowHistory(true)}
-                    className="rounded-md border border-white/30 bg-white px-3 py-1 text-sm font-semibold text-[#04356d] shadow-sm transition hover:bg-white/90 hover:scale-[1.02] dark:border-white/20 dark:bg-[#2b2d68] dark:text-white dark:hover:bg-[#1a1f4b]"
+                    className="px-3 py-1 rounded-md text-sm bg-blue-50 hover:bg-blue-100 border border-gray-200 text-[#09325d] shadow-sm hover:shadow-md transition-all dark:bg-white/10 dark:hover:bg-white/20 dark:text-white dark:border-white/20"
                   >
                     View History
                   </button>
@@ -668,7 +670,7 @@ export default function OrderDetails() {
                         onConfirm: () => handleStatusChange(selectedValue),
                       });
                     }}
-                    className="px-2 py-1 rounded-md bg-[#2b2d68] hover:bg-[#090c6c] text-white align-middle border border-white/20 cursor-pointer transition-colors"
+                    className="px-3 py-1 rounded-md text-sm bg-blue-50 hover:bg-blue-100 border border-gray-200 text-[#09325d] shadow-sm hover:shadow-md cursor-pointer transition-all dark:bg-white/10 dark:hover:bg-white/20 dark:text-white dark:border-white/20"
                   >
                     {STATUS_OPTIONS.map((opt) => (
                       <option key={opt.value} value={opt.value}>
@@ -699,14 +701,14 @@ export default function OrderDetails() {
                   className="h-full flex flex-col"
                   title="Order Details"
                   actions={
-                    <div className="flex gap-2 rounded-lg p-1 bg-[#29345a]/60 border border-[#43518a]/70 dark:bg-white/10 dark:border-white/20">
+                    <div className="flex gap-2 rounded-lg p-1 bg-blue-50 border border-gray-200 dark:bg-white/10 dark:border-white/20">
                       {["Customer", "Part", "Pricing", "Other Details"].map((t) => (
                         <button
                           key={t}
                           onClick={() => setTab(t)}
                           className={`px-3 py-1.5 rounded-md text-sm transition ${tab === t
-                            ? "bg-[#38487a] text-white shadow-inner border border-[#5260a1] dark:bg-[#2b2d68] dark:border-white/30 dark:text-white"
-                            : "text-[#d4d9ea] hover:text-white border border-transparent dark:text-white/70 dark:hover:text-white"
+                            ? "bg-[#04356d] text-white shadow-inner"
+                            : "bg-blue-100 text-blue-700 hover:bg-blue-200 hover:text-blue-800 font-medium dark:bg-white/10 dark:text-white/70 dark:hover:text-white dark:hover:bg-white/20"
                             }`}
                         >
                           {t}
@@ -725,24 +727,24 @@ export default function OrderDetails() {
               <GlassCard title="Reimbursement">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
                   <div className="flex flex-col gap-1">
-                    <span className="text-white/80">Amount ($)</span>
+                    <span className="text-[#09325d] dark:text-white/80">Amount ($)</span>
                     <input
                       type="number"
                       min="0"
                       step="0.01"
                       value={reimbursementAmount}
                       onChange={(e) => setReimbursementAmount(e.target.value)}
-                      className="w-full rounded-md bg-white/10 border border-white/30 px-3 py-2 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-white/60"
+                      className="w-full rounded-md bg-gray-50 border border-gray-300 px-3 py-2 text-[#09325d] placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-white/10 dark:border-white/30 dark:text-white dark:placeholder-white/40 dark:focus:ring-white/60 dark:focus:border-white/60"
                       placeholder="Enter reimbursement amount"
                     />
                   </div>
                   <div className="flex flex-col gap-1">
-                    <span className="text-white/80">Reimbursement Date</span>
+                    <span className="text-[#09325d] dark:text-white/80">Reimbursement Date</span>
                     <input
                       type="date"
                       value={reimbursementDate}
                       onChange={(e) => setReimbursementDate(e.target.value)}
-                      className="w-full rounded-md bg-white/10 border border-white/30 px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-white/60"
+                      className="w-full rounded-md bg-gray-50 border border-gray-300 px-3 py-2 text-[#09325d] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-white/10 dark:border-white/30 dark:text-white dark:focus:ring-white/60 dark:focus:border-white/60"
                     />
                   </div>
                 </div>
@@ -752,8 +754,8 @@ export default function OrderDetails() {
                     disabled={savingReimbursement || !orderNo}
                     className={`px-4 py-2 rounded-md text-sm font-semibold border transition ${
                       savingReimbursement
-                        ? "bg-white/20 text-white/70 border-white/20 cursor-not-allowed"
-                        : "bg-white text-[#04356d] border-white/30 hover:bg-white/90 hover:scale-[1.02] shadow-md dark:bg-[#2b2d68] dark:text-white dark:border-white/20 dark:hover:bg-[#1a1f4b]"
+                        ? "bg-blue-200 text-gray-500 border-blue-300 cursor-not-allowed dark:bg-white/20 dark:text-white/50 dark:border-white/30"
+                        : "bg-blue-200 hover:bg-blue-300 text-blue-800 border-blue-300 shadow-sm hover:shadow-md dark:bg-white/10 dark:text-white dark:border-white/30 dark:hover:bg-white/20"
                     }`}
                   >
                     {savingReimbursement ? "Saving..." : "Save Reimbursement"}
@@ -804,20 +806,20 @@ export default function OrderDetails() {
             </section>
 
             {/* RIGHT: comments */}
-            <aside className="col-span-12 xl:col-span-4 flex flex-col gap-4 h-[calc(100vh-240px)] overflow-hidden">
+            <aside className="col-span-12 xl:col-span-4 flex flex-col gap-4 h-full min-h-[600px]">
       <GlassCard
         className="relative h-full flex flex-col z-20"
                 title="Support Comments"
                 actions={
-                  <div className="flex gap-2 rounded-lg p-1 bg-[#29345a]/60 border border-[#43518a]/70">
+                  <div className="flex gap-2 rounded-lg p-1 bg-blue-50 border border-gray-200 dark:bg-white/10 dark:border-white/20">
                     {yards?.map((_, i) => (
                       <button
                         key={i}
                         onClick={() => setActiveSection(i)}
                         className={`px-3 py-1.5 rounded-md text-sm font-semibold transition ${
                           activeSection === i
-                            ? "bg-[#38487a] text-white shadow-inner border border-[#5260a1]"
-                            : "text-[#d4d9ea] hover:text-white border border-transparent"
+                            ? "bg-[#04356d] text-white shadow-inner"
+                            : "bg-blue-100 text-blue-700 hover:bg-blue-200 hover:text-blue-800 dark:bg-white/10 dark:text-white/70 dark:hover:text-white dark:hover:bg-white/20"
                         }`}
                       >
                         Yard {i + 1}
@@ -827,8 +829,8 @@ export default function OrderDetails() {
                       onClick={() => setActiveSection("support")}
                       className={`px-3 py-1.5 rounded-md text-sm font-semibold transition ${
                         activeSection === "support"
-                          ? "bg-[#38487a] text-white shadow-inner border border-[#5260a1]"
-                          : "text-[#d4d9ea] hover:text-white border border-transparent"
+                          ? "bg-[#04356d] text-white shadow-inner"
+                          : "bg-blue-100 text-blue-700 hover:bg-blue-200 hover:text-blue-800 dark:bg-white/10 dark:text-white/70 dark:hover:text-white dark:hover:bg-white/20"
                       }`}
                     >
                       Order Comments

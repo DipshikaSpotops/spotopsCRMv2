@@ -6,6 +6,7 @@ const Dashboard = lazy(() => import("./pages/Dashboard"));
 import MainLayout from "./layouts/MainLayout";
 import RequireAuth from "./components/RequireAuth";
 import AddOrder from "./pages/AddOrder";
+import EditOrder from "./pages/EditOrder";
 import PlacedOrders from "./pages/PlacedOrders";
 import CustomerApproved from "./pages/CustomerApproved";
 import MonthlyOrders from "./pages/MonthlyOrders";
@@ -70,6 +71,10 @@ function App() {
         <Route
           path="/add-order"
           element={withLayout(<AddOrder />)}
+        />
+        <Route
+          path="/edit-order"
+          element={withLayout(<EditOrder />)}
         />
         <Route
           path="/placed-orders"

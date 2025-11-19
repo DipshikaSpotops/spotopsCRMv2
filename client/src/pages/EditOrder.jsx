@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
+import { useSelector } from "react-redux";
 import { STATES } from "../data/states";
+import { selectRole } from "../store/authSlice";
 const SALES_AGENTS = ["David", "Dipshika", "John", "Mark", "Michael", "Richard", "Tristan"];
 const REQUIRED_FIELD_LABELS = {
   orderNo: "Order No",
@@ -36,24 +38,10 @@ const REQUIRED_FIELD_LABELS = {
 };
 import API from "../api";
 
-const getStoredFirstName = () => {
-  if (typeof window === "undefined") return "";
-  const stored = localStorage.getItem("firstName");
-  return stored ? stored.trim() : "";
-};
-
-const resolveSalesAgentValue = (value) => {
-  if (!value) return "";
-  const match = SALES_AGENTS.find(
-    (agent) => agent.toLowerCase() === value.toLowerCase()
-  );
-  return match || value;
-};
-
-const buildInitialFormData = (defaultSalesAgent = "") => ({
+const buildInitialFormData = () => ({
   // Order basics
   orderNo: "",
-  salesAgent: defaultSalesAgent,
+  salesAgent: "",
   orderDateDisplay: "",
   orderDateISO: "",
   orderStatus: "Placed",
@@ -72,6 +60,7 @@ const buildInitialFormData = (defaultSalesAgent = "") => ({
   bAddressState: "",
   bAddressZip: "",
   bAddressAcountry: "",
+  businessName: "",
 
   // Shipping Info
   sAttention: "",
@@ -80,7 +69,6 @@ const buildInitialFormData = (defaultSalesAgent = "") => ({
   sAddressState: "",
   sAddressZip: "",
   sAddressAcountry: "",
-  businessName: "",
 
   // Part Info
   make: "",
@@ -134,26 +122,27 @@ function Toast({ toast, onClose }) {
   );
 }
 
-export default function AddOrder() {
+export default function EditOrder() {
   const navigate = useNavigate();
-  const defaultSalesAgent = useMemo(
-    () => resolveSalesAgentValue(getStoredFirstName()),
-    []
-  );
-  const salesAgentOptions = useMemo(() => {
-    if (!defaultSalesAgent) return SALES_AGENTS;
-    const exists = SALES_AGENTS.some(
-      (agent) => agent.toLowerCase() === defaultSalesAgent.toLowerCase()
-    );
-    return exists ? SALES_AGENTS : [defaultSalesAgent, ...SALES_AGENTS];
-  }, [defaultSalesAgent]);
+  const userRole = useSelector(selectRole);
+  const [orderNoInput, setOrderNoInput] = useState("");
+  const [loadingOrder, setLoadingOrder] = useState(false);
   const [toast, setToast] = useState(null);
   const [submitting, setSubmitting] = useState(false);
-  const [formData, setFormData] = useState(() =>
-    buildInitialFormData(defaultSalesAgent)
-  );
+  const [formData, setFormData] = useState(buildInitialFormData());
   const [partNames, setPartNames] = useState([]);
   const [fieldErrors, setFieldErrors] = useState(new Set());
+
+  // Check if user is Admin
+  useEffect(() => {
+    if (userRole !== "Admin") {
+      setToast({
+        message: "Access denied. Admin access required.",
+        variant: "error",
+      });
+      setTimeout(() => navigate("/dashboard"), 2000);
+    }
+  }, [userRole, navigate]);
 
   // Helper to clear error when field is updated
   const handleFieldChange = (fieldKey, value) => {
@@ -180,7 +169,6 @@ export default function AddOrder() {
   async function fetchParts() {
     try {
       const res = await API.get("/parts");
-      console.log("Fetched parts:", res.data);
       setPartNames(res.data);
     } catch (err) {
       console.error("Error fetching parts:", err);
@@ -203,6 +191,7 @@ export default function AddOrder() {
       setFormData({ ...formData, pReq: value });
     }
   }
+
   const billingZipTimer = useRef(null);
   const shippingZipTimer = useRef(null);
 
@@ -262,45 +251,91 @@ export default function AddOrder() {
       if (shippingZipTimer.current) clearTimeout(shippingZipTimer.current);
     };
   }, [formData.sAddressZip, fetchZipDetails]);
-  useEffect(() => {
 
-    // Get Dallas Time
-    const now = new Date();
-    const dallasFormatter = new Intl.DateTimeFormat("en-US", {
-      timeZone: "America/Chicago",
-      year: "numeric",
-      month: "long",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-    });
+  // Fetch order when order number is entered
+  const handleLoadOrder = async () => {
+    if (!orderNoInput.trim()) {
+      setToast({ message: "Please enter an order number.", variant: "error" });
+      return;
+    }
 
-    const parts = dallasFormatter.formatToParts(now);
-    const year = parts.find((p) => p.type === "year").value;
-    const monthName = parts.find((p) => p.type === "month").value;
-    const day = parts.find((p) => p.type === "day").value;
-    const hour = parts.find((p) => p.type === "hour").value;
-    const minute = parts.find((p) => p.type === "minute").value;
+    setLoadingOrder(true);
+    setToast(null);
+    try {
+      const res = await API.get(`/orders/${encodeURIComponent(orderNoInput.trim())}`);
+      const order = res.data;
 
-    const displayDate = `${day} ${monthName}, ${year} ${hour}:${minute}`;
+      // Map order data to form data
+      setFormData({
+        orderNo: order.orderNo || "",
+        salesAgent: order.salesAgent || "",
+        orderDateDisplay: order.orderDateDisplay || "",
+        orderDateISO: order.orderDateISO || "",
+        orderStatus: order.orderStatus || "Placed",
 
-    const tzOffset = getDallasOffset(now);
-    const monthNumber = new Date(
-      now.toLocaleString("en-US", { timeZone: "America/Chicago" })
-    ).getMonth() + 1;
-    const isoDallas = `${year}-${pad(monthNumber)}-${pad(
-      day
-    )}T${hour}:${minute}:00.000${tzOffset}`;
+        // Customer Info
+        fName: order.fName || "",
+        lName: order.lName || "",
+        email: order.email || "",
+        phone: order.phone || "",
+        altPhone: order.altPhone || "",
 
-    setFormData((prev) => ({
-      ...prev,
-      orderDateDisplay: displayDate,
-      orderDateISO: isoDallas,
-    }));
-  }, []);
+        // Billing Info
+        bName: order.bName || "",
+        businessName: order.businessName || "",
+        bAddressStreet: order.bAddressStreet || "",
+        bAddressCity: order.bAddressCity || "",
+        bAddressState: order.bAddressState || "",
+        bAddressZip: order.bAddressZip || "",
+        bAddressAcountry: order.bAddressAcountry || "",
 
-  //  Helpers functions
+        // Shipping Info
+        sAttention: order.sAttention || "",
+        sAddressStreet: order.sAddressStreet || "",
+        sAddressCity: order.sAddressCity || "",
+        sAddressState: order.sAddressState || "",
+        sAddressZip: order.sAddressZip || "",
+        sAddressAcountry: order.sAddressAcountry || "",
+        sameAsBilling: false,
+
+        // Part Info
+        make: order.make || "",
+        model: order.model || "",
+        year: order.year || "",
+        pReq: order.pReq || "",
+        desc: order.desc || "",
+        warranty: order.warranty || "",
+        warrantyField: order.warrantyField || "days",
+        vin: order.vin || "",
+        partNo: order.partNo || "",
+
+        // Price & GP
+        soldP: order.soldP || "",
+        costP: order.costP || "",
+        shippingFee: order.shippingFee || "",
+        salestax: order.salestax || "",
+        grossProfit: order.grossProfit || "",
+        last4digits: order.last4digits || "",
+        notes: order.notes || "",
+
+        // Toggles
+        expediteShipping: order.expediteShipping === true || order.expediteShipping === "true",
+        dsCall: order.dsCall === true || order.dsCall === "true",
+        programmingRequired: order.programmingRequired === true || order.programmingRequired === "true",
+        programmingCost: order.programmingCostQuoted || order.programmingCost || "",
+      });
+
+      setToast({ message: `Order ${order.orderNo} loaded successfully!`, variant: "success" });
+    } catch (err) {
+      console.error("Error loading order:", err);
+      const message = err?.response?.data?.message || "Order not found";
+      setToast({ message, variant: "error" });
+    } finally {
+      setLoadingOrder(false);
+    }
+  };
+
+  // Calculate GP
   useEffect(() => {
     const quoted = parseFloat(formData.soldP) || 0;
     const yardPrice = parseFloat(formData.costP) || 0;
@@ -315,22 +350,15 @@ export default function AddOrder() {
       grossProfit: grossProfit.toFixed(2),
     }));
   }, [formData.soldP, formData.costP, formData.shippingFee]);
-  function pad(num) {
-    return String(num).padStart(2, "0");
-  }
-  function getDallasOffset(date) {
-    const jan = new Date(date.getFullYear(), 0, 1).getTimezoneOffset();
-    const jul = new Date(date.getFullYear(), 6, 1).getTimezoneOffset();
-    const isDST = Math.max(jan, jul) !== date.getTimezoneOffset();
-    const offsetHours = isDST ? -5 : -6;
-    return `${offsetHours > 0 ? "-" : "+"}${String(
-      Math.abs(offsetHours)
-    ).padStart(2, "0")}:00`;
-  }
 
   // SUBMIT HANDLER
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    if (!formData.orderNo) {
+      setToast({ message: "Please load an order first.", variant: "error" });
+      return;
+    }
 
     setToast(null);
     setFieldErrors(new Set());
@@ -390,34 +418,61 @@ export default function AddOrder() {
           : "",
       };
 
-      const res = await API.post(
-        `/orders/orders?firstName=${encodeURIComponent(firstName)}`,
-        payload
-      );
+      await API.put(`/orders/${encodeURIComponent(formData.orderNo)}`, payload);
 
-      const createdOrderNo = res?.data?.orderNo || payload.orderNo || "";
-      setToast({ message: `Order ${createdOrderNo} created successfully!`, variant: "success" });
-      setFormData(buildInitialFormData(defaultSalesAgent));
-      navigate("/monthly-orders");
+      setToast({ message: `Order ${formData.orderNo} updated successfully!`, variant: "success" });
     } catch (err) {
-      if (err.response && err.response.status === 409) {
-        setToast({
-          message: "Order No already exists! Please enter a unique Order No.",
-          variant: "error",
-        });
-      } else {
-        console.error(err);
-        const message = err?.response?.data?.message || "Error saving order";
-        setToast({ message, variant: "error" });
-      }
+      console.error(err);
+      const message = err?.response?.data?.message || "Error updating order";
+      setToast({ message, variant: "error" });
     } finally {
       setSubmitting(false);
     }
   };
 
+  if (userRole !== "Admin") {
+    return (
+      <div className="h-screen flex items-center justify-center">
+        <div className="text-white text-xl">Access denied. Admin access required.</div>
+      </div>
+    );
+  }
+
   return (
     <div className="h-screen flex flex-col p-6">
-      <h1 className="text-3xl font-bold text-white mb-4">Add New Order</h1>
+      <h1 className="text-3xl font-bold text-white mb-4">Edit Order (Admin Only)</h1>
+
+      {/* Order Number Input */}
+      <div className="mb-6 flex gap-4 items-end">
+        <div className="flex-1 max-w-md">
+          <label className="block text-white mb-2">Enter Order Number</label>
+          <input
+            type="text"
+            placeholder="Enter Order No"
+            value={orderNoInput}
+            onChange={(e) => setOrderNoInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                handleLoadOrder();
+              }
+            }}
+            className="w-full p-2 border bg-white/20 text-white placeholder-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-400 border-gray-300"
+          />
+        </div>
+        <button
+          type="button"
+          onClick={handleLoadOrder}
+          disabled={loadingOrder || !orderNoInput.trim()}
+          className={`px-6 py-2 bg-gradient-to-r from-[#504fad] to-[#5a80c7] text-white font-semibold rounded-xl shadow-lg transition ${
+            loadingOrder || !orderNoInput.trim()
+              ? "opacity-70 cursor-not-allowed"
+              : "hover:scale-105"
+          }`}
+        >
+          {loadingOrder ? "Loading..." : "Load Order"}
+        </button>
+      </div>
 
       <form className="flex-1 overflow-y-auto overflow-x-auto" onSubmit={handleSubmit}>
         <div className="min-w-[1100px] md:min-w-0 md:w-full">
@@ -429,13 +484,14 @@ export default function AddOrder() {
                 value={formData.orderNo}
                 onChange={(e) => handleFieldChange("orderNo", e.target.value)}
                 error={fieldErrors.has("orderNo")}
+                disabled
               />
             </Section>
 
             <Section title="Sales Agent">
               <Dropdown
                 placeholder="Select Sales Agent"
-                options={salesAgentOptions}
+                options={SALES_AGENTS}
                 value={formData.salesAgent}
                 onChange={(e) => handleFieldChange("salesAgent", e.target.value)}
                 error={fieldErrors.has("salesAgent")}
@@ -450,59 +506,61 @@ export default function AddOrder() {
 
           {/* Main Sections */}
           <div className="grid grid-cols-2 lg:grid-cols-5 gap-6 mb-6">
-
             {/* 🟦 Customer Info */}
             <Section title="Customer Info">
-              <Input 
-                placeholder="First Name" 
+              <Input
+                placeholder="First Name"
                 value={formData.fName}
                 onChange={(e) => handleFieldChange("fName", e.target.value)}
                 error={fieldErrors.has("fName")}
               />
-              <Input 
-                placeholder="Last Name" 
+              <Input
+                placeholder="Last Name"
                 value={formData.lName}
                 onChange={(e) => handleFieldChange("lName", e.target.value)}
                 error={fieldErrors.has("lName")}
               />
-              <Input 
-                placeholder="Email" 
-                type="email" 
+              <Input
+                placeholder="Email"
+                type="email"
                 value={formData.email}
                 onChange={(e) => handleFieldChange("email", e.target.value)}
                 error={fieldErrors.has("email")}
               />
-              <Input 
-                placeholder="Phone" 
+              <Input
+                placeholder="Phone"
                 value={formData.phone}
                 onChange={(e) => handleFieldChange("phone", e.target.value)}
                 error={fieldErrors.has("phone")}
               />
-              <Input placeholder="Alt Phone" value={formData.altPhone}
-                onChange={(e) => setFormData({ ...formData, altPhone: e.target.value })} />
+              <Input
+                placeholder="Alt Phone"
+                value={formData.altPhone}
+                onChange={(e) => setFormData({ ...formData, altPhone: e.target.value })}
+              />
             </Section>
 
             {/* 🟧 Billing Info */}
             <Section title="Billing Info">
-              <Input 
-                placeholder="Billing Name" 
+              <Input
+                placeholder="Billing Name"
                 value={formData.bName}
                 onChange={(e) => handleFieldChange("bName", e.target.value)}
                 error={fieldErrors.has("bName")}
               />
-              <Input 
-                placeholder="Business Name" 
+              <Input
+                placeholder="Business Name"
                 value={formData.businessName}
                 onChange={(e) => setFormData({ ...formData, businessName: e.target.value })}
               />
-              <Input 
-                placeholder="Address" 
+              <Input
+                placeholder="Address"
                 value={formData.bAddressStreet}
                 onChange={(e) => handleFieldChange("bAddressStreet", e.target.value)}
                 error={fieldErrors.has("bAddressStreet")}
               />
-              <Input 
-                placeholder="City" 
+              <Input
+                placeholder="City"
                 value={formData.bAddressCity}
                 onChange={(e) => handleFieldChange("bAddressCity", e.target.value)}
                 error={fieldErrors.has("bAddressCity")}
@@ -534,8 +592,8 @@ export default function AddOrder() {
                 error={fieldErrors.has("bAddressAcountry")}
               />
 
-              <Input 
-                placeholder="Zip" 
+              <Input
+                placeholder="Zip"
                 value={formData.bAddressZip}
                 onChange={(e) => handleFieldChange("bAddressZip", e.target.value)}
                 error={fieldErrors.has("bAddressZip")}
@@ -554,39 +612,39 @@ export default function AddOrder() {
                     sameAsBilling: isChecked,
                     ...(isChecked
                       ? {
-                        sAttention: prev.bName,
-                        sAddressStreet: prev.bAddressStreet,
-                        sAddressCity: prev.bAddressCity,
-                        sAddressState: prev.bAddressState,
-                        sAddressZip: prev.bAddressZip,
-                        sAddressAcountry: prev.bAddressAcountry,
-                      }
+                          sAttention: prev.bName,
+                          sAddressStreet: prev.bAddressStreet,
+                          sAddressCity: prev.bAddressCity,
+                          sAddressState: prev.bAddressState,
+                          sAddressZip: prev.bAddressZip,
+                          sAddressAcountry: prev.bAddressAcountry,
+                        }
                       : {
-                        sAttention: "",
-                        sAddressStreet: "",
-                        sAddressCity: "",
-                        sAddressState: "",
-                        sAddressZip: "",
-                        sAddressAcountry: "",
-                      }),
+                          sAttention: "",
+                          sAddressStreet: "",
+                          sAddressCity: "",
+                          sAddressState: "",
+                          sAddressZip: "",
+                          sAddressAcountry: "",
+                        }),
                   }));
                 }}
               />
 
-              <Input 
-                placeholder="Attention" 
+              <Input
+                placeholder="Attention"
                 value={formData.sAttention}
                 onChange={(e) => handleFieldChange("sAttention", e.target.value)}
                 error={fieldErrors.has("sAttention")}
               />
-              <Input 
-                placeholder="Address" 
+              <Input
+                placeholder="Address"
                 value={formData.sAddressStreet}
                 onChange={(e) => handleFieldChange("sAddressStreet", e.target.value)}
                 error={fieldErrors.has("sAddressStreet")}
               />
-              <Input 
-                placeholder="City" 
+              <Input
+                placeholder="City"
                 value={formData.sAddressCity}
                 onChange={(e) => handleFieldChange("sAddressCity", e.target.value)}
                 error={fieldErrors.has("sAddressCity")}
@@ -614,8 +672,8 @@ export default function AddOrder() {
                 onChange={(e) => handleFieldChange("sAddressAcountry", e.target.value)}
                 error={fieldErrors.has("sAddressAcountry")}
               />
-              <Input 
-                placeholder="Zip" 
+              <Input
+                placeholder="Zip"
                 value={formData.sAddressZip}
                 onChange={(e) => handleFieldChange("sAddressZip", e.target.value)}
                 error={fieldErrors.has("sAddressZip")}
@@ -624,20 +682,20 @@ export default function AddOrder() {
 
             {/* Part Info */}
             <Section title="Part Info">
-              <Input 
-                placeholder="Year" 
+              <Input
+                placeholder="Year"
                 value={formData.year}
                 onChange={(e) => handleFieldChange("year", e.target.value)}
                 error={fieldErrors.has("year")}
               />
-              <Input 
-                placeholder="Make" 
+              <Input
+                placeholder="Make"
                 value={formData.make}
                 onChange={(e) => handleFieldChange("make", e.target.value)}
                 error={fieldErrors.has("make")}
               />
-              <Input 
-                placeholder="Model" 
+              <Input
+                placeholder="Model"
                 value={formData.model}
                 onChange={(e) => handleFieldChange("model", e.target.value)}
                 error={fieldErrors.has("model")}
@@ -670,8 +728,8 @@ export default function AddOrder() {
                   Add New Part
                 </option>
               </select>
-              <Input 
-                placeholder="Description" 
+              <Input
+                placeholder="Description"
                 value={formData.desc}
                 onChange={(e) => handleFieldChange("desc", e.target.value)}
                 error={fieldErrors.has("desc")}
@@ -704,14 +762,17 @@ export default function AddOrder() {
                   </option>
                 </select>
               </div>
-              <Input 
-                placeholder="VIN" 
+              <Input
+                placeholder="VIN"
                 value={formData.vin}
                 onChange={(e) => handleFieldChange("vin", e.target.value)}
                 error={fieldErrors.has("vin")}
               />
-              <Input placeholder="Part No" value={formData.partNo}
-                onChange={(e) => setFormData({ ...formData, partNo: e.target.value })} />
+              <Input
+                placeholder="Part No"
+                value={formData.partNo}
+                onChange={(e) => setFormData({ ...formData, partNo: e.target.value })}
+              />
             </Section>
 
             {/* Price & GP */}
@@ -738,16 +799,20 @@ export default function AddOrder() {
                 error={fieldErrors.has("shippingFee")}
               />
               <Input placeholder="Sales Tax" prefix="%" value="5" disabled />
-              <Input placeholder="Estimated GP" prefix="$" value={formData.grossProfit}
-                onChange={(e) => setFormData({ ...formData, grossProfit: e.target.value })} />
-              <Input 
-                placeholder="Last 4 Digits" 
+              <Input
+                placeholder="Estimated GP"
+                prefix="$"
+                value={formData.grossProfit}
+                onChange={(e) => setFormData({ ...formData, grossProfit: e.target.value })}
+              />
+              <Input
+                placeholder="Last 4 Digits"
                 value={formData.last4digits}
                 onChange={(e) => handleFieldChange("last4digits", e.target.value)}
                 error={fieldErrors.has("last4digits")}
               />
-              <Input 
-                placeholder="Order Notes" 
+              <Input
+                placeholder="Order Notes"
                 value={formData.notes}
                 onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
               />
@@ -774,8 +839,8 @@ export default function AddOrder() {
                 }
               />
               {formData.programmingRequired && (
-                <Input 
-                  placeholder="Programming Cost" 
+                <Input
+                  placeholder="Programming Cost"
                   prefix="$"
                   value={formData.programmingCost}
                   onChange={(e) => {
@@ -792,12 +857,14 @@ export default function AddOrder() {
         <div className="flex mt-6">
           <button
             type="submit"
-            disabled={submitting}
+            disabled={submitting || !formData.orderNo}
             className={`px-6 py-3 bg-gradient-to-r from-[#504fad] to-[#5a80c7] text-white font-semibold rounded-xl shadow-lg transition ${
-              submitting ? "opacity-70 cursor-not-allowed" : "hover:scale-105"
+              submitting || !formData.orderNo
+                ? "opacity-70 cursor-not-allowed"
+                : "hover:scale-105"
             }`}
           >
-            {submitting ? "Saving..." : "Add / Edit Order"}
+            {submitting ? "Saving..." : "Update Order"}
           </button>
         </div>
       </form>
@@ -820,9 +887,11 @@ function Input({ placeholder, type = "text", prefix, value, onChange, disabled, 
   return (
     <div className="flex">
       {prefix && (
-        <span className={`px-2 flex items-center bg-gray-200 text-gray-800 rounded-l-md border ${
-          error ? "border-red-500" : "border-gray-300"
-        }`}>
+        <span
+          className={`px-2 flex items-center bg-gray-200 text-gray-800 rounded-l-md border ${
+            error ? "border-red-500" : "border-gray-300"
+          }`}
+        >
           {prefix}
         </span>
       )}
@@ -880,3 +949,4 @@ function Checkbox({ label, checked, onChange }) {
     </label>
   );
 }
+

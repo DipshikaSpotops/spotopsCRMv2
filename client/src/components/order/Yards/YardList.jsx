@@ -25,15 +25,15 @@ export default function YardList({
       className="h-full flex flex-col"
       title="Yards"
       actions={
-        <div className="flex gap-2 rounded-lg p-1 bg-[#29345a]/60 border border-[#43518a]/70 dark:bg-white/10 dark:border-white/15">
+        <div className="flex gap-2 rounded-lg p-1 bg-blue-50 border border-gray-200 dark:bg-white/10 dark:border-white/20">
           {yards?.map((_, idx) => (
             <button
               key={idx}
               onClick={() => setActiveIdx(idx)}
               className={`px-3 py-1.5 rounded-md text-sm transition ${
                 activeIdx === idx
-                  ? "bg-[#38487a] text-white shadow-inner border border-[#5260a1]"
-                  : "text-[#d4d9ea] hover:text-white border border-transparent"
+                  ? "bg-[#04356d] text-white shadow-inner"
+                  : "bg-blue-100 text-blue-700 hover:bg-blue-200 hover:text-blue-800 font-medium dark:bg-white/10 dark:text-white/70 dark:hover:text-white dark:hover:bg-white/20"
               }`}
             >
               Yard {idx + 1}
@@ -49,8 +49,8 @@ export default function YardList({
               disabled={!canAddNewYard}
               className={`px-3 py-1.5 rounded-md text-sm border transition ${
                 canAddNewYard
-                  ? "bg-white text-[#04356d] border-white/40 hover:bg-white/90 hover:scale-[1.02] shadow-md"
-                  : "bg-white/10 text-white/60 border-white/20 cursor-not-allowed"
+                  ? "bg-blue-200 text-blue-800 border-blue-300 hover:bg-blue-300 shadow-sm hover:shadow-md transition-all dark:bg-white dark:border-white/40 dark:hover:bg-white/90"
+                  : "bg-gray-100 text-gray-400 border-gray-300 cursor-not-allowed dark:bg-white/10 dark:text-white/60 dark:border-white/20"
               }`}
             >
               + Add Yard
@@ -65,7 +65,7 @@ export default function YardList({
       }
     >
       {!yards?.length ? (
-        <div className="text-[#04356d]/80 dark:text-white/80">
+        <div className="text-[#09325d]/80 dark:text-white/80">
           No yard information.
         </div>
       ) : (

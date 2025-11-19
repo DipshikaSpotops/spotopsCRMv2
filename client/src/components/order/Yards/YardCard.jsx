@@ -66,39 +66,39 @@ export default function YardCard({
   const hasAnyDetail = fields.length > 0;
 
   return (
-    <div className="text-white">
+    <div className="text-[#09325d] dark:text-white">
      <div className="mb-3">
   {/* Yard Name */}
-  <div className="text-base font-semibold text-white/90 mb-1">
-    Yard {index + 1}: <span className="text-white">{y.yardName || "—"}</span>
+  <div className="text-base font-semibold text-[#09325d] dark:text-white/90 mb-1">
+    Yard {index + 1}: <span className="text-[#09325d] dark:text-white">{y.yardName || "—"}</span>
   </div>
 
   {/* Responsive Contact Info */}
-  <div className="flex flex-wrap gap-x-3 gap-y-1 text-sm text-white/80 leading-relaxed">
+  <div className="flex flex-wrap gap-x-3 gap-y-1 text-sm text-[#09325d]/90 dark:text-white/80 leading-relaxed">
     {y.address && (
       <div className="flex items-start min-w-[200px]">
-        <span className="font-semibold text-white/80 mr-1 underline">Address:</span>
+        <span className="font-semibold text-[#09325d] dark:text-white/80 mr-1 underline">Address:</span>
         <span className="break-words">{y.address}</span>
       </div>
     )}
     {y.phone && (
       <div className="flex items-start min-w-[180px]">
-        <span className="font-semibold text-white/80 mr-1 underline">Phone:</span>
+        <span className="font-semibold text-[#09325d] dark:text-white/80 mr-1 underline">Phone:</span>
         <span>{y.phone}</span>
       </div>
     )}
     {y.faxNo && (
       <div className="flex items-start min-w-[120px]">
-        <span className="font-semibold text-white/80 mr-1 underline">Fax:</span>
+        <span className="font-semibold text-[#09325d] dark:text-white/80 mr-1 underline">Fax:</span>
         <span>{y.faxNo}</span>
       </div>
     )}
     {y.email && (
       <div className="flex items-start min-w-[220px]">
-        <span className="font-semibold text-white/80 mr-1 underline">Email:</span>
+        <span className="font-semibold text-[#09325d] dark:text-white/80 mr-1 underline">Email:</span>
         <a
           href={`mailto:${y.email}`}
-          className="text-blue-300 hover:underline break-all"
+          className="text-blue-600 hover:underline break-all dark:text-blue-300"
         >
           {y.email}
         </a>
@@ -106,7 +106,7 @@ export default function YardCard({
     )}
     {y.agentName && (
       <div className="flex items-start min-w-[150px]">
-        <span className="font-semibold text-white/80 mr-1 underline">Agent:</span>
+        <span className="font-semibold text-[#09325d] dark:text-white/80 mr-1 underline">Agent:</span>
         <span>{y.agentName}</span>
       </div>
     )}
@@ -123,7 +123,7 @@ export default function YardCard({
           ))}
         </div>
       ) : (
-        <div className="text-sm text-white/70">
+        <div className="text-sm text-[#09325d]/80 dark:text-white/70">
           No details available for this yard.
         </div>
       )}

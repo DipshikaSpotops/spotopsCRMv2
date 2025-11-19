@@ -5,8 +5,10 @@ export default function Input(props) {
       {...p}
       className={
         "w-full rounded-lg px-3 py-2 outline-none " +
-        "bg-white/10 border border-white/30 text-white placeholder-white/60 " +
-        "backdrop-blur-sm focus:ring-2 focus:ring-white/60 disabled:opacity-60 " +
+        "bg-gray-50 border border-gray-300 text-[#09325d] placeholder-gray-400 " +
+        "focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 disabled:opacity-60 " +
+        "dark:bg-white/10 dark:border-white/30 dark:text-white dark:placeholder-white/60 " +
+        "dark:focus:ring-white/60 dark:focus:border-white/60 dark:backdrop-blur-sm " +
         className
       }
     />

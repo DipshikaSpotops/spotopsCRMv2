@@ -33,6 +33,7 @@ export default function Sidebar() {
   // ====== Base link sets ======
   const dashboardLinksBase = [
     { text: "Add New Order", to: "/add-order" },
+    { text: "Edit Order", to: "/edit-order", adminOnly: true },
     { text: "Placed Orders", to: "/placed-orders" },
     { text: "Customer Approved", to: "/customer-approved" },
     { text: "View Orders - Monthly", to: "/monthly-orders" },
@@ -83,7 +84,7 @@ export default function Sidebar() {
       "Overall Escalation",
       "Ongoing Escalation",
     ]);
-    dashboardLinks = dashboardLinksBase.filter((l) => !hiddenForSales.has(l.text));
+    dashboardLinks = dashboardLinksBase.filter((l) => !hiddenForSales.has(l.text) && !l.adminOnly);
 
     // Hide Users block entirely
     showUsersSection = false;
@@ -94,7 +95,7 @@ export default function Sidebar() {
   } else if (role === "Support") {
     // Hide "Sales Data" and "Add New Order" from Dashboards
     const hiddenForSupport = new Set(["Sales Data", "Add New Order"]);
-    dashboardLinks = dashboardLinksBase.filter((l) => !hiddenForSupport.has(l.text));
+    dashboardLinks = dashboardLinksBase.filter((l) => !hiddenForSupport.has(l.text) && !l.adminOnly);
 
     // Hide Users block entirely
     showUsersSection = false;
@@ -103,8 +104,9 @@ export default function Sidebar() {
     // Reports => hide "Sales Report"
     reportsLinks = reportsLinksBase.filter((l) => l.text !== "Sales Report");
   } else {
-    // Admin: see everything (no filtering)
+    // Admin: see everything (no filtering, but keep adminOnly links)
     showUsersSection = true;
+    dashboardLinks = dashboardLinksBase; // Admins see all links including adminOnly
   }
 
   return (
@@ -113,10 +115,10 @@ export default function Sidebar() {
         fixed 
         top-16 
         left-0 
-        w-52
+        w-64
         h-[calc(100vh-4rem)]
         bg-gradient-to-b from-[#04356d] to-[#3b89bf]
-        dark:from-[#0f172a] dark:via-[#1e293b] dark:to-[#0f172a]
+        dark:bg-gradient-to-b dark:from-[#0f172a] dark:via-[#1e293b] dark:to-[#0f172a]
         text-white 
         shadow-lg 
         overflow-y-auto 

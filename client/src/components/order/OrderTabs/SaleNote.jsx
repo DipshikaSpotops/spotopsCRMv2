@@ -51,8 +51,8 @@ export default function SaleNote({ orderNo, className = "" }) {
 
   return (
     <GlassCard title="Sale Notes" className={className}>
-      {loading && <p className="text-white/70 text-sm">Loading sale notes...</p>}
-      {error && <p className="text-red-300 text-sm">{error}</p>}
+      {loading && <p className="text-[#09325d]/80 dark:text-white/70 text-sm">Loading sale notes...</p>}
+      {error && <p className="text-red-600 dark:text-red-300 text-sm">{error}</p>}
 
       {!loading && !error && noteData && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

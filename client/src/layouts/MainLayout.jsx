@@ -55,7 +55,7 @@ export default function MainLayout({ children }) {
         )}
 
         {/* Spacer reserves sidebar width on desktop; prevents any overlay */}
-        <div className="hidden lg:block w-64 shrink-0" aria-hidden />
+        <div className="hidden lg:block w-64 shrink-0 ml-4" aria-hidden />
 
         {/* Main content */}
         <main className="flex-1 min-w-0 pt-16 text-white overflow-y-auto">

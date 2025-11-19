@@ -20,7 +20,7 @@ export default function PricingTab({ order }) {
         <Input readOnly value={order?.grossProfit || ""} />
       </Field>
       <Field label="Actual GP ($)">
-        <Input readOnly value={order?.actualGP || ""} />
+        <Input readOnly value={order?.actualGP ? Number(order.actualGP).toFixed(2) : ""} />
       </Field>
     </div>
   );

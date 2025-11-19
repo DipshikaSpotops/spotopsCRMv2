@@ -174,12 +174,12 @@ export default function CommentBox({
         className={`flex flex-col h-full ${
           compact
             ? ""
-            : "bg-white/5 rounded-xl border border-white/10 backdrop-blur-md"
+            : "bg-blue-50 rounded-xl border border-gray-200 shadow-sm dark:bg-white/5 dark:border-white/10 dark:backdrop-blur-md overflow-hidden"
         }`}
       >
         {/* Header */}
         {!compact && (
-          <div className="px-4 py-3 border-b border-white/10 font-semibold text-white/90">
+          <div className="px-4 py-3 border-b border-gray-200 dark:border-white/10 font-semibold text-[#09325d] dark:text-white/90">
             {mode === "support" ? "Support Comments" : `Yard ${yardIndex + 1} Notes`}
           </div>
         )}
@@ -192,14 +192,14 @@ export default function CommentBox({
             className="flex-1 overflow-y-auto px-3 py-3 space-y-2 custom-scrollbar"
           >
             {loading ? (
-              <p className="text-gray-300 italic">Loading comments...</p>
+              <p className="text-[#09325d]/80 dark:text-gray-300 italic">Loading comments...</p>
             ) : comments.length === 0 ? (
-              <p className="text-white/60 italic">No comments yet.</p>
+              <p className="text-[#09325d]/80 dark:text-white/60 italic">No comments yet.</p>
             ) : (
               comments.map((note, i) => (
                 <div
                   key={`${i}-${note.slice(0, 16)}`}
-                  className="p-2 rounded-lg bg-white/10 border border-white/20 text-sm whitespace-pre-wrap text-white"
+                  className="p-2 rounded-lg bg-gray-50 border border-gray-200 text-sm whitespace-pre-wrap text-[#09325d] dark:bg-white/10 dark:border-white/20 dark:text-white"
                 >
                   {note}
                 </div>
@@ -208,7 +208,7 @@ export default function CommentBox({
           </div>
 
           {/* Input row */}
-          <div className="shrink-0 border-t border-white/10 bg-[#1a1a3d]/80 backdrop-blur-md p-3">
+          <div className="shrink-0 border-t border-gray-200 dark:border-white/10 bg-blue-50 dark:bg-[#1a1a3d]/80 dark:backdrop-blur-md p-3">
             <form onSubmit={handleSubmit} className="flex gap-2 items-center">
               <input
                 type="text"
@@ -219,9 +219,9 @@ export default function CommentBox({
                   setInput(v);
                 }}
                 onKeyDown={handleKeyDown}
-                className="flex-1 rounded-lg px-3 py-2 bg-white/10 border border-white/20 outline-none text-white placeholder-white/50 focus:bg-white/20"
+                  className="flex-1 rounded-lg px-3 py-2 bg-gray-50 border border-gray-300 outline-none text-[#09325d] placeholder-gray-400 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 dark:bg-white/10 dark:border-white/20 dark:text-white dark:placeholder-white/50 dark:focus:ring-white/60 dark:focus:border-white/60 dark:focus:bg-white/20"
               />
-              <span className="text-xs text-white/60 w-16 text-right">
+              <span className="text-xs text-[#09325d]/80 dark:text-white/60 w-16 text-right">
                 {remaining}
               </span>
               <button
@@ -229,10 +229,10 @@ export default function CommentBox({
                 disabled={loading || !input.trim()}
                 className={`px-4 py-2 rounded-lg font-medium border transition ${
                   loading || !input.trim()
-                    ? "opacity-70 cursor-not-allowed bg-white/20 text-white/70 border-white/20"
+                    ? "opacity-70 cursor-not-allowed bg-gray-200 text-gray-500 border-gray-300 dark:bg-white/20 dark:text-white/70 dark:border-white/20"
                     : buttonTone === "primary"
-                    ? "bg-white text-[#04356d] border-white/30 hover:bg-white/90 hover:scale-[1.02] shadow-md dark:bg-[#2b2d68] dark:text-white dark:border-white/20 dark:hover:bg-[#1a1f4b]"
-                    : "bg-white/10 text-white border-white/20 hover:bg-white/20"
+                    ? "bg-blue-200 text-blue-800 border-blue-300 hover:bg-blue-300 hover:scale-[1.02] shadow-sm hover:shadow-md dark:bg-[#2b2d68] dark:text-white dark:border-white/20 dark:hover:bg-[#1a1f4b]"
+                    : "bg-blue-200 hover:bg-blue-300 text-blue-800 border-blue-300 shadow-sm hover:shadow-md transition-all dark:bg-white/10 dark:text-white dark:border-white/20 dark:hover:bg-white/20"
                 }`}
               >
                 {loading ? "Saving…" : "Comment"}
