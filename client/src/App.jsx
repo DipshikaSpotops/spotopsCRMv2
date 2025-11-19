@@ -37,6 +37,7 @@ import TrackingInfo from "./pages/TrackingInfo"
 import useAuthBootstrap from "./hooks/useAuthBootstrap";
 import SalesData from "./pages/SalesData";
 import SalesReport from "./pages/SalesReport";
+import EmailLeads from "./pages/EmailLeads";
 
 function App() {
   useAuthBootstrap(); // read localStorage and dispatch setCredentials once.
@@ -182,6 +183,10 @@ function App() {
         path="/sales-report"
         element={withLayout(<SalesReport />)}
           />
+        <Route
+          path="/email-leads"
+          element={withLayout(<EmailLeads />)}
+        />
       </Routes>
     </Router>
   );

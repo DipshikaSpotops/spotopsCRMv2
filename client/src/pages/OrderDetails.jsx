@@ -22,7 +22,6 @@ import CancelOrderModal from "../components/order/modals/CancelOrderModal";
 import DisputeOrderModal from "../components/order/modals/DisputeOrderModal";
 import RefundOrderModal from "../components/order/modals/RefundOrderModal";
 import YardEscalationModal from "../components/order/modals/YardEscalationModal";
-import useOrderRealtime from "../hooks/useOrderRealtime";
 import API from "../api";
 
 // popup intaed of alert or confirm:
@@ -148,16 +147,20 @@ const calcActualGP = (orderLike) => {
 
   const status = normalizeStatusForCalc(orderLike.orderStatus);
   const isDispute = ["Dispute", "Dispute after Cancellation"].includes(status);
-  const isCancelledOrRefunded =
-    status === "Order Cancelled" || status === "Refunded";
+  const isCancelled = status === "Order Cancelled";
+  const isRefunded = status === "Refunded";
+  const isCancelledOrRefunded = isCancelled || isRefunded;
 
   // CASE 1 — No yards at all
   if (!additionalInfo.length) {
     if (isDispute) {
       return 0 - tax;
-    } else if (isCancelledOrRefunded) {
-      // For cancelled/refunded orders with no yards
+    } else if (isRefunded) {
+      // For refunded orders with no yards - include custRefundedAmount
       return sp - custRefundedAmount - tax;
+    } else if (isCancelled) {
+      // For cancelled orders with no yards - don't include custRefundedAmount
+      return sp - tax;
     } else {
       return 0;
     }
@@ -214,8 +217,12 @@ const calcActualGP = (orderLike) => {
     // All yards not charged
     if (isDispute) {
       actualGP = 0 - tax;
-    } else if (isCancelledOrRefunded) {
+    } else if (isRefunded) {
+      // Refunded orders with all yards not charged - include custRefundedAmount
       actualGP = sp - custRefundedAmount - tax;
+    } else if (isCancelled) {
+      // Cancelled orders with all yards not charged - don't include custRefundedAmount
+      actualGP = sp - tax;
     } else {
       // Normal order with all yards not charged
       actualGP = 0;
@@ -224,10 +231,13 @@ const calcActualGP = (orderLike) => {
     // At least one yard is "Card charged"
     if (isDispute) {
       actualGP = 0 - (totalSum + tax);
-    } else if (isCancelledOrRefunded) {
-      // Cancelled/Refunded with at least one "Card charged" yard
+    } else if (isRefunded) {
+      // Refunded with at least one "Card charged" yard - include custRefundedAmount
       const subtractRefund = spMinusTax - custRefundedAmount;
       actualGP = subtractRefund - totalSum;
+    } else if (isCancelled) {
+      // Cancelled with at least one "Card charged" yard - don't include custRefundedAmount
+      actualGP = spMinusTax - totalSum;
     } else {
       // Normal order with at least one "Card charged" yard
       const subtractRefund = spMinusTax - custRefundedAmount;
@@ -237,9 +247,12 @@ const calcActualGP = (orderLike) => {
     // Mixed case: some yards might have other statuses, but none are charged
     if (isDispute) {
       actualGP = 0 - tax;
-    } else if (isCancelledOrRefunded) {
-      // Cancelled/Refunded with mixed statuses (none charged)
+    } else if (isRefunded) {
+      // Refunded with mixed statuses (none charged) - include custRefundedAmount
       actualGP = sp - custRefundedAmount - tax;
+    } else if (isCancelled) {
+      // Cancelled with mixed statuses (none charged) - don't include custRefundedAmount
+      actualGP = sp - tax;
     } else {
       // Normal order with mixed statuses (none charged)
       actualGP = 0;
@@ -371,20 +384,7 @@ export default function OrderDetails() {
       throw err;
     }
   };
-  const handleWsEvent = useCallback(async (msg) => {
-    if (
-      [
-        "ORDER_UPDATED",
-        "STATUS_CHANGED",
-        "YARD_UPDATED",
-        "REFUND_SAVED",
-        "REIMBURSEMENT_UPDATED",
-      ].includes(msg.type)
-    ) {
-      await refresh(); // let the safety-effect decide if a PUT is needed
-    }
-  }, [refresh]);
-  useOrderRealtime(orderNo, { onEvent: handleWsEvent });
+
   /** Status change -> save, optimistic GP recalc, then modal/alert logic */
   const handleStatusChange = async (value) => {
     setNewStatus(value);
@@ -514,7 +514,7 @@ export default function OrderDetails() {
       });
       const existingYards = yardCheck.data || [];
 
-      // 2) Add new yard only if it doesn’t exist
+      // 2) Add new yard only if it doesn't exist
       if (existingYards.length === 0) {
         await API.post(`/yards`, {
           yardName: formData.yardName,
@@ -614,6 +614,7 @@ export default function OrderDetails() {
     order?.cancelledRefAmount,
     order?.additionalInfo,
     order?.reimbursementAmount,
+    refresh,
   ]);
 
   // Mirror server value into view on arrival
@@ -626,7 +627,61 @@ export default function OrderDetails() {
 
   return (
     <>
-      <div className="min-h-screen text-sm bg-gradient-to-br from-gray-50 via-blue-50/30 to-purple-50/20 dark:bg-gradient-to-br dark:from-[#0b1c34] dark:via-[#2b2d68] dark:to-[#4b225e] text-[#09325d] dark:text-white">
+      <style>{`
+        /* Ocean theme overrides for GlassCard headers in OrderDetails only - LIGHT MODE ONLY */
+        html:not(.dark) .order-details-page section[class*="rounded-2xl"] > header {
+          background: rgba(207, 250, 254, 0.8) !important;
+          border-bottom-color: rgba(125, 211, 252, 0.5) !important;
+          backdrop-filter: blur(8px);
+        }
+        html:not(.dark) .order-details-page section[class*="rounded-2xl"] > header h3 {
+          color: rgb(17, 24, 39) !important;
+          font-weight: 600 !important;
+          font-size: 1rem !important;
+          letter-spacing: -0.01em !important;
+        }
+        /* Better typography for labels in light mode */
+        html:not(.dark) .order-details-page label span {
+          color: #1e40af !important;
+          font-weight: 500 !important;
+          font-size: 0.875rem !important;
+          margin-bottom: 0.375rem !important;
+        }
+        /* Input field colors in light mode */
+        html:not(.dark) .order-details-page input[type="text"],
+        html:not(.dark) .order-details-page input[type="email"],
+        html:not(.dark) .order-details-page input[type="number"],
+        html:not(.dark) .order-details-page input[type="tel"],
+        html:not(.dark) .order-details-page input[type="date"] {
+          background: rgba(255, 255, 255, 0.95) !important;
+          border-color: rgba(125, 211, 252, 0.6) !important;
+          color: #1e293b !important;
+          font-size: 0.875rem !important;
+        }
+        html:not(.dark) .order-details-page input[type="text"]:focus,
+        html:not(.dark) .order-details-page input[type="email"]:focus,
+        html:not(.dark) .order-details-page input[type="number"]:focus,
+        html:not(.dark) .order-details-page input[type="tel"]:focus,
+        html:not(.dark) .order-details-page input[type="date"]:focus {
+          border-color: #3b82f6 !important;
+          box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1) !important;
+          background: #ffffff !important;
+        }
+        /* Better text presentation in light mode */
+        html:not(.dark) .order-details-page {
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif !important;
+        }
+        html:not(.dark) .order-details-page .text-sm {
+          line-height: 1.5 !important;
+        }
+        /* Make data values more readable */
+        html:not(.dark) .order-details-page input[readonly] {
+          background: rgba(248, 250, 252, 0.8) !important;
+          color: #0f172a !important;
+          font-weight: 400 !important;
+        }
+      `}</style>
+      <div className="min-h-screen text-sm order-details-page bg-gradient-to-br from-sky-100 via-blue-100 to-cyan-100 dark:bg-gradient-to-br dark:from-[#0b1c34] dark:via-[#2b2d68] dark:to-[#4b225e] text-gray-800 dark:text-white">
         <NavbarForm />
 
         <div className="w-full px-4 sm:px-6 lg:px-8 2xl:px-12 pt-24 pb-6 min-h-[calc(100vh-6rem)] overflow-y-auto">
@@ -664,7 +719,7 @@ export default function OrderDetails() {
                       setConfirm({
                         open: true,
                         title: "Change order status?",
-                        message: `Set status to “${selectedLabel}”?`,
+                        message: `Set status to "${selectedLabel}"?`,
                         confirmText: "Change",
                         cancelText: "Keep current",
                         onConfirm: () => handleStatusChange(selectedValue),
@@ -679,12 +734,6 @@ export default function OrderDetails() {
                     ))}
                   </select>
                 </div>
-
-                {/* <div className="hidden md:flex gap-2">
-                  <Pill className={getStatusColor(statusPill)}>
-                    {displayStatus(statusPill)}
-                  </Pill>
-                </div> */}
               </div>
             </div>
 
@@ -693,12 +742,12 @@ export default function OrderDetails() {
           </div>
 
           {/* 3 columns */}
-          <div className="grid grid-cols-12 gap-6 2xl:gap-8 items-start min-h-[calc(100vh-13rem)] pb-10">
+          <div className="grid grid-cols-12 gap-6 2xl:gap-8 items-start min-h-[calc(100vh-11rem)] xl:h-[calc(100vh-11rem)] xl:max-h-[calc(100vh-11rem)] xl:overflow-hidden pb-10">
             {/* LEFT: Order Details */}
             <aside className="col-span-12 xl:col-span-4 flex flex-col gap-4 h-full min-h-[600px]">
               <div className="flex-1 min-h-0">
                 <GlassCard
-                  className="h-full flex flex-col"
+                  className="h-full flex flex-col dark:border-white/20 dark:bg-white/10 dark:text-white"
                   title="Order Details"
                   actions={
                     <div className="flex gap-2 rounded-lg p-1 bg-blue-50 border border-gray-200 dark:bg-white/10 dark:border-white/20">
@@ -724,7 +773,9 @@ export default function OrderDetails() {
                 </GlassCard>
               </div>
               <SaleNote orderNo={order?.orderNo} />
-              <GlassCard title="Reimbursement">
+              <GlassCard 
+                className="dark:border-white/20 dark:bg-white/10 dark:text-white"
+                title="Reimbursement">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
                   <div className="flex flex-col gap-1">
                     <span className="text-[#09325d] dark:text-white/80">Amount ($)</span>
@@ -754,7 +805,7 @@ export default function OrderDetails() {
                     disabled={savingReimbursement || !orderNo}
                     className={`px-4 py-2 rounded-md text-sm font-semibold border transition ${
                       savingReimbursement
-                        ? "bg-blue-200 text-gray-500 border-blue-300 cursor-not-allowed dark:bg-white/20 dark:text-white/50 dark:border-white/30"
+                        ? "bg-sky-200/80 text-gray-500 border-blue-300 cursor-not-allowed dark:bg-white/20 dark:text-white/50 dark:border-white/30"
                         : "bg-blue-200 hover:bg-blue-300 text-blue-800 border-blue-300 shadow-sm hover:shadow-md dark:bg-white/10 dark:text-white dark:border-white/30 dark:hover:bg-white/20"
                     }`}
                   >
@@ -806,12 +857,12 @@ export default function OrderDetails() {
             </section>
 
             {/* RIGHT: comments */}
-            <aside className="col-span-12 xl:col-span-4 flex flex-col gap-4 h-full min-h-[600px]">
+            <aside className="col-span-12 xl:col-span-4 flex flex-col gap-4 h-full xl:max-h-full xl:overflow-hidden">
       <GlassCard
-        className="relative h-full flex flex-col z-20"
+        className="relative h-full xl:max-h-full flex flex-col xl:overflow-hidden z-20 dark:border-white/20 dark:bg-white/10 dark:text-white"
                 title="Support Comments"
                 actions={
-                  <div className="flex gap-2 rounded-lg p-1 bg-blue-50 border border-gray-200 dark:bg-white/10 dark:border-white/20">
+                  <div className="flex gap-2 rounded-lg p-1 bg-white border border-gray-200 shadow-sm dark:bg-white/10 dark:border-white/20">
                     {yards?.map((_, i) => (
                       <button
                         key={i}
@@ -829,8 +880,8 @@ export default function OrderDetails() {
                       onClick={() => setActiveSection("support")}
                       className={`px-3 py-1.5 rounded-md text-sm font-semibold transition ${
                         activeSection === "support"
-                          ? "bg-[#04356d] text-white shadow-inner"
-                          : "bg-blue-100 text-blue-700 hover:bg-blue-200 hover:text-blue-800 dark:bg-white/10 dark:text-white/70 dark:hover:text-white dark:hover:bg-white/20"
+                          ? "bg-blue-600 text-white shadow-inner dark:bg-[#04356d]"
+                          : "bg-gray-50 text-gray-700 hover:bg-gray-100 hover:text-gray-900 dark:bg-white/10 dark:text-white/70 dark:hover:text-white dark:hover:bg-white/20"
                       }`}
                     >
                       Order Comments
@@ -838,14 +889,16 @@ export default function OrderDetails() {
                   </div>
                 }
               >
-              <div className="flex-1 min-h-0">
-                <CommentBox
-                  orderNo={order?.orderNo}
-                  mode={activeSection === "support" ? "support" : "yard"}
-                  yardIndex={activeSection === "support" ? null : activeSection}
-                    buttonTone="primary"
-                    compact
-                />
+              <div className="flex-1 min-h-0 overflow-hidden" style={{ height: 0 }}>
+                <div className="h-full flex flex-col overflow-hidden">
+                  <CommentBox
+                    orderNo={order?.orderNo}
+                    mode={activeSection === "support" ? "support" : "yard"}
+                    yardIndex={activeSection === "support" ? null : activeSection}
+                      buttonTone="primary"
+                      compact
+                  />
+                </div>
               </div>
               </GlassCard>
             </aside>

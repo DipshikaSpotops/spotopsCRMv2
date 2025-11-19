@@ -1449,7 +1449,8 @@ router.put('/:orderNo/updateActualGP', async (req, res) => {
     // Optional: add history log entry
     const formattedDateTime = moment().tz("America/Chicago").format("D MMM, YYYY HH:mm");
     order.orderHistory = order.orderHistory || [];
-    order.orderHistory.push(`Actual GP updated to ${actualGP} on ${formattedDateTime}`);
+    const formattedGP = Number(actualGP).toFixed(2);
+    order.orderHistory.push(`Actual GP updated to ${formattedGP} on ${formattedDateTime}`);
     await order.save();
     publish(req, orderNo, {
       type: "GP_UPDATED",

@@ -189,7 +189,8 @@ export default function CommentBox({
           {/* Scrollable comments */}
           <div
             ref={listRef}
-            className="flex-1 overflow-y-auto px-3 py-3 space-y-2 custom-scrollbar"
+            className="flex-1 overflow-y-scroll px-3 py-3 space-y-2 custom-scrollbar"
+            style={{ scrollbarWidth: 'thin', scrollbarColor: '#a3a3a3 #e5e7eb' }}
           >
             {loading ? (
               <p className="text-[#09325d]/80 dark:text-gray-300 italic">Loading comments...</p>

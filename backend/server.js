@@ -30,6 +30,7 @@ import sendPORouter from "./routes/sendPO.js";
 import yardsRouter from "./routes/yards.js";
 import zipLookupRouter from "./routes/zipLookup.js";
 import debugRouter from "./routes/debug.js";
+import gmailRouter from "./routes/gmail.js";
 
 
 dotenv.config();
@@ -77,6 +78,7 @@ app.use("/api", sendPORouter);
 app.use("/api/yards", yardsRouter);
 app.use("/api/utils/zip-lookup", zipLookupRouter);
 app.use("/debug", debugRouter);
+app.use("/api/gmail", gmailRouter);
 // Catch-all /orders router LAST
 app.use("/api/orders", ordersRoute);
 
@@ -89,6 +91,36 @@ app.get("/", (req, res) => {
   res.send("Backend is live!");
 });
 
+// SSE: Server-Sent Events for live Gmail updates
+const sseClients = new Set();
+function sseBroadcast(type, payload = {}) {
+  const data = `event: ${type}\n` + `data: ${JSON.stringify(payload)}\n\n`;
+  for (const res of sseClients) {
+    try {
+      res.write(data);
+    } catch (err) {
+      // Client disconnected, remove it
+      sseClients.delete(res);
+    }
+  }
+}
+app.get("/events", (req, res) => {
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+  res.flushHeaders();
+  res.write(":\n\n");
+  sseClients.add(res);
+  req.on("close", () => {
+    sseClients.delete(res);
+  });
+});
+
+// Export sseBroadcast for use in controllers
+app.locals.sseBroadcast = sseBroadcast;
+export function broadcastGmailUpdate(payload) {
+  sseBroadcast("gmail", payload);
+}
 
 // SOCKET.IO SETUP 
 const server = http.createServer(app);
