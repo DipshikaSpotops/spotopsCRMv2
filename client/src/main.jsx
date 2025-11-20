@@ -11,6 +11,10 @@
 // )
 // src/main.jsx or src/index.jsx (depending on your setup)
 import React from "react";
+import '@fontsource/poppins/400.css';
+import '@fontsource/poppins/500.css';
+import '@fontsource/poppins/600.css';
+import '@fontsource/poppins/700.css';
 import '@fortawesome/fontawesome-free/css/all.min.css';
 import './index.css'
 import ReactDOM from "react-dom/client";

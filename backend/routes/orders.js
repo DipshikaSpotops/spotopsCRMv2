@@ -1432,25 +1432,44 @@ router.put('/:orderNo/updateActualGP', async (req, res) => {
   console.log("[orders] PUT /orders/:orderNo/updateActualGP hit");
   const { orderNo } = req.params;
   const { actualGP } = req.body;
+  const firstName = req.query.firstName || req.user?.firstName || "System";
 
-  console.log("Updating actualGP:", actualGP, "for order:", orderNo);
+  const nextGP = Number(actualGP);
+  if (Number.isNaN(nextGP)) {
+    return res.status(400).json({ message: "Invalid Actual GP value" });
+  }
+
+  console.log("Updating actualGP:", nextGP, "for order:", orderNo);
 
   try {
-    const order = await Order.findOneAndUpdate(
-      { orderNo: String(orderNo) },
-      { actualGP: actualGP },
-      { new: true }
-    );
+    const order = await Order.findOne({ orderNo: String(orderNo) });
 
     if (!order) {
       return res.status(404).json({ message: "Order not found" });
     }
 
-    // Optional: add history log entry
+    const previousGP = Number(order.actualGP ?? 0);
+    const hasMeaningfulChange = Math.abs(previousGP - nextGP) > 0.0001;
+
+    if (!hasMeaningfulChange) {
+      console.log(
+        `Skipping Actual GP history entry — unchanged (prev: ${previousGP}, incoming: ${nextGP})`
+      );
+      return res.json(order);
+    }
+
+    order.actualGP = nextGP;
+
     const formattedDateTime = moment().tz("America/Chicago").format("D MMM, YYYY HH:mm");
     order.orderHistory = order.orderHistory || [];
-    const formattedGP = Number(actualGP).toFixed(2);
-    order.orderHistory.push(`Actual GP updated to ${formattedGP} on ${formattedDateTime}`);
+    const formattedGP = nextGP.toFixed(2);
+    const entry = `Actual GP updated to ${formattedGP} by ${firstName} on ${formattedDateTime}`;
+    const lastEntry = order.orderHistory[order.orderHistory.length - 1];
+
+    if (lastEntry !== entry) {
+      order.orderHistory.push(entry);
+    }
+
     await order.save();
     publish(req, orderNo, {
       type: "GP_UPDATED",

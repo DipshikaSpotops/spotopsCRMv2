@@ -356,6 +356,7 @@ export default function OrderDetails() {
   /** DRY helper: recompute + persist + paint Actual GP */
   const recomputeAndPersistActualGP = async ({ useServer = true } = {}) => {
     try {
+      const firstName = localStorage.getItem("firstName");
       const orderLike = useServer
         ? (await API.get(`/orders/${orderNo}`)).data
         : order;
@@ -368,7 +369,11 @@ export default function OrderDetails() {
       if (gpField) gpField.value = Number(gp).toFixed(2);
 
       if (hasMeaningfulChange) {
-        await API.put(`/orders/${orderNo}/updateActualGP`, { actualGP: gp });
+        await API.put(
+          `/orders/${orderNo}/updateActualGP`,
+          { actualGP: gp },
+          { params: { firstName } }
+        );
         gpWriteGuardRef.current = true;
         setToast(`Actual GP recalculated: $${gp.toFixed(2)}`);
       } else {
@@ -409,7 +414,11 @@ export default function OrderDetails() {
       if (gpField) gpField.value = Number(newGP).toFixed(2);
 
       API
-        .put(`/orders/${orderNo}/updateActualGP`, { actualGP: newGP })
+        .put(
+          `/orders/${orderNo}/updateActualGP`,
+          { actualGP: newGP },
+          { params: { firstName } }
+        )
         .then(() => {
           gpWriteGuardRef.current = true;
         })
@@ -588,7 +597,12 @@ export default function OrderDetails() {
       (hasCardChargedYard || hasSpecialStatus || Math.abs(currentGP) > 0.0001);
 
     if (shouldUpdate) {
-      API.put(`/orders/${orderNo}/updateActualGP`, { actualGP })
+      const firstName = localStorage.getItem("firstName");
+      API.put(
+        `/orders/${orderNo}/updateActualGP`,
+        { actualGP },
+        { params: { firstName } }
+      )
         .then(async () => {
           await refresh();
           if (Math.abs(actualGP) > 0.009) {
@@ -628,57 +642,234 @@ export default function OrderDetails() {
   return (
     <>
       <style>{`
-        /* Ocean theme overrides for GlassCard headers in OrderDetails only - LIGHT MODE ONLY */
+        /* Light Mode - High Contrast Colors for All Elements */
+        
+        /* Page Background - Soft gradient */
+        html:not(.dark) .order-details-page {
+          background: linear-gradient(135deg, #e0f2fe 0%, #dbeafe 30%, #bfdbfe 70%, #93c5fd 100%) !important;
+          background-attachment: fixed;
+        }
+        
+        /* GlassCard Headers - Very light background with darker text for better contrast */
         html:not(.dark) .order-details-page section[class*="rounded-2xl"] > header {
-          background: rgba(207, 250, 254, 0.8) !important;
-          border-bottom-color: rgba(125, 211, 252, 0.5) !important;
-          backdrop-filter: blur(8px);
+          background: rgba(240, 249, 255, 0.9) !important;
+          border-bottom: 2px solid rgba(59, 130, 246, 0.3) !important;
+          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
         }
         html:not(.dark) .order-details-page section[class*="rounded-2xl"] > header h3 {
-          color: rgb(17, 24, 39) !important;
-          font-weight: 600 !important;
+          color: #0f172a !important;
+          font-weight: 700 !important;
           font-size: 1rem !important;
-          letter-spacing: -0.01em !important;
         }
-        /* Better typography for labels in light mode */
+        
+        /* GlassCard Body - Very light blue background for all sections */
+        html:not(.dark) .order-details-page section[class*="rounded-2xl"] {
+          background: rgba(240, 249, 255, 0.85) !important;
+          border: 1.5px solid rgba(59, 130, 246, 0.25) !important;
+          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+        }
+        
+        /* Apply Poppins font to the entire page */
+        html:not(.dark) .order-details-page {
+          font-family: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
+        }
+        
+        /* Labels - Soft dark gray for better readability (reduces eye strain) */
         html:not(.dark) .order-details-page label span {
-          color: #1e40af !important;
-          font-weight: 500 !important;
+          color: #1a1a1a !important;
+          font-weight: 600 !important;
           font-size: 0.875rem !important;
-          margin-bottom: 0.375rem !important;
         }
-        /* Input field colors in light mode */
+        
+        /* Input Fields - Light blue background, blue border, soft dark gray text */
         html:not(.dark) .order-details-page input[type="text"],
         html:not(.dark) .order-details-page input[type="email"],
         html:not(.dark) .order-details-page input[type="number"],
         html:not(.dark) .order-details-page input[type="tel"],
-        html:not(.dark) .order-details-page input[type="date"] {
-          background: rgba(255, 255, 255, 0.95) !important;
-          border-color: rgba(125, 211, 252, 0.6) !important;
-          color: #1e293b !important;
+        html:not(.dark) .order-details-page input[type="date"],
+        html:not(.dark) .order-details-page textarea,
+        html:not(.dark) .order-details-page select {
+          background: #e0f2fe !important;
+          border: 1.5px solid rgba(59, 130, 246, 0.4) !important;
+          color: #1a1a1a !important;
           font-size: 0.875rem !important;
         }
         html:not(.dark) .order-details-page input[type="text"]:focus,
         html:not(.dark) .order-details-page input[type="email"]:focus,
         html:not(.dark) .order-details-page input[type="number"]:focus,
         html:not(.dark) .order-details-page input[type="tel"]:focus,
-        html:not(.dark) .order-details-page input[type="date"]:focus {
-          border-color: #3b82f6 !important;
-          box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1) !important;
+        html:not(.dark) .order-details-page input[type="date"]:focus,
+        html:not(.dark) .order-details-page textarea:focus,
+        html:not(.dark) .order-details-page select:focus {
+          border-color: #2563eb !important;
+          box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15) !important;
           background: #ffffff !important;
         }
-        /* Better text presentation in light mode */
-        html:not(.dark) .order-details-page {
-          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif !important;
-        }
-        html:not(.dark) .order-details-page .text-sm {
-          line-height: 1.5 !important;
-        }
-        /* Make data values more readable */
+        
+        /* Readonly inputs - Light blue background, soft dark gray text */
         html:not(.dark) .order-details-page input[readonly] {
-          background: rgba(248, 250, 252, 0.8) !important;
-          color: #0f172a !important;
+          background: #e0f2fe !important;
+          color: #1a1a1a !important;
+          border-color: rgba(59, 130, 246, 0.3) !important;
+        }
+        
+        /* All span text in labels and fields - Soft dark gray for better readability */
+        html:not(.dark) .order-details-page span[class*="text-[#09325d]"] {
+          color: #1a1a1a !important;
+        }
+        
+        /* Field labels and text spans - Soft dark gray */
+        html:not(.dark) .order-details-page .flex.flex-col span,
+        html:not(.dark) .order-details-page .grid span:not([class*="text-white"]) {
+          color: #1a1a1a !important;
+        }
+        
+        /* Input field text color - Soft dark gray */
+        html:not(.dark) .order-details-page input[class*="text-[#09325d]"] {
+          color: #1a1a1a !important;
+        }
+        
+        /* Primary Buttons - Dark blue with white text */
+        html:not(.dark) .order-details-page button[class*="bg-[#04356d]"] {
+          background: #1e40af !important;
+          color: #ffffff !important;
+          border-color: #1e40af !important;
+        }
+        html:not(.dark) .order-details-page button[class*="bg-[#04356d]"]:hover:not(:disabled) {
+          background: #1e3a8a !important;
+          border-color: #1e3a8a !important;
+        }
+        
+        /* Secondary Buttons - Light blue with darker text for better contrast */
+        html:not(.dark) .order-details-page button[class*="bg-blue-50"],
+        html:not(.dark) .order-details-page button[class*="bg-blue-100"],
+        html:not(.dark) .order-details-page button[class*="bg-blue-200"] {
+          background: #dbeafe !important;
+          color: #1a1a1a !important;
+          border-color: rgba(59, 130, 246, 0.4) !important;
+          font-size: 0.875rem !important; /* text-sm */
           font-weight: 400 !important;
+          font-family: inherit !important;
+        }
+        html:not(.dark) .order-details-page button[class*="bg-blue-50"]:hover:not(:disabled),
+        html:not(.dark) .order-details-page button[class*="bg-blue-100"]:hover:not(:disabled),
+        html:not(.dark) .order-details-page button[class*="bg-blue-200"]:hover:not(:disabled) {
+          background: #bfdbfe !important;
+          border-color: rgba(59, 130, 246, 0.5) !important;
+        }
+        
+        /* Save Reimbursement and Action Buttons - Medium blue with white text */
+        html:not(.dark) .order-details-page button[class*="bg-blue-200"]:not([class*="bg-blue-50"]):not([class*="bg-blue-100"]):not([class*="bg-sky"]) {
+          background: #3b82f6 !important;
+          color: #ffffff !important;
+          border-color: #3b82f6 !important;
+        }
+        html:not(.dark) .order-details-page button[class*="bg-blue-200"]:not([class*="bg-blue-50"]):not([class*="bg-blue-100"]):not([class*="bg-sky"]):hover:not(:disabled) {
+          background: #2563eb !important;
+          border-color: #2563eb !important;
+        }
+        
+        /* Disabled buttons */
+        html:not(.dark) .order-details-page button:disabled {
+          background: #e5e7eb !important;
+          color: #9ca3af !important;
+          border-color: #d1d5db !important;
+          cursor: not-allowed !important;
+        }
+        
+        /* Tab Buttons - Active state */
+        html:not(.dark) .order-details-page .flex.gap-2.rounded-lg button[class*="bg-[#04356d]"] {
+          background: #1e40af !important;
+          color: #ffffff !important;
+        }
+        html:not(.dark) .order-details-page .flex.gap-2.rounded-lg button:not([class*="bg-[#04356d]"]) {
+          background: #e0f2fe !important;
+          color: #1a1a1a !important;
+        }
+        html:not(.dark) .order-details-page .flex.gap-2.rounded-lg button:not([class*="bg-[#04356d]"]):hover {
+          background: #bfdbfe !important;
+        }
+        
+        /* Stat Cards - Light Mode: Darker blue gradient for better contrast with white text */
+        html:not(.dark) .order-details-page .stat-card {
+          background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%) !important;
+          color: #ffffff !important;
+          border: 1px solid rgba(255, 255, 255, 0.2) !important;
+        }
+        
+        /* Stat Cards - Dark Mode: Dark purple/blue gradient */
+        html.dark .order-details-page .stat-card {
+          background: linear-gradient(135deg, #4b225e 0%, #2b2d68 50%, #1a1f4b 100%) !important;
+          color: #ffffff !important;
+          border: 1px solid rgba(255, 255, 255, 0.1) !important;
+          backdrop-filter: blur(8px);
+        }
+        
+        /* Title - Dark blue */
+        html:not(.dark) .order-details-page h1 {
+          color: #1e40af !important;
+        }
+        html:not(.dark) .order-details-page h1 span {
+          color: #3b82f6 !important;
+        }
+        
+        /* Select Dropdown - Match View History button styling */
+        html:not(.dark) .order-details-page select[class*="bg-blue-50"] {
+          background: #dbeafe !important;
+          border-color: rgba(59, 130, 246, 0.4) !important;
+          color: #1a1a1a !important;
+          font-size: 0.875rem !important; /* text-sm */
+          font-weight: 400 !important;
+          font-family: inherit !important;
+        }
+        html:not(.dark) .order-details-page select[class*="bg-blue-50"]:hover {
+          background: #bfdbfe !important;
+          border-color: rgba(59, 130, 246, 0.5) !important;
+        }
+        /* Select option elements - Match text styling */
+        html:not(.dark) .order-details-page select[class*="bg-blue-50"] option {
+          color: #1a1a1a !important;
+          background: #ffffff !important;
+          font-size: 0.875rem !important;
+          font-weight: 400 !important;
+        }
+        
+        /* Other select dropdowns */
+        html:not(.dark) .order-details-page select:not([class*="bg-blue-50"]) {
+          background: #ffffff !important;
+          border-color: rgba(59, 130, 246, 0.4) !important;
+          color: #1a1a1a !important;
+        }
+        
+        /* Tab Container Background */
+        html:not(.dark) .order-details-page .rounded-lg.p-1[class*="bg-blue-50"],
+        html:not(.dark) .order-details-page .rounded-lg.p-1[class*="bg-white"] {
+          background: rgba(255, 255, 255, 0.9) !important;
+          border-color: rgba(59, 130, 246, 0.2) !important;
+        }
+        
+        /* Text Colors - Soft dark gray for better readability */
+        html:not(.dark) .order-details-page {
+          color: #1a1a1a !important;
+        }
+        
+        /* Comment display boxes - Light blue background to match input fields */
+        html:not(.dark) .order-details-page div.bg-gray-50[class*="p-2"][class*="rounded-lg"][class*="border"] {
+          background: #e0f2fe !important;
+          border-color: rgba(59, 130, 246, 0.3) !important;
+          color: #1a1a1a !important;
+        }
+        
+        /* Comment input field - Light blue background to match other inputs */
+        html:not(.dark) .order-details-page input.bg-gray-50[type="text"] {
+          background: #e0f2fe !important;
+          border-color: rgba(59, 130, 246, 0.4) !important;
+          color: #1a1a1a !important;
+        }
+        html:not(.dark) .order-details-page input.bg-gray-50[type="text"]:focus {
+          background: #ffffff !important;
+          border-color: #2563eb !important;
+          box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15) !important;
         }
       `}</style>
       <div className="min-h-screen text-sm order-details-page bg-gradient-to-br from-sky-100 via-blue-100 to-cyan-100 dark:bg-gradient-to-br dark:from-[#0b1c34] dark:via-[#2b2d68] dark:to-[#4b225e] text-gray-800 dark:text-white">
