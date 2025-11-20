@@ -42,6 +42,11 @@ function getPaging(req) {
   return { page, limit, skip };
 }
 
+// Escape special regex characters to prevent regex errors
+function escapeRegex(str) {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 router.get("/ordersPerPage", async (req, res) => {
   try {
     const { page, limit, skip } = getPaging(req);
@@ -175,8 +180,10 @@ router.get("/ordersPerPage", async (req, res) => {
         aggregateError?.message
       );
 
+      // Escape special regex characters to prevent errors with phone numbers, etc.
+      const escapedSearchTerm = escapeRegex(searchTerm);
       const orClauses = searchablePaths.map((field) => ({
-        [field]: { $regex: searchTerm, $options: "i" },
+        [field]: { $regex: escapedSearchTerm, $options: "i" },
       }));
       const filter = { $or: orClauses };
 

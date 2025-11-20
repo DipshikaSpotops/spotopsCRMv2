@@ -37,8 +37,8 @@ export default function ShippingTab({ order }) {
       </Field>
       <Field label="Escalation">
         <div className="flex items-center gap-2">
-          <span className={`inline-flex h-4 w-4 items-center justify-center rounded-sm border ${isEscalated ? "bg-[#04356d] border-[#021f4b]" : "border-gray-400 dark:border-white/40"}`}>
-            {isEscalated ? "✓" : ""}
+          <span className={`escalation-checkbox inline-flex h-4 w-4 items-center justify-center rounded-sm border ${isEscalated ? "bg-[#04356d] border-[#021f4b] dark:bg-[#04356d] dark:border-[#021f4b]" : "border-gray-400 dark:border-white/40"}`}>
+            {isEscalated ? <span className="text-white text-xs">✓</span> : ""}
           </span>
           <span className="text-[#09325d] dark:text-white/80">{isEscalated ? "Yes" : "No"}</span>
         </div>

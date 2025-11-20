@@ -871,6 +871,15 @@ export default function OrderDetails() {
           border-color: #2563eb !important;
           box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15) !important;
         }
+        
+        /* Escalation checkbox - Make visible in light mode */
+        html:not(.dark) .order-details-page .escalation-checkbox[class*="bg-\[#04356d\]"] {
+          background: #1e40af !important;
+          border-color: #1e3a8a !important;
+        }
+        html:not(.dark) .order-details-page .escalation-checkbox[class*="bg-\[#04356d\]"] > span {
+          color: #ffffff !important;
+        }
       `}</style>
       <div className="min-h-screen text-sm order-details-page bg-gradient-to-br from-sky-100 via-blue-100 to-cyan-100 dark:bg-gradient-to-br dark:from-[#0b1c34] dark:via-[#2b2d68] dark:to-[#4b225e] text-gray-800 dark:text-white">
         <NavbarForm />
