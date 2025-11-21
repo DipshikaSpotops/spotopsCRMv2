@@ -15,7 +15,7 @@ const normalizeCountry = (value) => {
   return ALLOWED_COUNTRIES.includes(normalized) ? normalized : "US";
 };
 
-export default function YardAddModal({ open, onClose, onSubmit }) {
+export default function YardAddModal({ open, onClose, onSubmit, order }) {
   const [yards, setYards] = useState([]);
   const [form, setForm] = useState({
     yardName: "",
@@ -200,25 +200,229 @@ export default function YardAddModal({ open, onClose, onSubmit }) {
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full max-w-3xl rounded-2xl border border-white/20 bg-white/10 text-white backdrop-blur-xl shadow-2xl">
-        <header className="flex items-center justify-between px-5 py-3 border-b border-white/20">
-          <h3 className="text-lg font-semibold">Add New Yard</h3>
-          <button
-            onClick={onClose}
-            className="px-2 py-1 rounded-md bg-white/10 border border-white/20 hover:bg-white/20"
-          >
-            ✕
-          </button>
-        </header>
+    <>
+      <style>{`
+        /* YardAddModal Light Mode Styles */
+        
+        /* Modal backdrop */
+        html:not(.dark) .yard-add-modal-backdrop {
+          background: rgba(0, 0, 0, 0.3) !important;
+        }
+        
+        /* Modal container */
+        html:not(.dark) .yard-add-modal-container {
+          background: rgba(240, 249, 255, 0.95) !important;
+          border: 1.5px solid rgba(59, 130, 246, 0.3) !important;
+          color: #1a1a1a !important;
+          backdrop-filter: blur(12px);
+          overflow: hidden !important;
+        }
+        
+        /* Modal header - rounded top corners */
+        html:not(.dark) .yard-add-modal-container header {
+          background: rgba(240, 249, 255, 0.9) !important;
+          border-bottom: 2px solid rgba(59, 130, 246, 0.3) !important;
+          border-top-left-radius: 1rem !important;
+          border-top-right-radius: 1rem !important;
+        }
+        
+        /* Dark mode header rounded corners */
+        html.dark .yard-add-modal-container header {
+          border-top-left-radius: 1rem !important;
+          border-top-right-radius: 1rem !important;
+        }
+        
+        html:not(.dark) .yard-add-modal-container header h3 {
+          color: #0f172a !important;
+          font-weight: 700 !important;
+        }
+        
+        /* Close button */
+        html:not(.dark) .yard-add-modal-close-btn {
+          background: #dbeafe !important;
+          border-color: rgba(59, 130, 246, 0.4) !important;
+          color: #1a1a1a !important;
+        }
+        
+        html:not(.dark) .yard-add-modal-close-btn:hover {
+          background: #bfdbfe !important;
+          border-color: rgba(59, 130, 246, 0.5) !important;
+        }
+        
+        /* Field labels */
+        html:not(.dark) .yard-add-modal-container label span {
+          color: #1a1a1a !important;
+          font-weight: 600 !important;
+        }
+        
+        /* Input fields - override Input component styles */
+        html:not(.dark) .yard-add-modal-container input[type="text"],
+        html:not(.dark) .yard-add-modal-container input[type="email"],
+        html:not(.dark) .yard-add-modal-container input[type="number"],
+        html:not(.dark) .yard-add-modal-container input[type="tel"],
+        html:not(.dark) .yard-add-modal-container input[type="date"],
+        html:not(.dark) .yard-add-modal-container input {
+          background: #e0f2fe !important;
+          border: 1.5px solid rgba(59, 130, 246, 0.4) !important;
+          border-color: rgba(59, 130, 246, 0.4) !important;
+          color: #1a1a1a !important;
+        }
+        
+        html:not(.dark) .yard-add-modal-container input::placeholder {
+          color: #6b7280 !important;
+        }
+        
+        html:not(.dark) .yard-add-modal-container input:focus {
+          border-color: #2563eb !important;
+          box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15) !important;
+          background: #ffffff !important;
+          outline: none !important;
+        }
+        
+        html:not(.dark) .yard-add-modal-container input:disabled {
+          background: #e5e7eb !important;
+          color: #9ca3af !important;
+          border-color: #d1d5db !important;
+          cursor: not-allowed !important;
+        }
+        
+        /* Select dropdowns - override Select component default styles */
+        html:not(.dark) .yard-add-modal-container select {
+          background: #e0f2fe !important;
+          border: 1.5px solid rgba(59, 130, 246, 0.4) !important;
+          border-color: rgba(59, 130, 246, 0.4) !important;
+          color: #1a1a1a !important;
+          backdrop-filter: none !important;
+        }
+        
+        html:not(.dark) .yard-add-modal-container select:focus {
+          border-color: #2563eb !important;
+          box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15) !important;
+          background: #ffffff !important;
+          outline: none !important;
+        }
+        
+        html:not(.dark) .yard-add-modal-container select:hover {
+          border-color: rgba(59, 130, 246, 0.5) !important;
+        }
+        
+        html:not(.dark) .yard-add-modal-container select option {
+          background: #ffffff !important;
+          color: #1a1a1a !important;
+        }
+        
+        /* Special select with dark bg override - for yard name dropdown and warranty select */
+        html:not(.dark) .yard-add-modal-container select.yard-select-dark-bg {
+          background: #dbeafe !important;
+          border-color: rgba(59, 130, 246, 0.4) !important;
+          color: #1a1a1a !important;
+        }
+        
+        html:not(.dark) .yard-add-modal-container select.yard-select-dark-bg:hover {
+          background: #bfdbfe !important;
+          border-color: rgba(59, 130, 246, 0.5) !important;
+        }
+        
+        html:not(.dark) .yard-add-modal-container select.yard-select-dark-bg:focus {
+          background: #ffffff !important;
+          border-color: #2563eb !important;
+        }
+        
+        /* Error messages */
+        html:not(.dark) .yard-add-modal-container .text-red-200 {
+          color: #dc2626 !important;
+        }
+        
+        /* Footer - rounded bottom corners */
+        html:not(.dark) .yard-add-modal-container footer {
+          border-top: 2px solid rgba(59, 130, 246, 0.3) !important;
+          border-bottom-left-radius: 1rem !important;
+          border-bottom-right-radius: 1rem !important;
+        }
+        
+        /* Dark mode footer rounded corners */
+        html.dark .yard-add-modal-container footer {
+          border-bottom-left-radius: 1rem !important;
+          border-bottom-right-radius: 1rem !important;
+        }
+        
+        /* Close button in footer */
+        html:not(.dark) .yard-add-modal-close-footer-btn {
+          background: #dbeafe !important;
+          border-color: rgba(59, 130, 246, 0.4) !important;
+          color: #1a1a1a !important;
+        }
+        
+        html:not(.dark) .yard-add-modal-close-footer-btn:hover {
+          background: #bfdbfe !important;
+          border-color: rgba(59, 130, 246, 0.5) !important;
+        }
+        
+        /* Submit button */
+        html:not(.dark) .yard-add-modal-submit-btn {
+          background: #1e40af !important;
+          color: #ffffff !important;
+          border-color: #1e40af !important;
+          font-weight: 500 !important;
+        }
+        
+        html:not(.dark) .yard-add-modal-submit-btn:hover:not(:disabled) {
+          background: #1e3a8a !important;
+          border-color: #1e3a8a !important;
+        }
+        
+        html:not(.dark) .yard-add-modal-submit-btn:disabled {
+          background: #e5e7eb !important;
+          color: #9ca3af !important;
+          border-color: #d1d5db !important;
+          cursor: not-allowed !important;
+        }
+        /* Part Info Section - make text visible in light mode with high specificity */
+        html:not(.dark) .yard-add-modal-container header div.text-white\/80,
+        html:not(.dark) .yard-add-modal-container header div[class*="text-white/80"],
+        html:not(.dark) .yard-add-modal-container header .text-white\/80,
+        html:not(.dark) .yard-add-modal-container header [class*="text-white/80"],
+        html:not(.dark) .yard-add-modal-container header > div.mt-1[class*="text-white"],
+        html:not(.dark) .yard-add-modal-container header div.underline[class*="text-white"] {
+          color: #1a1a1a !important;
+          font-weight: 600 !important;
+        }
+        /* Override any general text-white inheritance from container */
+        html:not(.dark) .yard-add-modal-container.text-white header div[class*="text-white/80"],
+        html:not(.dark) .yard-add-modal-container[class*="text-white"] header div[class*="text-white/80"] {
+          color: #1a1a1a !important;
+          font-weight: 600 !important;
+        }
+      `}</style>
+      <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+        <div className="absolute inset-0 bg-black/40 backdrop-blur-sm yard-add-modal-backdrop" onClick={onClose} />
+        <div className="relative w-full max-w-3xl rounded-2xl border border-white/20 bg-white/10 text-white backdrop-blur-xl shadow-2xl yard-add-modal-container overflow-hidden dark:border-white/20 dark:bg-white/10 dark:text-white">
+          <header className="flex flex-col px-5 py-3 border-b border-white/20 rounded-t-2xl dark:border-white/20">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold">Add New Yard</h3>
+              <button
+                onClick={onClose}
+                className="px-2 py-1 rounded-md bg-white/10 border border-white/20 hover:bg-white/20 yard-add-modal-close-btn dark:bg-white/10 dark:hover:bg-white/20 dark:border-white/20 dark:text-white"
+              >
+                ✕
+              </button>
+            </div>
+            {/* Part Info Section */}
+            {order && (
+              <div className="mt-1 text-sm text-white/80 underline underline-offset-2">
+                Part Required: {order?.pReq || "—"} | For {order?.year || "—"}{" "}
+                {order?.make || ""} {order?.model || ""}  |
+                Desc: {order?.desc || order?.description || "—"}
+              </div>
+            )}
+          </header>
 
         <div className="p-5 space-y-4 max-h-[80vh] overflow-y-auto">
           {/* Yard Dropdown — behaves like a searchable select */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <Field label="Yard Name (Select or Add New)">
   <select
-    className="w-full p-2 rounded-md text-white mb-2 bg-[#2b2d68] hover:bg-[#090c6c]"
+    className="w-full p-2 rounded-md text-white mb-2 bg-[#2b2d68] hover:bg-[#090c6c] yard-select-dark-bg dark:bg-[#2b2d68] dark:hover:bg-[#090c6c] dark:text-white"
     value={yards.find((y) => y.yardName === form.yardName)?._id || "new"}
     onChange={(e) => {
       const yardId = e.target.value;
@@ -339,7 +543,7 @@ export default function YardAddModal({ open, onClose, onSubmit }) {
   )}
 
   {errors.yardName && (
-    <p className="text-xs text-red-200 mt-1">{errors.yardName}</p>
+    <p className="text-xs text-red-200 mt-1 dark:text-red-200">{errors.yardName}</p>
   )}
 </Field>
 
@@ -347,14 +551,14 @@ export default function YardAddModal({ open, onClose, onSubmit }) {
             <Field label="Agent Name">
               <Input value={form.agentName} onChange={set("agentName")} />
               {errors.agentName && (
-                <p className="text-xs text-red-200 mt-1">{errors.agentName}</p>
+                <p className="text-xs text-red-200 mt-1 dark:text-red-200">{errors.agentName}</p>
               )}
             </Field>
 
             <Field label="Yard Rating">
               <Input value={form.yardRating} onChange={set("yardRating")} />
               {errors.yardRating && (
-                <p className="text-xs text-red-200 mt-1">{errors.yardRating}</p>
+                <p className="text-xs text-red-200 mt-1 dark:text-red-200">{errors.yardRating}</p>
               )}
             </Field>
           </div>
@@ -364,7 +568,7 @@ export default function YardAddModal({ open, onClose, onSubmit }) {
             <Field label="Phone">
               <Input value={form.phone} onChange={set("phone")} />
               {errors.phone && (
-                <p className="text-xs text-red-200 mt-1">{errors.phone}</p>
+                <p className="text-xs text-red-200 mt-1 dark:text-red-200">{errors.phone}</p>
               )}
             </Field>
             <Field label="Alt. Phone">
@@ -392,21 +596,21 @@ export default function YardAddModal({ open, onClose, onSubmit }) {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <Field label="Street">
               <Input value={form.street} onChange={set("street")} />
-              {errors.street && <p className="text-xs text-red-200">{errors.street}</p>}
+              {errors.street && <p className="text-xs text-red-200 dark:text-red-200">{errors.street}</p>}
             </Field>
             <Field label="City">
               <Input value={form.city} onChange={set("city")} />
-              {errors.city && <p className="text-xs text-red-200">{errors.city}</p>}
+              {errors.city && <p className="text-xs text-red-200 dark:text-red-200">{errors.city}</p>}
             </Field>
             <Field label="State / Province">
               <Input value={form.state} onChange={set("state")} />
-              {errors.state && <p className="text-xs text-red-200">{errors.state}</p>}
+              {errors.state && <p className="text-xs text-red-200 dark:text-red-200">{errors.state}</p>}
             </Field>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <Field label="Zip">
               <Input value={form.zipcode} onChange={set("zipcode")} />
-              {errors.zipcode && <p className="text-xs text-red-200">{errors.zipcode}</p>}
+              {errors.zipcode && <p className="text-xs text-red-200 dark:text-red-200">{errors.zipcode}</p>}
             </Field>
             <Field label="Country">
               <Select
@@ -418,7 +622,7 @@ export default function YardAddModal({ open, onClose, onSubmit }) {
               }))
             }
               >
-                <SelectTrigger className="!bg-[#2b2d68] hover:!bg-[#090c6c]">
+                <SelectTrigger className="!bg-[#2b2d68] hover:!bg-[#090c6c] yard-select-dark-bg dark:!bg-[#2b2d68] dark:hover:!bg-[#090c6c]">
                   <SelectValue placeholder="Select country" />
                 </SelectTrigger>
                 <SelectContent>
@@ -434,7 +638,7 @@ export default function YardAddModal({ open, onClose, onSubmit }) {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <Field label="Part Price ($)">
               <Input type="number" value={form.partPrice} onChange={set("partPrice")} />
-              {errors.partPrice && <p className="text-xs text-red-200">{errors.partPrice}</p>}
+              {errors.partPrice && <p className="text-xs text-red-200 dark:text-red-200">{errors.partPrice}</p>}
             </Field>
             <Field label="Warranty">
               <div className="grid grid-cols-2 gap-2">
@@ -448,7 +652,7 @@ export default function YardAddModal({ open, onClose, onSubmit }) {
                     }))
                   }
                 >
-                  <SelectTrigger className="!bg-[#2b2d68] hover:!bg-[#090c6c]">
+                  <SelectTrigger className="!bg-[#2b2d68] hover:!bg-[#090c6c] yard-select-dark-bg dark:!bg-[#2b2d68] dark:hover:!bg-[#090c6c]">
                     <SelectValue placeholder="Units" />
                   </SelectTrigger>
                   <SelectContent>
@@ -474,11 +678,11 @@ export default function YardAddModal({ open, onClose, onSubmit }) {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <Field label="Own Shipping ($)">
               <Input type="number" step="0.01" value={form.ownShipping} onChange={onOwnChange} disabled={yardSet} />
-              {errors.ownShipping && <p className="text-xs text-red-200">{errors.ownShipping}</p>}
+              {errors.ownShipping && <p className="text-xs text-red-200 dark:text-red-200">{errors.ownShipping}</p>}
             </Field>
             <Field label="Yard Shipping ($)">
               <Input type="number" step="0.01" value={form.yardShipping} onChange={onYardChange} disabled={ownSet} />
-              {errors.yardShipping && <p className="text-xs text-red-200">{errors.yardShipping}</p>}
+              {errors.yardShipping && <p className="text-xs text-red-200 dark:text-red-200">{errors.yardShipping}</p>}
             </Field>
             <Field label="Other Charges ($)">
               <Input type="number" step="0.01" value={form.others} onChange={set("others")} />
@@ -486,8 +690,11 @@ export default function YardAddModal({ open, onClose, onSubmit }) {
           </div>
         </div>
 
-        <footer className="flex items-center justify-end gap-2 px-5 py-3 border-t border-white/20">
-          <button onClick={onClose} className="px-3 py-1.5 rounded-md bg-white/10 border border-white/20 hover:bg-white/20">
+        <footer className="flex items-center justify-end gap-2 px-5 py-3 border-t border-white/20 rounded-b-2xl dark:border-white/20">
+          <button 
+            onClick={onClose} 
+            className="px-3 py-1.5 rounded-md bg-white/10 border border-white/20 hover:bg-white/20 yard-add-modal-close-footer-btn dark:bg-white/10 dark:hover:bg-white/20 dark:border-white/20 dark:text-white"
+          >
             Close
           </button>
           <button
@@ -510,12 +717,13 @@ export default function YardAddModal({ open, onClose, onSubmit }) {
                   .join(" | "),
               });
             }}
-            className="px-3 py-1.5 rounded-md bg-white text-[#04356d] border border-white/20 hover:bg-white/90"
+            className="px-3 py-1.5 rounded-md bg-white text-[#04356d] border border-white/20 hover:bg-white/90 yard-add-modal-submit-btn dark:bg-white dark:text-[#04356d] dark:hover:bg-white/90"
           >
             Submit
           </button>
         </footer>
       </div>
     </div>
+    </>
   );
 }

@@ -914,13 +914,229 @@ useEffect(() => {
   const yardLabel = typeof yardIndex === "number" ? yardIndex + 1 : 1;
 
   return (
-    <div className="fixed inset-0 z-[90] flex items-center justify-center p-4">
-      <div
-        className="absolute inset-0 bg-black/40 backdrop-blur-sm"
-        onClick={() => (!saving && !sendingEmail ? onClose?.() : null)}
-      />
-      <div className="relative w-full max-w-4xl rounded-2xl border border-white/20 bg-white/10 text-white shadow-2xl backdrop-blur-xl">
-        <header className="flex items-center justify-between border-b border-white/20 px-6 py-4">
+    <>
+      <style>{`
+        /* YardEscalationModal Light Mode Styles */
+        html:not(.dark) .yard-escalation-modal-container {
+          background: rgba(240, 249, 255, 0.95) !important;
+          border: 1.5px solid rgba(59, 130, 246, 0.3) !important;
+          color: #1a1a1a !important;
+          overflow: hidden !important;
+        }
+        /* Labels and non-button text */
+        html:not(.dark) .yard-escalation-modal-container label {
+          color: #1a1a1a !important;
+          font-weight: 600 !important;
+        }
+        html:not(.dark) .yard-escalation-modal-container h4 {
+          color: #0f172a !important;
+          font-weight: 700 !important;
+        }
+        html:not(.dark) .yard-escalation-modal-container p:not(button p),
+        html:not(.dark) .yard-escalation-modal-container span:not(button span),
+        html:not(.dark) .yard-escalation-modal-container div:not(button):not(button *) {
+          color: #1a1a1a !important;
+        }
+        html:not(.dark) .yard-escalation-modal-container .text-white\/80:not(button):not(button *) {
+          color: #1a1a1a !important;
+        }
+        html:not(.dark) .yard-escalation-modal-container .text-white\/70:not(button):not(button *) {
+          color: #475569 !important;
+        }
+        /* BUTTON TEXT COLORS - Very specific rules with high priority */
+        /* Send Email buttons - bg-white with text-[#04356d] MUST have blue text */
+        html:not(.dark) .yard-escalation-modal-container button.bg-white.text-\[#04356d\],
+        html:not(.dark) .yard-escalation-modal-container button[class*="bg-white"][class*="text-[#04356d]"]:not(:disabled) {
+          color: #04356d !important;
+          background: #ffffff !important;
+        }
+        /* Buttons with bg-white/10 - dark text and visible background */
+        html:not(.dark) .yard-escalation-modal-container button.bg-white\/10,
+        html:not(.dark) .yard-escalation-modal-container button[class*="bg-white/10"]:not([class*="bg-white text-"]) {
+          background: rgba(219, 234, 254, 0.9) !important;
+          border-color: rgba(59, 130, 246, 0.5) !important;
+          color: #1a1a1a !important;
+        }
+        html:not(.dark) .yard-escalation-modal-container button.bg-white\/10.text-white,
+        html:not(.dark) .yard-escalation-modal-container button[class*="bg-white/10"][class*="text-white"]:not([class*="bg-white text-"]) {
+          color: #1a1a1a !important;
+          background: rgba(219, 234, 254, 0.9) !important;
+        }
+        html:not(.dark) .yard-escalation-modal-container button.bg-white\/10:hover:not(:disabled),
+        html:not(.dark) .yard-escalation-modal-container button[class*="bg-white/10"]:hover:not(:disabled):not([class*="bg-white text-"]) {
+          background: rgba(191, 219, 254, 1) !important;
+          border-color: rgba(59, 130, 246, 0.6) !important;
+        }
+        /* Disabled buttons with bg-white/20 */
+        html:not(.dark) .yard-escalation-modal-container button.bg-white\/20,
+        html:not(.dark) .yard-escalation-modal-container button[class*="bg-white/20"] {
+          background: rgba(229, 231, 235, 0.7) !important;
+          border-color: rgba(209, 213, 219, 0.6) !important;
+          color: #6b7280 !important;
+        }
+        html:not(.dark) .yard-escalation-modal-container button.bg-white\/20.text-white,
+        html:not(.dark) .yard-escalation-modal-container button.bg-white\/20.text-white\/70,
+        html:not(.dark) .yard-escalation-modal-container button[class*="bg-white/20"][class*="text-white"] {
+          color: #6b7280 !important;
+        }
+        /* Additional catch-all for any button with bg-white/10 in class list */
+        html:not(.dark) .yard-escalation-modal-container button[class*="bg-white/10"]:not([class*="bg-white text-[#04356d]"]):not(.yard-escalation-modal-submit-btn) {
+          color: #1a1a1a !important;
+          background: rgba(219, 234, 254, 0.9) !important;
+          border-color: rgba(59, 130, 246, 0.5) !important;
+        }
+        /* Submit button - blue background with white text */
+        html:not(.dark) .yard-escalation-modal-submit-btn:not(:disabled) {
+          background: #1e40af !important;
+          color: #ffffff !important;
+          border-color: #1e40af !important;
+        }
+        /* Other specific button colors */
+        html:not(.dark) .yard-escalation-modal-container button.bg-\[#04356d\] {
+          color: #ffffff !important;
+        }
+        html:not(.dark) .yard-escalation-modal-container button.bg-amber-600 {
+          color: #ffffff !important;
+        }
+        html:not(.dark) .yard-escalation-modal-container button.text-amber-700 {
+          color: #b45309 !important;
+        }
+        /* Fallback: any other button with text-white gets dark text */
+        html:not(.dark) .yard-escalation-modal-container button.text-white:not(.yard-escalation-modal-submit-btn):not(.bg-\[#04356d\]):not(.bg-amber-600):not(.bg-white.text-\[#04356d\]):not([class*="bg-white text-[#04356d]"]) {
+          color: #1a1a1a !important;
+        }
+        /* Ensure all buttons with light backgrounds have visible borders and text */
+        html:not(.dark) .yard-escalation-modal-container button[class*="bg-white"]:not(.bg-white.text-\[#04356d\]):not(.yard-escalation-modal-submit-btn):not([class*="bg-white text-[#04356d]"]) {
+          border-color: rgba(59, 130, 246, 0.5) !important;
+        }
+        /* Force visibility for buttons that might be hidden - comprehensive rule */
+        html:not(.dark) .yard-escalation-modal-container button:not(.yard-escalation-modal-submit-btn):not([class*="bg-white text-[#04356d]"]):not(.bg-\[#04356d\]):not(.bg-amber-600)[class*="bg-white/10"],
+        html:not(.dark) .yard-escalation-modal-container button:not(.yard-escalation-modal-submit-btn):not([class*="bg-white text-[#04356d]"]):not(.bg-\[#04356d\]):not(.bg-amber-600)[class*="bg-white/20"] {
+          color: #1a1a1a !important;
+          background: rgba(219, 234, 254, 0.9) !important;
+          border-color: rgba(59, 130, 246, 0.5) !important;
+        }
+        html:not(.dark) .yard-escalation-modal-container button[class*="bg-white/20"]:disabled,
+        html:not(.dark) .yard-escalation-modal-container button[class*="bg-white/20"][disabled] {
+          color: #6b7280 !important;
+          background: rgba(229, 231, 235, 0.7) !important;
+        }
+        html:not(.dark) .yard-escalation-modal-container header {
+          background: rgba(240, 249, 255, 0.9) !important;
+          border-bottom: 2px solid rgba(59, 130, 246, 0.3) !important;
+          border-top-left-radius: 1rem !important;
+          border-top-right-radius: 1rem !important;
+        }
+        html.dark .yard-escalation-modal-container header {
+          border-top-left-radius: 1rem !important;
+          border-top-right-radius: 1rem !important;
+        }
+        html:not(.dark) .yard-escalation-modal-container header h3 {
+          color: #0f172a !important;
+          font-weight: 700 !important;
+        }
+        html:not(.dark) .yard-escalation-modal-container header p {
+          color: #475569 !important;
+        }
+        html:not(.dark) .yard-escalation-modal-container section p {
+          color: #1a1a1a !important;
+        }
+        /* Input, select, textarea */
+        html:not(.dark) .yard-escalation-modal-container input,
+        html:not(.dark) .yard-escalation-modal-container select,
+        html:not(.dark) .yard-escalation-modal-container textarea {
+          background: #e0f2fe !important;
+          border: 1.5px solid rgba(59, 130, 246, 0.4) !important;
+          color: #1a1a1a !important;
+        }
+        html:not(.dark) .yard-escalation-modal-container input::placeholder,
+        html:not(.dark) .yard-escalation-modal-container textarea::placeholder {
+          color: #6b7280 !important;
+        }
+        html:not(.dark) .yard-escalation-modal-container input:focus,
+        html:not(.dark) .yard-escalation-modal-container select:focus,
+        html:not(.dark) .yard-escalation-modal-container textarea:focus {
+          border-color: #2563eb !important;
+          box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15) !important;
+          background: #ffffff !important;
+          outline: none !important;
+        }
+        html:not(.dark) .yard-escalation-modal-container input:disabled,
+        html:not(.dark) .yard-escalation-modal-container select:disabled,
+        html:not(.dark) .yard-escalation-modal-container textarea:disabled {
+          background: #e5e7eb !important;
+          color: #9ca3af !important;
+          border-color: #d1d5db !important;
+        }
+        html:not(.dark) .yard-escalation-modal-container select option {
+          background: #ffffff !important;
+          color: #1a1a1a !important;
+        }
+        html:not(.dark) .yard-escalation-modal-container select.bg-\[#2b2d68\] {
+          background: #dbeafe !important;
+          border-color: rgba(59, 130, 246, 0.4) !important;
+          color: #1a1a1a !important;
+        }
+        html:not(.dark) .yard-escalation-modal-container select.bg-\[#2b2d68\]:hover {
+          background: #bfdbfe !important;
+        }
+        html:not(.dark) .yard-escalation-modal-container .bg-white\/5 {
+          background: rgba(240, 249, 255, 0.4) !important;
+          border-color: rgba(59, 130, 246, 0.2) !important;
+        }
+        /* Warning/Info text */
+        html:not(.dark) .yard-escalation-modal-container .text-yellow-200 {
+          color: #d97706 !important;
+        }
+        html:not(.dark) .yard-escalation-modal-container footer {
+          border-top: 2px solid rgba(59, 130, 246, 0.3) !important;
+          border-bottom-left-radius: 1rem !important;
+          border-bottom-right-radius: 1rem !important;
+        }
+        html.dark .yard-escalation-modal-container footer {
+          border-bottom-left-radius: 1rem !important;
+          border-bottom-right-radius: 1rem !important;
+        }
+        html:not(.dark) .yard-escalation-modal-close-btn {
+          background: #dbeafe !important;
+          border-color: rgba(59, 130, 246, 0.4) !important;
+          color: #1a1a1a !important;
+        }
+        html:not(.dark) .yard-escalation-modal-close-btn:hover {
+          background: #bfdbfe !important;
+        }
+        html:not(.dark) .yard-escalation-modal-submit-btn:hover:not(:disabled) {
+          background: #1e3a8a !important;
+        }
+        html:not(.dark) .yard-escalation-modal-submit-btn:disabled {
+          background: #e5e7eb !important;
+          color: #9ca3af !important;
+          border-color: #d1d5db !important;
+        }
+        /* File input text */
+        html:not(.dark) .yard-escalation-modal-container input[type="file"] {
+          color: #1a1a1a !important;
+        }
+        html:not(.dark) .yard-escalation-modal-container input[type="file"].text-white,
+        html:not(.dark) .yard-escalation-modal-container input[type="file"].text-xs {
+          color: #1a1a1a !important;
+        }
+        /* Placeholder text */
+        html:not(.dark) .yard-escalation-modal-container textarea::placeholder,
+        html:not(.dark) .yard-escalation-modal-container input::placeholder {
+          color: #6b7280 !important;
+        }
+        html:not(.dark) .yard-escalation-modal-container .placeholder\:text-white\/40::placeholder {
+          color: #6b7280 !important;
+        }
+      `}</style>
+      <div className="fixed inset-0 z-[90] flex items-center justify-center p-4">
+        <div
+          className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+          onClick={() => (!saving && !sendingEmail ? onClose?.() : null)}
+        />
+        <div className="relative w-full max-w-4xl rounded-2xl border border-white/20 bg-white/10 text-white shadow-2xl backdrop-blur-xl yard-escalation-modal-container overflow-hidden dark:border-white/20 dark:bg-white/10 dark:text-white">
+          <header className="flex items-center justify-between border-b border-white/20 px-6 py-4 rounded-t-2xl dark:border-white/20">
           <div>
             <h3 className="text-lg font-semibold">
               Manage Escalation (Yard {yardLabel})
@@ -931,7 +1147,7 @@ useEffect(() => {
           </div>
           <button
             onClick={() => (!saving && !sendingEmail ? onClose?.() : null)}
-            className="rounded-md border border-white/20 bg-white/10 px-2 py-1 hover:bg-white/20"
+            className="rounded-md border border-white/20 bg-white/10 px-2 py-1 hover:bg-white/20 yard-escalation-modal-close-btn dark:bg-white/10 dark:hover:bg-white/20 dark:border-white/20 dark:text-white"
           >
             ✕
           </button>
@@ -944,7 +1160,7 @@ useEffect(() => {
               <select
                 value={state.escalationProcess}
                 onChange={handleChange("escalationProcess")}
-                className="mt-1 w-full rounded-lg border border-white/30 bg-[#2b2d68] px-3 py-2 text-sm outline-none transition hover:bg-[#090c6c]"
+                className="mt-1 w-full rounded-lg border border-white/30 bg-[#2b2d68] px-3 py-2 text-sm outline-none transition hover:bg-[#090c6c] dark:bg-[#2b2d68] dark:hover:bg-[#090c6c] dark:text-white"
               >
                 <option value="">Select process</option>
                 <option value="Replacement">Replacement</option>
@@ -957,7 +1173,7 @@ useEffect(() => {
               <select
                 value={state.escalationCause}
                 onChange={handleChange("escalationCause")}
-                className="mt-1 w-full rounded-lg border border-white/30 bg-[#2b2d68] px-3 py-2 text-sm outline-none transition hover:bg-[#090c6c]"
+                className="mt-1 w-full rounded-lg border border-white/30 bg-[#2b2d68] px-3 py-2 text-sm outline-none transition hover:bg-[#090c6c] dark:bg-[#2b2d68] dark:hover:bg-[#090c6c] dark:text-white"
               >
                 <option value="">Choose cause</option>
                 {ESC_CAUSES.map((cause) => (
@@ -981,7 +1197,7 @@ useEffect(() => {
                     <select
                       value={state.custReason}
                       onChange={handleChange("custReason")}
-                      className="mt-1 w-full rounded-lg border border-white/30 bg-[#2b2d68] px-3 py-2 outline-none transition hover:bg-[#090c6c]"
+                      className="mt-1 w-full rounded-lg border border-white/30 bg-[#2b2d68] px-3 py-2 outline-none transition hover:bg-[#090c6c] dark:bg-[#2b2d68] dark:hover:bg-[#090c6c] dark:text-white"
                     >
                       <option value="">Choose</option>
                       <option value="Junked">Junked</option>
@@ -994,7 +1210,7 @@ useEffect(() => {
                       value={state.shipToReplacement}
                       onChange={handleChange("shipToReplacement")}
                       rows={2}
-                      className="mt-1 w-full rounded-lg border border-white/30 bg-white/10 px-3 py-2 text-white outline-none placeholder:text-white/40"
+                      className="mt-1 w-full rounded-lg border border-white/30 bg-white/10 px-3 py-2 text-white outline-none placeholder:text-white/40 dark:bg-white/10 dark:border-white/30 dark:text-white"
                       placeholder="Enter replacement ship-to address"
                       disabled={disableReplacementCustomerFields}
                     />
@@ -1004,7 +1220,7 @@ useEffect(() => {
                     <select
                       value={state.customerShippingMethodReplacement}
                       onChange={handleChange("customerShippingMethodReplacement")}
-                      className="mt-1 w-full rounded-lg border border-white/30 bg-[#2b2d68] px-3 py-2 outline-none transition hover:bg-[#090c6c]"
+                      className="mt-1 w-full rounded-lg border border-white/30 bg-[#2b2d68] px-3 py-2 outline-none transition hover:bg-[#090c6c] dark:bg-[#2b2d68] dark:hover:bg-[#090c6c] dark:text-white"
                       disabled={disableReplacementCustomerFields}
                     >
                       <option value="">Choose method</option>
@@ -1021,7 +1237,7 @@ useEffect(() => {
                       <input
                         value={state.custOwnShipReplacement}
                         onChange={handleChange("custOwnShipReplacement")}
-                        className="mt-1 w-full rounded-lg border border-white/30 bg-white/10 px-3 py-2 outline-none"
+                        className="mt-1 w-full rounded-lg border border-white/30 bg-white/10 px-3 py-2 outline-none dark:bg-white/10 dark:border-white/30 dark:text-white"
                         placeholder="Enter amount"
                         disabled={disableReplacementCustomerFields}
                       />
@@ -1032,7 +1248,7 @@ useEffect(() => {
                     <select
                       value={state.customerShipperReplacement}
                       onChange={handleChange("customerShipperReplacement")}
-                      className="mt-1 w-full rounded-lg border border-white/30 bg-[#2b2d68] px-3 py-2 outline-none transition hover:bg-[#090c6c]"
+                      className="mt-1 w-full rounded-lg border border-white/30 bg-[#2b2d68] px-3 py-2 outline-none transition hover:bg-[#090c6c] dark:bg-[#2b2d68] dark:hover:bg-[#090c6c] dark:text-white"
                       disabled={disableReplacementCustomerFields}
                     >
                       <option value="">Choose shipper</option>
@@ -1048,7 +1264,7 @@ useEffect(() => {
                     <input
                       value={state.customerTrackingNumberReplacement}
                       onChange={handleChange("customerTrackingNumberReplacement")}
-                      className="mt-1 w-full rounded-lg border border-white/30 bg-white/10 px-3 py-2 outline-none"
+                      className="mt-1 w-full rounded-lg border border-white/30 bg-white/10 px-3 py-2 outline-none dark:bg-white/10 dark:border-white/30 dark:text-white"
                       disabled={disableReplacementCustomerFields}
                     />
                   </div>
@@ -1058,7 +1274,7 @@ useEffect(() => {
                       type="date"
                       value={state.customerETAReplacement}
                       onChange={handleChange("customerETAReplacement")}
-                      className="mt-1 w-full rounded-lg border border-white/30 bg-white/10 px-3 py-2 outline-none"
+                      className="mt-1 w-full rounded-lg border border-white/30 bg-white/10 px-3 py-2 outline-none dark:bg-white/10 dark:border-white/30 dark:text-white"
                       disabled={disableReplacementCustomerFields}
                     />
                   </div>
@@ -1067,7 +1283,7 @@ useEffect(() => {
                     <select
                       value={state.custreplacementDelivery}
                       onChange={handleChange("custreplacementDelivery")}
-                      className="mt-1 w-full rounded-lg border border-white/30 bg-[#2b2d68] px-3 py-2 outline-none transition hover:bg-[#090c6c]"
+                      className="mt-1 w-full rounded-lg border border-white/30 bg-[#2b2d68] px-3 py-2 outline-none transition hover:bg-[#090c6c] dark:bg-[#2b2d68] dark:hover:bg-[#090c6c] dark:text-white"
                       disabled={disableReplacementCustomerFields}
                     >
                       <option value="">Choose status</option>
@@ -1091,7 +1307,7 @@ useEffect(() => {
                     <select
                       value={state.yardShippingStatus}
                       onChange={handleChange("yardShippingStatus")}
-                      className="mt-1 w-full rounded-lg border border-white/30 bg-[#2b2d68] px-3 py-2 outline-none transition hover:bg-[#090c6c]"
+                      className="mt-1 w-full rounded-lg border border-white/30 bg-[#2b2d68] px-3 py-2 outline-none transition hover:bg-[#090c6c] dark:bg-[#2b2d68] dark:hover:bg-[#090c6c] dark:text-white"
                     >
                       <option value="">Choose status</option>
                       {SHIPPING_STATUS.map((status) => (
@@ -1106,7 +1322,7 @@ useEffect(() => {
                     <select
                       value={state.yardShippingMethod}
                       onChange={handleChange("yardShippingMethod")}
-                      className="mt-1 w-full rounded-lg border border-white/30 bg-[#2b2d68] px-3 py-2 outline-none transition hover:bg-[#090c6c]"
+                      className="mt-1 w-full rounded-lg border border-white/30 bg-[#2b2d68] px-3 py-2 outline-none transition hover:bg-[#090c6c] dark:bg-[#2b2d68] dark:hover:bg-[#090c6c] dark:text-white"
                     >
                       <option value="">Choose method</option>
                       {SHIPPING_METHODS.map((method) => (
@@ -1122,7 +1338,7 @@ useEffect(() => {
                       <input
                         value={state.yardOwnShipping}
                         onChange={handleChange("yardOwnShipping")}
-                        className="mt-1 w-full rounded-lg border border-white/30 bg-white/10 px-3 py-2 outline-none"
+                        className="mt-1 w-full rounded-lg border border-white/30 bg-white/10 px-3 py-2 outline-none dark:bg-white/10 dark:border-white/30 dark:text-white"
                         placeholder="Enter amount"
                       />
                     </div>
@@ -1132,7 +1348,7 @@ useEffect(() => {
                     <select
                       value={state.yardShipper}
                       onChange={handleChange("yardShipper")}
-                      className="mt-1 w-full rounded-lg border border-white/30 bg-[#2b2d68] px-3 py-2 outline-none transition hover:bg-[#090c6c]"
+                      className="mt-1 w-full rounded-lg border border-white/30 bg-[#2b2d68] px-3 py-2 outline-none transition hover:bg-[#090c6c] dark:bg-[#2b2d68] dark:hover:bg-[#090c6c] dark:text-white"
                     >
                       <option value="">Choose shipper</option>
                       {SHIPPERS.map((shipper) => (
@@ -1147,7 +1363,7 @@ useEffect(() => {
                     <input
                       value={state.yardTrackingNumber}
                       onChange={handleChange("yardTrackingNumber")}
-                      className="mt-1 w-full rounded-lg border border-white/30 bg-white/10 px-3 py-2 outline-none"
+                      className="mt-1 w-full rounded-lg border border-white/30 bg-white/10 px-3 py-2 outline-none dark:bg-white/10 dark:border-white/30 dark:text-white"
                     />
                   </div>
                   <div>
@@ -1156,7 +1372,7 @@ useEffect(() => {
                       type="date"
                       value={state.yardTrackingETA}
                       onChange={handleChange("yardTrackingETA")}
-                      className="mt-1 w-full rounded-lg border border-white/30 bg-white/10 px-3 py-2 outline-none"
+                      className="mt-1 w-full rounded-lg border border-white/30 bg-white/10 px-3 py-2 outline-none dark:bg-white/10 dark:border-white/30 dark:text-white"
                     />
                   </div>
                   <div>
@@ -1165,7 +1381,7 @@ useEffect(() => {
                       type="url"
                       value={state.yardTrackingLink}
                       onChange={handleChange("yardTrackingLink")}
-                      className="mt-1 w-full rounded-lg border border-white/30 bg-white/10 px-3 py-2 outline-none"
+                      className="mt-1 w-full rounded-lg border border-white/30 bg-white/10 px-3 py-2 outline-none dark:bg-white/10 dark:border-white/30 dark:text-white"
                       placeholder="https://"
                     />
                   </div>
@@ -1178,7 +1394,7 @@ useEffect(() => {
                     <select
                       value={replacementEmailTarget}
                       onChange={(e) => setReplacementEmailTarget(e.target.value)}
-                      className="mt-1 w-full rounded-lg border border-white/30 bg-[#2b2d68] px-3 py-2 text-sm outline-none transition hover:bg-[#090c6c]"
+                      className="mt-1 w-full rounded-lg border border-white/30 bg-[#2b2d68] px-3 py-2 text-sm outline-none transition hover:bg-[#090c6c] dark:bg-[#2b2d68] dark:hover:bg-[#090c6c] dark:text-white"
                     >
                       <option value="Part from Customer">Part from Customer</option>
                       <option value="Part from Yard">Part from Yard</option>
@@ -1276,7 +1492,7 @@ useEffect(() => {
                   <select
                     value={state.customerShippingMethodReturn}
                     onChange={handleChange("customerShippingMethodReturn")}
-                    className="mt-1 w-full rounded-lg border border-white/30 bg-[#2b2d68] px-3 py-2 outline-none transition hover:bg-[#090c6c]"
+                    className="mt-1 w-full rounded-lg border border-white/30 bg-[#2b2d68] px-3 py-2 outline-none transition hover:bg-[#090c6c] dark:bg-[#2b2d68] dark:hover:bg-[#090c6c] dark:text-white"
                   >
                     <option value="">Choose method</option>
                     {SHIPPING_METHODS.map((method) => (
@@ -1292,7 +1508,7 @@ useEffect(() => {
                     <input
                       value={state.custOwnShippingReturn}
                       onChange={handleChange("custOwnShippingReturn")}
-                      className="mt-1 w-full rounded-lg border border-white/30 bg-white/10 px-3 py-2 outline-none"
+                      className="mt-1 w-full rounded-lg border border-white/30 bg-white/10 px-3 py-2 outline-none dark:bg-white/10 dark:border-white/30 dark:text-white"
                     />
                   </div>
                 )}
@@ -1301,7 +1517,7 @@ useEffect(() => {
                   <select
                     value={state.customerShipperReturn}
                     onChange={handleChange("customerShipperReturn")}
-                    className="mt-1 w-full rounded-lg border border-white/30 bg-[#2b2d68] px-3 py-2 outline-none transition hover:bg-[#090c6c]"
+                    className="mt-1 w-full rounded-lg border border-white/30 bg-[#2b2d68] px-3 py-2 outline-none transition hover:bg-[#090c6c] dark:bg-[#2b2d68] dark:hover:bg-[#090c6c] dark:text-white"
                   >
                     <option value="">Choose shipper</option>
                     {SHIPPERS.map((shipper) => (
@@ -1333,7 +1549,7 @@ useEffect(() => {
                   <select
                     value={state.custReturnDelivery}
                     onChange={handleChange("custReturnDelivery")}
-                    className="mt-1 w-full rounded-lg border border-white/30 bg-[#2b2d68] px-3 py-2 outline-none transition hover:bg-[#090c6c]"
+                    className="mt-1 w-full rounded-lg border border-white/30 bg-[#2b2d68] px-3 py-2 outline-none transition hover:bg-[#090c6c] dark:bg-[#2b2d68] dark:hover:bg-[#090c6c] dark:text-white"
                   >
                     <option value="">Choose status</option>
                     {SHIPPING_STATUS.map((status) => (
@@ -1406,11 +1622,11 @@ useEffect(() => {
             </section>
           )}
         </div>
-        <footer className="flex justify-end gap-3 border-t border-white/20 bg-white/5 px-6 py-4 text-sm">
+        <footer className="flex justify-end gap-3 border-t border-white/20 bg-white/5 px-6 py-4 text-sm rounded-b-2xl dark:border-white/20">
           <button
             type="button"
             onClick={() => (!saving && !sendingEmail ? onClose?.() : null)}
-            className="rounded-md border border-white/25 bg-white/10 px-4 py-2 font-semibold text-white hover:bg-white/20"
+            className="rounded-md border border-white/25 bg-white/10 px-4 py-2 font-semibold text-white hover:bg-white/20 yard-escalation-modal-close-btn dark:bg-white/10 dark:hover:bg-white/20 dark:border-white/20 dark:text-white"
             disabled={saving || sendingEmail}
           >
             Close
@@ -1419,10 +1635,10 @@ useEffect(() => {
             type="button"
             onClick={handleSave}
             disabled={saving || sendingEmail}
-            className={`rounded-md border px-4 py-2 font-semibold transition ${
+            className={`rounded-md border px-4 py-2 font-semibold transition yard-escalation-modal-submit-btn ${
               saving || sendingEmail
                 ? "cursor-not-allowed border-white/30 bg-white/20 text-white/70"
-                : "border-white/30 bg-white text-[#04356d] hover:bg-white/90 hover:scale-[1.02] shadow-md"
+                : "border-white/30 bg-white text-[#04356d] hover:bg-white/90 hover:scale-[1.02] shadow-md dark:bg-white dark:text-[#04356d] dark:hover:bg-white/90"
             }`}
           >
             {saving ? "Saving..." : "Save Escalation"}
@@ -1487,6 +1703,7 @@ useEffect(() => {
         )}
       </div>
     </div>
+    </>
   );
 }
 

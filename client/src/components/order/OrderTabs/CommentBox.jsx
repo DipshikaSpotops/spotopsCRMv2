@@ -230,10 +230,10 @@ export default function CommentBox({
                 disabled={loading || !input.trim()}
                 className={`px-4 py-2 rounded-lg font-medium border transition ${
                   loading || !input.trim()
-                    ? "opacity-70 cursor-not-allowed bg-gray-200 text-gray-500 border-gray-300 dark:bg-white/20 dark:text-white/70 dark:border-white/20"
+                    ? "opacity-70 cursor-not-allowed bg-gray-200 text-gray-500 border-gray-300 dark:bg-transparent dark:text-white/50 dark:border-white/30"
                     : buttonTone === "primary"
-                    ? "bg-blue-200 text-blue-800 border-blue-300 hover:bg-blue-300 hover:scale-[1.02] shadow-sm hover:shadow-md dark:bg-[#2b2d68] dark:text-white dark:border-white/20 dark:hover:bg-[#1a1f4b]"
-                    : "bg-blue-200 hover:bg-blue-300 text-blue-800 border-blue-300 shadow-sm hover:shadow-md transition-all dark:bg-white/10 dark:text-white dark:border-white/20 dark:hover:bg-white/20"
+                    ? "bg-blue-200 text-blue-800 border-blue-300 hover:bg-blue-300 hover:scale-[1.02] shadow-sm hover:shadow-md dark:bg-[#06b6d4]/10 dark:text-[#06b6d4] dark:border-[#06b6d4] dark:hover:bg-[#06b6d4]/15 dark:shadow-[0_0_4px_rgba(6,182,212,0.3)] dark:hover:shadow-[0_0_12px_rgba(6,182,212,0.7),0_0_20px_rgba(6,182,212,0.4)] dark:[text-shadow:0_0_2px_rgba(6,182,212,0.5)] dark:hover:[text-shadow:0_0_8px_rgba(6,182,212,0.9),0_0_12px_rgba(6,182,212,0.6)]"
+                    : "bg-blue-200 hover:bg-blue-300 text-blue-800 border-blue-300 shadow-sm hover:shadow-md transition-all dark:bg-[#3b82f6]/10 dark:text-[#3b82f6] dark:border-[#3b82f6] dark:hover:bg-[#3b82f6]/15 dark:shadow-[0_0_4px_rgba(59,130,246,0.3)] dark:hover:shadow-[0_0_12px_rgba(59,130,246,0.7),0_0_20px_rgba(59,130,246,0.4)] dark:[text-shadow:0_0_2px_rgba(59,130,246,0.5)] dark:hover:[text-shadow:0_0_8px_rgba(59,130,246,0.9),0_0_12px_rgba(59,130,246,0.6)]"
                 }`}
               >
                 {loading ? "Saving…" : "Comment"}

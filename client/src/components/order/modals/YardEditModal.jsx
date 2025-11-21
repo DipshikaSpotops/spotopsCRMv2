@@ -339,17 +339,111 @@ export default function YardEditModal({ open, initial, order, orderNo, yardIndex
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full max-w-3xl rounded-2xl border border-white/20 bg-white/10 text-white backdrop-blur-xl shadow-2xl">
-        <header className="flex flex-col px-5 py-3 border-b border-white/20">
+    <>
+      <style>{`
+        /* YardEditModal Light Mode Styles */
+        html:not(.dark) .yard-edit-modal-container {
+          background: rgba(240, 249, 255, 0.95) !important;
+          border: 1.5px solid rgba(59, 130, 246, 0.3) !important;
+          color: #1a1a1a !important;
+          overflow: hidden !important;
+        }
+        html:not(.dark) .yard-edit-modal-container header {
+          background: rgba(240, 249, 255, 0.9) !important;
+          border-bottom: 2px solid rgba(59, 130, 246, 0.3) !important;
+          border-top-left-radius: 1rem !important;
+          border-top-right-radius: 1rem !important;
+        }
+        html.dark .yard-edit-modal-container header {
+          border-top-left-radius: 1rem !important;
+          border-top-right-radius: 1rem !important;
+        }
+        html:not(.dark) .yard-edit-modal-container header h3 {
+          color: #0f172a !important;
+          font-weight: 700 !important;
+        }
+        html:not(.dark) .yard-edit-modal-container label span {
+          color: #1a1a1a !important;
+          font-weight: 600 !important;
+        }
+        /* Part Info Section - make text visible in light mode with high specificity */
+        html:not(.dark) .yard-edit-modal-container header div.text-white\/80,
+        html:not(.dark) .yard-edit-modal-container header div[class*="text-white/80"],
+        html:not(.dark) .yard-edit-modal-container header .text-white\/80,
+        html:not(.dark) .yard-edit-modal-container header [class*="text-white/80"],
+        html:not(.dark) .yard-edit-modal-container header > div.mt-1[class*="text-white"],
+        html:not(.dark) .yard-edit-modal-container header div.underline[class*="text-white"] {
+          color: #1a1a1a !important;
+          font-weight: 600 !important;
+        }
+        /* Override any general text-white inheritance from container */
+        html:not(.dark) .yard-edit-modal-container.text-white header div[class*="text-white/80"],
+        html:not(.dark) .yard-edit-modal-container[class*="text-white"] header div[class*="text-white/80"] {
+          color: #1a1a1a !important;
+          font-weight: 600 !important;
+        }
+        html:not(.dark) .yard-edit-modal-container input,
+        html:not(.dark) .yard-edit-modal-container select {
+          background: #e0f2fe !important;
+          border: 1.5px solid rgba(59, 130, 246, 0.4) !important;
+          color: #1a1a1a !important;
+        }
+        html:not(.dark) .yard-edit-modal-container input:focus,
+        html:not(.dark) .yard-edit-modal-container select:focus {
+          border-color: #2563eb !important;
+          box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15) !important;
+          background: #ffffff !important;
+          outline: none !important;
+        }
+        html:not(.dark) .yard-edit-modal-container input:disabled {
+          background: #e5e7eb !important;
+          color: #9ca3af !important;
+          border-color: #d1d5db !important;
+        }
+        html:not(.dark) .yard-edit-modal-container select option {
+          background: #ffffff !important;
+          color: #1a1a1a !important;
+        }
+        html:not(.dark) .yard-edit-modal-container .text-red-200 {
+          color: #dc2626 !important;
+        }
+        html:not(.dark) .yard-edit-modal-container footer {
+          border-top: 2px solid rgba(59, 130, 246, 0.3) !important;
+          border-bottom-left-radius: 1rem !important;
+          border-bottom-right-radius: 1rem !important;
+        }
+        html.dark .yard-edit-modal-container footer {
+          border-bottom-left-radius: 1rem !important;
+          border-bottom-right-radius: 1rem !important;
+        }
+        html:not(.dark) .yard-edit-modal-close-btn {
+          background: #dbeafe !important;
+          border-color: rgba(59, 130, 246, 0.4) !important;
+          color: #1a1a1a !important;
+        }
+        html:not(.dark) .yard-edit-modal-close-btn:hover {
+          background: #bfdbfe !important;
+        }
+        html:not(.dark) .yard-edit-modal-submit-btn {
+          background: #1e40af !important;
+          color: #ffffff !important;
+          border-color: #1e40af !important;
+        }
+        html:not(.dark) .yard-edit-modal-submit-btn:hover:not(:disabled) {
+          background: #1e3a8a !important;
+        }
+      `}</style>
+      <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+        <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+        <div className="relative w-full max-w-3xl rounded-2xl border border-white/20 bg-white/10 text-white backdrop-blur-xl shadow-2xl yard-edit-modal-container overflow-hidden dark:border-white/20 dark:bg-white/10 dark:text-white">
+          <header className="flex flex-col px-5 py-3 border-b border-white/20 rounded-t-2xl dark:border-white/20">
           <div className="flex items-center justify-between">
             <h3 className="text-lg font-semibold">
               Edit Yard Details – {orderNo || "—"}
             </h3>
             <button
               onClick={onClose}
-              className="px-2 py-1 rounded-md bg-white/10 border border-white/20 hover:bg-white/20"
+              className="px-2 py-1 rounded-md bg-white/10 border border-white/20 hover:bg-white/20 yard-edit-modal-close-btn dark:bg-white/10 dark:hover:bg-white/20 dark:border-white/20 dark:text-white"
             >
               ✕
             </button>
@@ -440,11 +534,11 @@ export default function YardEditModal({ open, initial, order, orderNo, yardIndex
           </div>
         </div>
 
-        <footer className="flex items-center justify-end gap-2 px-5 py-3 border-t border-white/20">
-          <button onClick={onClose} className="px-3 py-1.5 rounded-md bg-white/10 border border-white/20 hover:bg-white/20">Close</button>
+        <footer className="flex items-center justify-end gap-2 px-5 py-3 border-t border-white/20 rounded-b-2xl dark:border-white/20">
+          <button onClick={onClose} className="px-3 py-1.5 rounded-md bg-white/10 border border-white/20 hover:bg-white/20 yard-edit-modal-close-btn dark:bg-white/10 dark:hover:bg-white/20 dark:border-white/20 dark:text-white">Close</button>
           <button
             onClick={handleSave}
-            className="px-3 py-1.5 rounded-md bg-white text-[#04356d] border border-white/20 hover:bg-white/90"
+            className="px-3 py-1.5 rounded-md bg-white text-[#04356d] border border-white/20 hover:bg-white/90 yard-edit-modal-submit-btn dark:bg-white dark:text-[#04356d] dark:hover:bg-white/90"
           >
             Save
           </button>
@@ -458,5 +552,6 @@ export default function YardEditModal({ open, initial, order, orderNo, yardIndex
         />
       </div>
     </div>
+    </>
   );
 }

@@ -1003,10 +1003,10 @@ export default function OrderDetails() {
                   <button
                     onClick={handleSaveReimbursement}
                     disabled={savingReimbursement || !orderNo}
-                    className={`px-4 py-2 rounded-md text-sm font-semibold border transition ${
+                    className={`px-4 py-2 rounded-md text-sm font-medium border transition ${
                       savingReimbursement
-                        ? "bg-sky-200/80 text-gray-500 border-blue-300 cursor-not-allowed dark:bg-white/20 dark:text-white/50 dark:border-white/30"
-                        : "bg-blue-200 hover:bg-blue-300 text-blue-800 border-blue-300 shadow-sm hover:shadow-md dark:bg-white/10 dark:text-white dark:border-white/30 dark:hover:bg-white/20"
+                        ? "bg-sky-200/80 text-gray-500 border-blue-300 cursor-not-allowed dark:bg-transparent dark:text-white/50 dark:border-white/30"
+                        : "bg-blue-200 hover:bg-blue-300 text-blue-800 border-blue-300 shadow-sm hover:shadow-md dark:bg-[#10b981]/10 dark:text-[#10b981] dark:border-[#10b981] dark:hover:bg-[#10b981]/15 dark:shadow-[0_0_4px_rgba(16,185,129,0.3)] dark:hover:shadow-[0_0_12px_rgba(16,185,129,0.7),0_0_20px_rgba(16,185,129,0.4)] dark:[text-shadow:0_0_2px_rgba(16,185,129,0.5)] dark:hover:[text-shadow:0_0_8px_rgba(16,185,129,0.9),0_0_12px_rgba(16,185,129,0.6)]"
                     }`}
                   >
                     {savingReimbursement ? "Saving..." : "Save Reimbursement"}
@@ -1119,6 +1119,7 @@ export default function OrderDetails() {
         open={showAdd}
         onClose={() => setShowAdd(false)}
         onSubmit={handleAddYard}
+        order={order}
       />
 
       <YardEditModal

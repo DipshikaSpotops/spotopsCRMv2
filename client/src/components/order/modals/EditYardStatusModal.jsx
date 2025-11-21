@@ -338,14 +338,103 @@ export default function EditYardStatusModal({
 
   /* ---------------------- JSX ---------------------- */
   return (
-    <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full max-w-2xl rounded-2xl border border-white/20 bg-white/10 text-white backdrop-blur-xl shadow-2xl">
-        <header className="flex items-center justify-between px-5 py-3 border-b border-white/20">
+    <>
+      <style>{`
+        /* EditYardStatusModal Light Mode Styles */
+        html:not(.dark) .edit-yard-status-modal-container {
+          background: rgba(240, 249, 255, 0.95) !important;
+          border: 1.5px solid rgba(59, 130, 246, 0.3) !important;
+          color: #1a1a1a !important;
+          overflow: hidden !important;
+        }
+        html:not(.dark) .edit-yard-status-modal-container header {
+          background: rgba(240, 249, 255, 0.9) !important;
+          border-bottom: 2px solid rgba(59, 130, 246, 0.3) !important;
+          border-top-left-radius: 1rem !important;
+          border-top-right-radius: 1rem !important;
+        }
+        html.dark .edit-yard-status-modal-container header {
+          border-top-left-radius: 1rem !important;
+          border-top-right-radius: 1rem !important;
+        }
+        html:not(.dark) .edit-yard-status-modal-container header h3 {
+          color: #0f172a !important;
+          font-weight: 700 !important;
+        }
+        html:not(.dark) .edit-yard-status-modal-container label {
+          color: #1a1a1a !important;
+          font-weight: 600 !important;
+        }
+        html:not(.dark) .edit-yard-status-modal-container input,
+        html:not(.dark) .edit-yard-status-modal-container select,
+        html:not(.dark) .edit-yard-status-modal-container textarea {
+          background: #e0f2fe !important;
+          border: 1.5px solid rgba(59, 130, 246, 0.4) !important;
+          color: #1a1a1a !important;
+        }
+        html:not(.dark) .edit-yard-status-modal-container input:focus,
+        html:not(.dark) .edit-yard-status-modal-container select:focus,
+        html:not(.dark) .edit-yard-status-modal-container textarea:focus {
+          border-color: #2563eb !important;
+          box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15) !important;
+          background: #ffffff !important;
+          outline: none !important;
+        }
+        html:not(.dark) .edit-yard-status-modal-container select option {
+          background: #ffffff !important;
+          color: #1a1a1a !important;
+        }
+        html:not(.dark) .edit-yard-status-modal-container select.bg-\[#2b2d68\] {
+          background: #dbeafe !important;
+          border-color: rgba(59, 130, 246, 0.4) !important;
+          color: #1a1a1a !important;
+        }
+        html:not(.dark) .edit-yard-status-modal-container select.bg-\[#2b2d68\]:hover {
+          background: #bfdbfe !important;
+        }
+        html:not(.dark) .edit-yard-status-modal-container .bg-white\/10 {
+          background: rgba(240, 249, 255, 0.6) !important;
+          border-color: rgba(59, 130, 246, 0.3) !important;
+        }
+        html:not(.dark) .edit-yard-status-modal-container footer {
+          border-top: 2px solid rgba(59, 130, 246, 0.3) !important;
+          border-bottom-left-radius: 1rem !important;
+          border-bottom-right-radius: 1rem !important;
+        }
+        html.dark .edit-yard-status-modal-container footer {
+          border-bottom-left-radius: 1rem !important;
+          border-bottom-right-radius: 1rem !important;
+        }
+        html:not(.dark) .edit-yard-status-modal-close-btn {
+          background: #dbeafe !important;
+          border-color: rgba(59, 130, 246, 0.4) !important;
+          color: #1a1a1a !important;
+        }
+        html:not(.dark) .edit-yard-status-modal-close-btn:hover {
+          background: #bfdbfe !important;
+        }
+        html:not(.dark) .edit-yard-status-modal-submit-btn {
+          background: #1e40af !important;
+          color: #ffffff !important;
+          border-color: #1e40af !important;
+        }
+        html:not(.dark) .edit-yard-status-modal-submit-btn:hover:not(:disabled) {
+          background: #1e3a8a !important;
+        }
+        html:not(.dark) .edit-yard-status-modal-submit-btn:disabled {
+          background: #e5e7eb !important;
+          color: #9ca3af !important;
+          border-color: #d1d5db !important;
+        }
+      `}</style>
+      <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
+        <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+        <div className="relative w-full max-w-2xl rounded-2xl border border-white/20 bg-white/10 text-white backdrop-blur-xl shadow-2xl edit-yard-status-modal-container overflow-hidden dark:border-white/20 dark:bg-white/10 dark:text-white">
+          <header className="flex items-center justify-between px-5 py-3 border-b border-white/20 rounded-t-2xl dark:border-white/20">
           <h3 className="text-lg font-semibold">Edit Yard Status (Yard {yardIndex + 1})</h3>
           <button
             onClick={onClose}
-            className="px-2 py-1 rounded-md bg-white/10 border border-white/20 hover:bg-white/20"
+            className="px-2 py-1 rounded-md bg-white/10 border border-white/20 hover:bg-white/20 edit-yard-status-modal-close-btn dark:bg-white/10 dark:hover:bg-white/20 dark:border-white/20 dark:text-white"
           >
             ✕
           </button>
@@ -369,7 +458,7 @@ export default function EditYardStatusModal({
             <select
               value={status}
               onChange={(e) => setStatus(e.target.value)}
-              className="w-full rounded-lg px-3 py-2 bg-[#2b2d68] hover:bg-[#090c6c] border border-white/30 outline-none"
+              className="w-full rounded-lg px-3 py-2 bg-[#2b2d68] hover:bg-[#090c6c] border border-white/30 outline-none dark:bg-[#2b2d68] dark:hover:bg-[#090c6c] dark:text-white"
             >
               {STATUS_OPTIONS.map((s) => (
                 <option key={s} value={s}>
@@ -435,7 +524,7 @@ export default function EditYardStatusModal({
               <div>
                 <label className="block text-sm mb-1">Tracking No</label>
                 <input
-                  className="w-full rounded-lg px-3 py-2 bg-white/10 border border-white/30 outline-none"
+                  className="w-full rounded-lg px-3 py-2 bg-white/10 border border-white/30 outline-none dark:bg-white/10 dark:border-white/30 dark:text-white"
                   value={trackingNo}
                   onChange={(e) => setTrackingNo(e.target.value)}
                 />
@@ -445,7 +534,7 @@ export default function EditYardStatusModal({
                 <label className="block text-sm mb-1">ETA</label>
                 <input
                   type="date"
-                  className="w-full rounded-lg px-3 py-2 bg-white/10 border border-white/30 outline-none"
+                  className="w-full rounded-lg px-3 py-2 bg-white/10 border border-white/30 outline-none dark:bg-white/10 dark:border-white/30 dark:text-white"
                   value={eta}
                   onChange={(e) => setEta(e.target.value)}
                 />
@@ -456,7 +545,7 @@ export default function EditYardStatusModal({
                 <select
                   value={shipperName}
                   onChange={(e) => setShipperName(e.target.value)}
-                  className="w-full rounded-lg px-3 py-2 bg-[#2b2d68] hover:bg-[#090c6c] border border-white/30 outline-none"
+                  className="w-full rounded-lg px-3 py-2 bg-[#2b2d68] hover:bg-[#090c6c] border border-white/30 outline-none dark:bg-[#2b2d68] dark:hover:bg-[#090c6c] dark:text-white"
                 >
                   <option value="" disabled>
                     Select Shipper
@@ -469,7 +558,7 @@ export default function EditYardStatusModal({
 
                 {shipperName === "Others" && (
                   <input
-                    className="w-full mt-2 rounded-lg px-3 py-2 bg-white/10 border border-white/30 outline-none"
+                    className="w-full mt-2 rounded-lg px-3 py-2 bg-white/10 border border-white/30 outline-none dark:bg-white/10 dark:border-white/30 dark:text-white"
                     placeholder="Please specify other shipper"
                     value={otherShipper}
                     onChange={(e) => setOtherShipper(e.target.value)}
@@ -481,7 +570,7 @@ export default function EditYardStatusModal({
                 <label className="block text-sm mb-1">Tracking Link</label>
                 <input
                   type="url"
-                  className="w-full rounded-lg px-3 py-2 bg-white/10 border border-white/30 outline-none"
+                  className="w-full rounded-lg px-3 py-2 bg-white/10 border border-white/30 outline-none dark:bg-white/10 dark:border-white/30 dark:text-white"
                   value={trackingLink}
                   onChange={(e) => setTrackingLink(e.target.value)}
                 />
@@ -583,7 +672,7 @@ export default function EditYardStatusModal({
              <select
               value={escCause}
               onChange={(e) => setEscCause(e.target.value)}
-              className="w-full rounded-lg px-3 py-2 bg-[#2b2d68] hover:bg-[#090c6c] border border-white/30 outline-none"
+              className="w-full rounded-lg px-3 py-2 bg-[#2b2d68] hover:bg-[#090c6c] border border-white/30 outline-none dark:bg-[#2b2d68] dark:hover:bg-[#090c6c] dark:text-white"
             >
               <option value="">Choose</option>
               <option value="Damaged">Damaged</option>
@@ -611,20 +700,20 @@ export default function EditYardStatusModal({
         </div>
 
         {/* Footer */}
-        <footer className="flex items-center justify-end gap-2 px-5 py-3 border-t border-white/20">
+        <footer className="flex items-center justify-end gap-2 px-5 py-3 border-t border-white/20 rounded-b-2xl dark:border-white/20">
           <button
             onClick={onClose}
-            className="px-3 py-1.5 rounded-md bg-white/10 border border-white/20 hover:bg-white/20"
+            className="px-3 py-1.5 rounded-md bg-white/10 border border-white/20 hover:bg-white/20 edit-yard-status-modal-close-btn dark:bg-white/10 dark:hover:bg-white/20 dark:border-white/20 dark:text-white"
           >
             Close
           </button>
           <button
             onClick={save}
             disabled={!!savingAction}
-            className={`px-3 py-1.5 rounded-md border transition ${
+            className={`px-3 py-1.5 rounded-md border transition edit-yard-status-modal-submit-btn ${
               savingAction
                 ? "bg-gray-400 text-gray-700 border-gray-300 cursor-not-allowed"
-                : "bg-white text-[#04356d] border-white/20 hover:bg-white/90 hover:scale-[1.02]"
+                : "bg-white text-[#04356d] border-white/20 hover:bg-white/90 hover:scale-[1.02] dark:bg-white dark:text-[#04356d] dark:hover:bg-white/90"
             }`}
             title={savingAction ? "Please wait..." : "Save changes"}
           >
@@ -701,5 +790,6 @@ export default function EditYardStatusModal({
         }}
       />
     </div>
+    </>
   );
 }
