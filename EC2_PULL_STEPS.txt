@@ -1,0 +1,52 @@
+EC2 Git Pull Steps - Run these commands on your EC2 server:
+
+===========================================
+STEP 1: Go to the project root directory
+===========================================
+cd /var/www/spotopsCRMv2
+
+===========================================
+STEP 2: Discard the generated bundle-report.html
+===========================================
+git restore client/bundle-report.html
+
+===========================================
+STEP 3: Check if you want to keep other changes
+===========================================
+# Review what changed in these files
+git diff client/package.json client/vite.config.js package.json package-lock.json
+
+===========================================
+OPTION A: Discard ALL local changes and match remote exactly
+===========================================
+git restore client/package.json client/vite.config.js package.json package-lock.json
+git pull origin main
+
+===========================================
+OPTION B: Keep your local changes, commit them first
+===========================================
+git add client/package.json client/vite.config.js package.json package-lock.json
+git commit -m "EC2 local config changes"
+git pull --rebase origin main
+
+# If rebase has conflicts, resolve them then:
+# git add <resolved-files>
+# git rebase --continue
+
+===========================================
+OPTION C: Stash changes, pull, then reapply
+===========================================
+git stash
+git pull origin main
+git stash pop
+
+# If stash pop has conflicts, resolve them
+
+===========================================
+AFTER SUCCESSFUL PULL:
+===========================================
+cd client
+npm install
+npm run build
+
+
