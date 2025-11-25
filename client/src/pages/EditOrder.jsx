@@ -17,7 +17,7 @@ const REQUIRED_FIELD_LABELS = {
   bAddressState: "Billing State",
   bAddressZip: "Billing Zip",
   bAddressAcountry: "Billing Country",
-  sAttention: "Shipping Attention",
+  attention: "Shipping Attention",
   sAddressStreet: "Shipping Street",
   sAddressCity: "Shipping City",
   sAddressState: "Shipping State",
@@ -63,7 +63,7 @@ const buildInitialFormData = () => ({
   businessName: "",
 
   // Shipping Info
-  sAttention: "",
+  attention: "",
   sAddressStreet: "",
   sAddressCity: "",
   sAddressState: "",
@@ -133,16 +133,28 @@ export default function EditOrder() {
   const [partNames, setPartNames] = useState([]);
   const [fieldErrors, setFieldErrors] = useState(new Set());
 
-  // Check if user is Admin
+  // Get role with fallback to localStorage (like Sidebar does)
+  const role = userRole ?? (() => {
+    try {
+      const raw = localStorage.getItem("auth");
+      if (raw) return JSON.parse(raw)?.user?.role || undefined;
+    } catch {}
+    return localStorage.getItem("role") || undefined;
+  })();
+
+  // Check if user is Admin (only after role is loaded)
   useEffect(() => {
-    if (userRole !== "Admin") {
+    // Wait for role to be available before checking
+    if (role === undefined) return;
+    
+    if (role !== "Admin") {
       setToast({
         message: "Access denied. Admin access required.",
         variant: "error",
       });
       setTimeout(() => navigate("/dashboard"), 2000);
     }
-  }, [userRole, navigate]);
+  }, [role, navigate]);
 
   // Helper to clear error when field is updated
   const handleFieldChange = (fieldKey, value) => {
@@ -252,6 +264,55 @@ export default function EditOrder() {
     };
   }, [formData.sAddressZip, fetchZipDetails]);
 
+  // Helper functions for date formatting
+  const pad = (num) => String(num).padStart(2, "0");
+  const getDallasOffset = (date) => {
+    const jan = new Date(date.getFullYear(), 0, 1).getTimezoneOffset();
+    const jul = new Date(date.getFullYear(), 6, 1).getTimezoneOffset();
+    const isDST = Math.max(jan, jul) !== date.getTimezoneOffset();
+    const offsetHours = isDST ? -5 : -6;
+    return `${offsetHours > 0 ? "-" : "+"}${String(
+      Math.abs(offsetHours)
+    ).padStart(2, "0")}:00`;
+  };
+
+  const formatOrderDate = (orderDate) => {
+    if (!orderDate) return { display: "", iso: "" };
+    
+    // Handle both Date objects and ISO strings
+    const date = orderDate instanceof Date ? orderDate : new Date(orderDate);
+    if (isNaN(date.getTime())) return { display: "", iso: "" };
+
+    // Format for display (Dallas timezone)
+    const dallasFormatter = new Intl.DateTimeFormat("en-US", {
+      timeZone: "America/Chicago",
+      year: "numeric",
+      month: "long",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    });
+
+    const parts = dallasFormatter.formatToParts(date);
+    const year = parts.find((p) => p.type === "year").value;
+    const monthName = parts.find((p) => p.type === "month").value;
+    const day = parts.find((p) => p.type === "day").value;
+    const hour = parts.find((p) => p.type === "hour").value;
+    const minute = parts.find((p) => p.type === "minute").value;
+
+    const displayDate = `${day} ${monthName}, ${year} ${hour}:${minute}`;
+
+    // Format ISO string (Dallas timezone)
+    const tzOffset = getDallasOffset(date);
+    const monthNumber = new Date(
+      date.toLocaleString("en-US", { timeZone: "America/Chicago" })
+    ).getMonth() + 1;
+    const isoDallas = `${year}-${pad(monthNumber)}-${pad(day)}T${hour}:${minute}:00.000${tzOffset}`;
+
+    return { display: displayDate, iso: isoDallas };
+  };
+
   // Fetch order when order number is entered
   const handleLoadOrder = async () => {
     if (!orderNoInput.trim()) {
@@ -265,12 +326,15 @@ export default function EditOrder() {
       const res = await API.get(`/orders/${encodeURIComponent(orderNoInput.trim())}`);
       const order = res.data;
 
+      // Format order date if it exists
+      const dateFormatted = formatOrderDate(order.orderDate);
+
       // Map order data to form data
       setFormData({
         orderNo: order.orderNo || "",
         salesAgent: order.salesAgent || "",
-        orderDateDisplay: order.orderDateDisplay || "",
-        orderDateISO: order.orderDateISO || "",
+        orderDateDisplay: order.orderDateDisplay || dateFormatted.display,
+        orderDateISO: order.orderDateISO || dateFormatted.iso,
         orderStatus: order.orderStatus || "Placed",
 
         // Customer Info
@@ -290,7 +354,7 @@ export default function EditOrder() {
         bAddressAcountry: order.bAddressAcountry || "",
 
         // Shipping Info
-        sAttention: order.sAttention || "",
+        attention: order.attention || order.sAttention || "",
         sAddressStreet: order.sAddressStreet || "",
         sAddressCity: order.sAddressCity || "",
         sAddressState: order.sAddressState || "",
@@ -316,7 +380,7 @@ export default function EditOrder() {
         salestax: order.salestax || "",
         grossProfit: order.grossProfit || "",
         last4digits: order.last4digits || "",
-        notes: order.notes || "",
+        notes: Array.isArray(order.notes) ? order.notes.join("\n") : (order.notes || ""),
 
         // Toggles
         expediteShipping: order.expediteShipping === true || order.expediteShipping === "true",
@@ -407,8 +471,18 @@ export default function EditOrder() {
         formData.warrantyField
       );
 
+      // Build payload, ensuring attention is used instead of sAttention
+      const { sAttention, ...formDataWithoutSAttention } = formData;
+      
+      // Convert notes string to array if needed (backend expects array)
+      const notesArray = formData.notes 
+        ? (Array.isArray(formData.notes) 
+            ? formData.notes 
+            : String(formData.notes).split('\n').filter(n => n.trim()))
+        : [];
+      
       const payload = {
-        ...formData,
+        ...formDataWithoutSAttention,
         bName: formData.businessName || formData.bName,
         warranty: warrantyQty,
         warrantyField: warrantyUnit,
@@ -416,6 +490,11 @@ export default function EditOrder() {
         programmingCostQuoted: formData.programmingRequired
           ? formData.programmingCost
           : "",
+        notes: notesArray,
+        // Convert boolean toggles to strings (backend expects strings)
+        expediteShipping: formData.expediteShipping ? "true" : "false",
+        dsCall: formData.dsCall ? "true" : "false",
+        programmingRequired: formData.programmingRequired ? "true" : "false",
       };
 
       await API.put(`/orders/${encodeURIComponent(formData.orderNo)}`, payload);
@@ -430,7 +509,16 @@ export default function EditOrder() {
     }
   };
 
-  if (userRole !== "Admin") {
+  // Show loading state while role is being determined
+  if (role === undefined) {
+    return (
+      <div className="h-screen flex items-center justify-center">
+        <div className="text-white text-xl">Loading...</div>
+      </div>
+    );
+  }
+
+  if (role !== "Admin") {
     return (
       <div className="h-screen flex items-center justify-center">
         <div className="text-white text-xl">Access denied. Admin access required.</div>
@@ -471,6 +559,21 @@ export default function EditOrder() {
           }`}
         >
           {loadingOrder ? "Loading..." : "Load Order"}
+        </button>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.preventDefault();
+            handleSubmit(e);
+          }}
+          disabled={submitting || !formData.orderNo}
+          className={`px-6 py-2 bg-gradient-to-r from-[#504fad] to-[#5a80c7] text-white font-semibold rounded-xl shadow-lg transition ${
+            submitting || !formData.orderNo
+              ? "opacity-70 cursor-not-allowed"
+              : "hover:scale-105"
+          }`}
+        >
+          {submitting ? "Updating..." : "Update Order"}
         </button>
       </div>
 
@@ -612,7 +715,7 @@ export default function EditOrder() {
                     sameAsBilling: isChecked,
                     ...(isChecked
                       ? {
-                          sAttention: prev.bName,
+                          attention: prev.bName,
                           sAddressStreet: prev.bAddressStreet,
                           sAddressCity: prev.bAddressCity,
                           sAddressState: prev.bAddressState,
@@ -620,7 +723,7 @@ export default function EditOrder() {
                           sAddressAcountry: prev.bAddressAcountry,
                         }
                       : {
-                          sAttention: "",
+                          attention: "",
                           sAddressStreet: "",
                           sAddressCity: "",
                           sAddressState: "",
@@ -633,9 +736,9 @@ export default function EditOrder() {
 
               <Input
                 placeholder="Attention"
-                value={formData.sAttention}
-                onChange={(e) => handleFieldChange("sAttention", e.target.value)}
-                error={fieldErrors.has("sAttention")}
+                value={formData.attention}
+                onChange={(e) => handleFieldChange("attention", e.target.value)}
+                error={fieldErrors.has("attention")}
               />
               <Input
                 placeholder="Address"
