@@ -47,8 +47,37 @@ export default function YardProcessingOrders() {
             </button>
           </div>
         );
-      case "pReq":         return row.pReq || row.partName || "—";
-      case "customerName": return row.customerName || (row.fName && row.lName ? `${row.fName} ${row.lName}` : "—");
+      case "pReq":
+        return (
+          <div>
+            <div>{row.pReq || row.partName || "—"}</div>
+            {open && (
+              <div className="mt-2 border-t border-white/20 pt-2 text-xs space-y-1">
+                <b>{row.year} {row.make} {row.model}</b>
+                <div><b>Desc:</b> {row.desc}</div>
+                <div><b>Part No:</b> {row.partNo}</div>
+                <div><b>VIN:</b> {row.vin}</div>
+                <div><b>Warranty:</b> {row.warranty} days</div>
+                <div><b>Programming:</b> {row.programmingRequired ? "Yes" : "No"}</div>
+              </div>
+            )}
+          </div>
+        );
+      case "customerName":
+        return (
+          <div>
+            <div>{row.customerName || (row.fName && row.lName ? `${row.fName} ${row.lName}` : "—")}</div>
+            {open && (
+              <div className="mt-2 border-t border-white/20 pt-2 text-xs space-y-1">
+                <div><b>Email:</b> {row.email}</div>
+                <div><b>Phone:</b> {row.phone}</div>
+                <div>
+                  <b>Address:</b> {row.sAddressStreet}, {row.sAddressCity}, {row.sAddressState}, {row.sAddressZip}
+                </div>
+              </div>
+            )}
+          </div>
+        );
       case "yardName": {
         const yards = Array.isArray(row.additionalInfo) ? row.additionalInfo : [];
         if (!yards.length) return "—";
