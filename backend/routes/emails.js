@@ -47,7 +47,7 @@ router.post("/order-cancel/:orderNo", async (req, res) => {
   try {
     const { orderNo } = req.params;
     const cancelledRefAmount = req.query.cancelledRefAmount ?? "0.00";
-    const firstName = req.query.firstName; 
+    const firstName = req.query.firstName;
     console.log("[emails] params:", { orderNo, cancelledRefAmount, firstName });
 
     const order = await Order.findOne({ orderNo });
@@ -55,38 +55,38 @@ router.post("/order-cancel/:orderNo", async (req, res) => {
 
     const formattedDate = prettyDate(order.orderDate);
     console.log("formattedDate", formattedDate);
-      order.customerName ||
+    order.customerName ||
       [order.fName, order.lName].filter(Boolean).join(" ") ||
       "Customer";
     const toEmail = order.email;
-    if (!toEmail) return res.status(400).json({ message: "No customer email on file" });
+    if (!toEmail)
+      return res.status(400).json({ message: "No customer email on file" });
 
     const transporter = nodemailer.createTransport({
-  service: "gmail",
-  auth: {
-    user: process.env.SERVICE_EMAIL, 
-    pass: process.env.SERVICE_PASS,  
-  },
-});
-
+      service: "gmail",
+      auth: {
+        user: process.env.SERVICE_EMAIL,
+        pass: process.env.SERVICE_PASS,
+      },
+    });
 
     await transporter.sendMail({
       from: `"50 Stars Auto Parts" <${process.env.SERVICE_EMAIL}>`,
       to: toEmail,
-      bcc:
-        process.env.SUPPORT_BCC,
+      bcc: process.env.SUPPORT_BCC,
       subject: `Order Cancellation | ${order.orderNo}`,
-        html: `
+      html: `<div style="font-size:16px;line-height:1.7;">
         <p>I hope this email finds you well. I am writing to inform you about the cancellation of your recent order# <b>${order.orderNo}</b>, dated <b>${formattedDate}</b>, for a <b>${order.year} ${order.make}
-        ${order.model} ${order.pReq}</b> with <b>50 Stars Auto Parts</b>.
+        ${order.model} ${order.pReq}</b> with <b>50 Stars Auto Parts</b>.</p>
         <p>We regret any inconvenience this may have caused you.</p>
-        <b>We have cancelled your order and will refund you $${cancelledRefAmount}  to the same source account.</b>
-        Please call us if you have any questions. Rest assured, any payment made for the cancelled order will be promptly refunded to your original payment method. You can expect to see the refund reflected in your account within 3-5 business days.<br>
-        <p>We understand the importance of timely and efficient service, and we sincerely apologize for any inconvenience this cancellation may have caused. Our team is working diligently to prevent such occurrences in the future.<br>
-        If you have any questions or require further assistance, please don't hesitate to contact our customer support team at <b>+1(888)-732-8680</b>. We are here to assist you in any way we can.Thank you for your understanding and continued support.<br></p>
+        <p><b>We have cancelled your order and will refund you $${cancelledRefAmount}  to the same source account.</b></p>
+        <p>Please call us if you have any questions. Rest assured, any payment made for the cancelled order will be promptly refunded to your original payment method. You can expect to see the refund reflected in your account within 3-5 business days.</p>
+        <p>We understand the importance of timely and efficient service, and we sincerely apologize for any inconvenience this cancellation may have caused. Our team is working diligently to prevent such occurrences in the future.</p>
+        <p>If you have any questions or require further assistance, please don't hesitate to contact our customer support team at <b>+1(888)-732-8680</b>. We are here to assist you in any way we can. Thank you for your understanding and continued support.</p>
         <p><b>Please reply to this email with a quick confirmation to acknowledge and approve this cancellation request.</b></p>
         <p><img src="cid:logo" alt="logo" style="width: 180px; height: 100px;"></p>
-        <p>${firstName},<br>Customer Service Team<br>50 STARS AUTO PARTS<br>+1 (888) 732-8680<br>service@50starsautoparts.com<br>www.50starsautoparts.com</p>`,
+        <p>Customer Service Team<br>${firstName || "Team Member"}<br>50 STARS AUTO PARTS<br>+1 (888) 732-8680<br>service@50starsautoparts.com<br>www.50starsautoparts.com</p>
+      </div>`,
       attachments: [
         {
           filename: "logo.png",
@@ -101,6 +101,75 @@ router.post("/order-cancel/:orderNo", async (req, res) => {
     res.json({ message: "Cancellation email sent successfully" });
   } catch (err) {
     console.error("[emails] error:", err);
+    res.status(500).json({ message: "Server error", error: String(err) });
+  }
+});
+
+// POST /emails/sendReimburseEmail/:orderNo
+router.post("/sendReimburseEmail/:orderNo", async (req, res) => {
+  console.log("[emails] sendReimburseEmail hit", req.method, req.originalUrl);
+  try {
+    const { orderNo } = req.params;
+    const reimburesementValue = req.query.reimburesementValue ?? "0";
+    const agentFirstName =
+      (req.query.firstName ?? "").toString().trim() || "Customer Service Team";
+
+    const order = await Order.findOne({ orderNo });
+    if (!order) return res.status(404).json({ message: "Order not found" });
+
+    const amount = Number(reimburesementValue) || 0;
+
+    const customerName =
+      order.customerName ||
+      [order.fName, order.lName].filter(Boolean).join(" ") ||
+      "Customer";
+    const toEmail = (order.email || "").trim();
+    if (!toEmail)
+      return res.status(400).json({ message: "No customer email on file" });
+
+    const transporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: {
+        user: process.env.SERVICE_EMAIL,
+        pass: process.env.SERVICE_PASS,
+      },
+    });
+
+    const logoUrl =
+      process.env.LOGO_URL ||
+      "https://assets-autoparts.s3.ap-south-1.amazonaws.com/images/logo.png";
+
+    await transporter.sendMail({
+      from: `"50 Stars Auto Parts" <${process.env.SERVICE_EMAIL}>`,
+      to: toEmail,
+      bcc:
+        process.env.SUPPORT_BCC ||
+        "service@50starsautoparts.com,dipsikha.spotopsdigital@gmail.com",
+      subject: `Goodwill Reimbursement Confirmation || Order No. ${orderNo}`,
+      html: `<div style="font-size:16px;line-height:1.7;">
+  <p>Dear ${customerName},</p>
+  <p>We are sorry to hear that the ABS module did not meet your expectations, and we are committed to providing a satisfactory resolution.</p>
+  <p>As discussed, we’re glad to hear that you’ve resolved the issue! We are reimbursing you $${amount.toFixed(
+    2
+  )} as a goodwill gesture, and we hope this reflects our commitment to supporting our customers. Once the refund is processed, we will share the refund receipt with you.</p>
+  <p>It’s been a pleasure interacting with you, and we look forward to assisting you with more orders in the future.</p>
+  <p>Thank you again, and please don’t hesitate to reach out anytime.</p>
+  <p>If you have any questions or need further assistance, please feel free to reach out.</p>
+  <p><img src="cid:logo" alt="logo" style="width: 180px; height: 100px;"></p>
+  <p>Customer Service Team<br>${agentFirstName}<br>50 STARS AUTO PARTS<br>+1 (866) 207-5533<br>service@50starsautoparts.com<br>www.50starsautoparts.com</p>
+</div>`,
+      attachments: [
+        {
+          filename: "logo.png",
+          path: logoUrl,
+          cid: "logo",
+        },
+      ],
+    });
+
+    res.json({ message: "Reimbursement email sent successfully" });
+  } catch (err) {
+    console.error("[emails] sendReimburseEmail error:", err);
     res.status(500).json({ message: "Server error", error: String(err) });
   }
 });

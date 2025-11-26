@@ -293,6 +293,8 @@ export default function EditYardStatusModal({
         formData,
         {
           params: { firstName },
+          // PDF generation can take longer locally; allow up to 60s for this request
+          timeout: 60000,
         }
       );
 
@@ -426,6 +428,21 @@ export default function EditYardStatusModal({
           color: #9ca3af !important;
           border-color: #d1d5db !important;
         }
+        /* Light mode styling for Send PO button */
+        html:not(.dark) .edit-yard-status-modal-container .send-po-btn {
+          background: #1e40af !important;
+          color: #ffffff !important;
+          border-color: #1e40af !important;
+        }
+        html:not(.dark) .edit-yard-status-modal-container .send-po-btn:hover:not(:disabled) {
+          background: #1e3a8a !important;
+          border-color: #1e3a8a !important;
+        }
+        html:not(.dark) .edit-yard-status-modal-container .send-po-btn:disabled {
+          background: #e5e7eb !important;
+          color: #9ca3af !important;
+          border-color: #d1d5db !important;
+        }
       `}</style>
       <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
         <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
@@ -479,7 +496,7 @@ export default function EditYardStatusModal({
                   type="button"
                   onClick={sendPO}
                   disabled={savingAction === "sendPO"}
-                  className={`px-3 py-1.5 rounded-md text-sm border transition ${
+                  className={`px-3 py-1.5 rounded-md text-sm border transition send-po-btn ${
                     savingAction === "sendPO"
                       ? "bg-white/20 text-white/70 border-white/30 cursor-not-allowed"
                       : "bg-white/10 text-white border-white/20 hover:bg-white/20"

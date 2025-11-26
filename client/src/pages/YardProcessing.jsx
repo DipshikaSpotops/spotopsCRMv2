@@ -8,7 +8,7 @@ const columns = [
   { key: "customerName", label: "Customer Name" },
   { key: "yardName",     label: "Yard Details" },
   { key: "lastComment",  label: "Last Comment" },
-  { key: "orderStatus",  label: "Order Status" },
+  // { key: "orderStatus",  label: "Order Status" },
 ];
 
 const wrap5 = (str = "") =>
@@ -37,11 +37,11 @@ export default function YardProcessingOrders() {
       case "orderDate":    return formatDateSafe(row.orderDate);
       case "orderNo":
         return (
-          <div className="flex items-center justify-between gap-2">
-            <span>{row.orderNo || "—"}</span>
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="whitespace-nowrap">{row.orderNo || "—"}</span>
             <button
               onClick={(e) => { e.stopPropagation(); toggleExpand(row); }}
-              className="text-blue-400 text-xs underline hover:text-blue-300 shrink-0"
+              className="text-blue-400 text-xs underline hover:text-blue-300 whitespace-nowrap shrink-0"
             >
               {open ? "Hide Details" : "Show Details"}
             </button>
@@ -53,12 +53,12 @@ export default function YardProcessingOrders() {
         const yards = Array.isArray(row.additionalInfo) ? row.additionalInfo : [];
         if (!yards.length) return "—";
         return (
-          <div className="space-y-2">
+          <div className="space-y-2 max-w-full">
             {yards.map((y, idx) => (
-              <div key={idx} className="whitespace-nowrap font-medium">{y?.yardName || "N/A"}</div>
+              <div key={idx} className="font-medium break-words overflow-wrap-anywhere">{y?.yardName || "N/A"}</div>
             ))}
             {open && (
-              <div className="mt-2 border-t border-white/20 pt-2 text-xs space-y-2 whitespace-nowrap">
+              <div className="mt-2 border-t border-white/20 pt-2 text-xs space-y-2">
                 {yards.map((y, idx) => (
                   <div key={`yd-${idx}`}>
                     <div><b>Status:</b> {y?.status || "N/A"}</div>
@@ -86,7 +86,7 @@ export default function YardProcessingOrders() {
         text-sm leading-snug
         whitespace-normal
         break-words
-        w-full md:w-[32rem]
+        max-w-full
         [overflow-wrap:anywhere] /* handles VeryLongUnbrokenStrings */
       "
     >
@@ -94,44 +94,92 @@ export default function YardProcessingOrders() {
     </div>
   );
 }
-      case "orderStatus":  return row.orderStatus || "—";
+      // case "orderStatus":  return row.orderStatus || "—";
       default:             return row[key] ?? "—";
     }
   }, [expandedIds, toggleExpand]);
 
   return (
-    <OrdersTable
-      title="Yard Processing Orders"
-      endpoint="/orders/yardProcessingOrders"
-      storageKeys={{
-        page:   "yardProcessingPage",
-        search: "yardProcessingSearch",
-        filter: "ypo_filter_v2",
-        hilite: "yardProcessingHighlightedOrderNo",
-      }}
-      columns={columns}
-      renderCell={renderCell}
-      showAgentFilter={false}
-      showGP={false}
-      showTotalsButton={false}
-      // 👇 Make the query look like your original working page
-      paramsBuilder={({ filter, /* query, sortBy, sortOrder */ }) => {
-        const params = {};
-        if (filter?.start && filter?.end) {
-          params.start = filter.start;
-          params.end   = filter.end;
-        } else if (filter?.month && filter?.year) {
-          params.month = filter.month;
-          params.year  = filter.year;
+    <div className="yard-processing-table-wrapper">
+      <style>{`
+        /* Make Yard Details and Last Comment columns wider and equal width */
+        .yard-processing-table-wrapper table {
+          table-layout: fixed;
+          width: 100%;
         }
-        // DO NOT send limit=all — this endpoint 500s on it.
-        // If your API *requires* page/sort/q, uncomment the lines below:
-        // params.page = 1;
-        // if (query) params.q = query;
-        // if (sortBy) params.sortBy = sortBy;
-        // if (sortOrder) params.sortOrder = sortOrder;
-        return params;
-      }}
-    />
+        /* All table cells should wrap text to prevent overflow */
+        .yard-processing-table-wrapper table th,
+        .yard-processing-table-wrapper table td {
+          overflow: hidden !important;
+          word-wrap: break-word !important;
+          overflow-wrap: break-word !important;
+          white-space: normal !important;
+        }
+        /* Yard Details and Last Comment - wider and equal */
+        .yard-processing-table-wrapper table th:nth-child(5),
+        .yard-processing-table-wrapper table td:nth-child(5) {
+          width: 25% !important;
+          min-width: 25% !important;
+        }
+        .yard-processing-table-wrapper table th:nth-child(6),
+        .yard-processing-table-wrapper table td:nth-child(6) {
+          width: 25% !important;
+          min-width: 25% !important;
+        }
+        /* Order No column - wider to show "Show Det" button */
+        .yard-processing-table-wrapper table th:nth-child(2),
+        .yard-processing-table-wrapper table td:nth-child(2) {
+          width: 12% !important;
+        }
+        /* Other columns get smaller equal widths */
+        .yard-processing-table-wrapper table th:nth-child(1),
+        .yard-processing-table-wrapper table td:nth-child(1),
+        .yard-processing-table-wrapper table th:nth-child(3),
+        .yard-processing-table-wrapper table td:nth-child(3),
+        .yard-processing-table-wrapper table th:nth-child(4),
+        .yard-processing-table-wrapper table td:nth-child(4) {
+          width: 8% !important;
+        }
+        /* Actions column - narrower */
+        .yard-processing-table-wrapper table th:last-child,
+        .yard-processing-table-wrapper table td:last-child {
+          width: 6% !important;
+          min-width: 6% !important;
+        }
+      `}</style>
+      <OrdersTable
+        title="Yard Processing Orders"
+        endpoint="/orders/yardProcessingOrders"
+        storageKeys={{
+          page:   "yardProcessingPage",
+          search: "yardProcessingSearch",
+          filter: "ypo_filter_v2",
+          hilite: "yardProcessingHighlightedOrderNo",
+        }}
+        columns={columns}
+        renderCell={renderCell}
+        showAgentFilter={false}
+        showGP={false}
+        showTotalsButton={false}
+        // 👇 Make the query look like your original working page
+        paramsBuilder={({ filter, /* query, sortBy, sortOrder */ }) => {
+          const params = {};
+          if (filter?.start && filter?.end) {
+            params.start = filter.start;
+            params.end   = filter.end;
+          } else if (filter?.month && filter?.year) {
+            params.month = filter.month;
+            params.year  = filter.year;
+          }
+          // DO NOT send limit=all — this endpoint 500s on it.
+          // If your API *requires* page/sort/q, uncomment the lines below:
+          // params.page = 1;
+          // if (query) params.q = query;
+          // if (sortBy) params.sortBy = sortBy;
+          // if (sortOrder) params.sortOrder = sortOrder;
+          return params;
+        }}
+      />
+    </div>
   );
 }

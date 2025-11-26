@@ -11,7 +11,7 @@ const columns = [
   { key: "customerName",  label: "Customer Name" },
   { key: "yardName",      label: "Yard Details" },
   { key: "lastComment",   label: "Last Comment" }, // <- custom render below
-  { key: "orderStatus",   label: "Order Status" },
+  // { key: "orderStatus",   label: "Order Status" },
 ];
 
 /* ---------- helpers for the yard details block ---------- */
@@ -76,11 +76,11 @@ export default function InTransitOrders() {
 
       case "orderNo":
         return (
-          <div className="flex items-center justify-between gap-2">
-            <span>{row.orderNo || "—"}</span>
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="whitespace-nowrap">{row.orderNo || "—"}</span>
             <button
               onClick={(e) => { e.stopPropagation(); toggleExpand(row); }}
-              className="text-blue-400 text-xs underline hover:text-blue-300 shrink-0"
+              className="text-blue-400 text-xs underline hover:text-blue-300 whitespace-nowrap shrink-0"
             >
               {open ? "Hide Details" : "Show Details"}
             </button>
@@ -126,20 +126,20 @@ export default function InTransitOrders() {
       case "yardName": {
         const yards = Array.isArray(row.additionalInfo) ? row.additionalInfo : [];
         const hasAnyYard = yards.some(y => (y?.yardName || "").trim().length > 0);
-        if (!hasAnyYard) return <span className="font-medium whitespace-nowrap">—</span>;
+        if (!hasAnyYard) return <span className="font-medium">—</span>;
 
         return (
-          <div className="space-y-2">
+          <div className="space-y-2 max-w-full">
             <div className="flex-1 text-white">
               {yards.map((y, idx) => (
-                <div key={idx} className="font-medium whitespace-nowrap">
+                <div key={idx} className="font-medium break-words overflow-wrap-anywhere">
                   {y?.yardName || ""}
                 </div>
               ))}
             </div>
 
             {open && (
-              <div className="whitespace-nowrap mt-2 text-sm text-white/80 space-y-2">
+              <div className="mt-2 text-sm text-white/80 space-y-2">
                 {yards.map((yard, i) => {
                   const d = computeYardDerived(yard);
                   return (
@@ -174,8 +174,8 @@ export default function InTransitOrders() {
             className="
               text-sm leading-snug
               whitespace-normal break-words
+              max-w-full
               [overflow-wrap:anywhere]
-              w-full md:w-[40rem] xl:w-[48rem]  /* wider readable block */
             "
           >
             {text || "N/A"}
@@ -183,8 +183,8 @@ export default function InTransitOrders() {
         );
       }
 
-      case "orderStatus":
-        return row.orderStatus || "";
+      // case "orderStatus":
+      //   return row.orderStatus || "";
 
       default:
         return row[key] ?? "—";
@@ -193,20 +193,70 @@ export default function InTransitOrders() {
   }, [expandedIds]);
 
   return (
-    <OrdersTable
-      title="In Transit Orders"
-      endpoint="/orders/inTransitOrders"      // ← server should return full list for the filter (no server paging)
-      storageKeys={{
-        page:   "inTransit_orders_page",
-        search: "inTransit_orders_search",
-        filter: "ito_filter_v2",
-        hilite: "inTransit_highlightedOrderNo",
-      }}
-      columns={columns}
-      renderCell={renderCell}
-      showAgentFilter={true}       // Admin can narrow; Sales is auto-narrowed by OrdersTable
-      showGP={false}               // no GP totals here
-      showTotalsButton={false}     // hide eye button
-    />
+    <div className="in-transit-table-wrapper">
+      <style>{`
+        /* Make Yard Details and Last Comment columns wider and equal width */
+        .in-transit-table-wrapper table {
+          table-layout: fixed;
+          width: 100%;
+        }
+        /* All table cells should wrap text to prevent overflow */
+        .in-transit-table-wrapper table th,
+        .in-transit-table-wrapper table td {
+          overflow: hidden !important;
+          word-wrap: break-word !important;
+          overflow-wrap: break-word !important;
+          white-space: normal !important;
+        }
+        /* Yard Details and Last Comment - wider and equal */
+        .in-transit-table-wrapper table th:nth-child(6),
+        .in-transit-table-wrapper table td:nth-child(6) {
+          width: 23% !important;
+          min-width: 23% !important;
+        }
+        .in-transit-table-wrapper table th:nth-child(7),
+        .in-transit-table-wrapper table td:nth-child(7) {
+          width: 23% !important;
+          min-width: 23% !important;
+        }
+        /* Order No column - wider to show "Show Det" button */
+        .in-transit-table-wrapper table th:nth-child(2),
+        .in-transit-table-wrapper table td:nth-child(2) {
+          width: 11% !important;
+        }
+        /* Other columns get smaller equal widths */
+        .in-transit-table-wrapper table th:nth-child(1),
+        .in-transit-table-wrapper table td:nth-child(1),
+        .in-transit-table-wrapper table th:nth-child(3),
+        .in-transit-table-wrapper table td:nth-child(3),
+        .in-transit-table-wrapper table th:nth-child(4),
+        .in-transit-table-wrapper table td:nth-child(4),
+        .in-transit-table-wrapper table th:nth-child(5),
+        .in-transit-table-wrapper table td:nth-child(5) {
+          width: 7% !important;
+        }
+        /* Actions column - narrower */
+        .in-transit-table-wrapper table th:last-child,
+        .in-transit-table-wrapper table td:last-child {
+          width: 6% !important;
+          min-width: 6% !important;
+        }
+      `}</style>
+      <OrdersTable
+        title="In Transit Orders"
+        endpoint="/orders/inTransitOrders"      // ← server should return full list for the filter (no server paging)
+        storageKeys={{
+          page:   "inTransit_orders_page",
+          search: "inTransit_orders_search",
+          filter: "ito_filter_v2",
+          hilite: "inTransit_highlightedOrderNo",
+        }}
+        columns={columns}
+        renderCell={renderCell}
+        showAgentFilter={true}       // Admin can narrow; Sales is auto-narrowed by OrdersTable
+        showGP={false}               // no GP totals here
+        showTotalsButton={false}     // hide eye button
+      />
+    </div>
   );
 }

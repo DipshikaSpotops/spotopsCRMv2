@@ -24,6 +24,46 @@ const cardCvv = process.env.CARD_CVV || "***";
 const router = express.Router();
 const upload = multer();
 
+// Reuse a single Puppeteer browser instance to avoid 15–20s cold start on every PO
+let sharedBrowserPromise = null;
+async function getBrowser() {
+  if (sharedBrowserPromise) return sharedBrowserPromise;
+
+  sharedBrowserPromise = (async () => {
+    // Some environments set PUPPETEER_EXECUTABLE_PATH="" which breaks launch.
+    const execEnv = (process.env.PUPPETEER_EXECUTABLE_PATH || "").trim();
+    if (!execEnv) {
+      delete process.env.PUPPETEER_EXECUTABLE_PATH;
+    }
+
+    const launchOptions = {
+      headless: "new",
+      args: [
+        "--no-sandbox",
+        "--disable-setuid-sandbox",
+        "--disable-dev-shm-usage",
+        "--disable-gpu",
+        "--disable-software-rasterizer",
+        "--disable-extensions",
+        "--disable-background-timer-throttling",
+        "--disable-backgrounding-occluded-windows",
+        "--disable-renderer-backgrounding",
+      ],
+    };
+
+    console.log("[sendPO] Launching shared Puppeteer browser");
+    return puppeteer.launch(launchOptions);
+  })();
+
+  try {
+    return await sharedBrowserPromise;
+  } catch (err) {
+    // If launch fails, clear promise so we can retry on next call
+    sharedBrowserPromise = null;
+    throw err;
+  }
+}
+
 // Send PO route
 router.post("/sendPOEmailYard/:orderNo", upload.any(), async (req, res) => {
   try {
@@ -83,8 +123,8 @@ router.post("/sendPOEmailYard/:orderNo", upload.any(), async (req, res) => {
         font-family: 'Roboto', Arial, sans-serif;
         margin: 0;
         padding: 20px;
-        font-size: 13px;
-        line-height: 1.6;
+        font-size: 16px;
+        line-height: 1.7;
         background: #fff;
         color: #111;
       }
@@ -193,13 +233,16 @@ router.post("/sendPOEmailYard/:orderNo", upload.any(), async (req, res) => {
         color: #fff !important;
         font-weight: 700;
       }
-        .footer-note{
-        margin-top:20px;
-        color:#0b2545;
-        font-size:14px;
-         font-weight: 600;
-        }
-        
+      body {
+        font-size: 16px;
+        line-height: 1.7;
+      }
+      .footer-note {
+        margin-top: 20px;
+        color: #0b2545;
+        font-size: 14px;
+        font-weight: 600;
+      }
     </style>
   </head>
   <body>
@@ -317,95 +360,21 @@ router.post("/sendPOEmailYard/:orderNo", upload.any(), async (req, res) => {
 `;
 
     // Generate PDF
-    let browser;
     let pdfBuffer;
     try {
-      // Try to use system chromium if available, otherwise use bundled chrome
-      let executablePath = process.env.CHROMIUM_PATH;
-      console.log(`[sendPO] CHROMIUM_PATH from env: ${executablePath || 'not set'}`);
-      
-      if (!executablePath) {
-        try {
-          // Try multiple common paths for chromium
-          const paths = [
-            '/usr/bin/chromium-browser',
-            '/usr/bin/chromium',
-            '/usr/bin/google-chrome',
-            '/snap/bin/chromium',
-          ];
-          
-          console.log(`[sendPO] Checking for system chromium in common paths...`);
-          for (const path of paths) {
-            try {
-              execSync(`test -f "${path}" && test -x "${path}"`, { encoding: 'utf8', stdio: 'ignore' });
-              executablePath = path;
-              console.log(`[sendPO] ✓ Found system chromium at: ${path}`);
-              break;
-            } catch (e) {
-              console.log(`[sendPO] ✗ Not found: ${path}`);
-            }
-          }
-          
-          // If not found in common paths, try which command
-          if (!executablePath) {
-            console.log(`[sendPO] Trying 'which' command...`);
-            try {
-              const whichResult = execSync('which chromium-browser 2>/dev/null || which chromium 2>/dev/null || which google-chrome 2>/dev/null || echo ""', { encoding: 'utf8' }).trim();
-              if (whichResult && whichResult.length > 0) {
-                executablePath = whichResult;
-                console.log(`[sendPO] ✓ Found system chromium via which: ${executablePath}`);
-              } else {
-                console.log(`[sendPO] ✗ 'which' command returned empty`);
-              }
-            } catch (e) {
-              console.log(`[sendPO] ✗ 'which' command failed: ${e.message}`);
-            }
-          }
-        } catch (e) {
-          console.log(`[sendPO] ✗ Error during chromium detection: ${e.message}`);
-          executablePath = undefined;
-        }
-      } else {
-        console.log(`[sendPO] Using CHROMIUM_PATH from env: ${executablePath}`);
-      }
-      
-      const launchOptions = {
-        headless: "new",
-        args: [
-          "--no-sandbox",
-          "--disable-setuid-sandbox",
-          "--disable-dev-shm-usage",
-          "--disable-gpu",
-          "--disable-software-rasterizer",
-          "--disable-extensions",
-          "--disable-background-timer-throttling",
-          "--disable-backgrounding-occluded-windows",
-          "--disable-renderer-backgrounding",
-        ],
-      };
-      
-      if (executablePath) {
-        launchOptions.executablePath = executablePath;
-        console.log(`[sendPO] Launching with system chromium: ${executablePath}`);
-      } else {
-        console.log(`[sendPO] Using bundled Chrome from Puppeteer (may require additional dependencies)`);
-      }
-      
-      browser = await puppeteer.launch(launchOptions);
+      const browser = await getBrowser();
       const page = await browser.newPage();
-      await page.setContent(html, { waitUntil: "networkidle0" });
+      // For static HTML this is enough and a bit faster than waiting for networkidle0
+      await page.setContent(html, { waitUntil: "load" });
       pdfBuffer = await page.pdf({ format: "A4", printBackground: true });
-      await browser.close();
+      await page.close();
     } catch (puppeteerErr) {
       console.error("[sendPO] Puppeteer error:", puppeteerErr);
-      if (browser) {
-        try {
-          await browser.close();
-        } catch {}
-      }
-      return res.status(500).json({ 
-        message: "Failed to generate PDF", 
-        error: puppeteerErr.message 
+      // If browser is in a bad state, reset so it can be relaunched on next request
+      sharedBrowserPromise = null;
+      return res.status(500).json({
+        message: "Failed to generate PDF",
+        error: puppeteerErr.message,
       });
     }
 

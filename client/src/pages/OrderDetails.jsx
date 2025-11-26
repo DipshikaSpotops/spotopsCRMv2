@@ -4,6 +4,7 @@ import GlassCard from "../components/ui/GlassCard";
 import Pill from "../components/ui/Pill";
 import { getStatusColor } from "../utils/formatter";
 import useOrderDetails from "../hooks/useOrderDetails";
+import useOrderRealtime from "../hooks/useOrderRealtime";
 import OrderSummaryStats from "../components/order/OrderSummaryStats";
 import OrderHistory from "../components/order/OrderTabs/OrderHistory";
 import CustomerTab from "../components/order/OrderTabs/CustomerTab";
@@ -132,8 +133,7 @@ const calcActualGP = (orderLike) => {
 
   const sp = parseFloat(orderLike.soldP) || 0;
   const tax = parseFloat(orderLike.salestax) || 0;
-  const spMinusTax =
-    parseFloat(orderLike.spMinusTax) || sp - tax;
+  const spMinusTax = parseFloat(orderLike.spMinusTax) || sp - tax;
   const custRefundedAmount = parseFloat(
     orderLike.custRefundedAmount ||
     orderLike.cancelledRefAmount ||
@@ -153,6 +153,12 @@ const calcActualGP = (orderLike) => {
 
   // CASE 1 — No yards at all
   if (!additionalInfo.length) {
+    console.log("[ActualGP] Case 1: No yards", {
+      status,
+      sp,
+      tax,
+      custRefundedAmount,
+    });
     if (isDispute) {
       return 0 - tax;
     } else if (isRefunded) {
@@ -171,6 +177,8 @@ const calcActualGP = (orderLike) => {
   // CASE 2 — Iterate through yards and only calculate totalSum from "Card charged" yards
   additionalInfo.forEach((yard) => {
     const paymentStatus = (yard.paymentStatus || "").trim();
+    const refundStatusRaw = (yard.refundStatus || "").trim().toLowerCase();
+    const isRefundCollected = refundStatusRaw.includes("refund collected");
 
     // Only calculate yardSpent if paymentStatus is "Card charged"
     if (paymentStatus === "Card charged") {
@@ -188,7 +196,10 @@ const calcActualGP = (orderLike) => {
         parseFloat(yard.custOwnShipReplacement) || 0;
       const yardOwnShippingReplacement =
         parseFloat(yard.yardOwnShipping) || 0;
-      const yardRefundAmount = parseFloat(yard.refundedAmount) || 0;
+
+      const yardRefundAmountRaw = parseFloat(yard.refundedAmount) || 0;
+      const yardRefundAmount = isRefundCollected ? yardRefundAmountRaw : 0;
+
       const escReimbursement = parseFloat(yard.reimbursementAmount) || 0;
 
       const yardSpent =
@@ -200,6 +211,23 @@ const calcActualGP = (orderLike) => {
         yardOwnShippingReplacement +
         escReimbursement -
         yardRefundAmount;
+
+      console.log("[ActualGP] Card charged yard contribution", {
+        yardName: yard.yardName,
+        paymentStatus,
+        refundStatus: yard.refundStatus,
+        isRefundCollected,
+        yardPP,
+        shippingValueYard,
+        yardOthers,
+        escOwnShipReturn,
+        escOwnShipReplacement,
+        yardOwnShippingReplacement,
+        escReimbursement,
+        yardRefundAmountRaw,
+        yardRefundAmountApplied: yardRefundAmount,
+        yardSpent,
+      });
 
       totalSum += yardSpent;
     }
@@ -213,8 +241,20 @@ const calcActualGP = (orderLike) => {
     return !paymentStatus || paymentStatus === "Card not charged";
   });
 
+  console.log("[ActualGP] Summary before final branch", {
+    status,
+    sp,
+    tax,
+    spMinusTax,
+    custRefundedAmount,
+    totalSum,
+    allYardsNotCharged,
+    hasYards: additionalInfo.length > 0,
+  });
+
   if (allYardsNotCharged) {
     // All yards not charged
+    console.log("[ActualGP] Case 3a: All yards not charged", { status });
     if (isDispute) {
       actualGP = 0 - tax;
     } else if (isRefunded) {
@@ -229,6 +269,10 @@ const calcActualGP = (orderLike) => {
     }
   } else if (totalSum > 0) {
     // At least one yard is "Card charged"
+    console.log("[ActualGP] Case 3b: At least one Card charged yard", {
+      status,
+      totalSum,
+    });
     if (isDispute) {
       actualGP = 0 - (totalSum + tax);
     } else if (isRefunded) {
@@ -245,6 +289,10 @@ const calcActualGP = (orderLike) => {
     }
   } else {
     // Mixed case: some yards might have other statuses, but none are charged
+    console.log("[ActualGP] Case 3c: Mixed, no Card charged yards", {
+      status,
+      totalSum,
+    });
     if (isDispute) {
       actualGP = 0 - tax;
     } else if (isRefunded) {
@@ -353,6 +401,22 @@ export default function OrderDetails() {
     );
   }, [order?.reimbursementAmount, order?.reimbursementDate]);
 
+  // Listen for real-time updates via websocket
+  useOrderRealtime(orderNo, {
+    onEvent: (msg, { isSelf }) => {
+      // Refresh order data when yard status/details change
+      // We refresh even for isSelf because sometimes the UI doesn't update immediately
+      if (msg?.type && ["YARD_UPDATED", "STATUS_CHANGED", "YARD_ADDED", "YARD_NOTE_ADDED", "ORDER_UPDATED"].includes(msg.type)) {
+        console.log("[OrderDetails] Real-time update received:", msg.type, isSelf ? "(from self)" : "(from other user)");
+        // Small delay to ensure backend has saved the changes
+        setTimeout(() => {
+          refresh();
+        }, 300);
+      }
+    },
+    enabled: !!orderNo,
+  });
+
   /** DRY helper: recompute + persist + paint Actual GP */
   const recomputeAndPersistActualGP = async ({ useServer = true } = {}) => {
     try {
@@ -460,7 +524,29 @@ export default function OrderDetails() {
     }
   };
 
-  const handleSaveReimbursement = async () => {
+  // Send reimbursement confirmation email; let caller decide what toast to show
+  const sendReimbursementEmail = async ({ amount }) => {
+    if (!orderNo) return;
+    try {
+      const firstName = localStorage.getItem("firstName") || "";
+      await API.post(
+        `/emails/sendReimburseEmail/${orderNo}`,
+        null,
+        {
+          params: {
+            reimburesementValue: amount ?? 0,
+            firstName,
+          },
+        }
+      );
+      return true;
+    } catch (err) {
+      console.error("Error sending reimbursement email:", err);
+      throw err;
+    }
+  };
+
+  const handleSaveReimbursement = async ({ sendEmail = false } = {}) => {
     if (!orderNo) {
       setToast("Order number not available yet.");
       return;
@@ -504,7 +590,27 @@ export default function OrderDetails() {
       if (typeof refresh === "function") {
         await refresh();
       }
-      setToast("Reimbursement details saved.");
+
+      let emailOk = true;
+      if (sendEmail && numericAmount !== null) {
+        try {
+          await sendReimbursementEmail({
+            amount: numericAmount,
+          });
+        } catch (emailErr) {
+          emailOk = false;
+        }
+      }
+
+      if (sendEmail) {
+        setToast(
+          emailOk
+            ? "Reimbursement saved and email sent."
+            : "Reimbursement saved, but email failed to send."
+        );
+      } else {
+        setToast("Reimbursement details saved.");
+      }
     } catch (err) {
       console.error("Error saving reimbursement:", err);
       setToast("Failed to save reimbursement details.");
@@ -999,9 +1105,9 @@ export default function OrderDetails() {
                     />
                   </div>
                 </div>
-                <div className="mt-4 flex justify-end">
+                <div className="mt-4 flex justify-end gap-2">
                   <button
-                    onClick={handleSaveReimbursement}
+                    onClick={() => handleSaveReimbursement({ sendEmail: false })}
                     disabled={savingReimbursement || !orderNo}
                     className={`px-4 py-2 rounded-md text-sm font-medium border transition ${
                       savingReimbursement
@@ -1009,7 +1115,18 @@ export default function OrderDetails() {
                         : "bg-blue-200 hover:bg-blue-300 text-blue-800 border-blue-300 shadow-sm hover:shadow-md dark:bg-[#10b981]/10 dark:text-[#10b981] dark:border-[#10b981] dark:hover:bg-[#10b981]/15 dark:shadow-[0_0_4px_rgba(16,185,129,0.3)] dark:hover:shadow-[0_0_12px_rgba(16,185,129,0.7),0_0_20px_rgba(16,185,129,0.4)] dark:[text-shadow:0_0_2px_rgba(16,185,129,0.5)] dark:hover:[text-shadow:0_0_8px_rgba(16,185,129,0.9),0_0_12px_rgba(16,185,129,0.6)]"
                     }`}
                   >
-                    {savingReimbursement ? "Saving..." : "Save Reimbursement"}
+                    {savingReimbursement ? "Saving..." : "Save"}
+                  </button>
+                  <button
+                    onClick={() => handleSaveReimbursement({ sendEmail: true })}
+                    disabled={savingReimbursement || !orderNo}
+                    className={`px-4 py-2 rounded-md text-sm font-medium border transition ${
+                      savingReimbursement
+                        ? "bg-sky-200/80 text-gray-500 border-blue-300 cursor-not-allowed dark:bg-transparent dark:text-white/50 dark:border-white/30"
+                        : "bg-[#04356d] hover:bg-[#021f4b] text-white border-[#04356d] shadow-sm hover:shadow-md dark:bg-[#2563eb]/20 dark:text-[#bfdbfe] dark:border-[#bfdbfe]/50 dark:hover:bg-[#2563eb]/30"
+                    }`}
+                  >
+                    {savingReimbursement ? "Saving..." : "Save & Send Email"}
                   </button>
                 </div>
               </GlassCard>
