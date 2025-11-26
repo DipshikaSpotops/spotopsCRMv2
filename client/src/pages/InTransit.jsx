@@ -6,9 +6,9 @@ import OrdersTable from "../components/OrdersTable";
 const columns = [
   { key: "orderDate",     label: "Order Date" },
   { key: "orderNo",       label: "Order No" },
-  { key: "pReq",          label: "Part Name" },
+  { key: "pReq",          label: "Part Info" },
   { key: "salesAgent",    label: "Sales Agent" },
-  { key: "customerName",  label: "Customer Name" },
+  { key: "customerName",  label: "Customer Info" },
   { key: "yardName",      label: "Yard Details" },
   { key: "lastComment",   label: "Last Comment" }, // <- custom render below
   // { key: "orderStatus",   label: "Order Status" },

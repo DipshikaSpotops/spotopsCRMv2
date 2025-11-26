@@ -4,8 +4,8 @@ import OrdersTable from "../components/OrdersTable";
 const columns = [
   { key: "orderDate",    label: "Order Date" },
   { key: "orderNo",      label: "Order No" },
-  { key: "pReq",         label: "Part Name" },
-  { key: "customerName", label: "Customer Name" },
+  { key: "pReq",         label: "Part Info" },
+  { key: "customerName", label: "Customer Info" },
   { key: "yardName",     label: "Yard Details" },
   { key: "lastComment",  label: "Last Comment" },
   // { key: "orderStatus",  label: "Order Status" },

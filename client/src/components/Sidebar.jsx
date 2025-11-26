@@ -66,6 +66,7 @@ export default function Sidebar() {
     { text: "Shipping Expenses", to: "/shipping-expenses" },
     { text: "Store Credits", to: "/store-credit" },
     { text: "Tracking Report", to: "/tracking-info" },
+    { text: "Refunds/Reimbursements", to: "/reimbursement-report" },
   ];
 
   // ====== Role-based filtering ======

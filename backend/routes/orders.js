@@ -328,6 +328,29 @@ router.get("/cancelled-by-date", async (req, res) => {
   }
 });
 
+// Reimbursed-by-date (includes both old per-yard and new order-level reimbursements)
+router.get("/reimbursed-by-date", async (req, res) => {
+  try {
+    const { start, end, month, year } = req.query;
+    const { startDate, endDate } = getDateRange({ start, end, month, year });
+
+    // Find orders with:
+    // 1. New order-level reimbursement (reimbursementDate)
+    // 2. Old per-yard reimbursement (additionalInfo[].reimbursedDate)
+    const orders = await Order.find({
+      $or: [
+        { reimbursementDate: { $gte: startDate, $lt: endDate } },
+        { "additionalInfo.reimbursedDate": { $gte: startDate, $lt: endDate } },
+      ],
+    });
+
+    res.json(orders);
+  } catch (error) {
+    console.error("Error fetching reimbursed-by-date orders:", error);
+    res.status(500).json({ message: "Server error", error: error?.message || String(error) });
+  }
+});
+
 // Refunded-by-date
 router.get("/refunded-by-date", async (req, res) => {
   try {
