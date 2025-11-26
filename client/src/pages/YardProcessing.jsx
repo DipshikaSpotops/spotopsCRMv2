@@ -107,8 +107,12 @@ export default function YardProcessingOrders() {
           table-layout: fixed;
           width: 100%;
         }
-        /* All table cells should wrap text to prevent overflow */
-        .yard-processing-table-wrapper table th,
+        /* Table headers should stay on one line */
+        .yard-processing-table-wrapper table th {
+          white-space: nowrap !important;
+          overflow: hidden !important;
+        }
+        /* Table body cells should wrap text to prevent overflow */
         .yard-processing-table-wrapper table td {
           overflow: hidden !important;
           word-wrap: break-word !important;
@@ -118,27 +122,30 @@ export default function YardProcessingOrders() {
         /* Yard Details and Last Comment - wider and equal */
         .yard-processing-table-wrapper table th:nth-child(5),
         .yard-processing-table-wrapper table td:nth-child(5) {
-          width: 25% !important;
-          min-width: 25% !important;
+          width: 23% !important;
+          min-width: 23% !important;
         }
         .yard-processing-table-wrapper table th:nth-child(6),
         .yard-processing-table-wrapper table td:nth-child(6) {
-          width: 25% !important;
-          min-width: 25% !important;
+          width: 23% !important;
+          min-width: 23% !important;
         }
         /* Order No column - wider to show "Show Det" button */
         .yard-processing-table-wrapper table th:nth-child(2),
         .yard-processing-table-wrapper table td:nth-child(2) {
           width: 12% !important;
         }
-        /* Other columns get smaller equal widths */
+        /* Order Date and Part Name columns */
         .yard-processing-table-wrapper table th:nth-child(1),
         .yard-processing-table-wrapper table td:nth-child(1),
         .yard-processing-table-wrapper table th:nth-child(3),
-        .yard-processing-table-wrapper table td:nth-child(3),
+        .yard-processing-table-wrapper table td:nth-child(3) {
+          width: 8% !important;
+        }
+        /* Customer Name column - wider for header */
         .yard-processing-table-wrapper table th:nth-child(4),
         .yard-processing-table-wrapper table td:nth-child(4) {
-          width: 8% !important;
+          width: 11% !important;
         }
         /* Actions column - narrower */
         .yard-processing-table-wrapper table th:last-child,

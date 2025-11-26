@@ -200,8 +200,12 @@ export default function InTransitOrders() {
           table-layout: fixed;
           width: 100%;
         }
-        /* All table cells should wrap text to prevent overflow */
-        .in-transit-table-wrapper table th,
+        /* Table headers should stay on one line */
+        .in-transit-table-wrapper table th {
+          white-space: nowrap !important;
+          overflow: hidden !important;
+        }
+        /* Table body cells should wrap text to prevent overflow */
         .in-transit-table-wrapper table td {
           overflow: hidden !important;
           word-wrap: break-word !important;
@@ -211,29 +215,35 @@ export default function InTransitOrders() {
         /* Yard Details and Last Comment - wider and equal */
         .in-transit-table-wrapper table th:nth-child(6),
         .in-transit-table-wrapper table td:nth-child(6) {
-          width: 23% !important;
-          min-width: 23% !important;
+          width: 21% !important;
+          min-width: 21% !important;
         }
         .in-transit-table-wrapper table th:nth-child(7),
         .in-transit-table-wrapper table td:nth-child(7) {
-          width: 23% !important;
-          min-width: 23% !important;
+          width: 21% !important;
+          min-width: 21% !important;
         }
         /* Order No column - wider to show "Show Det" button */
         .in-transit-table-wrapper table th:nth-child(2),
         .in-transit-table-wrapper table td:nth-child(2) {
           width: 11% !important;
         }
-        /* Other columns get smaller equal widths */
+        /* Order Date and Part Name columns */
         .in-transit-table-wrapper table th:nth-child(1),
         .in-transit-table-wrapper table td:nth-child(1),
         .in-transit-table-wrapper table th:nth-child(3),
-        .in-transit-table-wrapper table td:nth-child(3),
+        .in-transit-table-wrapper table td:nth-child(3) {
+          width: 7% !important;
+        }
+        /* Sales Agent column - wider for header */
         .in-transit-table-wrapper table th:nth-child(4),
-        .in-transit-table-wrapper table td:nth-child(4),
+        .in-transit-table-wrapper table td:nth-child(4) {
+          width: 9% !important;
+        }
+        /* Customer Name column - wider for header */
         .in-transit-table-wrapper table th:nth-child(5),
         .in-transit-table-wrapper table td:nth-child(5) {
-          width: 7% !important;
+          width: 11% !important;
         }
         /* Actions column - narrower */
         .in-transit-table-wrapper table th:last-child,
