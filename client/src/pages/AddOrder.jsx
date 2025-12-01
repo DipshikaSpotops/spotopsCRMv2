@@ -396,7 +396,10 @@ export default function AddOrder() {
           : "",
         chargedAmount: chargedNum,
         orderStatus: orderStatus,
+        attention: formData.sAttention || formData.attention || "", // Map sAttention to attention
       };
+      // Remove sAttention from payload since we've mapped it to attention
+      delete payload.sAttention;
 
       const res = await API.post(
         `/orders/orders?firstName=${encodeURIComponent(firstName)}`,
