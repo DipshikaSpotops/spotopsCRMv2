@@ -44,7 +44,7 @@ export default function YardCard({
 
   const fields = [
     makeField("Part Price", y.partPrice),
-    makeField("Expected Shipping Date", y.expShipDate),
+    makeField("Exp Shipping Date", y.expShipDate),
     ...(ownVal
       ? [makeField("Own Shipping ($)", ownVal)]
       : yardVal
