@@ -1079,7 +1079,13 @@ export default function OrderDetails() {
                     }
                     return acc;
                   }, new Map());
-                  const displayUsers = Array.from(uniqueUsers.values());
+                  // Sort alphabetically by firstName
+                  const displayUsers = Array.from(uniqueUsers.values())
+                    .sort((a, b) => {
+                      const nameA = (a.firstName || "").toLowerCase();
+                      const nameB = (b.firstName || "").toLowerCase();
+                      return nameA.localeCompare(nameB);
+                    });
                   
                   return displayUsers.length > 0 && (
                     <div className="mt-2 flex items-center gap-2 text-sm text-[#09325d]/70 dark:text-white/70">
