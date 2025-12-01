@@ -422,7 +422,10 @@ export default function OrderDetails() {
       
       // Handle presence updates with debouncing and proper deduplication
       if (msg?.type === "PRESENCE_UPDATE" && msg.activeUsers) {
-        // Filter out current user and update map
+        // Clear map first, then repopulate (prevents accumulation)
+        activeUsersMapRef.current.clear();
+        
+        // Filter out current user and add to map
         msg.activeUsers.forEach(u => {
           if (u.firstName !== currentUserFirstName && u.socketId) {
             activeUsersMapRef.current.set(u.socketId, u);
@@ -440,31 +443,35 @@ export default function OrderDetails() {
       }
       
       if (msg?.type === "USER_JOINED" && msg.user && msg.user.firstName !== currentUserFirstName && msg.user.socketId) {
-        // Add to map (will overwrite if exists, preventing duplicates)
-        activeUsersMapRef.current.set(msg.user.socketId, msg.user);
-        
-        // Debounce state update
-        if (presenceUpdateTimeoutRef.current) {
-          clearTimeout(presenceUpdateTimeoutRef.current);
+        // Only add if not already in map (prevent duplicates)
+        if (!activeUsersMapRef.current.has(msg.user.socketId)) {
+          activeUsersMapRef.current.set(msg.user.socketId, msg.user);
+          
+          // Debounce state update
+          if (presenceUpdateTimeoutRef.current) {
+            clearTimeout(presenceUpdateTimeoutRef.current);
+          }
+          presenceUpdateTimeoutRef.current = setTimeout(() => {
+            const usersArray = Array.from(activeUsersMapRef.current.values());
+            setActiveUsers(usersArray);
+          }, 200);
         }
-        presenceUpdateTimeoutRef.current = setTimeout(() => {
-          const usersArray = Array.from(activeUsersMapRef.current.values());
-          setActiveUsers(usersArray);
-        }, 200);
       }
       
       if (msg?.type === "USER_LEFT" && msg.socketId) {
-        // Remove from map
-        activeUsersMapRef.current.delete(msg.socketId);
-        
-        // Debounce state update
-        if (presenceUpdateTimeoutRef.current) {
-          clearTimeout(presenceUpdateTimeoutRef.current);
+        // Remove from map only if it exists
+        if (activeUsersMapRef.current.has(msg.socketId)) {
+          activeUsersMapRef.current.delete(msg.socketId);
+          
+          // Debounce state update
+          if (presenceUpdateTimeoutRef.current) {
+            clearTimeout(presenceUpdateTimeoutRef.current);
+          }
+          presenceUpdateTimeoutRef.current = setTimeout(() => {
+            const usersArray = Array.from(activeUsersMapRef.current.values());
+            setActiveUsers(usersArray);
+          }, 200);
         }
-        presenceUpdateTimeoutRef.current = setTimeout(() => {
-          const usersArray = Array.from(activeUsersMapRef.current.values());
-          setActiveUsers(usersArray);
-        }, 200);
       }
     },
     enabled: !!orderNo,
@@ -1065,7 +1072,7 @@ export default function OrderDetails() {
                     </span>
                     <span className="font-medium">
                       {activeUsers.map((u, i) => (
-                        <span key={u.socketId || i}>
+                        <span key={u.socketId || `${u.firstName}-${i}`}>
                           {u.firstName}
                           {u.role && ` (${u.role})`}
                           {i < activeUsers.length - 1 && ", "}
