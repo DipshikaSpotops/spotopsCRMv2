@@ -401,8 +401,10 @@ export default function OrderDetails() {
     );
   }, [order?.reimbursementAmount, order?.reimbursementDate]);
 
-  // Track active users viewing this order
+  // Track active users viewing this order - use Map for stable deduplication
   const [activeUsers, setActiveUsers] = useState([]);
+  const activeUsersMapRef = useRef(new Map()); // socketId -> user
+  const presenceUpdateTimeoutRef = useRef(null);
   const currentUserFirstName = localStorage.getItem("firstName") || "Unknown";
 
   // Listen for real-time updates via websocket
@@ -418,34 +420,51 @@ export default function OrderDetails() {
         }, 300);
       }
       
-      // Handle presence updates with stable state management
+      // Handle presence updates with debouncing and proper deduplication
       if (msg?.type === "PRESENCE_UPDATE" && msg.activeUsers) {
-        // Filter out current user from the list and deduplicate
-        const filtered = msg.activeUsers.filter(u => u.firstName !== currentUserFirstName);
-        setActiveUsers((prev) => {
-          // Only update if there's an actual change to prevent flickering
-          if (prev.length !== filtered.length || 
-              !prev.every((u, i) => u.socketId === filtered[i]?.socketId)) {
-            return filtered;
+        // Filter out current user and update map
+        msg.activeUsers.forEach(u => {
+          if (u.firstName !== currentUserFirstName && u.socketId) {
+            activeUsersMapRef.current.set(u.socketId, u);
           }
-          return prev;
         });
+        
+        // Debounce state update
+        if (presenceUpdateTimeoutRef.current) {
+          clearTimeout(presenceUpdateTimeoutRef.current);
+        }
+        presenceUpdateTimeoutRef.current = setTimeout(() => {
+          const usersArray = Array.from(activeUsersMapRef.current.values());
+          setActiveUsers(usersArray);
+        }, 200);
       }
       
-      if (msg?.type === "USER_JOINED" && msg.user && msg.user.firstName !== currentUserFirstName) {
-        setActiveUsers((prev) => {
-          const exists = prev.some(u => u.socketId === msg.user.socketId);
-          if (exists) return prev; // Don't update if already exists
-          return [...prev, msg.user];
-        });
+      if (msg?.type === "USER_JOINED" && msg.user && msg.user.firstName !== currentUserFirstName && msg.user.socketId) {
+        // Add to map (will overwrite if exists, preventing duplicates)
+        activeUsersMapRef.current.set(msg.user.socketId, msg.user);
+        
+        // Debounce state update
+        if (presenceUpdateTimeoutRef.current) {
+          clearTimeout(presenceUpdateTimeoutRef.current);
+        }
+        presenceUpdateTimeoutRef.current = setTimeout(() => {
+          const usersArray = Array.from(activeUsersMapRef.current.values());
+          setActiveUsers(usersArray);
+        }, 200);
       }
       
-      if (msg?.type === "USER_LEFT") {
-        setActiveUsers((prev) => {
-          const filtered = prev.filter(u => u.socketId !== msg.socketId);
-          // Only update if something actually changed
-          return filtered.length !== prev.length ? filtered : prev;
-        });
+      if (msg?.type === "USER_LEFT" && msg.socketId) {
+        // Remove from map
+        activeUsersMapRef.current.delete(msg.socketId);
+        
+        // Debounce state update
+        if (presenceUpdateTimeoutRef.current) {
+          clearTimeout(presenceUpdateTimeoutRef.current);
+        }
+        presenceUpdateTimeoutRef.current = setTimeout(() => {
+          const usersArray = Array.from(activeUsersMapRef.current.values());
+          setActiveUsers(usersArray);
+        }, 200);
       }
     },
     enabled: !!orderNo,

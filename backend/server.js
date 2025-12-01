@@ -150,6 +150,38 @@ io.on("connection", (socket) => {
 
   socket.on("joinOrder", (orderNo, userData) => {
     const room = `order.${orderNo}`;
+    
+    // If already in this room, don't re-add (prevents duplicates on reconnection)
+    if (currentOrderNo === orderNo && userInfo) {
+      // Just send current presence to this socket
+      if (activeUsers.has(orderNo)) {
+        const currentUsers = Array.from(activeUsers.get(orderNo).values());
+        socket.emit("order:msg", {
+          type: "PRESENCE_UPDATE",
+          orderNo,
+          activeUsers: currentUsers,
+        });
+      }
+      return;
+    }
+    
+    // Leave previous room if switching
+    if (currentOrderNo && currentOrderNo !== orderNo) {
+      socket.leave(`order.${currentOrderNo}`);
+      if (activeUsers.has(currentOrderNo)) {
+        activeUsers.get(currentOrderNo).delete(socket.id);
+        if (activeUsers.get(currentOrderNo).size === 0) {
+          activeUsers.delete(currentOrderNo);
+        } else {
+          io.to(`order.${currentOrderNo}`).emit("order:msg", {
+            type: "USER_LEFT",
+            orderNo: currentOrderNo,
+            socketId: socket.id,
+          });
+        }
+      }
+    }
+    
     socket.join(room);
     currentOrderNo = orderNo;
     
@@ -161,26 +193,30 @@ io.on("connection", (socket) => {
       joinedAt: new Date().toISOString(),
     };
     
-    // Track active user
+    // Track active user (will overwrite if exists, preventing duplicates)
     if (!activeUsers.has(orderNo)) {
       activeUsers.set(orderNo, new Map());
     }
     activeUsers.get(orderNo).set(socket.id, userInfo);
     
-    // Broadcast presence update to others in the room
+    // Broadcast presence update to others in the room (only once)
     socket.to(room).emit("order:msg", {
       type: "USER_JOINED",
       orderNo,
       user: userInfo,
     });
     
-    // Send current active users to the new joiner
-    const currentUsers = Array.from(activeUsers.get(orderNo).values());
-    socket.emit("order:msg", {
-      type: "PRESENCE_UPDATE",
-      orderNo,
-      activeUsers: currentUsers,
-    });
+    // Send current active users to the new joiner (debounced)
+    setTimeout(() => {
+      if (activeUsers.has(orderNo)) {
+        const currentUsers = Array.from(activeUsers.get(orderNo).values());
+        socket.emit("order:msg", {
+          type: "PRESENCE_UPDATE",
+          orderNo,
+          activeUsers: currentUsers,
+        });
+      }
+    }, 100);
   });
 
   socket.on("leaveOrder", (orderNo) => {
