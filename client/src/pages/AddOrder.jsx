@@ -491,11 +491,6 @@ export default function AddOrder() {
                 error={fieldErrors.has("bName")}
               />
               <Input 
-                placeholder="Business Name" 
-                value={formData.businessName}
-                onChange={(e) => setFormData({ ...formData, businessName: e.target.value })}
-              />
-              <Input 
                 placeholder="Address" 
                 value={formData.bAddressStreet}
                 onChange={(e) => handleFieldChange("bAddressStreet", e.target.value)}
@@ -572,7 +567,11 @@ export default function AddOrder() {
                   }));
                 }}
               />
-
+              <Input 
+                placeholder="Business Name" 
+                value={formData.businessName}
+                onChange={(e) => setFormData({ ...formData, businessName: e.target.value })}
+              />
               <Input 
                 placeholder="Attention" 
                 value={formData.sAttention}

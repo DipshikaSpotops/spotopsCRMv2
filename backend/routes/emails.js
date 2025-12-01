@@ -515,7 +515,7 @@ router.post("/orders/sendRefundEmail/:orderNo", upload.single("pdfFile"), async 
     const mailOptions = {
       from: fromAddress,
       to: yardEmail,
-      bcc: `dipsikha.spotopsdigital@gmail.com`,
+      bcc: `dipsikha.spotopsdigital@gmail.com,purchase@auto-partsgroup.com`,
       subject: `Request for Yard Refund | ${order.orderNo}`,
       html: `
         <p>Dear ${yardAgent},</p>

@@ -421,7 +421,7 @@ router.post("/sendPOEmailYard/:orderNo", upload.any(), async (req, res) => {
       await transporter.sendMail({
       from: `"Auto Parts Group Corp" <${purchaseEmail}>`,
       to: yardEmail,
-      bcc: "dipsikha.spotopsdigital@gmail.com",
+      bcc: "dipsikha.spotopsdigital@gmail.com,purchase@auto-partsgroup.com",
       subject: `Purchase Order | ${order.orderNo} | ${year} ${make} ${model} | ${pReq}`,
       html: `
         <p style="font-size: 14px;">Dear ${yard.agentName || "Team"},</p>
