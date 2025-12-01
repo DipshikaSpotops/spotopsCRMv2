@@ -143,7 +143,19 @@ export default function ViewUsers() {
   function diffPayload(original, edited) {
     const payload = {};
     ["firstName", "lastName", "email", "team", "role"].forEach(k => {
-      if (edited[k] !== original[k]) payload[k] = edited[k];
+      const newVal = edited[k];
+      const oldVal = original[k];
+
+      // Skip if value didn't actually change
+      if (newVal === oldVal) return;
+
+      // Never send empty-string enums; they are invalid for the schema and
+      // will trigger a 500 from the server due to Mongoose validation.
+      if ((k === "team" || k === "role") && newVal === "") {
+        return;
+      }
+
+      payload[k] = newVal;
     });
     if (edited.password && edited.password.length >= 6) {
       payload.password = edited.password; // backend will hash

@@ -704,6 +704,8 @@ export default function OrderDetails() {
 
     if (shouldUpdate) {
       const firstName = localStorage.getItem("firstName");
+      // Only show toast if GP actually changed (not just recalculated to the same value)
+      const gpChanged = Math.abs(currentGP - actualGP) > 0.0001;
       API.put(
         `/orders/${orderNo}/updateActualGP`,
         { actualGP },
@@ -711,7 +713,8 @@ export default function OrderDetails() {
       )
         .then(async () => {
           await refresh();
-          if (Math.abs(actualGP) > 0.009) {
+          // Only show toast if GP actually changed
+          if (gpChanged) {
             setToast(`Actual GP updated to $${actualGP.toFixed(2)}`);
             setTimeout(() => setToast(""), 3000);
           }
