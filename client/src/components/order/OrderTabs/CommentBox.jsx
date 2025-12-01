@@ -48,8 +48,8 @@ export default function CommentBox({
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState("");
-  const [typingUsers, setTypingUsers] = useState([]); // Array of {firstName, role, location}
-  const typingTimeoutRef = useRef(null);
+  const [typingUsers, setTypingUsers] = useState([]); // Array of {firstName, role, location, socketId}
+  const typingTimeoutRef = useRef({}); // Map of socketId -> timeout
   const typingStartTimeoutRef = useRef(null);
   const socketRef = useRef(null);
   const lastTypingEmitRef = useRef(0);
@@ -139,17 +139,27 @@ export default function CommentBox({
           
           // Clear any existing timeout for this user
           setTypingUsers((prev) => {
-            const exists = prev.some(u => u.socketId === msg.user.socketId);
-            if (exists) {
-              // Update existing user with new location
-              return prev.map(u => u.socketId === msg.user.socketId ? userWithLocation : u);
-            }
-            return [...prev, userWithLocation];
+            // Remove any existing entry for this socketId first (prevent duplicates)
+            const filtered = prev.filter(u => u.socketId !== msg.user.socketId);
+            // Then add the updated one
+            return [...filtered, userWithLocation];
           });
           
+          // Clear any existing timeout for this user
+          const timeoutKey = `typing-${msg.user.socketId}`;
+          if (typingTimeoutRef.current?.[timeoutKey]) {
+            clearTimeout(typingTimeoutRef.current[timeoutKey]);
+          }
+          if (!typingTimeoutRef.current) {
+            typingTimeoutRef.current = {};
+          }
+          
           // Auto-remove after 5 seconds if no new typing event
-          setTimeout(() => {
+          typingTimeoutRef.current[timeoutKey] = setTimeout(() => {
             setTypingUsers((prev) => prev.filter(u => u.socketId !== msg.user.socketId));
+            if (typingTimeoutRef.current) {
+              delete typingTimeoutRef.current[timeoutKey];
+            }
           }, 5000);
         }
       }
@@ -159,7 +169,14 @@ export default function CommentBox({
           ? msg.commentType === "support"
           : msg.commentType === "yard" && Number(msg.yardIndex) === Number(yardIndex);
         
-        if (matchesType) {
+        if (matchesType && msg.socketId) {
+          // Clear timeout if exists
+          const timeoutKey = `typing-${msg.socketId}`;
+          if (typingTimeoutRef.current?.[timeoutKey]) {
+            clearTimeout(typingTimeoutRef.current[timeoutKey]);
+            delete typingTimeoutRef.current[timeoutKey];
+          }
+          // Remove from typing users
           setTypingUsers((prev) => prev.filter(u => u.socketId !== msg.socketId));
         }
       }
@@ -352,16 +369,27 @@ export default function CommentBox({
                   }}
                   className="flex-1 rounded-lg px-3 py-2 bg-gray-50 border border-gray-300 outline-none text-[#09325d] placeholder-gray-400 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 dark:bg-white/10 dark:border-white/20 dark:text-white dark:placeholder-white/50 dark:focus:ring-white/60 dark:focus:border-white/60 dark:focus:bg-white/20"
                 />
-                {typingUsers.length > 0 && (
-                  <div className="text-xs text-[#09325d]/70 dark:text-white/60 mt-1 px-1">
-                    {typingUsers.map((u, i) => (
-                      <span key={u.socketId || i}>
-                        {u.firstName} is typing in {u.location || locationLabel}...
-                        {i < typingUsers.length - 1 && ", "}
-                      </span>
-                    ))}
-                  </div>
-                )}
+                {(() => {
+                  // Deduplicate by socketId to prevent showing same user twice
+                  const uniqueTypingUsers = typingUsers.reduce((acc, user) => {
+                    if (user.socketId && !acc.has(user.socketId)) {
+                      acc.set(user.socketId, user);
+                    }
+                    return acc;
+                  }, new Map());
+                  const displayTypingUsers = Array.from(uniqueTypingUsers.values());
+                  
+                  return displayTypingUsers.length > 0 && (
+                    <div className="text-xs text-[#09325d]/70 dark:text-white/60 mt-1 px-1">
+                      {displayTypingUsers.map((u, i) => (
+                        <span key={u.socketId || `${u.firstName}-${i}`}>
+                          {u.firstName} is typing in {u.location || locationLabel}...
+                          {i < displayTypingUsers.length - 1 && ", "}
+                        </span>
+                      ))}
+                    </div>
+                  );
+                })()}
               </div>
               <span className="text-xs text-[#09325d]/80 dark:text-white/60 w-16 text-right">
                 {remaining}
