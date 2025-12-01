@@ -50,7 +50,9 @@ export default function CommentBox({
   const [toast, setToast] = useState("");
   const [typingUsers, setTypingUsers] = useState([]); // Array of {firstName, role}
   const typingTimeoutRef = useRef(null);
+  const typingStartTimeoutRef = useRef(null);
   const socketRef = useRef(null);
+  const lastTypingEmitRef = useRef(0);
 
   // for auto-scroll
   const listRef = useRef(null);
@@ -109,18 +111,24 @@ export default function CommentBox({
         fetchComments();
       }
       
-      // Handle typing indicators
+      // Handle typing indicators with debouncing
       if (msg.type === "TYPING_START") {
         const matchesType = mode === "support" 
           ? msg.commentType === "support"
           : msg.commentType === "yard" && Number(msg.yardIndex) === Number(yardIndex);
         
         if (matchesType && msg.user) {
+          // Clear any existing timeout for this user
           setTypingUsers((prev) => {
-            const exists = prev.some(u => u.firstName === msg.user.firstName && u.socketId === msg.user.socketId);
+            const exists = prev.some(u => u.socketId === msg.user.socketId);
             if (exists) return prev;
             return [...prev, msg.user];
           });
+          
+          // Auto-remove after 5 seconds if no new typing event
+          setTimeout(() => {
+            setTypingUsers((prev) => prev.filter(u => u.socketId !== msg.user.socketId));
+          }, 5000);
         }
       }
       
@@ -253,8 +261,9 @@ export default function CommentBox({
                     const v = e.target.value.slice(0, MAX_LEN);
                     setInput(v);
                     
-                    // Emit typing start
-                    if (socketRef.current && v.trim().length > 0) {
+                    // Debounce typing emission (only emit every 1 second)
+                    const now = Date.now();
+                    if (socketRef.current && v.trim().length > 0 && now - lastTypingEmitRef.current > 1000) {
                       const firstName = localStorage.getItem("firstName") || "Unknown";
                       const role = (() => {
                         try {
@@ -274,6 +283,8 @@ export default function CommentBox({
                         user: { firstName, role, socketId: socketRef.current.id },
                       });
                       
+                      lastTypingEmitRef.current = now;
+                      
                       // Clear existing timeout
                       if (typingTimeoutRef.current) {
                         clearTimeout(typingTimeoutRef.current);
@@ -289,6 +300,18 @@ export default function CommentBox({
                           });
                         }
                       }, 3000);
+                    } else if (v.trim().length === 0) {
+                      // Stop typing immediately if input is cleared
+                      if (socketRef.current) {
+                        socketRef.current.emit("typing:stop", {
+                          orderNo,
+                          commentType: mode,
+                          yardIndex: mode === "support" ? null : yardIndex,
+                        });
+                      }
+                      if (typingTimeoutRef.current) {
+                        clearTimeout(typingTimeoutRef.current);
+                      }
                     }
                   }}
                   onKeyDown={handleKeyDown}

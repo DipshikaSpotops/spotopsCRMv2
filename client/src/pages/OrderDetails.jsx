@@ -418,22 +418,34 @@ export default function OrderDetails() {
         }, 300);
       }
       
-      // Handle presence updates
+      // Handle presence updates with stable state management
       if (msg?.type === "PRESENCE_UPDATE" && msg.activeUsers) {
-        // Filter out current user from the list
-        setActiveUsers(msg.activeUsers.filter(u => u.firstName !== currentUserFirstName));
+        // Filter out current user from the list and deduplicate
+        const filtered = msg.activeUsers.filter(u => u.firstName !== currentUserFirstName);
+        setActiveUsers((prev) => {
+          // Only update if there's an actual change to prevent flickering
+          if (prev.length !== filtered.length || 
+              !prev.every((u, i) => u.socketId === filtered[i]?.socketId)) {
+            return filtered;
+          }
+          return prev;
+        });
       }
       
       if (msg?.type === "USER_JOINED" && msg.user && msg.user.firstName !== currentUserFirstName) {
         setActiveUsers((prev) => {
-          const exists = prev.some(u => u.firstName === msg.user.firstName && u.socketId === msg.user.socketId);
-          if (exists) return prev;
+          const exists = prev.some(u => u.socketId === msg.user.socketId);
+          if (exists) return prev; // Don't update if already exists
           return [...prev, msg.user];
         });
       }
       
       if (msg?.type === "USER_LEFT") {
-        setActiveUsers((prev) => prev.filter(u => u.socketId !== msg.socketId));
+        setActiveUsers((prev) => {
+          const filtered = prev.filter(u => u.socketId !== msg.socketId);
+          // Only update if something actually changed
+          return filtered.length !== prev.length ? filtered : prev;
+        });
       }
     },
     enabled: !!orderNo,
