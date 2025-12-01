@@ -35,6 +35,7 @@ export default function Sidebar() {
     { text: "Add New Order", to: "/add-order" },
     { text: "Edit Order", to: "/edit-order", adminOnly: true },
     { text: "Placed Orders", to: "/placed-orders" },
+    { text: "Partially Charged Orders", to: "/partially-charged-orders" },
     { text: "Customer Approved", to: "/customer-approved" },
     { text: "View Orders - Monthly", to: "/monthly-orders" },
     { text: "View All Orders", to: "/view-all-orders" },

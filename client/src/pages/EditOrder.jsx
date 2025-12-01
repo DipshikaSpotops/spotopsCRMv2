@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useSelector } from "react-redux";
 import { STATES } from "../data/states";
 import { selectRole } from "../store/authSlice";
@@ -83,6 +83,7 @@ const buildInitialFormData = () => ({
 
   // Price & GP
   soldP: "",
+  chargedAmount: "",
   costP: "",
   shippingFee: "",
   salestax: "",
@@ -124,6 +125,7 @@ function Toast({ toast, onClose }) {
 
 export default function EditOrder() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const userRole = useSelector(selectRole);
   const [orderNoInput, setOrderNoInput] = useState("");
   const [loadingOrder, setLoadingOrder] = useState(false);
@@ -142,14 +144,14 @@ export default function EditOrder() {
     return localStorage.getItem("role") || undefined;
   })();
 
-  // Check if user is Admin (only after role is loaded)
+  // Check if user is Admin or Sales (only after role is loaded)
   useEffect(() => {
     // Wait for role to be available before checking
     if (role === undefined) return;
     
-    if (role !== "Admin") {
+    if (role !== "Admin" && role !== "Sales") {
       setToast({
-        message: "Access denied. Admin access required.",
+        message: "Access denied. Admin or Sales access required.",
         variant: "error",
       });
       setTimeout(() => navigate("/dashboard"), 2000);
@@ -314,8 +316,9 @@ export default function EditOrder() {
   };
 
   // Fetch order when order number is entered
-  const handleLoadOrder = async () => {
-    if (!orderNoInput.trim()) {
+  const handleLoadOrder = async (orderNo = null) => {
+    const orderNoToLoad = orderNo || orderNoInput.trim();
+    if (!orderNoToLoad) {
       setToast({ message: "Please enter an order number.", variant: "error" });
       return;
     }
@@ -323,7 +326,7 @@ export default function EditOrder() {
     setLoadingOrder(true);
     setToast(null);
     try {
-      const res = await API.get(`/orders/${encodeURIComponent(orderNoInput.trim())}`);
+      const res = await API.get(`/orders/${encodeURIComponent(orderNoToLoad)}`);
       const order = res.data;
 
       // Format order date if it exists
@@ -375,6 +378,7 @@ export default function EditOrder() {
 
         // Price & GP
         soldP: order.soldP || "",
+        chargedAmount: order.chargedAmount || order.soldP || "",
         costP: order.costP || "",
         shippingFee: order.shippingFee || "",
         salestax: order.salestax || "",
@@ -398,6 +402,17 @@ export default function EditOrder() {
       setLoadingOrder(false);
     }
   };
+
+  // Load order from URL params if orderNo is provided
+  useEffect(() => {
+    const orderNoFromUrl = searchParams.get("orderNo");
+    if (orderNoFromUrl && orderNoFromUrl.trim() && !formData.orderNo) {
+      setOrderNoInput(orderNoFromUrl.trim());
+      // Auto-load the order
+      handleLoadOrder(orderNoFromUrl.trim());
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   // Calculate GP
   useEffect(() => {
@@ -481,6 +496,11 @@ export default function EditOrder() {
             : String(formData.notes).split('\n').filter(n => n.trim()))
         : [];
       
+      // Determine orderStatus based on chargedAmount vs soldP
+      const soldPNum = parseFloat(formData.soldP) || 0;
+      const chargedNum = parseFloat(formData.chargedAmount) || soldPNum;
+      const newOrderStatus = chargedNum === soldPNum ? "Placed" : "Partially charged order";
+
       const payload = {
         ...formDataWithoutSAttention,
         bName: formData.businessName || formData.bName,
@@ -491,10 +511,14 @@ export default function EditOrder() {
           ? formData.programmingCost
           : "",
         notes: notesArray,
+        chargedAmount: chargedNum,
+        orderStatus: newOrderStatus,
         // Convert boolean toggles to strings (backend expects strings)
         expediteShipping: formData.expediteShipping ? "true" : "false",
         dsCall: formData.dsCall ? "true" : "false",
         programmingRequired: formData.programmingRequired ? "true" : "false",
+        // Update orderDate if Admin changed it
+        ...(role === "Admin" && formData.orderDateISO ? { orderDate: new Date(formData.orderDateISO) } : {}),
       };
 
       await API.put(`/orders/${encodeURIComponent(formData.orderNo)}`, payload);
@@ -518,17 +542,17 @@ export default function EditOrder() {
     );
   }
 
-  if (role !== "Admin") {
+  if (role !== "Admin" && role !== "Sales") {
     return (
       <div className="h-screen flex items-center justify-center">
-        <div className="text-white text-xl">Access denied. Admin access required.</div>
+        <div className="text-white text-xl">Access denied. Admin or Sales access required.</div>
       </div>
     );
   }
 
   return (
     <div className="h-screen flex flex-col p-6">
-      <h1 className="text-3xl font-bold text-white mb-4">Edit Order (Admin Only)</h1>
+      <h1 className="text-3xl font-bold text-white mb-4">Edit Order</h1>
 
       {/* Order Number Input */}
       <div className="mb-6 flex gap-4 items-end">
@@ -602,8 +626,70 @@ export default function EditOrder() {
             </Section>
 
             <Section title="Order Date">
-              <Input placeholder="Order Date" value={formData.orderDateDisplay} disabled />
-              <input type="hidden" value={formData.orderDateISO} />
+              {role === "Admin" ? (
+                <input
+                  type="datetime-local"
+                  value={(() => {
+                    // Convert orderDateISO to datetime-local format (YYYY-MM-DDTHH:mm)
+                    if (!formData.orderDateISO) return "";
+                    try {
+                      // Parse the ISO string and convert to local datetime-local format
+                      const dateStr = formData.orderDateISO;
+                      // Handle format like "2024-12-01T16:13:00.000-06:00"
+                      const date = new Date(dateStr);
+                      if (isNaN(date.getTime())) return "";
+                      // Format as YYYY-MM-DDTHH:mm for datetime-local input
+                      const year = date.getFullYear();
+                      const month = String(date.getMonth() + 1).padStart(2, "0");
+                      const day = String(date.getDate()).padStart(2, "0");
+                      const hours = String(date.getHours()).padStart(2, "0");
+                      const minutes = String(date.getMinutes()).padStart(2, "0");
+                      return `${year}-${month}-${day}T${hours}:${minutes}`;
+                    } catch {
+                      return "";
+                    }
+                  })()}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    if (value) {
+                      // Convert datetime-local to Dallas timezone ISO format
+                      const localDate = new Date(value);
+                      const dallasFormatter = new Intl.DateTimeFormat("en-US", {
+                        timeZone: "America/Chicago",
+                        year: "numeric",
+                        month: "long",
+                        day: "2-digit",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                        hour12: false,
+                      });
+                      const parts = dallasFormatter.formatToParts(localDate);
+                      const year = parts.find((p) => p.type === "year").value;
+                      const monthName = parts.find((p) => p.type === "month").value;
+                      const day = parts.find((p) => p.type === "day").value;
+                      const hour = parts.find((p) => p.type === "hour").value;
+                      const minute = parts.find((p) => p.type === "minute").value;
+                      const displayDate = `${day} ${monthName}, ${year} ${hour}:${minute}`;
+                      const monthNumber = new Date(
+                        localDate.toLocaleString("en-US", { timeZone: "America/Chicago" })
+                      ).getMonth() + 1;
+                      const tzOffset = getDallasOffset(localDate);
+                      const isoDallas = `${year}-${pad(monthNumber)}-${pad(day)}T${hour}:${minute}:00.000${tzOffset}`;
+                      setFormData((prev) => ({
+                        ...prev,
+                        orderDateDisplay: displayDate,
+                        orderDateISO: isoDallas,
+                      }));
+                    }
+                  }}
+                  className="w-full p-2 border bg-white/20 text-white rounded-md focus:outline-none focus:ring-2 border-gray-300 focus:ring-blue-400"
+                />
+              ) : (
+                <>
+                  <Input placeholder="Order Date" value={formData.orderDateDisplay} disabled />
+                  <input type="hidden" value={formData.orderDateISO} />
+                </>
+              )}
             </Section>
           </div>
 
@@ -650,11 +736,6 @@ export default function EditOrder() {
                 value={formData.bName}
                 onChange={(e) => handleFieldChange("bName", e.target.value)}
                 error={fieldErrors.has("bName")}
-              />
-              <Input
-                placeholder="Business Name"
-                value={formData.businessName}
-                onChange={(e) => setFormData({ ...formData, businessName: e.target.value })}
               />
               <Input
                 placeholder="Address"
@@ -734,6 +815,11 @@ export default function EditOrder() {
                 }}
               />
 
+              <Input
+                placeholder="Business Name"
+                value={formData.businessName}
+                onChange={(e) => setFormData({ ...formData, businessName: e.target.value })}
+              />
               <Input
                 placeholder="Attention"
                 value={formData.attention}
@@ -884,30 +970,43 @@ export default function EditOrder() {
                 placeholder="Sale Price"
                 prefix="$"
                 value={formData.soldP}
-                onChange={(e) => handleFieldChange("soldP", e.target.value)}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  handleFieldChange("soldP", value);
+                  // Auto-fill chargedAmount with soldP value if chargedAmount is empty or matches previous soldP
+                  if (!formData.chargedAmount || formData.chargedAmount === formData.soldP) {
+                    setFormData((prev) => ({ ...prev, chargedAmount: value }));
+                  }
+                }}
                 error={fieldErrors.has("soldP")}
               />
               <Input
-                placeholder="Est. Yard Price"
+                placeholder="Charged Price"
                 prefix="$"
-                value={formData.costP}
-                onChange={(e) => handleFieldChange("costP", e.target.value)}
-                error={fieldErrors.has("costP")}
+                value={formData.chargedAmount}
+                onChange={(e) => handleFieldChange("chargedAmount", e.target.value)}
               />
-              <Input
-                placeholder="Est. Shipping"
-                prefix="$"
-                value={formData.shippingFee}
-                onChange={(e) => handleFieldChange("shippingFee", e.target.value)}
-                error={fieldErrors.has("shippingFee")}
-              />
-              <Input placeholder="Sales Tax" prefix="%" value="5" disabled />
-              <Input
-                placeholder="Estimated GP"
-                prefix="$"
-                value={formData.grossProfit}
-                onChange={(e) => setFormData({ ...formData, grossProfit: e.target.value })}
-              />
+              <div className="grid grid-cols-2 gap-2">
+                <Input
+                  placeholder="Est. Price"
+                  prefix="$"
+                  value={formData.costP}
+                  onChange={(e) => handleFieldChange("costP", e.target.value)}
+                  error={fieldErrors.has("costP")}
+                />
+                <Input
+                  placeholder="Est. Shipping"
+                  prefix="$"
+                  value={formData.shippingFee}
+                  onChange={(e) => handleFieldChange("shippingFee", e.target.value)}
+                  error={fieldErrors.has("shippingFee")}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <Input placeholder="Sales Tax" prefix="%" value="5" disabled />
+                <Input placeholder="Estimated GP" prefix="$" value={formData.grossProfit}
+                  onChange={(e) => setFormData({ ...formData, grossProfit: e.target.value })} />
+              </div>
               <Input
                 placeholder="Last 4 Digits"
                 value={formData.last4digits}

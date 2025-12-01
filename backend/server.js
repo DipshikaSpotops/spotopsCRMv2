@@ -11,6 +11,7 @@ import authRoutes from "./routes/authRoutes.js";
 import ordersRoute from "./routes/orders.js";
 import partsRoute from "./routes/parts.js";
 import placedOrdersRoutes from "./routes/placedOrders.js";
+import partiallyChargedOrdersRoutes from "./routes/partiallyChargedOrders.js";
 import custApprovedRoutes from "./routes/customerApproved.js";
 import monthlyOrders from "./routes/monthlyOrders.js";
 import AllOrders from "./routes/AllOrders.js";
@@ -54,6 +55,7 @@ app.get("/api/health", (req, res) => {
 app.use("/api/auth", authRoutes);
 
 app.use("/api/orders/placed", placedOrdersRoutes);
+app.use("/api/orders/partially-charged", partiallyChargedOrdersRoutes);
 app.use("/parts", partsRoute); // legacy path
 app.use("/api/parts", partsRoute);
 app.use("/api/orders/customerApproved", custApprovedRoutes);

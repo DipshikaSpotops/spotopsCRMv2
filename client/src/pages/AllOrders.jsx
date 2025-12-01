@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState, useCallback } from "react";
 import API from "../api";
 import { formatInTimeZone } from "date-fns-tz";
 import { FaSort, FaSortUp, FaSortDown, FaChevronLeft, FaChevronRight } from "react-icons/fa";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import StickyXScrollbar from "../components/StickyXScrollbar";
 
 const rowsPerPage = 25;
@@ -394,17 +394,31 @@ const AllOrders = () => {
                 </td>
 
                 <td className="p-2.5 whitespace-nowrap">
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      localStorage.setItem("highlightedOrderNo", String(order.orderNo));
-                      setHighlightedOrderNo(String(order.orderNo));
-                      navigate(`/order-details?orderNo=${encodeURIComponent(order.orderNo)}`);
-                    }}
-                    className="px-3 py-1 text-xs rounded bg-[#2c5d81] hover:bg-blue-700 text-white"
-                  >
-                    View
-                  </button>
+                  {(() => {
+                    const restrictedStatuses = ["Placed", "Partially charged order"];
+                    const isRestricted = restrictedStatuses.includes(order.orderStatus);
+                    return (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (!isRestricted) {
+                            localStorage.setItem("highlightedOrderNo", String(order.orderNo));
+                            setHighlightedOrderNo(String(order.orderNo));
+                            navigate(`/order-details?orderNo=${encodeURIComponent(order.orderNo)}`);
+                          }
+                        }}
+                        disabled={isRestricted}
+                        className={`px-3 py-1 text-xs rounded text-white ${
+                          isRestricted
+                            ? "bg-gray-500/50 cursor-not-allowed opacity-50"
+                            : "bg-[#2c5d81] hover:bg-blue-700"
+                        }`}
+                        title={isRestricted ? "Order details not available for this status" : ""}
+                      >
+                        View
+                      </button>
+                    );
+                  })()}
                 </td>
               </tr>
             ))}

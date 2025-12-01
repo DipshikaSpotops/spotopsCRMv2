@@ -436,7 +436,20 @@ router.post("/orders", async (req, res) => {
   const formattedDateTime = central.format("D MMM, YYYY HH:mm");
 
   try {
-    const newOrder = new Order({ ...req.body });
+    // Determine orderStatus based on chargedAmount vs soldP if not explicitly provided
+    let orderStatus = req.body.orderStatus;
+    if (req.body.chargedAmount !== undefined && req.body.soldP !== undefined) {
+      const soldPNum = parseFloat(req.body.soldP) || 0;
+      const chargedNum = parseFloat(req.body.chargedAmount) || soldPNum;
+      // Only override if orderStatus wasn't explicitly set or if it's the default "Placed"
+      if (!orderStatus || orderStatus === "Placed") {
+        orderStatus = chargedNum === soldPNum ? "Placed" : "Partially charged order";
+      }
+    } else if (!orderStatus) {
+      orderStatus = "Placed"; // default
+    }
+
+    const newOrder = new Order({ ...req.body, orderStatus });
     newOrder.orderDate = central.toDate();
 
     newOrder.orderHistory = newOrder.orderHistory || [];

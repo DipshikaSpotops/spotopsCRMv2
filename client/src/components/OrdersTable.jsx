@@ -354,11 +354,22 @@ export default function OrdersTable({
   const tableScrollRef = useRef(null);
   const [restoredScroll, setRestoredScroll] = useState(false);
 
-  // role (for admin agent filter)
+  // role (for admin agent filter and Edit button)
   const [userRole, setUserRole] = useState(null);
   const [firstName, setFirstName] = useState("");
   useEffect(() => {
-    setUserRole((localStorage.getItem("role") || "").trim());
+    // Get role with fallback (like Sidebar does)
+    const roleFromStorage = (() => {
+      try {
+        const raw = localStorage.getItem("auth");
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          return parsed?.user?.role || undefined;
+        }
+      } catch {}
+      return localStorage.getItem("role") || undefined;
+    })();
+    setUserRole(roleFromStorage);
     setFirstName((localStorage.getItem("firstName") || "").trim());
   }, []);
 
@@ -990,26 +1001,56 @@ export default function OrdersTable({
                     ))}
                     {!hideDefaultActions && (
                       <td className="p-2.5">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (tableScrollRef.current) {
-                              sessionStorage.setItem(
-                                SCROLL_KEY,
-                                String(tableScrollRef.current.scrollTop || 0)
-                              );
-                            }
-                            if (row.orderNo) {
-                              setLS(LS_HILITE_KEY, String(row.orderNo));
-                              setLS(LS_PAGE_KEY, String(safePage));
-                              setHighlightedOrderNo(String(row.orderNo));
-                              navigate(gotoPath(row));
-                            }
-                          }}
-                          className="px-3 py-1 text-xs rounded bg-[#2c5d81] hover:bg-blue-700 text-white"
-                        >
-                          View
-                        </button>
+                        <div className="flex gap-2">
+                          {(() => {
+                            const restrictedStatuses = ["Placed", "Partially charged order"];
+                            const isRestricted = restrictedStatuses.includes(row.orderStatus);
+                            return (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (!isRestricted) {
+                                    if (tableScrollRef.current) {
+                                      sessionStorage.setItem(
+                                        SCROLL_KEY,
+                                        String(tableScrollRef.current.scrollTop || 0)
+                                      );
+                                    }
+                                    if (row.orderNo) {
+                                      setLS(LS_HILITE_KEY, String(row.orderNo));
+                                      setLS(LS_PAGE_KEY, String(safePage));
+                                      setHighlightedOrderNo(String(row.orderNo));
+                                      navigate(gotoPath(row));
+                                    }
+                                  }
+                                }}
+                                disabled={isRestricted}
+                                className={`px-3 py-1 text-xs rounded text-white ${
+                                  isRestricted
+                                    ? "bg-gray-500/50 cursor-not-allowed opacity-50"
+                                    : "bg-[#2c5d81] hover:bg-blue-700"
+                                }`}
+                                title={isRestricted ? "Order details not available for this status" : ""}
+                              >
+                                View
+                              </button>
+                            );
+                          })()}
+                          {userRole === "Sales" && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (row.orderNo) {
+                                  navigate(`/edit-order?orderNo=${encodeURIComponent(row.orderNo)}`);
+                                }
+                              }}
+                              className="px-3 py-1 text-xs rounded bg-[#3d7ba8] hover:bg-[#4a8bb8] text-white"
+                              title="Edit Order"
+                            >
+                              Edit
+                            </button>
+                          )}
+                        </div>
                       </td>
                     )}
                   </tr>
@@ -1076,19 +1117,47 @@ export default function OrdersTable({
                   )}
                 </div>
 
-                <div className="mt-3">
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setLS(LS_HILITE_KEY, String(row.orderNo));
-                      setLS(LS_PAGE_KEY, String(safePage));
-                      setHighlightedOrderNo(String(row.orderNo));
-                      navigate(gotoPath(row));
-                    }}
-                    className="w-full px-3 py-2 text-sm rounded bg-[#2c5d81] hover:bg-blue-700 text-white"
-                  >
-                    View
-                  </button>
+                <div className="mt-3 flex gap-2">
+                  {(() => {
+                    const restrictedStatuses = ["Placed", "Partially charged order"];
+                    const isRestricted = restrictedStatuses.includes(row.orderStatus);
+                    return (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (!isRestricted && row.orderNo) {
+                            setLS(LS_HILITE_KEY, String(row.orderNo));
+                            setLS(LS_PAGE_KEY, String(safePage));
+                            setHighlightedOrderNo(String(row.orderNo));
+                            navigate(gotoPath(row));
+                          }
+                        }}
+                        disabled={isRestricted}
+                        className={`flex-1 px-3 py-2 text-sm rounded text-white ${
+                          isRestricted
+                            ? "bg-gray-500/50 cursor-not-allowed opacity-50"
+                            : "bg-[#2c5d81] hover:bg-blue-700"
+                        }`}
+                        title={isRestricted ? "Order details not available for this status" : ""}
+                      >
+                        View
+                      </button>
+                    );
+                  })()}
+                  {userRole === "Sales" && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (row.orderNo) {
+                          navigate(`/edit-order?orderNo=${encodeURIComponent(row.orderNo)}`);
+                        }
+                      }}
+                      className="flex-1 px-3 py-2 text-sm rounded bg-[#3d7ba8] hover:bg-[#4a8bb8] text-white"
+                      title="Edit Order"
+                    >
+                      Edit
+                    </button>
+                  )}
                 </div>
               </div>
             );

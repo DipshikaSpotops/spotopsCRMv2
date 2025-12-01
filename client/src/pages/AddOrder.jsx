@@ -95,6 +95,7 @@ const buildInitialFormData = (defaultSalesAgent = "") => ({
 
   // Price & GP
   soldP: "",
+  chargedAmount: "",
   costP: "",
   shippingFee: "",
   salestax: "",
@@ -379,6 +380,11 @@ export default function AddOrder() {
         formData.warrantyField
       );
 
+      // Determine orderStatus based on chargedAmount vs soldP
+      const soldPNum = parseFloat(formData.soldP) || 0;
+      const chargedNum = parseFloat(formData.chargedAmount) || soldPNum;
+      const orderStatus = chargedNum === soldPNum ? "Placed" : "Partially charged order";
+
       const payload = {
         ...formData,
         bName: formData.businessName || formData.bName,
@@ -388,6 +394,8 @@ export default function AddOrder() {
         programmingCostQuoted: formData.programmingRequired
           ? formData.programmingCost
           : "",
+        chargedAmount: chargedNum,
+        orderStatus: orderStatus,
       };
 
       const res = await API.post(
@@ -719,26 +727,43 @@ export default function AddOrder() {
                 placeholder="Sale Price"
                 prefix="$"
                 value={formData.soldP}
-                onChange={(e) => handleFieldChange("soldP", e.target.value)}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  handleFieldChange("soldP", value);
+                  // Auto-fill chargedAmount with soldP value if chargedAmount is empty or matches previous soldP
+                  if (!formData.chargedAmount || formData.chargedAmount === formData.soldP) {
+                    setFormData((prev) => ({ ...prev, chargedAmount: value }));
+                  }
+                }}
                 error={fieldErrors.has("soldP")}
               />
               <Input
-                placeholder="Est. Yard Price"
+                placeholder="Charged Price"
                 prefix="$"
-                value={formData.costP}
-                onChange={(e) => handleFieldChange("costP", e.target.value)}
-                error={fieldErrors.has("costP")}
+                value={formData.chargedAmount}
+                onChange={(e) => handleFieldChange("chargedAmount", e.target.value)}
               />
-              <Input
-                placeholder="Est. Shipping"
-                prefix="$"
-                value={formData.shippingFee}
-                onChange={(e) => handleFieldChange("shippingFee", e.target.value)}
-                error={fieldErrors.has("shippingFee")}
-              />
-              <Input placeholder="Sales Tax" prefix="%" value="5" disabled />
-              <Input placeholder="Estimated GP" prefix="$" value={formData.grossProfit}
-                onChange={(e) => setFormData({ ...formData, grossProfit: e.target.value })} />
+              <div className="grid grid-cols-2 gap-2">
+                <Input
+                  placeholder="Est. Price"
+                  prefix="$"
+                  value={formData.costP}
+                  onChange={(e) => handleFieldChange("costP", e.target.value)}
+                  error={fieldErrors.has("costP")}
+                />
+                <Input
+                  placeholder="Est. Shipping"
+                  prefix="$"
+                  value={formData.shippingFee}
+                  onChange={(e) => handleFieldChange("shippingFee", e.target.value)}
+                  error={fieldErrors.has("shippingFee")}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <Input placeholder="Sales Tax" prefix="%" value="5" disabled />
+                <Input placeholder="Estimated GP" prefix="$" value={formData.grossProfit}
+                  onChange={(e) => setFormData({ ...formData, grossProfit: e.target.value })} />
+              </div>
               <Input 
                 placeholder="Last 4 Digits" 
                 value={formData.last4digits}

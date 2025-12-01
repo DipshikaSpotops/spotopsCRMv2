@@ -8,6 +8,7 @@ import RequireAuth from "./components/RequireAuth";
 import AddOrder from "./pages/AddOrder";
 import EditOrder from "./pages/EditOrder";
 import PlacedOrders from "./pages/PlacedOrders";
+import PartiallyChargedOrders from "./pages/PartiallyChargedOrders";
 import CustomerApproved from "./pages/CustomerApproved";
 import MonthlyOrders from "./pages/MonthlyOrders";
 import AllOrders from "./pages/AllOrders";
@@ -81,6 +82,10 @@ function App() {
         <Route
           path="/placed-orders"
           element={withLayout(<PlacedOrders />)}
+        />
+        <Route
+          path="/partially-charged-orders"
+          element={withLayout(<PartiallyChargedOrders />)}
         />
         <Route
           path="/customer-approved"
