@@ -48,11 +48,16 @@ export default function CommentBox({
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState("");
-  const [typingUsers, setTypingUsers] = useState([]); // Array of {firstName, role}
+  const [typingUsers, setTypingUsers] = useState([]); // Array of {firstName, role, location}
   const typingTimeoutRef = useRef(null);
   const typingStartTimeoutRef = useRef(null);
   const socketRef = useRef(null);
   const lastTypingEmitRef = useRef(0);
+  
+  // Determine location label for this comment box
+  const locationLabel = mode === "support" 
+    ? "Order Comments" 
+    : `Yard ${yardIndex + 1}`;
 
   // for auto-scroll
   const listRef = useRef(null);
@@ -113,16 +118,33 @@ export default function CommentBox({
       
       // Handle typing indicators with debouncing
       if (msg.type === "TYPING_START") {
+        // Determine location from message data
+        let typingLocation = "";
+        if (msg.commentType === "support") {
+          typingLocation = "Order Comments";
+        } else if (msg.commentType === "yard" && msg.yardIndex !== null && msg.yardIndex !== undefined) {
+          typingLocation = `Yard ${Number(msg.yardIndex) + 1}`;
+        }
+        
         const matchesType = mode === "support" 
           ? msg.commentType === "support"
           : msg.commentType === "yard" && Number(msg.yardIndex) === Number(yardIndex);
         
-        if (matchesType && msg.user) {
+        if (matchesType && msg.user && typingLocation) {
+          // Add location context to user info
+          const userWithLocation = {
+            ...msg.user,
+            location: typingLocation,
+          };
+          
           // Clear any existing timeout for this user
           setTypingUsers((prev) => {
             const exists = prev.some(u => u.socketId === msg.user.socketId);
-            if (exists) return prev;
-            return [...prev, msg.user];
+            if (exists) {
+              // Update existing user with new location
+              return prev.map(u => u.socketId === msg.user.socketId ? userWithLocation : u);
+            }
+            return [...prev, userWithLocation];
           });
           
           // Auto-remove after 5 seconds if no new typing event
@@ -334,7 +356,7 @@ export default function CommentBox({
                   <div className="text-xs text-[#09325d]/70 dark:text-white/60 mt-1 px-1">
                     {typingUsers.map((u, i) => (
                       <span key={u.socketId || i}>
-                        {u.firstName} is typing...
+                        {u.firstName} is typing in {u.location || locationLabel}...
                         {i < typingUsers.length - 1 && ", "}
                       </span>
                     ))}

@@ -1067,8 +1067,12 @@ export default function OrderDetails() {
                   </span>
                 </h1>
                 {(() => {
-                  // Final deduplication by firstName+role combination
+                  // Final deduplication by firstName+role combination and filter out "Unknown" users
                   const uniqueUsers = activeUsers.reduce((acc, user) => {
+                    // Skip users with "Unknown" name (likely not properly authenticated)
+                    if (user.firstName === "Unknown" || !user.firstName) {
+                      return acc;
+                    }
                     const key = `${user.firstName}-${user.role || ''}`;
                     if (!acc.has(key)) {
                       acc.set(key, user);
@@ -1087,7 +1091,7 @@ export default function OrderDetails() {
                         {displayUsers.map((u, i) => (
                           <span key={u.socketId || `${u.firstName}-${u.role || ''}-${i}`}>
                             {u.firstName}
-                            {u.role && ` (${u.role})`}
+                            {u.role && u.role !== "User" && ` (${u.role})`}
                             {i < displayUsers.length - 1 && ", "}
                           </span>
                         ))}

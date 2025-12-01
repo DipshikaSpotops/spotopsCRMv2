@@ -155,7 +155,8 @@ io.on("connection", (socket) => {
     if (currentOrderNo === orderNo && userInfo) {
       // Just send current presence to this socket
       if (activeUsers.has(orderNo)) {
-        const currentUsers = Array.from(activeUsers.get(orderNo).values());
+        const currentUsers = Array.from(activeUsers.get(orderNo).values())
+          .filter(u => u.firstName !== "Unknown"); // Filter out Unknown users
         socket.emit("order:msg", {
           type: "PRESENCE_UPDATE",
           orderNo,
@@ -185,34 +186,40 @@ io.on("connection", (socket) => {
     socket.join(room);
     currentOrderNo = orderNo;
     
-    // Store user info
-    userInfo = {
-      firstName: userData?.firstName || "Unknown",
-      role: userData?.role || "User",
-      socketId: socket.id,
-      joinedAt: new Date().toISOString(),
-    };
-    
-    // Track active user (will overwrite if exists, preventing duplicates)
-    if (!activeUsers.has(orderNo)) {
-      activeUsers.set(orderNo, new Map());
+    // Only track user if we have valid firstName (skip "Unknown" users)
+    if (userData && userData.firstName && userData.firstName !== "Unknown") {
+      // Store user info
+      userInfo = {
+        firstName: userData.firstName,
+        role: userData.role || undefined, // Don't set "User" as default
+        socketId: socket.id,
+        joinedAt: new Date().toISOString(),
+      };
+      
+      // Track active user (will overwrite if exists, preventing duplicates)
+      if (!activeUsers.has(orderNo)) {
+        activeUsers.set(orderNo, new Map());
+      }
+      activeUsers.get(orderNo).set(socket.id, userInfo);
+      
+      // Broadcast presence update to others in the room (only once)
+      socket.to(room).emit("order:msg", {
+        type: "USER_JOINED",
+        orderNo,
+        user: userInfo,
+      });
+    } else {
+      // No valid user info, don't track in presence
+      userInfo = null;
     }
-    activeUsers.get(orderNo).set(socket.id, userInfo);
-    
-    // Broadcast presence update to others in the room (only once)
-    socket.to(room).emit("order:msg", {
-      type: "USER_JOINED",
-      orderNo,
-      user: userInfo,
-    });
     
     // Send current active users to the new joiner (debounced and deduplicated)
     setTimeout(() => {
       if (activeUsers.has(orderNo)) {
-        // Deduplicate by socketId before sending
+        // Deduplicate by socketId and filter out Unknown users before sending
         const usersMap = new Map();
         activeUsers.get(orderNo).forEach((user, socketId) => {
-          if (!usersMap.has(socketId)) {
+          if (!usersMap.has(socketId) && user.firstName !== "Unknown") {
             usersMap.set(socketId, user);
           }
         });

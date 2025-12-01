@@ -49,21 +49,39 @@ export default function useOrderRealtime(
 
     socket.on("connect", () => {
       console.log("[io] connected", socket.id);
-      // Get user info from localStorage
-      const firstName = localStorage.getItem("firstName") || "Unknown";
-      const role = (() => {
+      // Get user info from localStorage - try multiple sources
+      let firstName = localStorage.getItem("firstName");
+      if (!firstName) {
+        // Try to get from auth object
         try {
           const raw = localStorage.getItem("auth");
           if (raw) {
             const parsed = JSON.parse(raw);
-            return parsed?.user?.role || localStorage.getItem("role") || "User";
+            firstName = parsed?.user?.firstName || parsed?.firstName || null;
           }
         } catch {}
-        return localStorage.getItem("role") || "User";
-      })();
+      }
       
-      // Join order with user info for presence tracking
-      socket.emit("joinOrder", orderNo, { firstName, role });
+      let role = null;
+      try {
+        const raw = localStorage.getItem("auth");
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          role = parsed?.user?.role || null;
+        }
+      } catch {}
+      if (!role) {
+        role = localStorage.getItem("role") || null;
+      }
+      
+      // Only join with user info if we have at least a firstName
+      // If no firstName, don't show in presence (prevents "Unknown" users)
+      if (firstName) {
+        socket.emit("joinOrder", orderNo, { firstName, role: role || undefined });
+      } else {
+        // Still join the room but without user info (won't appear in presence)
+        socket.emit("joinOrder", orderNo, null);
+      }
       socket.emit("identify", { actorId: myActorId });
     });
 
