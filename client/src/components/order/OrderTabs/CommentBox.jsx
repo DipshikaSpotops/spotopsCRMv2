@@ -48,6 +48,9 @@ export default function CommentBox({
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState("");
+  const [typingUsers, setTypingUsers] = useState([]); // Array of {firstName, role}
+  const typingTimeoutRef = useRef(null);
+  const socketRef = useRef(null);
 
   // for auto-scroll
   const listRef = useRef(null);
@@ -87,9 +90,14 @@ export default function CommentBox({
   }, [fetchComments]);
 
   /* -------------------- Realtime: refresh on socket events -------------------- */
-  useOrderRealtime(orderNo, {
-    onEvent: (msg) => {
+  const socket = useOrderRealtime(orderNo, {
+    onEvent: (msg, { socket: socketInstance }) => {
       if (!msg?.type) return;
+      
+      // Store socket reference
+      if (socketInstance) socketRef.current = socketInstance;
+      
+      // Handle comment updates
       if (mode === "support" && msg.type === "SUPPORT_NOTE_ADDED") {
         fetchComments();
       }
@@ -99,6 +107,31 @@ export default function CommentBox({
         Number(msg.yardIndex) - 1 === Number(yardIndex)
       ) {
         fetchComments();
+      }
+      
+      // Handle typing indicators
+      if (msg.type === "TYPING_START") {
+        const matchesType = mode === "support" 
+          ? msg.commentType === "support"
+          : msg.commentType === "yard" && Number(msg.yardIndex) === Number(yardIndex);
+        
+        if (matchesType && msg.user) {
+          setTypingUsers((prev) => {
+            const exists = prev.some(u => u.firstName === msg.user.firstName && u.socketId === msg.user.socketId);
+            if (exists) return prev;
+            return [...prev, msg.user];
+          });
+        }
+      }
+      
+      if (msg.type === "TYPING_STOP") {
+        const matchesType = mode === "support"
+          ? msg.commentType === "support"
+          : msg.commentType === "yard" && Number(msg.yardIndex) === Number(yardIndex);
+        
+        if (matchesType) {
+          setTypingUsers((prev) => prev.filter(u => u.socketId !== msg.socketId));
+        }
       }
     },
   });
@@ -211,17 +244,80 @@ export default function CommentBox({
           {/* Input row */}
           <div className="shrink-0 border-t border-gray-200 dark:border-white/10 bg-blue-50 dark:bg-[#1a1a3d]/80 dark:backdrop-blur-md p-3">
             <form onSubmit={handleSubmit} className="flex gap-2 items-center">
-              <input
-                type="text"
-                placeholder="Type your comment here..."
-                value={input}
-                onChange={(e) => {
-                  const v = e.target.value.slice(0, MAX_LEN);
-                  setInput(v);
-                }}
-                onKeyDown={handleKeyDown}
+              <div className="flex-1 flex flex-col">
+                <input
+                  type="text"
+                  placeholder="Type your comment here..."
+                  value={input}
+                  onChange={(e) => {
+                    const v = e.target.value.slice(0, MAX_LEN);
+                    setInput(v);
+                    
+                    // Emit typing start
+                    if (socketRef.current && v.trim().length > 0) {
+                      const firstName = localStorage.getItem("firstName") || "Unknown";
+                      const role = (() => {
+                        try {
+                          const raw = localStorage.getItem("auth");
+                          if (raw) {
+                            const parsed = JSON.parse(raw);
+                            return parsed?.user?.role || localStorage.getItem("role") || "User";
+                          }
+                        } catch {}
+                        return localStorage.getItem("role") || "User";
+                      })();
+                      
+                      socketRef.current.emit("typing:start", {
+                        orderNo,
+                        commentType: mode,
+                        yardIndex: mode === "support" ? null : yardIndex,
+                        user: { firstName, role, socketId: socketRef.current.id },
+                      });
+                      
+                      // Clear existing timeout
+                      if (typingTimeoutRef.current) {
+                        clearTimeout(typingTimeoutRef.current);
+                      }
+                      
+                      // Stop typing after 3 seconds of inactivity
+                      typingTimeoutRef.current = setTimeout(() => {
+                        if (socketRef.current) {
+                          socketRef.current.emit("typing:stop", {
+                            orderNo,
+                            commentType: mode,
+                            yardIndex: mode === "support" ? null : yardIndex,
+                          });
+                        }
+                      }, 3000);
+                    }
+                  }}
+                  onKeyDown={handleKeyDown}
+                  onBlur={() => {
+                    // Stop typing when input loses focus
+                    if (socketRef.current) {
+                      socketRef.current.emit("typing:stop", {
+                        orderNo,
+                        commentType: mode,
+                        yardIndex: mode === "support" ? null : yardIndex,
+                      });
+                    }
+                    if (typingTimeoutRef.current) {
+                      clearTimeout(typingTimeoutRef.current);
+                    }
+                  }}
                   className="flex-1 rounded-lg px-3 py-2 bg-gray-50 border border-gray-300 outline-none text-[#09325d] placeholder-gray-400 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 dark:bg-white/10 dark:border-white/20 dark:text-white dark:placeholder-white/50 dark:focus:ring-white/60 dark:focus:border-white/60 dark:focus:bg-white/20"
-              />
+                />
+                {typingUsers.length > 0 && (
+                  <div className="text-xs text-[#09325d]/70 dark:text-white/60 mt-1 px-1">
+                    {typingUsers.map((u, i) => (
+                      <span key={u.socketId || i}>
+                        {u.firstName} is typing...
+                        {i < typingUsers.length - 1 && ", "}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
               <span className="text-xs text-[#09325d]/80 dark:text-white/60 w-16 text-right">
                 {remaining}
               </span>

@@ -140,22 +140,116 @@ export function publishOrder(orderNo, payload = {}) {
 // also expose through app.locals for easy access via req.app.locals
 app.locals.publishOrder = publishOrder;
 
+// Track active users per order: orderNo -> Map<socketId, {firstName, role, joinedAt}>
+const activeUsers = new Map();
+
 io.on("connection", (socket) => {
   console.log("Client connected", socket.id);
+  let currentOrderNo = null;
+  let userInfo = null;
 
-  socket.on("joinOrder", (orderNo) => {
+  socket.on("joinOrder", (orderNo, userData) => {
     const room = `order.${orderNo}`;
     socket.join(room);
-    // optional: ack
-    socket.emit("order:msg", { type: "JOINED", orderNo });
+    currentOrderNo = orderNo;
+    
+    // Store user info
+    userInfo = {
+      firstName: userData?.firstName || "Unknown",
+      role: userData?.role || "User",
+      socketId: socket.id,
+      joinedAt: new Date().toISOString(),
+    };
+    
+    // Track active user
+    if (!activeUsers.has(orderNo)) {
+      activeUsers.set(orderNo, new Map());
+    }
+    activeUsers.get(orderNo).set(socket.id, userInfo);
+    
+    // Broadcast presence update to others in the room
+    socket.to(room).emit("order:msg", {
+      type: "USER_JOINED",
+      orderNo,
+      user: userInfo,
+    });
+    
+    // Send current active users to the new joiner
+    const currentUsers = Array.from(activeUsers.get(orderNo).values());
+    socket.emit("order:msg", {
+      type: "PRESENCE_UPDATE",
+      orderNo,
+      activeUsers: currentUsers,
+    });
   });
 
   socket.on("leaveOrder", (orderNo) => {
     socket.leave(`order.${orderNo}`);
+    
+    // Remove from active users
+    if (activeUsers.has(orderNo)) {
+      activeUsers.get(orderNo).delete(socket.id);
+      
+      // If no more users, clean up
+      if (activeUsers.get(orderNo).size === 0) {
+        activeUsers.delete(orderNo);
+      } else {
+        // Broadcast user left
+        io.to(`order.${orderNo}`).emit("order:msg", {
+          type: "USER_LEFT",
+          orderNo,
+          socketId: socket.id,
+        });
+      }
+    }
+    
+    if (orderNo === currentOrderNo) {
+      currentOrderNo = null;
+      userInfo = null;
+    }
+  });
+
+  // Typing indicators
+  socket.on("typing:start", (data) => {
+    const { orderNo, commentType, yardIndex, user } = data;
+    socket.to(`order.${orderNo}`).emit("order:msg", {
+      type: "TYPING_START",
+      orderNo,
+      commentType, // "support" or "yard"
+      yardIndex,
+      user: user || userInfo,
+    });
+  });
+
+  socket.on("typing:stop", (data) => {
+    const { orderNo, commentType, yardIndex } = data;
+    socket.to(`order.${orderNo}`).emit("order:msg", {
+      type: "TYPING_STOP",
+      orderNo,
+      commentType,
+      yardIndex,
+      socketId: socket.id,
+    });
   });
 
   socket.on("disconnect", () => {
     console.log("Client disconnected", socket.id);
+    
+    // Clean up presence tracking
+    if (currentOrderNo && activeUsers.has(currentOrderNo)) {
+      activeUsers.get(currentOrderNo).delete(socket.id);
+      
+      if (activeUsers.get(currentOrderNo).size === 0) {
+        activeUsers.delete(currentOrderNo);
+      } else {
+        // Broadcast user left
+        io.to(`order.${currentOrderNo}`).emit("order:msg", {
+          type: "USER_LEFT",
+          orderNo: currentOrderNo,
+          socketId: socket.id,
+        });
+      }
+    }
   });
 });
 

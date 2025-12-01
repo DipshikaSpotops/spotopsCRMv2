@@ -49,9 +49,21 @@ export default function useOrderRealtime(
 
     socket.on("connect", () => {
       console.log("[io] connected", socket.id);
-      // keep join format the same (server expects a string),
-      // but also optionally identify this tab for the server (safe if ignored).
-      socket.emit("joinOrder", orderNo);
+      // Get user info from localStorage
+      const firstName = localStorage.getItem("firstName") || "Unknown";
+      const role = (() => {
+        try {
+          const raw = localStorage.getItem("auth");
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            return parsed?.user?.role || localStorage.getItem("role") || "User";
+          }
+        } catch {}
+        return localStorage.getItem("role") || "User";
+      })();
+      
+      // Join order with user info for presence tracking
+      socket.emit("joinOrder", orderNo, { firstName, role });
       socket.emit("identify", { actorId: myActorId });
     });
 
@@ -59,7 +71,7 @@ export default function useOrderRealtime(
       // msg should contain actorId from the server-side publish()
       const isSelf = !!msg?.actorId && msg.actorId === myActorId;
       console.log("[io] order:event", msg, "(isSelf:", isSelf, ")");
-      if (typeof onEvent === "function") onEvent(msg, { isSelf, myActorId });
+      if (typeof onEvent === "function") onEvent(msg, { isSelf, myActorId, socket });
     });
 
     socket.on("connect_error", (err) => {
@@ -79,4 +91,6 @@ export default function useOrderRealtime(
       startedRef.current = false;
     };
   }, [enabled, orderNo, url, onEvent]);
+
+  return socketRef.current; // Return socket for typing events
 }

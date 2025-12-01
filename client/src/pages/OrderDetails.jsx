@@ -401,6 +401,10 @@ export default function OrderDetails() {
     );
   }, [order?.reimbursementAmount, order?.reimbursementDate]);
 
+  // Track active users viewing this order
+  const [activeUsers, setActiveUsers] = useState([]);
+  const currentUserFirstName = localStorage.getItem("firstName") || "Unknown";
+
   // Listen for real-time updates via websocket
   useOrderRealtime(orderNo, {
     onEvent: (msg, { isSelf }) => {
@@ -412,6 +416,24 @@ export default function OrderDetails() {
         setTimeout(() => {
           refresh();
         }, 300);
+      }
+      
+      // Handle presence updates
+      if (msg?.type === "PRESENCE_UPDATE" && msg.activeUsers) {
+        // Filter out current user from the list
+        setActiveUsers(msg.activeUsers.filter(u => u.firstName !== currentUserFirstName));
+      }
+      
+      if (msg?.type === "USER_JOINED" && msg.user && msg.user.firstName !== currentUserFirstName) {
+        setActiveUsers((prev) => {
+          const exists = prev.some(u => u.firstName === msg.user.firstName && u.socketId === msg.user.socketId);
+          if (exists) return prev;
+          return [...prev, msg.user];
+        });
+      }
+      
+      if (msg?.type === "USER_LEFT") {
+        setActiveUsers((prev) => prev.filter(u => u.socketId !== msg.socketId));
       }
     },
     enabled: !!orderNo,
@@ -1004,6 +1026,23 @@ export default function OrderDetails() {
                     - {orderNo || "—"}
                   </span>
                 </h1>
+                {activeUsers.length > 0 && (
+                  <div className="mt-2 flex items-center gap-2 text-sm text-[#09325d]/70 dark:text-white/70">
+                    <span className="inline-flex items-center gap-1">
+                      <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                      <span>Also viewing:</span>
+                    </span>
+                    <span className="font-medium">
+                      {activeUsers.map((u, i) => (
+                        <span key={u.socketId || i}>
+                          {u.firstName}
+                          {u.role && ` (${u.role})`}
+                          {i < activeUsers.length - 1 && ", "}
+                        </span>
+                      ))}
+                    </span>
+                  </div>
+                )}
               </div>
 
               <div className="flex flex-col items-end gap-3">
