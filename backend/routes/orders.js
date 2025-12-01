@@ -30,18 +30,40 @@ const publish = (req, orderNo, payload = {}) => {
 };
 const coerceDate = (value) => {
   if (value === null || value === undefined || value === "") return null;
-  if (value instanceof Date) return value;
+  
+  // Handle Date objects first - check both instanceof and object type with getTime method
+  // Also check if it's a Date-like object (has getTime method and constructor is Date)
+  if (value instanceof Date || (value && typeof value === "object" && typeof value.getTime === "function" && value.constructor === Date)) {
+    const dateValue = value instanceof Date ? value : new Date(value.getTime());
+    return Number.isNaN(dateValue.getTime()) ? null : dateValue;
+  }
+  
+  // Handle moment objects
   if (moment.isMoment(value)) {
     const asDate = value.toDate();
     return Number.isNaN(asDate.getTime()) ? null : asDate;
   }
+  
+  // Handle numbers (timestamps)
   if (typeof value === "number") {
     const fromNumber = new Date(value);
     return Number.isNaN(fromNumber.getTime()) ? null : fromNumber;
   }
+  
+  // Handle strings
   if (typeof value === "string") {
     const trimmed = value.trim();
     if (!trimmed) return null;
+    
+    // Check if string looks like a Date object string representation (e.g., "Mon Dec 01 2025...")
+    // If so, try to parse it as a Date first
+    if (/^[A-Z][a-z]{2}\s+[A-Z][a-z]{2}\s+\d{1,2}\s+\d{4}/.test(trimmed)) {
+      const dateFromString = new Date(trimmed);
+      if (!Number.isNaN(dateFromString.getTime())) {
+        return dateFromString;
+      }
+    }
+    
     const formats = [
       moment.ISO_8601,
       "YYYY-MM-DD",
@@ -62,7 +84,15 @@ const coerceDate = (value) => {
       parsed = moment(trimmed, formats, true);
     }
     if (!parsed.isValid()) {
-      parsed = moment(trimmed);
+      // Only use moment(trimmed) as last resort, and catch any errors
+      try {
+        parsed = moment(trimmed);
+      } catch (err) {
+        console.warn("[coerceDate] moment parsing error:", err.message, "for value:", trimmed);
+        // Fall back to native Date constructor
+        const fallback = new Date(trimmed);
+        return Number.isNaN(fallback.getTime()) ? null : fallback;
+      }
     }
     if (parsed.isValid()) {
       const asDate = parsed.toDate();
@@ -71,6 +101,8 @@ const coerceDate = (value) => {
     const fallback = new Date(trimmed);
     return Number.isNaN(fallback.getTime()) ? null : fallback;
   }
+  
+  // Handle objects with toDate method (like Firestore timestamps)
   if (value && typeof value === "object" && typeof value.toDate === "function") {
     const fromObj = value.toDate();
     if (fromObj instanceof Date && !Number.isNaN(fromObj.getTime())) {
@@ -78,6 +110,7 @@ const coerceDate = (value) => {
     }
     return null;
   }
+  
   return null;
 };
 const sanitizeYardDateFields = (yard) => {
@@ -90,12 +123,23 @@ const sanitizeYardDateFields = (yard) => {
       yard[key] = null;
       continue;
     }
-    if (current instanceof Date) continue;
+    // Check if it's already a valid Date object (more robust check)
+    if (current instanceof Date && !Number.isNaN(current.getTime())) {
+      continue;
+    }
+    // Also check for Date-like objects
+    if (current && typeof current === "object" && typeof current.getTime === "function" && current.constructor === Date) {
+      const dateValue = new Date(current.getTime());
+      if (!Number.isNaN(dateValue.getTime())) {
+        yard[key] = dateValue;
+        continue;
+      }
+    }
     const coerced = coerceDate(current);
     if (coerced) {
       yard[key] = coerced;
     } else {
-      console.warn(`[orders] Unable to coerce ${key}`, current);
+      console.warn(`[orders] Unable to coerce ${key}`, current, typeof current);
       yard[key] = null;
     }
   }
