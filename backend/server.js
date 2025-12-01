@@ -206,10 +206,17 @@ io.on("connection", (socket) => {
       user: userInfo,
     });
     
-    // Send current active users to the new joiner (debounced)
+    // Send current active users to the new joiner (debounced and deduplicated)
     setTimeout(() => {
       if (activeUsers.has(orderNo)) {
-        const currentUsers = Array.from(activeUsers.get(orderNo).values());
+        // Deduplicate by socketId before sending
+        const usersMap = new Map();
+        activeUsers.get(orderNo).forEach((user, socketId) => {
+          if (!usersMap.has(socketId)) {
+            usersMap.set(socketId, user);
+          }
+        });
+        const currentUsers = Array.from(usersMap.values());
         socket.emit("order:msg", {
           type: "PRESENCE_UPDATE",
           orderNo,

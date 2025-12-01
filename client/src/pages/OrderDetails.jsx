@@ -425,9 +425,11 @@ export default function OrderDetails() {
         // Clear map first, then repopulate (prevents accumulation)
         activeUsersMapRef.current.clear();
         
-        // Filter out current user and add to map
+        // Filter out current user and deduplicate by socketId
+        const seenSocketIds = new Set();
         msg.activeUsers.forEach(u => {
-          if (u.firstName !== currentUserFirstName && u.socketId) {
+          if (u.firstName !== currentUserFirstName && u.socketId && !seenSocketIds.has(u.socketId)) {
+            seenSocketIds.add(u.socketId);
             activeUsersMapRef.current.set(u.socketId, u);
           }
         });
@@ -1064,23 +1066,35 @@ export default function OrderDetails() {
                     - {orderNo || "—"}
                   </span>
                 </h1>
-                {activeUsers.length > 0 && (
-                  <div className="mt-2 flex items-center gap-2 text-sm text-[#09325d]/70 dark:text-white/70">
-                    <span className="inline-flex items-center gap-1">
-                      <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-                      <span>Also viewing:</span>
-                    </span>
-                    <span className="font-medium">
-                      {activeUsers.map((u, i) => (
-                        <span key={u.socketId || `${u.firstName}-${i}`}>
-                          {u.firstName}
-                          {u.role && ` (${u.role})`}
-                          {i < activeUsers.length - 1 && ", "}
-                        </span>
-                      ))}
-                    </span>
-                  </div>
-                )}
+                {(() => {
+                  // Final deduplication by firstName+role combination
+                  const uniqueUsers = activeUsers.reduce((acc, user) => {
+                    const key = `${user.firstName}-${user.role || ''}`;
+                    if (!acc.has(key)) {
+                      acc.set(key, user);
+                    }
+                    return acc;
+                  }, new Map());
+                  const displayUsers = Array.from(uniqueUsers.values());
+                  
+                  return displayUsers.length > 0 && (
+                    <div className="mt-2 flex items-center gap-2 text-sm text-[#09325d]/70 dark:text-white/70">
+                      <span className="inline-flex items-center gap-1">
+                        <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                        <span>Also viewing:</span>
+                      </span>
+                      <span className="font-medium">
+                        {displayUsers.map((u, i) => (
+                          <span key={u.socketId || `${u.firstName}-${u.role || ''}-${i}`}>
+                            {u.firstName}
+                            {u.role && ` (${u.role})`}
+                            {i < displayUsers.length - 1 && ", "}
+                          </span>
+                        ))}
+                      </span>
+                    </div>
+                  );
+                })()}
               </div>
 
               <div className="flex flex-col items-end gap-3">
