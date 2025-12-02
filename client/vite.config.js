@@ -29,7 +29,7 @@ export default defineConfig(async () => {
     },
     // moment-timezone from shared gets pre-bundled cleanly
     optimizeDeps: {
-      include: ["moment-timezone"],
+      include: ["moment-timezone", "react", "react-dom", "react-router-dom"],
     },
     server: {
       proxy: {
@@ -49,16 +49,17 @@ export default defineConfig(async () => {
           manualChunks: (id) => {
             // Node modules chunking
             if (id.includes("node_modules")) {
-              // React Router - check FIRST and bundle with React (critical for v7)
-              if (id.includes("react-router")) {
+              // CRITICAL: React Router v7 MUST be bundled with React to prevent "Activity" error
+              // Use explicit package matching
+              if (id.includes("react-router") || 
+                  id.includes("/react/") || 
+                  id.includes("/react-dom/") ||
+                  id.includes("react/jsx-runtime") ||
+                  id.includes("react/jsx-dev-runtime")) {
                 return "react-vendor";
               }
-              // React and React DOM - bundle together with React Router
-              if (id.includes("/react/") || id.includes("/react-dom/") || 
-                  (id.includes("react") && !id.includes("react-redux") && !id.includes("react-chartjs"))) {
-                return "react-vendor";
-              }
-              // Redux
+              
+              // Redux (separate from React to allow better caching)
               if (id.includes("redux") || id.includes("@reduxjs")) {
                 return "redux-vendor";
               }
