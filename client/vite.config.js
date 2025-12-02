@@ -46,10 +46,48 @@ export default defineConfig(async () => {
       chunkSizeWarningLimit: 2500,
       rollupOptions: {
         output: {
-          manualChunks: {
-            react: ["react", "react-dom"],
-            vendor: ["axios"],
-            charts: ["chart.js"],
+          manualChunks: (id) => {
+            // Node modules chunking
+            if (id.includes("node_modules")) {
+              // React and React DOM
+              if (id.includes("react") || id.includes("react-dom")) {
+                return "react-vendor";
+              }
+              // React Router
+              if (id.includes("react-router")) {
+                return "router-vendor";
+              }
+              // Redux
+              if (id.includes("redux") || id.includes("@reduxjs")) {
+                return "redux-vendor";
+              }
+              // Chart libraries
+              if (id.includes("chart.js") || id.includes("react-chartjs-2") || id.includes("recharts")) {
+                return "charts-vendor";
+              }
+              // Date libraries
+              if (id.includes("date-fns") || id.includes("moment") || id.includes("dayjs")) {
+                return "date-vendor";
+              }
+              // PDF/Canvas libraries
+              if (id.includes("jspdf") || id.includes("html2canvas")) {
+                return "pdf-vendor";
+              }
+              // Socket.IO
+              if (id.includes("socket.io")) {
+                return "socket-vendor";
+              }
+              // FontAwesome
+              if (id.includes("fontawesome")) {
+                return "icons-vendor";
+              }
+              // Other large vendor libraries
+              if (id.includes("axios")) {
+                return "http-vendor";
+              }
+              // All other node_modules
+              return "vendor";
+            }
           },
         },
       },
