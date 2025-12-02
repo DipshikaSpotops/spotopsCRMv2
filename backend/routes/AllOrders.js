@@ -15,7 +15,9 @@ router.get("/", async (req, res) => {
     // ---- Build search query ---------------------------------------------
     const query = {};
     if (searchTerm) {
-      const rx = new RegExp(searchTerm, "i");
+      // Escape special regex characters in search term
+      const escapedSearchTerm = searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const rx = new RegExp(escapedSearchTerm, "i");
       query.$or = [
         { orderNo: rx },
         { customerName: rx },

@@ -49,8 +49,13 @@ export default defineConfig(async () => {
           manualChunks: (id) => {
             // Node modules chunking
             if (id.includes("node_modules")) {
-              // React, React DOM, and React Router together (React Router v7 needs React available)
-              if (id.includes("react") || id.includes("react-dom") || id.includes("react-router")) {
+              // React Router - check FIRST and bundle with React (critical for v7)
+              if (id.includes("react-router")) {
+                return "react-vendor";
+              }
+              // React and React DOM - bundle together with React Router
+              if (id.includes("/react/") || id.includes("/react-dom/") || 
+                  (id.includes("react") && !id.includes("react-redux") && !id.includes("react-chartjs"))) {
                 return "react-vendor";
               }
               // Redux
