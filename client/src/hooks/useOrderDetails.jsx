@@ -28,15 +28,24 @@ export default function useOrderDetails() {
   const [order, setOrder] = useState(null);
 
   const refresh = async () => {
-    if (!orderNo) return;
+    if (!orderNo) {
+      setOrder(null);
+      setErr("");
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setErr("");
+    // Clear previous order immediately when fetching new one
+    setOrder(null);
     try {
       const { data } = await API.get(`/orders/${encodeURIComponent(orderNo)}`);
       setOrder(data || null);
       console.log("ORDER DATA coming from useOrderDEtails page inside hooks:", data);
 
     } catch (e) {
+      // Clear order state on error (especially 404)
+      setOrder(null);
       setErr(e.response?.data?.message || e.message || "Network error");
     } finally {
       setLoading(false);

@@ -1081,6 +1081,33 @@ export default function OrderDetails() {
         <NavbarForm />
 
         <div className="w-full px-4 sm:px-6 lg:px-8 2xl:px-12 pt-24 pb-6 min-h-[calc(100vh-6rem)] overflow-y-auto">
+          {/* Loading State */}
+          {loading && (
+            <div className="flex items-center justify-center min-h-[400px]">
+              <div className="text-center">
+                <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-[#09325d] dark:border-white mb-4"></div>
+                <p className="text-[#09325d] dark:text-white text-lg">Loading order details...</p>
+              </div>
+            </div>
+          )}
+
+          {/* Error State */}
+          {!loading && error && (
+            <div className="flex items-center justify-center min-h-[400px]">
+              <div className="text-center">
+                <p className="text-red-600 dark:text-red-400 text-lg font-semibold mb-2">
+                  {error}
+                </p>
+                <p className="text-[#09325d] dark:text-white/70">
+                  Order No: {orderNo || "—"}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Order Details - Only show when not loading and no error */}
+          {!loading && !error && order && (
+            <>
           {/* Header */}
           <div className="mb-6">
             <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-6">
@@ -1349,6 +1376,8 @@ export default function OrderDetails() {
               </GlassCard>
             </aside>
           </div>
+          </>
+          )}
         </div>
       </div>
 
