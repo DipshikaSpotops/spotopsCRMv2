@@ -378,9 +378,34 @@ export default function OrderDetails() {
   const displayStatus = (value) =>
     STATUS_OPTIONS.find((opt) => opt.value === value)?.label || value;
 
+  // Normalize backend status to frontend format
+  const normalizeStatus = (backendStatus) => {
+    if (!backendStatus) return "";
+    // Map backend values to frontend values
+    const statusMap = {
+      "Customer approved": "Customer Approved", // lowercase 'a' -> uppercase 'A'
+      "Customer Approved": "Customer Approved", // already correct
+      "Dispute 2": "Dispute 2", // backend value for "Dispute after Cancellation"
+    };
+    // If exact match found, use it; otherwise try case-insensitive match
+    if (statusMap[backendStatus]) {
+      return statusMap[backendStatus];
+    }
+    // Try case-insensitive match for "Customer approved"
+    if (backendStatus.toLowerCase() === "customer approved") {
+      return "Customer Approved";
+    }
+    // For other statuses, check if they exist in STATUS_OPTIONS
+    const found = STATUS_OPTIONS.find(
+      (opt) => opt.value.toLowerCase() === backendStatus.toLowerCase()
+    );
+    return found ? found.value : backendStatus;
+  };
+
   useEffect(() => {
     if (order?.orderStatus) {
-      setNewStatus(order.orderStatus);
+      const normalized = normalizeStatus(order.orderStatus);
+      setNewStatus(normalized);
     }
   }, [order]);
 
