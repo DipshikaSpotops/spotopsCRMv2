@@ -11,13 +11,11 @@ const REQUIRED_FIELD_LABELS = {
   lName: "Last Name",
   email: "Email",
   phone: "Phone",
-  bName: "Billing Name",
   bAddressStreet: "Billing Street",
   bAddressCity: "Billing City",
   bAddressState: "Billing State",
   bAddressZip: "Billing Zip",
   bAddressAcountry: "Billing Country",
-  attention: "Shipping Attention",
   sAddressStreet: "Shipping Street",
   sAddressCity: "Shipping City",
   sAddressState: "Shipping State",
@@ -630,57 +628,62 @@ export default function EditOrder() {
                 <input
                   type="datetime-local"
                   value={(() => {
-                    // Convert orderDateISO to datetime-local format (YYYY-MM-DDTHH:mm)
+                    // Convert stored ISO (Dallas-based) to datetime-local format (YYYY-MM-DDTHH:mm)
+                    // by slicing the string directly, avoiding Date/timezone conversions.
                     if (!formData.orderDateISO) return "";
-                    try {
-                      // Parse the ISO string and convert to local datetime-local format
-                      const dateStr = formData.orderDateISO;
-                      // Handle format like "2024-12-01T16:13:00.000-06:00"
-                      const date = new Date(dateStr);
-                      if (isNaN(date.getTime())) return "";
-                      // Format as YYYY-MM-DDTHH:mm for datetime-local input
-                      const year = date.getFullYear();
-                      const month = String(date.getMonth() + 1).padStart(2, "0");
-                      const day = String(date.getDate()).padStart(2, "0");
-                      const hours = String(date.getHours()).padStart(2, "0");
-                      const minutes = String(date.getMinutes()).padStart(2, "0");
-                      return `${year}-${month}-${day}T${hours}:${minutes}`;
-                    } catch {
-                      return "";
-                    }
+                    const m = String(formData.orderDateISO).match(
+                      /^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})/
+                    );
+                    return m ? `${m[1]}T${m[2]}` : "";
                   })()}
                   onChange={(e) => {
-                    const value = e.target.value;
-                    if (value) {
-                      // Convert datetime-local to Dallas timezone ISO format
-                      const localDate = new Date(value);
-                      const dallasFormatter = new Intl.DateTimeFormat("en-US", {
-                        timeZone: "America/Chicago",
-                        year: "numeric",
-                        month: "long",
-                        day: "2-digit",
-                        hour: "2-digit",
-                        minute: "2-digit",
-                        hour12: false,
-                      });
-                      const parts = dallasFormatter.formatToParts(localDate);
-                      const year = parts.find((p) => p.type === "year").value;
-                      const monthName = parts.find((p) => p.type === "month").value;
-                      const day = parts.find((p) => p.type === "day").value;
-                      const hour = parts.find((p) => p.type === "hour").value;
-                      const minute = parts.find((p) => p.type === "minute").value;
-                      const displayDate = `${day} ${monthName}, ${year} ${hour}:${minute}`;
-                      const monthNumber = new Date(
-                        localDate.toLocaleString("en-US", { timeZone: "America/Chicago" })
-                      ).getMonth() + 1;
-                      const tzOffset = getDallasOffset(localDate);
-                      const isoDallas = `${year}-${pad(monthNumber)}-${pad(day)}T${hour}:${minute}:00.000${tzOffset}`;
-                      setFormData((prev) => ({
-                        ...prev,
-                        orderDateDisplay: displayDate,
-                        orderDateISO: isoDallas,
-                      }));
-                    }
+                    const value = e.target.value; // "YYYY-MM-DDTHH:mm"
+                    if (!value) return;
+
+                    // Parse the pieces directly from the string (no Date/timezone conversion)
+                    const m = value.match(
+                      /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/
+                    );
+                    if (!m) return;
+
+                    const [, year, month, day, hour, minute] = m;
+
+                    // Keep whatever offset we already had, or default to -06:00
+                    const existingIso = String(formData.orderDateISO || "");
+                    const offsetMatch = existingIso.match(/([+-]\d{2}:\d{2})$/);
+                    const offset = offsetMatch ? offsetMatch[1] : "-06:00";
+
+                    // Build new ISO string without changing wall time
+                    const isoDallas = `${year}-${month}-${day}T${hour}:${minute}:00.000${offset}`;
+
+                    // Simple display string like "03 December, 2025 14:30"
+                    const MONTH_NAMES = [
+                      "January",
+                      "February",
+                      "March",
+                      "April",
+                      "May",
+                      "June",
+                      "July",
+                      "August",
+                      "September",
+                      "October",
+                      "November",
+                      "December",
+                    ];
+                    const monthIndex = parseInt(month, 10) - 1;
+                    const monthName =
+                      monthIndex >= 0 && monthIndex < 12
+                        ? MONTH_NAMES[monthIndex]
+                        : month;
+                    const displayDay = day.padStart(2, "0");
+                    const displayDate = `${displayDay} ${monthName}, ${year} ${hour}:${minute}`;
+
+                    setFormData((prev) => ({
+                      ...prev,
+                      orderDateDisplay: displayDate,
+                      orderDateISO: isoDallas,
+                    }));
                   }}
                   className="w-full p-2 border bg-white/20 text-white rounded-md focus:outline-none focus:ring-2 border-gray-300 focus:ring-blue-400"
                 />

@@ -2,12 +2,14 @@ import { useEffect, useState, useRef } from "react";
 import "@fortawesome/fontawesome-free/css/all.min.css";
 import { useNavigate } from "react-router-dom";
 import { clearStoredAuth } from "../utils/authStorage";
+import API from "../api";
 
 export default function NavbarForm() {
   const navigate = useNavigate();
   const [userName, setUserName] = useState("");
   const [dropdownOpen, setDropdownOpen] = useState(null);
   const [isDarkMode, setIsDarkMode] = useState(false);
+  const [searchLoading, setSearchLoading] = useState(false);
   const dropdownRef = useRef(null);
 
   useEffect(() => {
@@ -135,21 +137,59 @@ export default function NavbarForm() {
           ))}
 
           <form
-            onSubmit={(e) => {
+            onSubmit={async (e) => {
               e.preventDefault();
+              if (searchLoading) return;
+
               const value = e.target.elements.orderSearch?.value?.trim();
-              if (value) {
-                navigate(`/order-details?orderNo=${encodeURIComponent(value)}`);
-                setDropdownOpen(null);
+              if (!value) return;
+
+              try {
+                setSearchLoading(true);
+
+                // Always do a fuzzy/partial search on orderNo (e.g. "6996" finds "50STARS6996")
+                const res = await API.get("/orders/ordersPerPage", {
+                  params: {
+                    page: 1,
+                    limit: 1,
+                    searchTerm: value,
+                    sortBy: "orderDate",
+                    sortOrder: "desc",
+                  },
+                });
+
+                const orders = res?.data?.orders || [];
+                if (orders.length > 0 && orders[0].orderNo) {
+                  navigate(
+                    `/order-details?orderNo=${encodeURIComponent(
+                      orders[0].orderNo
+                    )}`
+                  );
+                  setDropdownOpen(null);
+                } else {
+                  window.alert("Order not found.");
+                }
+              } catch (err) {
+                console.error("Order search failed:", err);
+                window.alert("Error searching for order. Please try again.");
+              } finally {
+                setSearchLoading(false);
               }
             }}
           >
             <input
               name="orderSearch"
               type="text"
-              placeholder="Search order no."
+              placeholder={
+                searchLoading ? "Searching..." : "Search order no."
+              }
+              disabled={searchLoading}
               className={`px-3 py-1 rounded-md w-48 focus:outline-none focus:ring focus:ring-[#c40505] 
-                ${isDarkMode ? "bg-gray-800 text-white border border-gray-600" : "bg-white text-black"}`}
+                ${
+                  isDarkMode
+                    ? "bg-gray-800 text-white border border-gray-600"
+                    : "bg-white text-black"
+                } ${searchLoading ? "opacity-70 cursor-not-allowed" : ""}`}
             />
           </form>
 
