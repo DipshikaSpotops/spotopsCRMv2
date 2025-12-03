@@ -370,7 +370,14 @@ export default function EditOrder() {
         pReq: order.pReq || "",
         desc: order.desc || "",
         warranty: order.warranty || "",
-        warrantyField: order.warrantyField || "days",
+        warrantyField: (() => {
+          // Normalize warrantyField to plural form to match dropdown options
+          const field = (order.warrantyField || "days").toLowerCase();
+          if (field === "day" || field === "days") return "days";
+          if (field === "month" || field === "months") return "months";
+          if (field === "year" || field === "years") return "years";
+          return "days"; // default fallback
+        })(),
         vin: order.vin || "",
         partNo: order.partNo || "",
 
