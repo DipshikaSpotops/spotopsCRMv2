@@ -582,21 +582,6 @@ export default function EditOrder() {
         >
           {loadingOrder ? "Loading..." : "Load Order"}
         </button>
-        <button
-          type="button"
-          onClick={(e) => {
-            e.preventDefault();
-            handleSubmit(e);
-          }}
-          disabled={submitting || !formData.orderNo}
-          className={`px-6 py-2 bg-gradient-to-r from-[#504fad] to-[#5a80c7] text-white font-semibold rounded-xl shadow-lg transition ${
-            submitting || !formData.orderNo
-              ? "opacity-70 cursor-not-allowed"
-              : "hover:scale-105"
-          }`}
-        >
-          {submitting ? "Updating..." : "Update Order"}
-        </button>
       </div>
 
       <form className="flex-1 overflow-y-auto overflow-x-auto" onSubmit={handleSubmit}>
@@ -684,6 +669,15 @@ export default function EditOrder() {
                       orderDateDisplay: displayDate,
                       orderDateISO: isoDallas,
                     }));
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      const form = e.target.closest("form");
+                      if (form) {
+                        form.requestSubmit();
+                      }
+                    }
                   }}
                   className="w-full p-2 border bg-white/20 text-white rounded-md focus:outline-none focus:ring-2 border-gray-300 focus:ring-blue-400"
                 />

@@ -197,8 +197,9 @@ export default function YardProcessingOrders() {
         showAgentFilter={false}
         showGP={false}
         showTotalsButton={false}
-        // 👇 Make the query look like your original working page
-        paramsBuilder={({ filter, /* query, sortBy, sortOrder */ }) => {
+        rowsPerPage={25}
+        // 👇 Fetch all orders, then paginate client-side
+        paramsBuilder={({ filter, query, sortBy, sortOrder }) => {
           const params = {};
           if (filter?.start && filter?.end) {
             params.start = filter.start;
@@ -207,12 +208,12 @@ export default function YardProcessingOrders() {
             params.month = filter.month;
             params.year  = filter.year;
           }
-          // DO NOT send limit=all — this endpoint 500s on it.
-          // If your API *requires* page/sort/q, uncomment the lines below:
-          // params.page = 1;
-          // if (query) params.q = query;
-          // if (sortBy) params.sortBy = sortBy;
-          // if (sortOrder) params.sortOrder = sortOrder;
+          // Send a very large limit to fetch all orders (backend defaults to 25)
+          params.limit = 10000;
+          params.page = 1; // Always get first page from backend, then paginate client-side
+          if (query) params.q = query;
+          if (sortBy) params.sortBy = sortBy;
+          if (sortOrder) params.sortOrder = sortOrder;
           return params;
         }}
       />

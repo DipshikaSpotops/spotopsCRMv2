@@ -254,7 +254,7 @@ export default function InTransitOrders() {
       `}</style>
       <OrdersTable
         title="In Transit Orders"
-        endpoint="/orders/inTransitOrders"      // ← server should return full list for the filter (no server paging)
+        endpoint="/orders/inTransitOrders"
         storageKeys={{
           page:   "inTransit_orders_page",
           search: "inTransit_orders_search",
@@ -266,6 +266,24 @@ export default function InTransitOrders() {
         showAgentFilter={true}       // Admin can narrow; Sales is auto-narrowed by OrdersTable
         showGP={false}               // no GP totals here
         showTotalsButton={false}     // hide eye button
+        rowsPerPage={25}
+        paramsBuilder={({ filter, query, sortBy, sortOrder }) => {
+          const params = {};
+          if (filter?.start && filter?.end) {
+            params.start = filter.start;
+            params.end   = filter.end;
+          } else if (filter?.month && filter?.year) {
+            params.month = filter.month;
+            params.year  = filter.year;
+          }
+          // Send a very large limit to fetch all orders (backend defaults to 25)
+          params.limit = 10000;
+          params.page = 1; // Always get first page from backend, then paginate client-side
+          if (query) params.q = query;
+          if (sortBy) params.sortBy = sortBy;
+          if (sortOrder) params.sortOrder = sortOrder;
+          return params;
+        }}
       />
     </div>
   );

@@ -290,6 +290,7 @@ export default function OrdersTable({
   totalLabel,
   showTotalsNearPill = false,
   hideDefaultActions = false, // New prop to hide default Actions column
+  rowsPerPage = ROWS_PER_PAGE, // allow per-page override
 }) {
   const navigate = useNavigate();
 
@@ -717,11 +718,18 @@ export default function OrdersTable({
     if (typeof onRowsChange === "function") onRowsChange(sortedRows);
   }, [sortedRows, onRowsChange]);
   // pagination
+  const effectiveRowsPerPage =
+    typeof rowsPerPage === "number" && rowsPerPage > 0
+      ? rowsPerPage
+      : ROWS_PER_PAGE;
   const totalRows = sortedRows.length;
-  const totalPages = Math.max(1, Math.ceil(totalRows / ROWS_PER_PAGE));
+  const totalPages = Math.max(1, Math.ceil(totalRows / effectiveRowsPerPage));
   const safePage = Math.min(currentPage, totalPages);
-  const pageStart = (safePage - 1) * ROWS_PER_PAGE;
-  const pageRows = sortedRows.slice(pageStart, pageStart + ROWS_PER_PAGE);
+  const pageStart = (safePage - 1) * effectiveRowsPerPage;
+  const pageRows = sortedRows.slice(
+    pageStart,
+    pageStart + effectiveRowsPerPage
+  );
 
   // totals (for the modal)
   const totals = useMemo(() => {
