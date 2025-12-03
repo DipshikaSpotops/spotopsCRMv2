@@ -36,3 +36,9 @@ client/NUL
 client/nul
 shared/utils/NUL
 shared/utils/nul
+
+# ===== Deployment & Backups =====
+backups/
+.last_deployment
+client/dist-new/
+client/dist-old/
