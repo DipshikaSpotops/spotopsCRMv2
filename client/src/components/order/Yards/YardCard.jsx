@@ -74,39 +74,60 @@ export default function YardCard({
   </div>
 
   {/* Responsive Contact Info */}
-  <div className="flex flex-wrap gap-x-3 gap-y-1 text-sm text-[#09325d]/90 dark:text-white/80 leading-relaxed">
+  <div className="text-sm text-[#09325d]/90 dark:text-white/80 leading-relaxed space-y-1">
+    {/* Address - its own row, bolder & slightly larger (especially in light mode) */}
     {y.address && (
-      <div className="flex items-start min-w-[200px]">
-        <span className="font-semibold text-[#09325d] dark:text-white/80 mr-1 underline">Address:</span>
-        <span className="break-words">{y.address}</span>
+      <div className="flex items-start">
+        <span className="font-semibold text-[#09325d] dark:text-white/80 mr-1 underline">
+          Address:
+        </span>
+        <span className="break-words font-semibold text-[#021f4b] dark:text-white text-[0.95rem]">
+          {y.address}
+        </span>
       </div>
     )}
-    {y.phone && (
-      <div className="flex items-start min-w-[180px]">
-        <span className="font-semibold text-[#09325d] dark:text-white/80 mr-1 underline">Phone:</span>
-        <span>{y.phone}</span>
+
+    {/* Phone / Email / Fax - single row (wraps nicely on small screens) */}
+    {(y.phone || y.email || y.faxNo) && (
+      <div className="flex flex-wrap gap-x-3 gap-y-1">
+        {y.phone && (
+          <div className="flex items-start">
+            <span className="font-semibold text-[#09325d] dark:text-white/80 mr-1 underline">
+              Phone:
+            </span>
+            <span>{y.phone}</span>
+          </div>
+        )}
+        {y.email && (
+          <div className="flex items-start">
+            <span className="font-semibold text-[#09325d] dark:text-white/80 mr-1 underline">
+              Email:
+            </span>
+            <a
+              href={`mailto:${y.email}`}
+              className="text-blue-600 hover:underline break-all dark:text-blue-300"
+            >
+              {y.email}
+            </a>
+          </div>
+        )}
+        {y.faxNo && (
+          <div className="flex items-start">
+            <span className="font-semibold text-[#09325d] dark:text-white/80 mr-1 underline">
+              Fax:
+            </span>
+            <span>{y.faxNo}</span>
+          </div>
+        )}
       </div>
     )}
-    {y.faxNo && (
-      <div className="flex items-start min-w-[120px]">
-        <span className="font-semibold text-[#09325d] dark:text-white/80 mr-1 underline">Fax:</span>
-        <span>{y.faxNo}</span>
-      </div>
-    )}
-    {y.email && (
-      <div className="flex items-start min-w-[220px]">
-        <span className="font-semibold text-[#09325d] dark:text-white/80 mr-1 underline">Email:</span>
-        <a
-          href={`mailto:${y.email}`}
-          className="text-blue-600 hover:underline break-all dark:text-blue-300"
-        >
-          {y.email}
-        </a>
-      </div>
-    )}
+
+    {/* Agent - separate row */}
     {y.agentName && (
-      <div className="flex items-start min-w-[150px]">
-        <span className="font-semibold text-[#09325d] dark:text-white/80 mr-1 underline">Agent:</span>
+      <div className="flex items-start">
+        <span className="font-semibold text-[#09325d] dark:text-white/80 mr-1 underline">
+          Agent:
+        </span>
         <span>{y.agentName}</span>
       </div>
     )}

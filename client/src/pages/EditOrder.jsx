@@ -774,7 +774,7 @@ export default function EditOrder() {
 
               <Dropdown
                 placeholder="Country"
-                options={["US", "Canada"]}
+                options={["US", "`qB `ada"]}
                 value={formData.bAddressAcountry}
                 onChange={(e) => handleFieldChange("bAddressAcountry", e.target.value)}
                 error={fieldErrors.has("bAddressAcountry")}
