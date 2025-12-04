@@ -87,17 +87,21 @@ export default function YardCard({
       </div>
     )}
 
-    {/* Phone / Email / Fax - single row (wraps nicely on small screens) */}
-    {(y.phone || y.email || y.faxNo) && (
-      <div className="flex flex-wrap gap-x-3 gap-y-1">
-        {y.phone && (
-          <div className="flex items-start">
-            <span className="font-semibold text-[#09325d] dark:text-white/80 mr-1 underline">
-              Phone:
-            </span>
-            <span>{y.phone}</span>
-          </div>
-        )}
+    {/* Phone row only */}
+    {y.phone && (
+      <div className="flex items-start">
+        <span className="font-semibold text-[#09325d] dark:text-white/80 mr-1 underline">
+          Phone:
+        </span>
+        <span className="font-semibold text-[#021f4b] dark:text-white ml-1">
+          {y.phone}
+        </span>
+      </div>
+    )}
+
+    {/* Email & Fax row(s) below phone */}
+    {(y.email || y.faxNo) && (
+      <div className="flex flex-wrap gap-x-4 gap-y-1">
         {y.email && (
           <div className="flex items-start">
             <span className="font-semibold text-[#09325d] dark:text-white/80 mr-1 underline">
@@ -105,7 +109,7 @@ export default function YardCard({
             </span>
             <a
               href={`mailto:${y.email}`}
-              className="text-blue-600 hover:underline break-all dark:text-blue-300"
+              className="font-semibold text-blue-600 hover:underline break-all dark:text-blue-300"
             >
               {y.email}
             </a>
@@ -116,19 +120,23 @@ export default function YardCard({
             <span className="font-semibold text-[#09325d] dark:text-white/80 mr-1 underline">
               Fax:
             </span>
-            <span>{y.faxNo}</span>
+            <span className="font-semibold text-[#021f4b] dark:text-white ml-1">
+              {y.faxNo}
+            </span>
           </div>
         )}
       </div>
     )}
 
-    {/* Agent - separate row */}
+    {/* Agent - separate row, bold value */}
     {y.agentName && (
       <div className="flex items-start">
         <span className="font-semibold text-[#09325d] dark:text-white/80 mr-1 underline">
           Agent:
         </span>
-        <span>{y.agentName}</span>
+        <span className="font-semibold text-[#021f4b] dark:text-white ml-1">
+          {y.agentName}
+        </span>
       </div>
     )}
   </div>
