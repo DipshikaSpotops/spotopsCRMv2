@@ -47,6 +47,7 @@ export default function OrderSummaryStats({ order, actualGPOverride }) {
 
   return (
     <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-2 mt-3">
+      <Stat label="Date" value={formatDallasDate(orderDate)} compact />
       <Stat label="Sales Agent" value={salesAgent} compact />
       <Stat label="Quoted" value={quoted} compact />
       <Stat label="Est. GP" value={estGP} compact />
@@ -55,7 +56,6 @@ export default function OrderSummaryStats({ order, actualGPOverride }) {
       {hasCustRefund && (
         <Stat label="Cust Refund" value={custRefund} compact />
       )}
-      <Stat label="Date" value={formatDallasDate(orderDate)} compact />
 
       {/* keep a hidden input if other code reads #actualGP directly */}
       <input id="actualGP" type="hidden" value={actualGpNum.toFixed(2)} readOnly />

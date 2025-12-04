@@ -76,16 +76,29 @@ export default function YardCard({
   {/* Responsive Contact Info */}
   <div className="text-sm text-[#09325d]/90 dark:text-white/80 leading-relaxed space-y-1">
     {/* Address - its own row, bolder & slightly larger (especially in light mode) */}
-    {y.address && (
-      <div className="flex items-start">
-        <span className="font-semibold text-[#09325d] dark:text-white/80 mr-1 underline">
-          Address:
-        </span>
-        <span className="break-words font-semibold text-[#021f4b] dark:text-white text-[0.95rem]">
-          {y.address}
-        </span>
-      </div>
-    )}
+    {(() => {
+      // Build full address from separate fields or use combined address field
+      const addressParts = [];
+      if (y.street) addressParts.push(y.street);
+      if (y.city) addressParts.push(y.city);
+      if (y.state) addressParts.push(y.state);
+      if (y.zipcode) addressParts.push(y.zipcode);
+      
+      const fullAddress = addressParts.length > 0 
+        ? addressParts.join(", ")
+        : (y.address || "");
+      
+      return fullAddress ? (
+        <div className="flex items-start">
+          <span className="font-semibold text-[#09325d] dark:text-white/80 mr-1 underline">
+            Address:
+          </span>
+          <span className="break-words font-semibold text-[#021f4b] dark:text-white text-[0.95rem]">
+            {fullAddress}
+          </span>
+        </div>
+      ) : null;
+    })()}
 
     {/* Phone row only */}
     {y.phone && (

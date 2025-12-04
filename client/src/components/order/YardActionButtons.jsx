@@ -10,17 +10,15 @@ export default function YardActionButtons({
   const isRefundCollected = String(yard?.refundStatus || "").trim().toLowerCase() === "refund collected";
   const isEscalated = !!yard?.escTicked;
 
-  const cardCls = isCardCharged
-    ? "px-3 py-1.5 rounded-md text-sm border bg-gray-800 text-white border-gray-700 hover:bg-gray-900 dark:bg-gray-400/10 dark:text-gray-400 dark:border-gray-400 dark:hover:bg-gray-400/15 dark:shadow-[0_0_4px_rgba(156,163,175,0.3)] dark:hover:shadow-[0_0_12px_rgba(156,163,175,0.7),0_0_20px_rgba(156,163,175,0.4)] dark:[text-shadow:0_0_2px_rgba(156,163,175,0.5)] dark:hover:[text-shadow:0_0_8px_rgba(156,163,175,0.9),0_0_12px_rgba(156,163,175,0.6)]"
-    : base;
+  // For this step, Card Charged uses the same background as other buttons (base) in both light & dark modes
+  const cardCls = base;
 
   const refundCls = isRefundCollected
     ? "px-3 py-1.5 rounded-md text-sm border bg-orange-100 text-orange-800 border-orange-300 hover:bg-orange-200 dark:bg-[#f59e0b]/10 dark:text-[#f59e0b] dark:border-[#f59e0b] dark:hover:bg-[#f59e0b]/15 dark:shadow-[0_0_4px_rgba(245,158,11,0.3)] dark:hover:shadow-[0_0_12px_rgba(245,158,11,0.7),0_0_20px_rgba(245,158,11,0.4)] dark:[text-shadow:0_0_2px_rgba(245,158,11,0.5)] dark:hover:[text-shadow:0_0_8px_rgba(245,158,11,0.9),0_0_12px_rgba(245,158,11,0.6)]"
     : base;
 
-  const escCls = isEscalated
-    ? "px-3 py-1.5 rounded-md text-sm border bg-rose-100 text-rose-800 border-rose-300 hover:bg-rose-200 dark:bg-[#ef4444]/10 dark:text-[#ef4444] dark:border-[#ef4444] dark:hover:bg-[#ef4444]/15 dark:shadow-[0_0_4px_rgba(239,68,68,0.3)] dark:hover:shadow-[0_0_12px_rgba(239,68,68,0.7),0_0_20px_rgba(239,68,68,0.4)] dark:[text-shadow:0_0_2px_rgba(239,68,68,0.5)] dark:hover:[text-shadow:0_0_8px_rgba(239,68,68,0.9),0_0_12px_rgba(239,68,68,0.6)]"
-    : base;
+  // Escalation also uses the same blue background as other buttons
+  const escCls = base;
 
   return (
     <div className="mt-3 flex flex-wrap gap-2">
