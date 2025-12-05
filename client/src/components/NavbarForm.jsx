@@ -147,18 +147,55 @@ export default function NavbarForm() {
               try {
                 setSearchLoading(true);
 
-                // Always do a fuzzy/partial search on orderNo (e.g. "6996" finds "50STARS6996")
-                const res = await API.get("/orders/ordersPerPage", {
-                  params: {
-                    page: 1,
-                    limit: 1,
-                    searchTerm: value,
-                    sortBy: "orderDate",
-                    sortOrder: "desc",
-                  },
-                });
+                // If exactly 4 digits, try to find order where orderNo ends with those digits
+                const is4Digits = /^\d{4}$/.test(value);
+                let orders = [];
 
-                const orders = res?.data?.orders || [];
+                if (is4Digits) {
+                  // Search with a high limit and filter client-side for orders ending with these 4 digits
+                  try {
+                    const exactRes = await API.get("/orders/ordersPerPage", {
+                      params: {
+                        page: 1,
+                        limit: 200, // Get many results to ensure we find the match
+                        searchTerm: value,
+                        sortBy: "orderDate",
+                        sortOrder: "desc",
+                      },
+                    });
+                    const allOrders = exactRes?.data?.orders || [];
+                    // Filter to only orders where orderNo ends with these 4 digits (case-insensitive)
+                    orders = allOrders.filter((order) => {
+                      const orderNo = String(order.orderNo || "").trim();
+                      // Match if orderNo ends with the 4 digits (case-insensitive)
+                      return orderNo.toLowerCase().endsWith(value.toLowerCase());
+                    });
+                    // Sort by most recent first (already sorted by API, but ensure it)
+                    orders.sort((a, b) => {
+                      const dateA = new Date(a.orderDate || 0);
+                      const dateB = new Date(b.orderDate || 0);
+                      return dateB - dateA;
+                    });
+                    console.log(`Found ${orders.length} orders ending with ${value} out of ${allOrders.length} total results`);
+                  } catch (exactErr) {
+                    console.warn("4-digit search failed, falling back to regular search:", exactErr);
+                  }
+                }
+
+                // If no exact match found (or not 4 digits), use regular fuzzy search
+                if (orders.length === 0) {
+                  const res = await API.get("/orders/ordersPerPage", {
+                    params: {
+                      page: 1,
+                      limit: 1,
+                      searchTerm: value,
+                      sortBy: "orderDate",
+                      sortOrder: "desc",
+                    },
+                  });
+                  orders = res?.data?.orders || [];
+                }
+
                 if (orders.length > 0 && orders[0].orderNo) {
                   navigate(
                     `/order-details?orderNo=${encodeURIComponent(

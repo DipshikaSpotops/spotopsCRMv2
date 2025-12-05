@@ -2,6 +2,10 @@ import Field from "../../ui/Field";
 import Input from "../../ui/Input";
 
 export default function PartTab({ order }) {
+  // Determine warranty label based on warrantyField (default to "days" if empty)
+  const warrantyField = order?.warrantyField || "days";
+  const warrantyLabel = `Warranty (${warrantyField})`;
+
   const rows = [
     [
       {
@@ -14,7 +18,7 @@ export default function PartTab({ order }) {
     ],
     [
       { label: "Description", value: order?.desc },
-      { label: "Warranty (days)", value: order?.warranty },
+      { label: warrantyLabel, value: order?.warranty },
     ],
     [
       { label: "VIN", value: order?.vin },
