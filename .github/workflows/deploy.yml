@@ -13,13 +13,40 @@ on:
         default: 'main'
 
 jobs:
-  deploy:
-    name: Deploy to EC2
+  build-and-deploy:
+    name: Build and Deploy to EC2
     runs-on: ubuntu-latest
     
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: client/package-lock.json
+      
+      - name: Install client dependencies
+        run: |
+          cd client
+          npm ci
+      
+      - name: Build client
+        run: |
+          cd client
+          export NODE_OPTIONS="--max-old-space-size=4096"
+          npm run build
+      
+      - name: Verify build output
+        run: |
+          if [ ! -d "client/dist" ]; then
+            echo "❌ Build failed: dist folder not found"
+            exit 1
+          fi
+          echo "✅ Build successful: $(du -sh client/dist | cut -f1)"
+          ls -la client/dist/
       
       - name: Configure SSH
         run: |
@@ -27,6 +54,18 @@ jobs:
           echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
+      
+      - name: Transfer built files to EC2
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USER: ${{ secrets.EC2_USER }}
+        run: |
+          echo "Transferring built client files to EC2..."
+          scp -i ~/.ssh/deploy_key -r client/dist ${EC2_USER}@${EC2_HOST}:/tmp/client-dist-new || {
+            echo "❌ Failed to transfer files"
+            exit 1
+          }
+          echo "✅ Files transferred successfully"
       
       - name: Deploy to EC2
         env:
@@ -36,9 +75,83 @@ jobs:
         run: |
           ssh -i ~/.ssh/deploy_key ${EC2_USER}@${EC2_HOST} << 'ENDSSH'
             set -e
-            cd /var/www/spotopsCRMv2
-            chmod +x scripts/deploy.sh scripts/rollback.sh
-            ./scripts/deploy.sh ${DEPLOY_BRANCH}
+            APP_DIR="/var/www/spotopsCRMv2"
+            
+            echo "Starting deployment of branch: ${DEPLOY_BRANCH}"
+            
+            # Step 1: Backup current version
+            TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+            BACKUP_DIR="${APP_DIR}/backups"
+            BACKUP_PATH="${BACKUP_DIR}/${TIMESTAMP}"
+            mkdir -p "$BACKUP_PATH"
+            cp -r "${APP_DIR}/backend" "${BACKUP_PATH}/backend" 2>/dev/null || true
+            cp -r "${APP_DIR}/client/dist" "${BACKUP_PATH}/client-dist" 2>/dev/null || true
+            echo "Backup created at: $BACKUP_PATH"
+            
+            # Step 2: Pull latest code
+            cd "$APP_DIR"
+            git fetch origin
+            git checkout "${DEPLOY_BRANCH}"
+            git pull origin "${DEPLOY_BRANCH}" || {
+              echo "❌ Failed to pull code"
+              exit 1
+            }
+            
+            # Step 3: Install backend dependencies
+            echo "Installing backend dependencies..."
+            cd "${APP_DIR}/backend"
+            npm install --production || {
+              echo "❌ Backend npm install failed"
+              exit 1
+            }
+            
+            # Step 4: Move pre-built frontend from /tmp
+            echo "Moving pre-built frontend..."
+            if [ -d "/tmp/client-dist-new" ]; then
+              if [ -d "${APP_DIR}/client/dist" ]; then
+                mv "${APP_DIR}/client/dist" "${APP_DIR}/client/dist-old"
+              fi
+              mv "/tmp/client-dist-new" "${APP_DIR}/client/dist"
+              rm -rf "${APP_DIR}/client/dist-old"
+              echo "✅ Frontend build moved successfully"
+            else
+              echo "❌ Pre-built frontend not found in /tmp/client-dist-new"
+              exit 1
+            fi
+            
+            # Step 5: Restart PM2 with zero-downtime
+            echo "Restarting PM2 processes..."
+            cd "$APP_DIR"
+            pm2 reload spotops360-api --update-env || {
+              echo "❌ PM2 reload failed"
+              exit 1
+            }
+            
+            # Step 6: Wait and verify health
+            echo "Waiting for service to be healthy..."
+            sleep 5
+            
+            MAX_RETRIES=10
+            RETRY_COUNT=0
+            HEALTHY=false
+            
+            while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+              if curl -f http://localhost:5000/api/health > /dev/null 2>&1; then
+                HEALTHY=true
+                break
+              fi
+              RETRY_COUNT=$((RETRY_COUNT + 1))
+              echo "Health check attempt $RETRY_COUNT/$MAX_RETRIES failed, retrying..."
+              sleep 2
+            done
+            
+            if [ "$HEALTHY" = true ]; then
+              echo "✅ Deployment successful! Service is healthy."
+              echo "Backup available at: $BACKUP_PATH"
+            else
+              echo "❌ Health check failed after deployment"
+              exit 1
+            fi
           ENDSSH
       
       - name: Verify Deployment
@@ -47,7 +160,7 @@ jobs:
           EC2_USER: ${{ secrets.EC2_USER }}
         run: |
           ssh -i ~/.ssh/deploy_key ${EC2_USER}@${EC2_HOST} << 'ENDSSH'
-            sleep 10
+            sleep 5
             if curl -f http://localhost:5000/api/health; then
               echo "✅ Deployment verified successfully"
             else
@@ -55,4 +168,3 @@ jobs:
               exit 1
             fi
           ENDSSH
-

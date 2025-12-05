@@ -146,7 +146,7 @@ export default function YardList({
               + Add Yard
             </button>
             {!canAddNewYard && (
-              <div className="absolute left-1/2 top-full z-40 hidden w-[20rem] -translate-x-1/2 translate-y-2 rounded-lg bg-black/90 px-4 py-2 text-xs leading-4 text-white shadow-lg group-hover:block whitespace-pre-wrap pointer-events-none">
+              <div className="absolute left-1/2 top-full z-40 hidden w-[20rem] -translate-x-[70%] translate-y-2 rounded-lg bg-black/90 px-4 py-2 text-xs leading-4 text-white shadow-lg group-hover:block whitespace-pre-wrap pointer-events-none">
                 Finish the current yard first. Status must be PO Cancelled or Escalation (Return/Junk) before adding a new yard.
               </div>
             )}
