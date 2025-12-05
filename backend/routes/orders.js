@@ -1738,4 +1738,109 @@ router.put("/:orderNo/refundOnly", async (req, res) => {
   }
 });
 
+/* PATCH /orders/:orderNo/storeCredits - Use store credit */
+router.patch("/:orderNo/storeCredits", async (req, res) => {
+  try {
+    const { orderNo } = req.params;
+    const { usageType, amountUsed, orderNoUsedFor } = req.body;
+    const firstName = req.query.firstName || req.user?.firstName || "System";
+    const when = getWhen();
+
+    if (!orderNoUsedFor || !orderNoUsedFor.trim()) {
+      return res.status(400).json({ message: "orderNoUsedFor is required" });
+    }
+
+    const amount = Number(amountUsed);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      return res.status(400).json({ message: "Invalid amountUsed value" });
+    }
+
+    const order = await Order.findOne({ orderNo });
+    if (!order) {
+      return res.status(404).json({ message: "Order not found" });
+    }
+
+    // Find all yards with store credit > 0
+    const yardsWithCredit = (order.additionalInfo || []).filter(
+      (info) => info.storeCredit && Number(info.storeCredit) > 0
+    );
+
+    if (yardsWithCredit.length === 0) {
+      return res.status(400).json({ message: "No store credit available for this order" });
+    }
+
+    // Calculate total available store credit
+    const totalAvailable = yardsWithCredit.reduce(
+      (sum, info) => sum + Number(info.storeCredit || 0),
+      0
+    );
+
+    if (amount > totalAvailable) {
+      return res.status(400).json({
+        message: `Amount ($${amount.toFixed(2)}) exceeds available store credit ($${totalAvailable.toFixed(2)})`,
+      });
+    }
+
+    // Distribute the usage across yards with credit (proportional or first-come-first-served)
+    let remainingAmount = amount;
+    const updates = [];
+
+    for (const yard of yardsWithCredit) {
+      if (remainingAmount <= 0) break;
+
+      const yardCredit = Number(yard.storeCredit || 0);
+      if (yardCredit <= 0) continue;
+
+      const amountToUse = Math.min(remainingAmount, yardCredit);
+      const newCredit = yardCredit - amountToUse;
+      remainingAmount -= amountToUse;
+
+      // Update storeCredit
+      yard.storeCredit = newCredit;
+
+      // Add to storeCreditUsedFor
+      if (!Array.isArray(yard.storeCreditUsedFor)) {
+        yard.storeCreditUsedFor = [];
+      }
+      yard.storeCreditUsedFor.push({
+        orderNo: orderNoUsedFor.trim(),
+        amount: amountToUse,
+      });
+
+      updates.push({
+        yardName: yard.yardName || "Unknown Yard",
+        used: amountToUse,
+        remaining: newCredit,
+      });
+
+      // Mark the field as modified
+      order.markModified(`additionalInfo`);
+    }
+
+    // Add history entry
+    if (!Array.isArray(order.orderHistory)) {
+      order.orderHistory = [];
+    }
+    const historyEntry = `Store credit of $${amount.toFixed(2)} used for order ${orderNoUsedFor.trim()} by ${firstName} on ${when}`;
+    order.orderHistory.push(historyEntry);
+
+    await order.save();
+
+    publish(req, orderNo, {
+      type: "STORE_CREDIT_USED",
+      amountUsed: amount,
+      orderNoUsedFor: orderNoUsedFor.trim(),
+    });
+
+    res.json({
+      message: "Store credit updated successfully",
+      order,
+      updates,
+    });
+  } catch (err) {
+    console.error("Error updating store credit:", err);
+    res.status(500).json({ message: "Server error", error: err.message });
+  }
+});
+
 export default router;
