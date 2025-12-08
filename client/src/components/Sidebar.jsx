@@ -40,6 +40,7 @@ export default function Sidebar() {
     { text: "View Orders - Monthly", to: "/monthly-orders" },
     { text: "View All Orders", to: "/view-all-orders" },
     { text: "Yard Processing Orders", to: "/yard-processing" },
+    { text: "Own Shipping Orders", to: "/own-shipping-orders" },
     { text: "In Transit Orders", to: "/in-transit" },
     { text: "Sales Data", to: "/sales-data" },
     { text: "Cancelled Orders", to: "/cancelled-orders" },

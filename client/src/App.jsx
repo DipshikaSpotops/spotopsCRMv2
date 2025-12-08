@@ -14,6 +14,7 @@ import MonthlyOrders from "./pages/MonthlyOrders";
 import AllOrders from "./pages/AllOrders";
 import OrderForm  from "./pages/OrderDetails";
 import YardProcessingOrders  from "./pages/YardProcessing";
+import OwnShippingOrders from "./pages/OwnShippingOrders";
 import InTransitOrders from "./pages/InTransit";
 import CancelledOrders from "./pages/CancelledOrders";
 import RefundedOrders from "./pages/RefundedOrders";
@@ -108,6 +109,10 @@ function App() {
         <Route
           path="/yard-processing"
           element={withLayout(<YardProcessingOrders />)}
+        />
+        <Route
+          path="/own-shipping-orders"
+          element={withLayout(<OwnShippingOrders />)}
         />
         <Route
           path="/in-transit"
