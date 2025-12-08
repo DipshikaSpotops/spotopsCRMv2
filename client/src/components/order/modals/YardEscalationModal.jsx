@@ -301,10 +301,21 @@ useEffect(() => {
 
     if (state.escalationProcess === "Replacement") {
       payload.custReason = state.custReason;
-      const shouldBlankReplacement =
-        state.custReason === "Junked" || !state.custReason;
+      const shouldBlankCustomerFields = state.custReason === "Junked";
+      const shouldBlankAllReplacement = !state.custReason;
 
-      if (shouldBlankReplacement) {
+      // Always save yard shipping fields for replacement (even when customer reason is Junked)
+      payload.yardShippingStatus = state.yardShippingStatus;
+      payload.yardShippingMethod = state.yardShippingMethod;
+      payload.yardOwnShipping =
+        state.yardShippingMethod === "Own shipping" ? state.yardOwnShipping : "";
+      payload.yardShipper = state.yardShipper;
+      payload.yardTrackingNumber = state.yardTrackingNumber;
+      payload.yardTrackingETA = state.yardTrackingETA;
+      payload.yardTrackingLink = state.yardTrackingLink;
+
+      if (shouldBlankAllReplacement) {
+        // No customer reason selected - blank everything
         payload.customerShippingMethodReplacement = "";
         payload.custOwnShipReplacement = "";
         payload.customerShipperReplacement = "";
@@ -319,7 +330,17 @@ useEffect(() => {
         payload.yardTrackingETA = "";
         payload.yardTrackingLink = "";
         payload.custShipToRep = "";
+      } else if (shouldBlankCustomerFields) {
+        // Customer reason is Junked - blank customer fields but keep yard fields
+        payload.customerShippingMethodReplacement = "";
+        payload.custOwnShipReplacement = "";
+        payload.customerShipperReplacement = "";
+        payload.customerTrackingNumberReplacement = "";
+        payload.customerETAReplacement = "";
+        payload.custreplacementDelivery = "";
+        payload.custShipToRep = "";
       } else {
+        // Normal case - save all fields
         payload.customerShippingMethodReplacement =
           state.customerShippingMethodReplacement;
         payload.custOwnShipReplacement =
@@ -331,14 +352,6 @@ useEffect(() => {
           state.customerTrackingNumberReplacement;
         payload.customerETAReplacement = state.customerETAReplacement;
         payload.custreplacementDelivery = state.custreplacementDelivery;
-        payload.yardShippingStatus = state.yardShippingStatus;
-        payload.yardShippingMethod = state.yardShippingMethod;
-        payload.yardOwnShipping =
-          state.yardShippingMethod === "Own shipping" ? state.yardOwnShipping : "";
-        payload.yardShipper = state.yardShipper;
-        payload.yardTrackingNumber = state.yardTrackingNumber;
-        payload.yardTrackingETA = state.yardTrackingETA;
-        payload.yardTrackingLink = state.yardTrackingLink;
         payload.custShipToRep = state.shipToReplacement;
       }
     } else {
@@ -488,37 +501,24 @@ useEffect(() => {
     const result = await persistEscalation();
     if (result) {
       scheduleAutoClose();
+      // Close modal after a short delay to show success message
+      setTimeout(() => {
+        onClose?.();
+      }, 500);
     }
   };
 
   const handleReplacementSendEmail = async () => {
-    if (disableCustomerEmailActions) {
-      setToastPersistent(true);
-      setToast("Part from Customer flow is disabled when the reason is Junked.");
-      return;
-    }
     if (!order?.orderNo) {
       setToastPersistent(true);
       setToast("Order info missing.");
       return;
     }
 
-    const shippingMethod = state.customerShippingMethodReplacement;
-    if (!shippingMethod) {
-      setToastPersistent(true);
-      setToast("Select the customer shipping method before sending email.");
-      return;
-    }
-
-    if (!state.shipToReplacement) {
-      setToastPersistent(true);
-      setToast("Enter the replacement ship-to address before sending email.");
-      return;
-    }
-
     const firstName = localStorage.getItem("firstName") || "System";
     const orderNo = order.orderNo;
 
+    // Handle "Part from Yard" email first - it doesn't need customer shipping method
     if (replacementEmailTarget === "Part from Yard") {
       const savedPayload = await persistEscalation({ skipToast: true });
       if (!savedPayload) return;
@@ -535,7 +535,6 @@ useEffect(() => {
         );
         return;
       }
-      setReplacementEmailTarget("Part from Yard");
       setPendingConfirmation({
         label: "Replacement (Part from Yard)",
         onConfirm: async () => {
@@ -544,6 +543,26 @@ useEffect(() => {
       });
       setToastPersistent(true);
       setToast("Ready to send Part from Yard email — click Confirm to proceed.");
+      return;
+    }
+
+    // Handle "Part from Customer" email - requires customer shipping method
+    if (disableCustomerEmailActions) {
+      setToastPersistent(true);
+      setToast("Part from Customer flow is disabled when the reason is Junked.");
+      return;
+    }
+
+    const shippingMethod = state.customerShippingMethodReplacement;
+    if (!shippingMethod) {
+      setToastPersistent(true);
+      setToast("Select the customer shipping method before sending email.");
+      return;
+    }
+
+    if (!state.shipToReplacement) {
+      setToastPersistent(true);
+      setToast("Enter the replacement ship-to address before sending email.");
       return;
     }
 
@@ -568,6 +587,7 @@ useEffect(() => {
     setSendingEmail(true);
     try {
       if (shippingMethod === "Customer shipping") {
+        // Scenario 2: Replacement + Customer shipping + Part from Customer
         await API.post(
           `/emails/orders/sendReplaceEmailCustomerShipping/${encodeURIComponent(orderNo)}`,
           null,
@@ -583,7 +603,13 @@ useEffect(() => {
         setToastPersistent(false);
         setToast("Escalation details saved and replacement email sent (Customer shipping).");
         scheduleAutoClose();
+        // Clear confirmation and close modal after a short delay
+        setTimeout(() => {
+          setPendingConfirmation(null);
+          onClose?.();
+        }, 500);
       } else if (shippingMethod === "Own shipping" || shippingMethod === "Yard shipping") {
+        // Scenario 3: Replacement + Own/Yard shipping + Part from Customer (requires PDF)
         if (shippingMethod === "Own shipping" && !requireField(state.custOwnShipReplacement)) {
           setToastPersistent(true);
           setToast("Enter the own shipping value before sending this email.");
@@ -612,6 +638,11 @@ useEffect(() => {
           `Escalation details saved and replacement email sent (${methodLabel}).`
         );
         scheduleAutoClose();
+        // Clear confirmation and close modal after a short delay
+        setTimeout(() => {
+          setPendingConfirmation(null);
+          onClose?.();
+        }, 500);
       } else {
         setToastPersistent(true);
         setToast("Unsupported shipping method for replacement flow.");
@@ -626,7 +657,10 @@ useEffect(() => {
       setToast(message);
     } finally {
       setSendingEmail(false);
-      setPendingConfirmation(null);
+      // Clear confirmation after a brief delay to prevent layout shift
+      setTimeout(() => {
+        setPendingConfirmation(null);
+      }, 100);
     }
   };
 
@@ -636,20 +670,17 @@ useEffect(() => {
       setToast("Order info missing.");
       return;
     }
+    
     const shippingMethod = state.customerShippingMethodReturn;
     if (!shippingMethod) {
       setToastPersistent(true);
       setToast("Select the return shipping method before sending email.");
       return;
     }
+    
     if (!state.shipToReturn) {
       setToastPersistent(true);
       setToast("Enter the return ship-to address before sending email.");
-      return;
-    }
-    if (shippingMethod === "Own shipping" && !returnFile) {
-      setToastPersistent(true);
-      setToast("Attach the document before sending this email.");
       return;
     }
 
@@ -665,6 +696,7 @@ useEffect(() => {
     setSendingEmail(true);
     try {
       if (shippingMethod === "Customer shipping") {
+        // Scenario 1: Return + Customer shipping
         await API.post(
           `/emails/orders/sendReturnEmailCustomerShipping/${encodeURIComponent(orderNo)}`,
           null,
@@ -680,7 +712,13 @@ useEffect(() => {
         setToastPersistent(false);
         setToast("Escalation details saved and return email sent (Customer shipping).");
         scheduleAutoClose();
+        // Clear confirmation and close modal after a short delay
+        setTimeout(() => {
+          setPendingConfirmation(null);
+          onClose?.();
+        }, 500);
       } else if (shippingMethod === "Own shipping" || shippingMethod === "Yard shipping") {
+        // Scenario 5: Return + Own/Yard shipping (requires PDF)
         if (!returnFile) {
           setToastPersistent(true);
           setToast("Attach the document before sending this email.");
@@ -705,9 +743,15 @@ useEffect(() => {
         setToastPersistent(false);
         setToast(`Escalation details saved and return email sent (${methodLabel}).`);
         scheduleAutoClose();
+        // Clear confirmation and close modal after a short delay
+        setTimeout(() => {
+          setPendingConfirmation(null);
+          onClose?.();
+        }, 500);
       } else {
+        // Default case: No valid scenario matched
         setToastPersistent(true);
-        setToast("Unsupported return shipping method.");
+        setToast("Return email cannot be sent without tracking info.");
       }
     } catch (err) {
       console.error("Return email failed:", err);
@@ -863,6 +907,7 @@ useEffect(() => {
       );
       return;
     }
+    // Scenario 4: Replacement + Part from Yard (sends tracking info)
     const firstName = localStorage.getItem("firstName") || "System";
     const orderNo = order.orderNo;
     setSendingEmail(true);
@@ -881,7 +926,13 @@ useEffect(() => {
         }
       );
       setToastPersistent(false);
-      setToast("Tracking email sent successfully.");
+      setToast("Tracking details sent to the customer.");
+      scheduleAutoClose();
+      // Clear confirmation and close modal after a short delay
+      setTimeout(() => {
+        setPendingConfirmation(null);
+        onClose?.();
+      }, 500);
     } catch (err) {
       console.error("Tracking email failed:", err);
       const message =
@@ -892,6 +943,8 @@ useEffect(() => {
       setToast(message);
     } finally {
       setSendingEmail(false);
+      // Don't clear confirmation here - let the success handler do it when closing modal
+      // This prevents layout shift
     }
   };
 
@@ -1135,7 +1188,7 @@ useEffect(() => {
           className="absolute inset-0 bg-black/40 backdrop-blur-sm"
           onClick={() => (!saving && !sendingEmail ? onClose?.() : null)}
         />
-        <div className="relative w-full max-w-4xl rounded-2xl border border-white/20 bg-white/10 text-white shadow-2xl backdrop-blur-xl yard-escalation-modal-container overflow-hidden dark:border-white/20 dark:bg-white/10 dark:text-white">
+        <div className="relative w-full max-w-4xl rounded-2xl border border-white/20 bg-white/10 text-white shadow-2xl backdrop-blur-xl yard-escalation-modal-container overflow-hidden dark:border-white/20 dark:bg-white/10 dark:text-white" style={{ minHeight: '600px' }}>
           <header className="flex items-center justify-between border-b border-white/20 px-6 py-4 rounded-t-2xl dark:border-white/20">
           <div>
             <h3 className="text-lg font-semibold">
@@ -1653,12 +1706,16 @@ useEffect(() => {
               onClick={async () => {
                 try {
                   await pendingConfirmation.onConfirm?.();
-                } finally {
+                  // Don't clear confirmation immediately - let the email function handle it
+                  // This prevents layout shift when modal closes
+                } catch (err) {
+                  // Only clear on error
                   setPendingConfirmation(null);
                   setToastPersistent(false);
                 }
               }}
-              className="rounded-md bg-amber-600 px-3 py-1 text-white hover:bg-amber-700"
+              disabled={sendingEmail}
+              className="rounded-md bg-amber-600 px-3 py-1 text-white hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Confirm
             </button>
