@@ -45,13 +45,14 @@ router.get("/", async (req, res) => {
 
     // base filter: orders with at least one additionalInfo entry that has:
     // - status === "Yard PO sent" or "Yard PO Sent" (case-insensitive)
-    // - shippingDetails matching "Own shipping: <number>"
+    // - shippingDetails matching "Own shipping: 0" exactly (value must be 0)
     const filter = {
       orderDate: { $gte: startDate, $lt: endDate },
       additionalInfo: {
         $elemMatch: {
           status: { $regex: /^Yard PO sent$/i },
-          shippingDetails: { $regex: /Own shipping:\s*\d+/, $options: "i" }
+          // Match "Own shipping: 0" exactly (not other numbers)
+          shippingDetails: { $regex: /Own shipping:\s*0(?:\s|$|,|\|)/i }
         }
       }
     };

@@ -66,7 +66,15 @@ export default function OwnShippingOrders() {
           <div>
             <div>{row.customerName || (row.fName && row.lName ? `${row.fName} ${row.lName}` : "—")}</div>
             <div className="mt-1 text-sm text-white/80">
-              {row.sAddressStreet || "—"}, {row.sAddressCity || "—"}, {row.sAddressState || "—"} {row.sAddressZip || ""}
+              {(() => {
+                const street = String(row.sAddressStreet || "").trim();
+                const city = String(row.sAddressCity || "").trim();
+                const state = String(row.sAddressState || "").trim();
+                const zip = String(row.sAddressZip || "").trim();
+                const addressParts = [street, city, state].filter(part => part.length > 0);
+                const address = addressParts.length > 0 ? addressParts.join(", ") : "—";
+                return zip ? `${address} ${zip}` : address;
+              })()}
             </div>
             {/* {open && (
               <div className="mt-2 border-t border-white/20 pt-2 text-xs space-y-1">
@@ -81,14 +89,15 @@ export default function OwnShippingOrders() {
         );
       case "yardName": {
         const yards = Array.isArray(row.additionalInfo) ? row.additionalInfo : [];
-        // Filter to only show yards with "Yard PO sent" status (case-insensitive) and "Own shipping" in shippingDetails
+        // Filter to only show yards with "Yard PO sent" status (case-insensitive) and "Own shipping: 0" exactly
         const ownShippingYards = yards.filter(y => {
           const status = String(y?.status || "").trim();
           const isYardPOSent = /^Yard PO sent$/i.test(status);
           const shippingDetails = String(y?.shippingDetails || "");
-          // Check if shippingDetails contains "Own shipping:" followed by a number (anywhere in the string)
-          const hasOwnShipping = /Own shipping:\s*\d+/i.test(shippingDetails);
-          return isYardPOSent && hasOwnShipping;
+          // Check if shippingDetails contains "Own shipping: 0" exactly (not other numbers)
+          // Match "Own shipping: 0" followed by end of string, space, comma, or pipe
+          const hasOwnShippingZero = /Own shipping:\s*0(?:\s|$|,|\|)/i.test(shippingDetails);
+          return isYardPOSent && hasOwnShippingZero;
         });
         if (!ownShippingYards.length) return "—";
         return (
@@ -96,10 +105,11 @@ export default function OwnShippingOrders() {
             {ownShippingYards.map((y, idx) => {
               const yardName = y?.yardName || "N/A";
               // Build address from street, city, state (exclude zipcode as per requirement)
-              const street = y?.street || "";
-              const city = y?.city || "";
-              const state = y?.state || "";
-              const addressParts = [street, city, state].filter(Boolean);
+              // Trim each part and remove trailing commas to prevent double commas
+              const street = String(y?.street || "").trim().replace(/,\s*$/, "");
+              const city = String(y?.city || "").trim().replace(/,\s*$/, "");
+              const state = String(y?.state || "").trim().replace(/,\s*$/, "");
+              const addressParts = [street, city, state].filter(part => part.length > 0);
               const address = addressParts.length > 0 ? addressParts.join(", ") : null;
               
               return (
