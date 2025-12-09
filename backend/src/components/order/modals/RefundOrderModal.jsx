@@ -11,7 +11,7 @@ export default function RefundOrderModal({ open, onClose, orderNo, onSubmit }) {
   const [isRefundLocked, setIsRefundLocked] = useState(false); 
 
   const baseUrl = import.meta.env.VITE_API_BASE_URL;
-  const firstName = localStorage.getItem("firstName") || "System";
+  const firstName = localStorage.getItem("firstName");
 
   // Prefill refund details when modal opens
   useEffect(() => {

@@ -229,7 +229,7 @@ export default function YardEditModal({ open, initial, order, orderNo, yardIndex
   const handleSave = async () => {
     if (!validate()) return;
 
-    const firstName = localStorage.getItem("firstName") || "System";
+    const firstName = localStorage.getItem("firstName");
     const orderNo = order?.orderNo;
 
     const changedFields = {};

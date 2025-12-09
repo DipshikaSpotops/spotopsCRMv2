@@ -106,7 +106,7 @@ export default function EditYardStatusModal({
       setLoading(true);
       setToast("");
 
-      const firstName = localStorage.getItem("firstName") || "System";
+      const firstName = localStorage.getItem("firstName");
       const orderNo = order?.orderNo;
       const chosenShipper =
         shipperName === "Others" ? t(otherShipper) : t(shipperName);
@@ -192,7 +192,7 @@ export default function EditYardStatusModal({
   const voidLabel = async () => {
     try {
       setLoading(true);
-      const firstName = localStorage.getItem("firstName") || "System";
+      const firstName = localStorage.getItem("firstName");
       const orderNo = order?.orderNo;
 
       const res = await fetch(
@@ -223,7 +223,7 @@ export default function EditYardStatusModal({
   const cancelShipment = async () => {
     try {
       setLoading(true);
-      const firstName = localStorage.getItem("firstName") || "System";
+      const firstName = localStorage.getItem("firstName");
       const orderNo = order?.orderNo;
 
       const res = await fetch(
@@ -262,7 +262,7 @@ export default function EditYardStatusModal({
         formData.append("images", files[i]);
       }
 
-      const firstName = localStorage.getItem("firstName") || "System";
+      const firstName = localStorage.getItem("firstName");
       const orderNo = order?.orderNo;
 
       const res = await fetch(

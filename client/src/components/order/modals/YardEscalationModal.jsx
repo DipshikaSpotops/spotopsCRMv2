@@ -510,7 +510,7 @@ useEffect(() => {
       }
     }
 
-    const firstName = localStorage.getItem("firstName") || "System";
+    const firstName = localStorage.getItem("firstName");
     const orderNo = order.orderNo;
     const idx1 = (yardIndex ?? 0) + 1;
     const isoNow = getChicagoIso();
@@ -561,7 +561,7 @@ useEffect(() => {
       return;
     }
 
-    const firstName = localStorage.getItem("firstName") || "System";
+    const firstName = localStorage.getItem("firstName");
     const orderNo = order.orderNo;
 
     // Handle "Part from Yard" email first - it doesn't need customer shipping method
@@ -731,7 +731,7 @@ useEffect(() => {
       return;
     }
 
-    const firstName = localStorage.getItem("firstName") || "System";
+    const firstName = localStorage.getItem("firstName");
     const orderNo = order.orderNo;
     const idx1 = (yardIndex ?? 0) + 1;
 
@@ -820,7 +820,7 @@ useEffect(() => {
       return;
     }
 
-    const firstName = localStorage.getItem("firstName") || "System";
+    const firstName = localStorage.getItem("firstName");
     const orderNo = order.orderNo;
     const idx1 = (yardIndex ?? 0) + 1;
 
@@ -891,7 +891,7 @@ useEffect(() => {
       return;
     }
 
-    const firstName = localStorage.getItem("firstName") || "System";
+    const firstName = localStorage.getItem("firstName");
     const orderNo = order.orderNo;
     const idx1 = (yardIndex ?? 0) + 1;
 
@@ -956,7 +956,7 @@ useEffect(() => {
       return;
     }
     // Scenario 4: Replacement + Part from Yard (sends tracking info)
-    const firstName = localStorage.getItem("firstName") || "System";
+    const firstName = localStorage.getItem("firstName");
     const orderNo = order.orderNo;
     setSendingEmail(true);
     try {

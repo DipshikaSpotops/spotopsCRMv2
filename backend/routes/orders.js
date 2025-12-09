@@ -216,7 +216,10 @@ const toHumanLabel = (field) => {
 };
 
 const formatNote = (author, when, message) => {
-  const name = (author || "System").toString().trim() || "System";
+  if (!author) {
+    throw new Error("author (firstName) is required for formatNote");
+  }
+  const name = author.toString().trim();
   const stamp = when || getWhen();
   return `${name}, ${stamp} : ${message}`;
 };
@@ -431,7 +434,10 @@ router.get("/disputes-by-date", async (req, res) => {
 
 // Add a new order
 router.post("/orders", async (req, res) => {
-  const firstName = req.query.firstName || "System";
+  const firstName = req.query.firstName;
+  if (!firstName) {
+    return res.status(400).json({ message: "firstName is required" });
+  }
   const central = moment().tz("America/Chicago");
   const formattedDateTime = central.format("D MMM, YYYY HH:mm");
 
@@ -491,7 +497,10 @@ router.put("/:orderNo", async (req, res) => {
       }
     });
 
-    const firstName = order.firstName || "System";
+    const firstName = req.query.firstName || req.user?.firstName;
+    if (!firstName) {
+      return res.status(400).json({ message: "firstName is required" });
+    }
 
     // Add history only if status changed
     if (oldStatus !== order.orderStatus) {
@@ -554,7 +563,10 @@ router.put("/:orderNo/custRefund", async (req, res) => {
       cancelledRefAmount,
     } = req.body;
 
-    const firstName = req.query.firstName || "System";
+    const firstName = req.query.firstName;
+    if (!firstName) {
+      return res.status(400).json({ message: "firstName is required" });
+    }
 
     const order = await Order.findOne({ orderNo });
     if (!order) return res.status(404).json({ message: "Order not found" });
@@ -1354,7 +1366,10 @@ router.patch("/:orderNo/additionalInfo/:yardIndex/paymentStatus", async (req, re
   try {
     const { orderNo, yardIndex } = req.params;
     const idx0 = Number(yardIndex) - 1;
-    const firstName = req.query.firstName || "System";
+    const firstName = req.query.firstName;
+    if (!firstName) {
+      return res.status(400).json({ message: "firstName is required" });
+    }
     const when = getWhen();
     const order = await Order.findOne({ orderNo });
     if (!order) return res.status(404).json({ message: "Order not found" });
@@ -1425,7 +1440,10 @@ router.patch("/:orderNo/additionalInfo/:yardIndex/refundStatus", async (req, res
   try {
     const { orderNo, yardIndex } = req.params;
     const idx0 = Number(yardIndex) - 1;
-    const firstName = req.query.firstName || "System";
+    const firstName = req.query.firstName;
+    if (!firstName) {
+      return res.status(400).json({ message: "firstName is required" });
+    }
     const when = getWhen();
     const order = await Order.findOne({ orderNo });
     if (!order) return res.status(404).json({ message: "Order not found" });
@@ -1539,7 +1557,10 @@ router.put('/:orderNo/updateActualGP', async (req, res) => {
   console.log("[orders] PUT /orders/:orderNo/updateActualGP hit");
   const { orderNo } = req.params;
   const { actualGP } = req.body;
-  const firstName = req.query.firstName || req.user?.firstName || "System";
+  const firstName = req.query.firstName || req.user?.firstName;
+  if (!firstName) {
+    return res.status(400).json({ message: "firstName is required" });
+  }
 
   const nextGP = Number(actualGP);
   if (Number.isNaN(nextGP)) {
@@ -1661,7 +1682,10 @@ router.put("/:orderNo/cancelOnly", async (req, res) => {
   try {
     const { orderNo } = req.params;
     const { cancelledRefAmount, cancellationReason } = req.body;
-    const firstName = req.query.firstName || "System";
+    const firstName = req.query.firstName;
+    if (!firstName) {
+      return res.status(400).json({ message: "firstName is required" });
+    }
 
     const order = await Order.findOne({ orderNo });
     if (!order) return res.status(404).json({ message: "Order not found" });
@@ -1696,7 +1720,10 @@ router.put("/:orderNo/cancelOnly", async (req, res) => {
 router.put('/:orderNo/dispute', async (req, res) => {
   const { orderNo } = req.params;
   const { disputedDate, disputeReason, disputedRefAmount } = req.body;
-  const firstName = req.query.firstName || "System";
+  const firstName = req.query.firstName;
+  if (!firstName) {
+    return res.status(400).json({ message: "firstName is required" });
+  }
 
   try {
     const order = await Order.findOne({ orderNo });
@@ -1731,7 +1758,10 @@ router.put("/:orderNo/refundOnly", async (req, res) => {
   try {
     const { orderNo } = req.params;
     const { custRefundedAmount } = req.body;
-    const firstName = req.query.firstName || "System";
+    const firstName = req.query.firstName;
+    if (!firstName) {
+      return res.status(400).json({ message: "firstName is required" });
+    }
 
     const order = await Order.findOne({ orderNo });
     if (!order) return res.status(404).json({ message: "Order not found" });
@@ -1770,7 +1800,10 @@ router.patch("/:orderNo/storeCredits", async (req, res) => {
   try {
     const { orderNo } = req.params;
     const { usageType, amountUsed, orderNoUsedFor } = req.body;
-    const firstName = req.query.firstName || req.user?.firstName || "System";
+    const firstName = req.query.firstName || req.user?.firstName;
+    if (!firstName) {
+      return res.status(400).json({ message: "firstName is required" });
+    }
     const when = getWhen();
 
     if (!orderNoUsedFor || !orderNoUsedFor.trim()) {

@@ -11,7 +11,7 @@ export default function DisputeOrderModal({ open, onClose, orderNo, onSubmit }) 
   const [toast, setToast] = useState("");
 
   const baseUrl = import.meta.env.VITE_API_BASE_URL;
-  const firstName = localStorage.getItem("firstName") || "System";
+  const firstName = localStorage.getItem("firstName");
 
   // Prefill from backend each time the modal opens
   useEffect(() => {

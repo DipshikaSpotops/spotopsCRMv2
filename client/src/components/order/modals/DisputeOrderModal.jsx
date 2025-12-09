@@ -10,7 +10,7 @@ export default function DisputeOrderModal({ open, onClose, orderNo, onSubmit }) 
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState("");
 
-  const firstName = localStorage.getItem("firstName") || "System";
+  const firstName = localStorage.getItem("firstName");
 
   // Prefill from backend each time the modal opens
   useEffect(() => {

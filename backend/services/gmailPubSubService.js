@@ -1,6 +1,6 @@
 import GmailMessage from "../models/GmailMessage.js";
 import GmailSyncState from "../models/GmailSyncState.js";
-import { getGmailClient } from "./googleAuth.js";
+import { getGmailClient, getUserEmail } from "./googleAuth.js";
 
 const DEFAULT_LABELS = (process.env.GMAIL_WATCH_LABELS || "INBOX,UNREAD")
   .split(",")
@@ -122,6 +122,10 @@ async function processHistoryEntry({ entry, gmail, userEmail }) {
 
 export async function syncHistory({ userEmail, startHistoryId }) {
   const gmail = getGmailClient();
+  
+  // Use OAuth2 email if userEmail not provided
+  const finalUserEmail = userEmail || getUserEmail() || process.env.GMAIL_IMPERSONATED_USER;
+  
   let pageToken;
   let pages = 0;
   let latestHistoryId = startHistoryId;
@@ -148,19 +152,20 @@ export async function syncHistory({ userEmail, startHistoryId }) {
     const historyEntries = data.history || [];
     for (const entry of historyEntries) {
       latestHistoryId = entry.id || latestHistoryId;
-      const docs = await processHistoryEntry({ entry, gmail, userEmail });
+      const docs = await processHistoryEntry({ entry, gmail, userEmail: finalUserEmail });
       created.push(...docs);
     }
   } while (pageToken && pages < MAX_HISTORY_PAGES);
 
   await GmailSyncState.findOneAndUpdate(
-    { userEmail },
+    { userEmail: finalUserEmail },
     {
       $set: {
         historyId: latestHistoryId,
         lastSyncedAt: new Date(),
         labelIds: DEFAULT_LABELS,
         lastError: null,
+        userEmail: finalUserEmail, // Ensure userEmail is stored
       },
     },
     { upsert: true }
@@ -221,8 +226,11 @@ export async function startWatch({
     requestBody,
   });
 
+  // Get user email from OAuth2 or env var
+  const userEmail = getUserEmail() || process.env.GMAIL_IMPERSONATED_USER;
+  
   await GmailSyncState.findOneAndUpdate(
-    { userEmail: process.env.GMAIL_IMPERSONATED_USER },
+    { userEmail: userEmail },
     {
       $set: {
         historyId: data.historyId,
@@ -230,6 +238,7 @@ export async function startWatch({
         topicName,
         labelIds,
         lastError: null,
+        userEmail: userEmail, // Ensure userEmail is stored
       },
     },
     { upsert: true }

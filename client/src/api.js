@@ -24,13 +24,22 @@ const API = axios.create({
   withCredentials: true,
   timeout: 15000,
 });
-// Attach Bearer token if present
+// Attach Bearer token and firstName from localStorage if present
 API.interceptors.request.use((cfg) => {
   const token = localStorage.getItem("token");
   if (token) {
     cfg.headers = cfg.headers || {};
     cfg.headers.Authorization = `Bearer ${token}`;
   }
+  
+  // Always add firstName from localStorage to query params if not already present
+  const firstName = localStorage.getItem("firstName");
+  if (firstName && !cfg.url.includes("firstName=")) {
+    // Parse existing URL or create new one
+    const separator = cfg.url.includes("?") ? "&" : "?";
+    cfg.url = `${cfg.url}${separator}firstName=${encodeURIComponent(firstName)}`;
+  }
+  
   return cfg;
 });
 

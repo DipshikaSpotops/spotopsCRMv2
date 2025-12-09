@@ -9,7 +9,7 @@ export default function RefundOrderModal({ open, onClose, orderNo, onSubmit }) {
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState("");
   const [isRefundLocked, setIsRefundLocked] = useState(false);
-  const firstName = localStorage.getItem("firstName") || "System";
+  const firstName = localStorage.getItem("firstName");
 
   // Prefill refund details when modal opens
   useEffect(() => {

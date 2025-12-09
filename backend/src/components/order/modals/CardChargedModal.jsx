@@ -32,7 +32,7 @@ export default function CardChargedModal({ open, onClose, onSubmit, orderNo, yar
 
     setLoading(true);
     try {
-      const firstName = localStorage.getItem("firstName") || "System";
+      const firstName = localStorage.getItem("firstName");
 
       const payload = {
         paymentStatus,

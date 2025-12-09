@@ -736,7 +736,7 @@ export default function OrderDetails() {
         reimbursementAmount: numericAmount,
         reimbursementDate: reimbursementDate || null,
       });
-      const firstName = localStorage.getItem("firstName") || "System";
+      const firstName = localStorage.getItem("firstName");
       if (Array.isArray(yards)) {
         const reimbursementIdx = yards.findIndex(
           (y) => String(y?.escalationProcess || "").trim() === "Reimbursement"

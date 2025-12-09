@@ -131,6 +131,13 @@ export default function YardProcessingOrders() {
   return (
     <div className="yard-processing-table-wrapper">
       <style>{`
+        /* Increase font size for better readability */
+        .yard-processing-table-wrapper {
+          font-size: 1rem !important;
+        }
+        .yard-processing-table-wrapper table {
+          font-size: 1rem !important;
+        }
         /* Make Yard Details and Last Comment columns wider and equal width */
         .yard-processing-table-wrapper table {
           table-layout: fixed;
@@ -140,6 +147,7 @@ export default function YardProcessingOrders() {
         .yard-processing-table-wrapper table th {
           white-space: nowrap !important;
           overflow: hidden !important;
+          font-size: 1rem !important;
         }
         /* Table body cells should wrap text to prevent overflow */
         .yard-processing-table-wrapper table td {
@@ -147,6 +155,11 @@ export default function YardProcessingOrders() {
           word-wrap: break-word !important;
           overflow-wrap: break-word !important;
           white-space: normal !important;
+          font-size: 1rem !important;
+        }
+        /* Increase font size for expanded details */
+        .yard-processing-table-wrapper .text-xs {
+          font-size: 0.9rem !important;
         }
         /* Yard Details and Last Comment - wider and equal */
         .yard-processing-table-wrapper table th:nth-child(5),

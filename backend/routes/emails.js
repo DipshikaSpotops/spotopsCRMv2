@@ -178,7 +178,10 @@ router.post("/orders/sendRefundConfirmation/:orderNo", upload.single("pdfFile"),
   try {
     const { orderNo } = req.params;
     const refundedAmount = req.query.refundedAmount;
-    const firstName = req.query.firstName?.trim() || "System";
+    const firstName = req.query.firstName?.trim();
+    if (!firstName) {
+      return res.status(400).json({ message: "firstName is required" });
+    }
 
     if (!refundedAmount) {
       return res.status(400).json({ message: "Refunded amount is missing." });

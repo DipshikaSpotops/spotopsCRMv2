@@ -198,7 +198,7 @@ export default function CommentBox({
     setInput("");
 
     try {
-      const firstName = localStorage.getItem("firstName") || "System";
+      const firstName = localStorage.getItem("firstName");
       if (mode === "support") {
         await API.patch(
           `/orders/${orderNo}/supportNotes`,

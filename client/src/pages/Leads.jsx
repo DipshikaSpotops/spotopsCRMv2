@@ -170,6 +170,20 @@ export default function Leads() {
   const [labelSearch, setLabelSearch] = useState("");
   const [newLabel, setNewLabel] = useState("");
   const [sourceEmail, setSourceEmail] = useState("");
+  const [viewMode, setViewMode] = useState("leads"); // "leads" or "statistics"
+  const [statistics, setStatistics] = useState(null);
+  const [loadingStats, setLoadingStats] = useState(false);
+  const [startDate, setStartDate] = useState(() => {
+    // Default to 30 days ago to show more data
+    const date = new Date();
+    date.setDate(date.getDate() - 30);
+    return date.toISOString().split("T")[0];
+  });
+  const [endDate, setEndDate] = useState(() => {
+    const today = new Date();
+    return today.toISOString().split("T")[0];
+  });
+  const [selectedAgentForStats, setSelectedAgentForStats] = useState(null);
 
   const normalizedEmail = email?.toLowerCase();
 
@@ -215,34 +229,104 @@ export default function Leads() {
     }
   }, []);
 
+  const fetchStatistics = useCallback(async () => {
+    setLoadingStats(true);
+    setError("");
+    try {
+      const params = {};
+      if (startDate) params.startDate = startDate;
+      if (endDate) params.endDate = endDate;
+      if (isSales && normalizedEmail) {
+        params.agentEmail = normalizedEmail;
+      }
+      console.log("[Leads] Fetching statistics with params:", params);
+      console.log("[Leads] User email:", email, "Normalized:", normalizedEmail, "IsSales:", isSales);
+      const { data } = await API.get("/gmail/statistics/daily", { params });
+      console.log("[Leads] Statistics response:", data);
+      setStatistics(data);
+    } catch (err) {
+      console.error("[Leads] fetch statistics error", err);
+      const message =
+        err?.response?.data?.message ||
+        err?.message ||
+        "Failed to load statistics.";
+      setError(message);
+    } finally {
+      setLoadingStats(false);
+    }
+  }, [startDate, endDate, isSales, normalizedEmail, email]);
+
   useEffect(() => {
     fetchMessages();
   }, [fetchMessages]);
 
-  // Fetch the source email address separately
   useEffect(() => {
-    API.get("/gmail/state")
-      .then(({ data }) => {
-        if (data?.configuredEmail) {
-          setSourceEmail(data.configuredEmail);
-        } else if (data?.state?.userEmail) {
-          setSourceEmail(data.state.userEmail);
-        }
-      })
-      .catch((err) => {
-        console.error("[Leads] Failed to fetch source email:", err);
-      });
-  }, []);
-
-  // Also try to get from messages if available (fallback)
-  useEffect(() => {
-    if (messages.length > 0) {
-      // Try to find userEmail from any message
-      const msgWithEmail = messages.find(m => m.userEmail);
-      if (msgWithEmail?.userEmail && !sourceEmail) {
-        setSourceEmail(msgWithEmail.userEmail);
-      }
+    if (viewMode === "statistics") {
+      fetchStatistics();
     }
+  }, [viewMode, fetchStatistics]);
+
+  // Fetch the source email address - try API first, then messages
+  useEffect(() => {
+    // Skip if already set
+    if (sourceEmail) {
+      console.log("[Leads] sourceEmail already set:", sourceEmail);
+      return;
+    }
+    
+    const fetchSourceEmail = async () => {
+      // First try API
+      try {
+        const { data } = await API.get("/gmail/state");
+        console.log("[Leads] Gmail state API response:", JSON.stringify(data, null, 2));
+        if (data?.configuredEmail) {
+          console.log("[Leads] ✅ Setting sourceEmail from configuredEmail:", data.configuredEmail);
+          setSourceEmail(data.configuredEmail);
+          return;
+        }
+        if (data?.state?.userEmail) {
+          console.log("[Leads] ✅ Setting sourceEmail from state.userEmail:", data.state.userEmail);
+          setSourceEmail(data.state.userEmail);
+          return;
+        }
+        console.log("[Leads] ⚠️ No email in API response. Data keys:", Object.keys(data || {}));
+      } catch (err) {
+        console.error("[Leads] ❌ Failed to fetch source email from API:", err);
+        console.error("[Leads] Error details:", err.response?.data || err.message);
+      }
+      
+      // Fallback: Try to get from messages
+      if (messages.length > 0) {
+        console.log("[Leads] Checking messages for userEmail. Total messages:", messages.length);
+        const msgWithEmail = messages.find(m => {
+          const email = m.userEmail;
+          const hasEmail = email && String(email).trim() && String(email).trim() !== "";
+          if (hasEmail) {
+            console.log("[Leads] Found message with userEmail:", email);
+          }
+          return hasEmail;
+        });
+        
+        if (msgWithEmail?.userEmail) {
+          const email = String(msgWithEmail.userEmail).trim();
+          console.log("[Leads] ✅ Setting sourceEmail from message userEmail:", email);
+          setSourceEmail(email);
+        } else {
+          console.log("[Leads] ⚠️ No userEmail found in any messages. Sample message:", {
+            _id: messages[0]?._id,
+            subject: messages[0]?.subject,
+            userEmail: messages[0]?.userEmail,
+            agentEmail: messages[0]?.agentEmail,
+            hasUserEmail: !!messages[0]?.userEmail,
+            allKeys: messages[0] ? Object.keys(messages[0]) : [],
+          });
+        }
+      } else {
+        console.log("[Leads] No messages loaded yet, will retry when messages load");
+      }
+    };
+    
+    fetchSourceEmail();
   }, [messages, sourceEmail]);
 
   // SSE for live updates
@@ -410,7 +494,7 @@ export default function Leads() {
           <h1 className="text-3xl font-bold text-white underline decoration-1">Leads</h1>
           <p className="text-sm text-white/70">
             Gmail leads with parsed form data.
-            {lastUpdated && (
+            {lastUpdated && viewMode === "leads" && (
               <> Last updated: <strong>{lastUpdatedLabel}</strong></>
             )}
           </p>
@@ -421,13 +505,38 @@ export default function Leads() {
           )}
         </div>
         <div className="ml-auto flex items-center gap-3">
-          <button
-            onClick={fetchMessages}
-            className="px-3 py-2 rounded-lg bg-[#2c5d81] hover:bg-blue-700 text-white text-sm disabled:opacity-60"
-            disabled={loading}
-          >
-            {loading ? "Refreshing..." : "Refresh"}
-          </button>
+          {/* View Mode Toggle */}
+          <div className="flex rounded-lg border border-white/20 bg-white/10 p-1">
+            <button
+              onClick={() => setViewMode("leads")}
+              className={`px-4 py-2 rounded-md text-sm font-medium transition ${
+                viewMode === "leads"
+                  ? "bg-blue-600 text-white"
+                  : "text-white/70 hover:text-white"
+              }`}
+            >
+              All Leads
+            </button>
+            <button
+              onClick={() => setViewMode("statistics")}
+              className={`px-4 py-2 rounded-md text-sm font-medium transition ${
+                viewMode === "statistics"
+                  ? "bg-blue-600 text-white"
+                  : "text-white/70 hover:text-white"
+              }`}
+            >
+              Statistics
+            </button>
+          </div>
+          {viewMode === "leads" && (
+            <button
+              onClick={fetchMessages}
+              className="px-3 py-2 rounded-lg bg-[#2c5d81] hover:bg-blue-700 text-white text-sm disabled:opacity-60"
+              disabled={loading}
+            >
+              {loading ? "Refreshing..." : "Refresh"}
+            </button>
+          )}
         </div>
       </div>
 
@@ -449,7 +558,211 @@ export default function Leads() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      {viewMode === "statistics" ? (
+        <div className="space-y-6">
+          {/* Email Info */}
+          <div className="space-y-3">
+            {/* Gmail Source Account */}
+            <div className="rounded-lg border border-blue-500/30 bg-blue-900/40 px-4 py-3">
+              <div className="flex items-center gap-2">
+                <span className="text-lg">📧</span>
+                <div className="flex-1">
+                  <div className="text-blue-200 font-semibold">Gmail Account Used to Fetch Leads:</div>
+                  <div className="text-blue-100 text-base mt-1">
+                    {sourceEmail ? (
+                      <strong className="text-green-300">{sourceEmail}</strong>
+                    ) : loading ? (
+                      <span className="text-white/70">Loading messages...</span>
+                    ) : messages.length > 0 ? (
+                      <span className="text-yellow-300">
+                        ⚠️ Not configured. Check backend GMAIL_IMPERSONATED_USER env variable.
+                      </span>
+                    ) : (
+                      <span className="text-white/70">Loading...</span>
+                    )}
+                  </div>
+                  <div className="text-xs text-blue-200/80 mt-1">
+                    This is the Gmail account connected to fetch incoming leads from Gmail API
+                  </div>
+                  {!sourceEmail && !loading && (
+                    <div className="text-xs text-yellow-200/80 mt-2">
+                      💡 Check browser console for debug logs. Set GMAIL_IMPERSONATED_USER environment variable on backend.
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Agent Filter Info */}
+            <div className="rounded-lg border border-green-500/30 bg-green-900/40 px-4 py-3">
+              <div className="flex items-center gap-2">
+                <span className="text-lg">👤</span>
+                <div className="flex-1">
+                  <div className="text-green-200 font-semibold">Filtering Statistics by Agent:</div>
+                  <div className="text-green-100 text-base mt-1">
+                    {isSales && normalizedEmail ? (
+                      <strong>{normalizedEmail}</strong>
+                    ) : (
+                      <span className="text-white/70">All agents (Admin view)</span>
+                    )}
+                  </div>
+                  {email && (
+                    <div className="text-xs text-green-200/80 mt-1">
+                      Your login email: {email}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Date Range Filter */}
+          <div className="rounded-lg border border-white/20 bg-white/10 backdrop-blur-md p-4">
+            <div className="flex flex-wrap items-center gap-4">
+              <div className="flex items-center gap-2">
+                <label className="text-sm text-white/90 whitespace-nowrap">Start Date:</label>
+                <input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-white outline-none focus:ring-2 focus:ring-white/30 text-sm"
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <label className="text-sm text-white/90 whitespace-nowrap">End Date:</label>
+                <input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  className="px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-white outline-none focus:ring-2 focus:ring-white/30 text-sm"
+                />
+              </div>
+              <button
+                onClick={fetchStatistics}
+                disabled={loadingStats}
+                className="px-4 py-2 rounded-lg bg-[#2c5d81] hover:bg-blue-700 text-white text-sm disabled:opacity-60"
+              >
+                {loadingStats ? "Loading..." : "Load Statistics"}
+              </button>
+            </div>
+          </div>
+
+          {loadingStats ? (
+            <div className="text-center py-8 text-white/80">⏳ Loading statistics...</div>
+          ) : statistics ? (
+            <div className="space-y-6">
+              {/* Summary Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="rounded-lg border border-white/20 bg-white/10 backdrop-blur-md p-4">
+                  <div className="text-sm text-white/70">Total Leads</div>
+                  <div className="text-3xl font-bold text-white mt-2">{statistics.totalLeads || 0}</div>
+                </div>
+                <div className="rounded-lg border border-white/20 bg-white/10 backdrop-blur-md p-4">
+                  <div className="text-sm text-white/70">Active Agents</div>
+                  <div className="text-3xl font-bold text-white mt-2">{statistics.agentStats?.length || 0}</div>
+                </div>
+                <div className="rounded-lg border border-white/20 bg-white/10 backdrop-blur-md p-4">
+                  <div className="text-sm text-white/70">Days Tracked</div>
+                  <div className="text-3xl font-bold text-white mt-2">{statistics.dailyStats?.length || 0}</div>
+                </div>
+              </div>
+
+              {/* Agent Statistics */}
+              <div className="rounded-lg border border-white/20 bg-white/10 backdrop-blur-md p-4">
+                <h2 className="text-xl font-bold text-white mb-4">Agent Statistics</h2>
+                <div className="space-y-3">
+                  {statistics.agentStats && statistics.agentStats.length > 0 ? (
+                    statistics.agentStats.map((agent) => (
+                      <div
+                        key={agent.agentId}
+                        className="rounded-lg border border-white/20 bg-white/5 p-4 cursor-pointer hover:bg-white/10 transition"
+                        onClick={() => setSelectedAgentForStats(selectedAgentForStats === agent.agentId ? null : agent.agentId)}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <div className="font-semibold text-white">{agent.agentName}</div>
+                            <div className="text-sm text-white/70">{agent.agentEmail}</div>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-2xl font-bold text-blue-400">{agent.totalLeads}</div>
+                            <div className="text-xs text-white/60">leads claimed</div>
+                          </div>
+                        </div>
+                        {selectedAgentForStats === agent.agentId && (
+                          <div className="mt-4 pt-4 border-t border-white/20">
+                            <div className="text-sm font-semibold text-white/90 mb-2">Leads:</div>
+                            <div className="space-y-2 max-h-60 overflow-y-auto">
+                              {agent.leads.map((lead) => (
+                                <div
+                                  key={lead._id}
+                                  className="p-2 rounded bg-white/5 text-sm text-white/80 hover:bg-white/10 cursor-pointer"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleViewLead({ _id: lead._id });
+                                    setViewMode("leads");
+                                  }}
+                                >
+                                  <div className="font-medium">{lead.subject || "(no subject)"}</div>
+                                  <div className="text-xs text-white/60">From: {lead.from}</div>
+                                  <div className="text-xs text-white/60">
+                                    Claimed: {new Date(lead.claimedAt).toLocaleString()}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-center py-8 text-white/80">No agent statistics found for this date range.</div>
+                  )}
+                </div>
+              </div>
+
+              {/* Daily Statistics */}
+              <div className="rounded-lg border border-white/20 bg-white/10 backdrop-blur-md p-4">
+                <h2 className="text-xl font-bold text-white mb-4">Daily Breakdown</h2>
+                <div className="space-y-4">
+                  {statistics.dailyStats && statistics.dailyStats.length > 0 ? (
+                    statistics.dailyStats.map((day) => (
+                      <div key={day.date} className="rounded-lg border border-white/20 bg-white/5 p-4">
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="font-semibold text-white">
+                            {new Date(day.date).toLocaleDateString("en-US", {
+                              weekday: "long",
+                              year: "numeric",
+                              month: "long",
+                              day: "numeric",
+                            })}
+                          </div>
+                          <div className="text-lg font-bold text-blue-400">{day.total} leads</div>
+                        </div>
+                        <div className="space-y-2">
+                          {day.agents.map((agent) => (
+                            <div
+                              key={agent.agentId}
+                              className="flex items-center justify-between p-2 rounded bg-white/5"
+                            >
+                              <div className="text-sm text-white/90">{agent.agentName}</div>
+                              <div className="text-sm font-semibold text-blue-300">{agent.count} leads</div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-center py-8 text-white/80">No daily statistics found for this date range.</div>
+                  )}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="text-center py-8 text-white/80">Select a date range and click "Load Statistics" to view data.</div>
+          )}
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Left: Leads List */}
         <div className="space-y-4">
           <div className="rounded-lg border border-white/20 bg-white/10 backdrop-blur-md p-4 shadow-sm">
@@ -734,6 +1047,7 @@ export default function Leads() {
           )}
         </div>
       </div>
+      )}
     </div>
   );
 }

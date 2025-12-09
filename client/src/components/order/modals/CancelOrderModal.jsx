@@ -9,7 +9,7 @@ export default function CancelOrderModal({ open, onClose, orderNo, onSubmit }) {
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState("");
 
-  const firstName = localStorage.getItem("firstName") || "System";
+  const firstName = localStorage.getItem("firstName");
 
   // Fetch previously saved cancellation data when modal opens
   useEffect(() => {

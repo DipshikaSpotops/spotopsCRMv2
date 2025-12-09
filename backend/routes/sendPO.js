@@ -68,7 +68,10 @@ async function getBrowser() {
 router.post("/sendPOEmailYard/:orderNo", upload.any(), async (req, res) => {
   try {
     const { orderNo } = req.params;
-    const firstName = req.query.firstName || "System";
+    const firstName = req.query.firstName;
+    if (!firstName) {
+      return res.status(400).json({ message: "firstName is required" });
+    }
 
     const yardIndex = parseInt(req.body.yardIndex, 10);
     console.log(`[sendPO] Sending PO for order ${orderNo}, yard index ${yardIndex}`);
