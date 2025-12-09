@@ -317,6 +317,8 @@ export default function EditOrder() {
   const handleLoadOrder = async (orderNo = null) => {
     // Normalize order number: trim whitespace and handle any encoding issues
     const orderNoToLoad = (orderNo || orderNoInput || "").trim();
+    console.log("[EditOrder] handleLoadOrder called with:", { orderNo, orderNoInput, orderNoToLoad });
+    
     if (!orderNoToLoad) {
       setToast({ message: "Please enter an order number.", variant: "error" });
       return;
@@ -582,7 +584,13 @@ export default function EditOrder() {
         </div>
         <button
           type="button"
-          onClick={handleLoadOrder}
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (!loadingOrder && orderNoInput.trim()) {
+              handleLoadOrder();
+            }
+          }}
           disabled={loadingOrder || !orderNoInput.trim()}
           className={`px-6 py-2 bg-gradient-to-r from-[#504fad] to-[#5a80c7] text-white font-semibold rounded-xl shadow-lg transition ${
             loadingOrder || !orderNoInput.trim()

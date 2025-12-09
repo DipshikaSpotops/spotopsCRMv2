@@ -1498,23 +1498,33 @@ export default function OrderDetails() {
         orderNo={order?.orderNo}
         onClose={() => setEditDetailsIdx(null)}
         onSubmit={async (updatedOrder) => {
-          // Preserve the active yard index before refresh
+          // CRITICAL: Preserve the active yard index BEFORE any refresh happens
+          // This ensures websocket-triggered refreshes also use the correct index
           const yardIndexToPreserve = editDetailsIdx;
           console.log(`[OrderDetails] Saving Yard ${yardIndexToPreserve + 1} (index ${yardIndexToPreserve}), preserving index in ref`);
-          // Ensure ref is set before refresh
+          
+          // Set ref IMMEDIATELY so websocket refreshes can use it
           if (yardIndexToPreserve !== null && yardIndexToPreserve !== undefined) {
             activeYardIndexRef.current = yardIndexToPreserve;
+            setActiveYardIndex(yardIndexToPreserve); // Also set state to be safe
           }
+          
           if (updatedOrder) {
             mutateOrder(updatedOrder);
           }
+          
           await refresh();
-          // Restore the active yard index after refresh
+          
+          // Restore the active yard index after refresh (in case it was reset)
           if (yardIndexToPreserve !== null && yardIndexToPreserve !== undefined) {
             console.log(`[OrderDetails] Restoring to Yard ${yardIndexToPreserve + 1} (index ${yardIndexToPreserve}) after refresh`);
-            activeYardIndexRef.current = yardIndexToPreserve; // Ensure ref is set
-            setActiveYardIndex(yardIndexToPreserve); // Restore state
+            // Use setTimeout to ensure this runs after any websocket refresh
+            setTimeout(() => {
+              activeYardIndexRef.current = yardIndexToPreserve;
+              setActiveYardIndex(yardIndexToPreserve);
+            }, 100);
           }
+          
           await recomputeAndPersistActualGP({ useServer: true });
         }}
       />
@@ -1526,10 +1536,12 @@ export default function OrderDetails() {
         order={order}
         onClose={() => setEditStatusIdx(null)}
         onSave={() => {
-          // Set active yard index when status is saved (websocket will trigger refresh)
+          // CRITICAL: Set active yard index when status is saved (websocket will trigger refresh)
+          // Set ref FIRST so websocket refresh can use it
           if (editStatusIdx !== null && editStatusIdx !== undefined) {
-            setActiveYardIndex(editStatusIdx);
-            activeYardIndexRef.current = editStatusIdx;
+            console.log(`[OrderDetails] Saving status for Yard ${editStatusIdx + 1} (index ${editStatusIdx}), preserving in ref`);
+            activeYardIndexRef.current = editStatusIdx; // Set ref FIRST
+            setActiveYardIndex(editStatusIdx); // Then set state
           }
         }}
       />
@@ -1538,11 +1550,19 @@ export default function OrderDetails() {
         open={cardChargedIdx !== null}
         onClose={() => setCardChargedIdx(null)}
         onSubmit={async () => {
+          // CRITICAL: Preserve index BEFORE refresh so websocket can use it
           const yardIndexToPreserve = cardChargedIdx;
-          await refresh();
           if (yardIndexToPreserve !== null && yardIndexToPreserve !== undefined) {
+            activeYardIndexRef.current = yardIndexToPreserve; // Set ref FIRST
             setActiveYardIndex(yardIndexToPreserve);
-            activeYardIndexRef.current = yardIndexToPreserve;
+          }
+          await refresh();
+          // Restore after refresh (in case websocket also refreshed)
+          if (yardIndexToPreserve !== null && yardIndexToPreserve !== undefined) {
+            setTimeout(() => {
+              activeYardIndexRef.current = yardIndexToPreserve;
+              setActiveYardIndex(yardIndexToPreserve);
+            }, 100);
           }
         }}
         orderNo={orderNo}
@@ -1554,11 +1574,19 @@ export default function OrderDetails() {
         open={refundIdx !== null}
         onClose={() => setRefundIdx(null)}
         onSubmit={async () => {
+          // CRITICAL: Preserve index BEFORE refresh so websocket can use it
           const yardIndexToPreserve = refundIdx;
-          await refresh();
           if (yardIndexToPreserve !== null && yardIndexToPreserve !== undefined) {
+            activeYardIndexRef.current = yardIndexToPreserve; // Set ref FIRST
             setActiveYardIndex(yardIndexToPreserve);
-            activeYardIndexRef.current = yardIndexToPreserve;
+          }
+          await refresh();
+          // Restore after refresh (in case websocket also refreshed)
+          if (yardIndexToPreserve !== null && yardIndexToPreserve !== undefined) {
+            setTimeout(() => {
+              activeYardIndexRef.current = yardIndexToPreserve;
+              setActiveYardIndex(yardIndexToPreserve);
+            }, 100);
           }
         }}
         orderNo={orderNo}
@@ -1577,11 +1605,19 @@ export default function OrderDetails() {
         }
         order={order}
         onSaved={async () => {
+          // CRITICAL: Preserve index BEFORE refresh so websocket can use it
           const yardIndexToPreserve = escalationIdx;
-          await refresh();
           if (yardIndexToPreserve !== null && yardIndexToPreserve !== undefined) {
+            activeYardIndexRef.current = yardIndexToPreserve; // Set ref FIRST
             setActiveYardIndex(yardIndexToPreserve);
-            activeYardIndexRef.current = yardIndexToPreserve;
+          }
+          await refresh();
+          // Restore after refresh (in case websocket also refreshed)
+          if (yardIndexToPreserve !== null && yardIndexToPreserve !== undefined) {
+            setTimeout(() => {
+              activeYardIndexRef.current = yardIndexToPreserve;
+              setActiveYardIndex(yardIndexToPreserve);
+            }, 100);
           }
           await recomputeAndPersistActualGP({ useServer: true });
         }}
