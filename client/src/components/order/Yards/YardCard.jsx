@@ -18,9 +18,21 @@ export default function YardCard({
   const yardVal = extractYard(y.shippingDetails) ?? y.yardShipping;
 
   const warrantyUnitLabel = (() => {
-    const unit = (y.yardWarrantyField || "days").toString();
-    const pretty = unit.charAt(0).toUpperCase() + unit.slice(1);
-    return `Warranty (${pretty})`;
+    const unit = (y.yardWarrantyField || "days").toString().toLowerCase();
+    const warrantyValue = Number(y.warranty) || 0;
+    
+    // Handle pluralization based on warranty value
+    let displayUnit;
+    if (unit === "months") {
+      displayUnit = warrantyValue === 1 ? "Month" : "Months";
+    } else if (unit === "years") {
+      displayUnit = warrantyValue === 1 ? "Year" : "Years";
+    } else {
+      // Default to days
+      displayUnit = warrantyValue === 1 ? "Day" : "Days";
+    }
+    
+    return `Warranty (${displayUnit})`;
   })();
 
   const normalizeValue = (raw) => {

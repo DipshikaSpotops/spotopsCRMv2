@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import Field from "../../ui/Field";
 import Input from "../../ui/Input";
-import Select from "../../ui/Select";
+import Select, { SelectItem } from "../../ui/Select";
 import API from "../../../api";
 import { extractOwn, extractYard } from "../../../utils/yards";
 
@@ -53,6 +53,7 @@ export default function YardEditModal({ open, initial, order, orderNo, yardIndex
     faxNo: "",
     expShipDate: "",
     warranty: "",
+    yardWarrantyField: "days",
     stockNo: "",
     trackingNo: "",
     eta: "",
@@ -131,6 +132,7 @@ export default function YardEditModal({ open, initial, order, orderNo, yardIndex
       faxNo: initial?.faxNo || "",
       expShipDate: initial?.expShipDate || "",
       warranty: initial?.warranty || "",
+      yardWarrantyField: initial?.yardWarrantyField || "days",
       stockNo: initial?.stockNo || "",
       trackingNo: initial?.trackingNo || "",
       eta: initial?.eta || initial?.yardTrackingETA || "",
@@ -509,7 +511,30 @@ export default function YardEditModal({ open, initial, order, orderNo, yardIndex
           {/* Pricing / misc */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <Field label="Part Price ($)"><Input type="number" value={form.partPrice} onChange={set("partPrice")} /></Field>
-            <Field label="Warranty (days)"><Input type="number" value={form.warranty} onChange={set("warranty")} /></Field>
+            <Field label="Warranty">
+              <div className="grid grid-cols-2 gap-2">
+                <Input type="number" value={form.warranty} onChange={set("warranty")} />
+                <Select
+                  value={form.yardWarrantyField}
+                  onValueChange={(val) =>
+                    setForm((prev) => ({
+                      ...prev,
+                      yardWarrantyField: val,
+                    }))
+                  }
+                >
+                  <SelectItem value="days">
+                    {Number(form.warranty) === 1 ? "Day" : "Day(s)"}
+                  </SelectItem>
+                  <SelectItem value="months">
+                    {Number(form.warranty) === 1 ? "Month" : "Month(s)"}
+                  </SelectItem>
+                  <SelectItem value="years">
+                    {Number(form.warranty) === 1 ? "Year" : "Year(s)"}
+                  </SelectItem>
+                </Select>
+              </div>
+            </Field>
             <Field label="Stock No."><Input value={form.stockNo} onChange={set("stockNo")} /></Field>
           </div>
 

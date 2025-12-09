@@ -80,6 +80,7 @@ router.get("/ordersPerPage", async (req, res) => {
       "email",
       "vin",
       "desc",
+      "trackingNo", // top-level trackingNo (if exists)
       "additionalInfo.yardName",
       "additionalInfo.stockNo",
       "additionalInfo.trackingNo",
@@ -182,9 +183,24 @@ router.get("/ordersPerPage", async (req, res) => {
 
       // Escape special regex characters to prevent errors with phone numbers, etc.
       const escapedSearchTerm = escapeRegex(searchTerm);
-      const orClauses = searchablePaths.map((field) => ({
-        [field]: { $regex: escapedSearchTerm, $options: "i" },
-      }));
+      const orClauses = searchablePaths.map((field) => {
+        // Handle nested additionalInfo fields (including trackingNo which is an array of strings)
+        if (field.startsWith("additionalInfo.")) {
+          const nestedField = field.split(".")[1];
+          // For arrays of strings (like trackingNo), regex automatically matches any element
+          return {
+            additionalInfo: {
+              $elemMatch: {
+                [nestedField]: { $regex: escapedSearchTerm, $options: "i" },
+              },
+            },
+          };
+        }
+        // For top-level fields (including top-level trackingNo if it exists)
+        return {
+          [field]: { $regex: escapedSearchTerm, $options: "i" },
+        };
+      });
       const filter = { $or: orClauses };
 
       const [orders, totalCount] = await Promise.all([

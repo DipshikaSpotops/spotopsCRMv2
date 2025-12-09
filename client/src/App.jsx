@@ -40,6 +40,7 @@ import useAuthBootstrap from "./hooks/useAuthBootstrap";
 import SalesData from "./pages/SalesData";
 import SalesReport from "./pages/SalesReport";
 import EmailLeads from "./pages/EmailLeads";
+import Leads from "./pages/Leads";
 import ReimbursementReport from "./pages/ReimbursementReport";
 
 function App() {
@@ -197,6 +198,10 @@ function App() {
         <Route
           path="/email-leads"
           element={withLayout(<EmailLeads />)}
+        />
+        <Route
+          path="/leads"
+          element={withLayout(<Leads />)}
         />
         <Route
           path="/reimbursement-report"

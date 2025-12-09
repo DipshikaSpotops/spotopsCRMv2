@@ -106,7 +106,10 @@ export async function syncStateHandler(req, res, next) {
       userEmail:
         req.query.userEmail || process.env.GMAIL_IMPERSONATED_USER || undefined,
     });
-    return res.json({ state: doc });
+    return res.json({ 
+      state: doc,
+      configuredEmail: process.env.GMAIL_IMPERSONATED_USER || null,
+    });
   } catch (err) {
     return next(err);
   }
@@ -187,6 +190,77 @@ export async function claimAndViewHandler(req, res, next) {
   } catch (err) {
     return next(err);
   }
+}
+
+export async function getMessageHandler(req, res, next) {
+  try {
+    const user = req.user;
+    if (!user) {
+      return res.status(401).json({ message: "Not authenticated" });
+    }
+
+    const id = String(req.params.id);
+    const message = await GmailMessage.findById(id);
+    
+    if (!message) {
+      return res.status(404).json({ message: "Not found" });
+    }
+
+    // If bodyHtml is not stored, fetch it from Gmail
+    let bodyHtml = message.bodyHtml;
+    if (!bodyHtml && message.raw?.payload) {
+      bodyHtml = extractHtmlFromPayload(message.raw.payload);
+    } else if (!bodyHtml && message.messageId) {
+      try {
+        const gmail = getGmailClient();
+        const { data } = await gmail.users.messages.get({
+          userId: "me",
+          id: message.messageId,
+          format: "full",
+        });
+        bodyHtml = extractHtmlFromPayload(data.payload);
+        // Save it for future use
+        if (bodyHtml) {
+          await GmailMessage.findByIdAndUpdate(id, { bodyHtml });
+        }
+      } catch (err) {
+        console.error("[getMessage] Failed to fetch body:", err?.message || err);
+      }
+    }
+
+    const messageObj = message.toObject();
+    return res.json({
+      _id: String(messageObj._id),
+      ...messageObj,
+      bodyHtml: bodyHtml || messageObj.bodyHtml || "",
+    });
+  } catch (err) {
+    return next(err);
+  }
+}
+
+function extractHtmlFromPayload(payload) {
+  if (!payload) return "";
+  
+  // Recursively find HTML part
+  function findHtmlPart(part) {
+    if (!part) return null;
+    
+    if (part.mimeType === "text/html" && part.body?.data) {
+      return Buffer.from(part.body.data, "base64").toString("utf-8");
+    }
+    
+    if (part.parts) {
+      for (const p of part.parts) {
+        const found = findHtmlPart(p);
+        if (found) return found;
+      }
+    }
+    
+    return null;
+  }
+  
+  return findHtmlPart(payload) || "";
 }
 
 export async function updateLabelsHandler(req, res, next) {

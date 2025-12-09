@@ -49,6 +49,7 @@ export default function Sidebar() {
     { text: "Fulfilled Orders", to: "/fulfilled-orders" },
     { text: "Overall Escalation", to: "/overall-escalation" },
     { text: "Ongoing Escalation", to: "/ongoing-escalation" },
+    { text: "Leads", to: "/leads" },
   ];
 
   const usersLinksBase = [

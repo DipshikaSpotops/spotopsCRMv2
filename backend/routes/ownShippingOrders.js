@@ -72,7 +72,12 @@ router.get("/", async (req, res) => {
         { desc: rx },
         { make: rx },
         { model: rx },
+        { trackingNo: rx }, // top-level trackingNo (if exists)
         { additionalInfo: { $elemMatch: { yardName: rx } } },
+        { additionalInfo: { $elemMatch: { trackingNo: rx } } }, // trackingNo array within additionalInfo
+        { additionalInfo: { $elemMatch: { customerTrackingNumberReplacement: rx } } },
+        { additionalInfo: { $elemMatch: { yardTrackingNumber: rx } } },
+        { additionalInfo: { $elemMatch: { returnTrackingCust: rx } } },
         { supportNotes: rx }, 
       ];
     }

@@ -5,6 +5,7 @@ import {
   pubsubWebhook,
   startWatchHandler,
   syncStateHandler,
+  getMessageHandler,
   claimAndViewHandler,
   updateLabelsHandler,
 } from "../controllers/gmailController.js";
@@ -19,6 +20,7 @@ router.get("/state", syncStateHandler);
 router.post("/pubsub", pubsubWebhook);
 
 // Protected routes (require auth)
+router.get("/messages/:id", requireAuth, getMessageHandler);
 router.post("/messages/:id/claim-and-view", requireAuth, claimAndViewHandler);
 router.patch("/messages/:id/labels", requireAuth, updateLabelsHandler);
 

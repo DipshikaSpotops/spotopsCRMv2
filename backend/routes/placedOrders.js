@@ -64,6 +64,11 @@ router.get("/", async (req, res) => {
         { phone: regex },
         { customerPhone: regex },
         { contactNo: regex },
+        { trackingNo: regex }, // top-level trackingNo (if exists)
+        { additionalInfo: { $elemMatch: { trackingNo: regex } } }, // trackingNo array within additionalInfo
+        { additionalInfo: { $elemMatch: { customerTrackingNumberReplacement: regex } } },
+        { additionalInfo: { $elemMatch: { yardTrackingNumber: regex } } },
+        { additionalInfo: { $elemMatch: { returnTrackingCust: regex } } },
       ];
     }
     // Fetch Orders from DB

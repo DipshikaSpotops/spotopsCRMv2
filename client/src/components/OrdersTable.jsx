@@ -299,6 +299,9 @@ export default function OrdersTable({
   const LS_SEARCH_KEY = storageKeys?.search || "ordersTableSearch";
   const LS_FILTER_KEY = storageKeys?.filter || "ordersTableFilter";
   const LS_HILITE_KEY = storageKeys?.hilite || "ordersTableHilite";
+  const LS_AGENT_KEY = `${LS_PAGE_KEY}_agent`;
+  const LS_SORT_BY_KEY = `${LS_PAGE_KEY}_sortBy`;
+  const LS_SORT_ORDER_KEY = `${LS_PAGE_KEY}_sortOrder`;
   const SCROLL_KEY = `${LS_PAGE_KEY}_scrollTop`;
 
   // cleanup old keys (matches SalesData cleanup)
@@ -319,7 +322,7 @@ export default function OrdersTable({
   // filters/search/sort/pagination
   const initFilter = getJSON(LS_FILTER_KEY) || buildDefaultFilter();
   const [activeFilter, setActiveFilter] = useState(initFilter);
-  const [selectedAgent, setSelectedAgent] = useState("Select");
+  const [selectedAgent, setSelectedAgent] = useState(getLS(LS_AGENT_KEY, "Select"));
 
   const [searchInput, setSearchInput] = useState(getLS(LS_SEARCH_KEY, ""));
   const [appliedQuery, setAppliedQuery] = useState(getLS(LS_SEARCH_KEY, ""));
@@ -328,9 +331,9 @@ export default function OrdersTable({
     parseInt(getLS(LS_PAGE_KEY, "1"), 10)
   );
 
-  // sort
-  const [sortBy, setSortBy] = useState("orderDate");
-  const [sortOrder, setSortOrder] = useState("desc");
+  // sort - restore from localStorage
+  const [sortBy, setSortBy] = useState(getLS(LS_SORT_BY_KEY, "orderDate"));
+  const [sortOrder, setSortOrder] = useState(getLS(LS_SORT_ORDER_KEY, "desc"));
 
   // highlight
   const [highlightedOrderNo, setHighlightedOrderNo] = useState(
@@ -470,6 +473,33 @@ export default function OrdersTable({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeFilter]);
+
+  // Restore and apply search query, agent filter, and sort state on mount if they exist in localStorage
+  // This ensures all filters and sorting are restored when coming back to the page
+  useEffect(() => {
+    const savedSearch = getLS(LS_SEARCH_KEY, "");
+    if (savedSearch && savedSearch !== appliedQuery) {
+      // Always sync both searchInput and appliedQuery with saved value on mount
+      // This handles cases where the component remounts and needs to restore state
+      setSearchInput(savedSearch);
+      setAppliedQuery(savedSearch);
+    }
+    // Restore selected agent from localStorage
+    const savedAgent = getLS(LS_AGENT_KEY, "Select");
+    if (savedAgent && savedAgent !== "Select" && savedAgent !== selectedAgent) {
+      setSelectedAgent(savedAgent);
+    }
+    // Restore sort state from localStorage
+    const savedSortBy = getLS(LS_SORT_BY_KEY, "");
+    const savedSortOrder = getLS(LS_SORT_ORDER_KEY, "");
+    if (savedSortBy && savedSortBy !== sortBy) {
+      setSortBy(savedSortBy);
+    }
+    if (savedSortOrder && savedSortOrder !== sortOrder) {
+      setSortOrder(savedSortOrder);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // restore scroll after load
   useEffect(() => {
@@ -668,11 +698,15 @@ export default function OrdersTable({
     if (!columnKey) return;
     clearHighlight();
     if (sortBy === columnKey) {
-      setSortOrder((o) => (o === "asc" ? "desc" : "asc"));
+      const newOrder = sortOrder === "asc" ? "desc" : "asc";
+      setSortOrder(newOrder);
+      setLS(LS_SORT_ORDER_KEY, newOrder);
     } else {
       setSortBy(columnKey);
-      if (columnKey === "orderDate") setSortOrder("desc");
-      else setSortOrder("asc");
+      setLS(LS_SORT_BY_KEY, columnKey);
+      const newOrder = columnKey === "orderDate" ? "desc" : "asc";
+      setSortOrder(newOrder);
+      setLS(LS_SORT_ORDER_KEY, newOrder);
     }
     setCurrentPage(1);
   };
@@ -755,16 +789,34 @@ export default function OrdersTable({
 
   // scroll to highlighted row (unless we restored scroll)
   useEffect(() => {
-    if (!highlightedOrderNo || !pageRows?.length || !tableScrollRef.current) return;
+    if (!highlightedOrderNo || !tableScrollRef.current) return;
     if (restoredScroll) return;
-    const match = pageRows.find((o) => String(o.orderNo) === String(highlightedOrderNo));
+    
+    // First, check if the order is in the current page
+    let match = pageRows.find((o) => String(o.orderNo) === String(highlightedOrderNo));
+    
+    // If not in current page, check all sorted rows to find which page it's on
+    if (!match && sortedRows?.length > 0) {
+      const orderIndex = sortedRows.findIndex((o) => String(o.orderNo) === String(highlightedOrderNo));
+      if (orderIndex >= 0) {
+        // Calculate which page this order is on
+        const targetPage = Math.floor(orderIndex / effectiveRowsPerPage) + 1;
+        if (targetPage !== currentPage && targetPage <= totalPages) {
+          setCurrentPage(targetPage);
+          // The match will be found on the next render after page change
+          return;
+        }
+      }
+    }
+    
+    // If found in current page, scroll to it
     if (match) {
       setTimeout(() => {
         const el = document.getElementById(`row-${match.orderNo}`);
         if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
-      }, 0);
+      }, 100);
     }
-  }, [pageRows, highlightedOrderNo, restoredScroll]);
+  }, [pageRows, sortedRows, highlightedOrderNo, restoredScroll, currentPage, totalPages, effectiveRowsPerPage]);
 
   // render helpers
   const SortIcon = ({ name }) =>
@@ -811,6 +863,12 @@ export default function OrdersTable({
               value={selectedAgent}
               onChange={(val) => {
                 setSelectedAgent(val);
+                // Save to localStorage, or remove if "Select" or "All"
+                if (val && val !== "Select" && val !== "All") {
+                  setLS(LS_AGENT_KEY, val);
+                } else {
+                  setLS(LS_AGENT_KEY, null);
+                }
                 setCurrentPage(1);
               }}
               className="ml-2"
@@ -1024,12 +1082,36 @@ export default function OrdersTable({
                                         String(tableScrollRef.current.scrollTop || 0)
                                       );
                                     }
-                                    if (row.orderNo) {
-                                      setLS(LS_HILITE_KEY, String(row.orderNo));
-                                      setLS(LS_PAGE_KEY, String(safePage));
-                                      setHighlightedOrderNo(String(row.orderNo));
-                                      navigate(gotoPath(row));
-                                    }
+                                     if (row.orderNo) {
+                                       // Immediately highlight the row before navigation
+                                       setHighlightedOrderNo(String(row.orderNo));
+                                       setLS(LS_HILITE_KEY, String(row.orderNo));
+                                       setLS(LS_PAGE_KEY, String(safePage));
+                                       // Also save current search, agent filter, sort state, and date filter to restore them when coming back
+                                       // Save the applied query (what's actually filtering), but also ensure searchInput is saved if it exists
+                                       const searchToSave = appliedQuery || searchInput.trim();
+                                       if (searchToSave) {
+                                         setLS(LS_SEARCH_KEY, searchToSave);
+                                       }
+                                       // Save selected agent filter
+                                       if (selectedAgent && selectedAgent !== "Select") {
+                                         setLS(LS_AGENT_KEY, selectedAgent);
+                                       }
+                                       // Save sort state
+                                       if (sortBy) {
+                                         setLS(LS_SORT_BY_KEY, sortBy);
+                                       }
+                                       if (sortOrder) {
+                                         setLS(LS_SORT_ORDER_KEY, sortOrder);
+                                       }
+                                       if (activeFilter) {
+                                         setJSON(LS_FILTER_KEY, activeFilter);
+                                       }
+                                       // Small delay to show highlight before navigation
+                                       setTimeout(() => {
+                                         navigate(gotoPath(row));
+                                       }, 50);
+                                     }
                                   }
                                 }}
                                 disabled={isRestricted}
@@ -1133,12 +1215,36 @@ export default function OrdersTable({
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          if (!isRestricted && row.orderNo) {
-                            setLS(LS_HILITE_KEY, String(row.orderNo));
-                            setLS(LS_PAGE_KEY, String(safePage));
-                            setHighlightedOrderNo(String(row.orderNo));
-                            navigate(gotoPath(row));
-                          }
+                           if (!isRestricted && row.orderNo) {
+                             // Immediately highlight the row before navigation
+                             setHighlightedOrderNo(String(row.orderNo));
+                             setLS(LS_HILITE_KEY, String(row.orderNo));
+                             setLS(LS_PAGE_KEY, String(safePage));
+                             // Also save current search, agent filter, sort state, and date filter to restore them when coming back
+                             // Save the applied query (what's actually filtering), but also ensure searchInput is saved if it exists
+                             const searchToSave = appliedQuery || searchInput.trim();
+                             if (searchToSave) {
+                               setLS(LS_SEARCH_KEY, searchToSave);
+                             }
+                             // Save selected agent filter
+                             if (selectedAgent && selectedAgent !== "Select") {
+                               setLS(LS_AGENT_KEY, selectedAgent);
+                             }
+                             // Save sort state
+                             if (sortBy) {
+                               setLS(LS_SORT_BY_KEY, sortBy);
+                             }
+                             if (sortOrder) {
+                               setLS(LS_SORT_ORDER_KEY, sortOrder);
+                             }
+                             if (activeFilter) {
+                               setJSON(LS_FILTER_KEY, activeFilter);
+                             }
+                             // Small delay to show highlight before navigation
+                             setTimeout(() => {
+                               navigate(gotoPath(row));
+                             }, 50);
+                           }
                         }}
                         disabled={isRestricted}
                         className={`flex-1 px-3 py-2 text-sm rounded text-white ${

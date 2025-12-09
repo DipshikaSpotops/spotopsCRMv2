@@ -62,6 +62,7 @@ export default function NavbarForm() {
       ["Fulfilled Orders", "/fulfilled-orders"],
       ["Overall Escalation", "/overall-escalation"],
       ["Ongoing Escalation", "/ongoing-escalation"],
+      ["Leads", "/leads"],
       ["View My Tasks", "/my-tasks"],
       ["View All Tasks", "/all-tasks"],
     ],
@@ -153,22 +154,24 @@ export default function NavbarForm() {
                 let orders = [];
 
                 if (is4Digits) {
-                  // Search with a high limit and filter client-side for orders ending with these 4 digits
+                  // For 4-digit search: search broadly, then filter to only orders where orderNo ends with those 4 digits
+                  // Do NOT fall back to regular search if no match - user specifically searched for last 4 digits
                   try {
                     const exactRes = await API.get("/orders/ordersPerPage", {
                       params: {
                         page: 1,
-                        limit: 200, // Get many results to ensure we find the match
+                        limit: 500, // Get many results to ensure we find the match
+                        // Use searchTerm to narrow results, but we'll filter client-side to only orderNo matches
                         searchTerm: value,
                         sortBy: "orderDate",
                         sortOrder: "desc",
                       },
                     });
                     const allOrders = exactRes?.data?.orders || [];
-                    // Filter to only orders where orderNo ends with these 4 digits (case-insensitive)
+                    // STRICT FILTER: Only orders where orderNo ends with these 4 digits (case-insensitive)
                     orders = allOrders.filter((order) => {
                       const orderNo = String(order.orderNo || "").trim();
-                      // Match if orderNo ends with the 4 digits (case-insensitive)
+                      // Match ONLY if orderNo ends with the 4 digits (case-insensitive)
                       return orderNo.toLowerCase().endsWith(value.toLowerCase());
                     });
                     // Sort by most recent first (already sorted by API, but ensure it)
@@ -179,12 +182,12 @@ export default function NavbarForm() {
                     });
                     console.log(`Found ${orders.length} orders ending with ${value} out of ${allOrders.length} total results`);
                   } catch (exactErr) {
-                    console.warn("4-digit search failed, falling back to regular search:", exactErr);
+                    console.warn("4-digit search failed:", exactErr);
                   }
-                }
-
-                // If no exact match found (or not 4 digits), use regular fuzzy search
-                if (orders.length === 0) {
+                  // IMPORTANT: For 4-digit searches, do NOT fall back to regular search
+                  // If no order number ends with these digits, show "Order not found"
+                } else {
+                  // If not 4 digits, use regular fuzzy search
                   const res = await API.get("/orders/ordersPerPage", {
                     params: {
                       page: 1,
@@ -205,11 +208,19 @@ export default function NavbarForm() {
                   );
                   setDropdownOpen(null);
                 } else {
-                  window.alert("Order not found.");
+                  // Navigate to order details page - it will show "Order not found" message
+                  navigate(
+                    `/order-details?orderNo=${encodeURIComponent(value)}`
+                  );
+                  setDropdownOpen(null);
                 }
               } catch (err) {
                 console.error("Order search failed:", err);
-                window.alert("Error searching for order. Please try again.");
+                // Navigate to order details page - it will show the error message
+                navigate(
+                  `/order-details?orderNo=${encodeURIComponent(value)}`
+                );
+                setDropdownOpen(null);
               } finally {
                 setSearchLoading(false);
               }

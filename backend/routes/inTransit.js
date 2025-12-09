@@ -67,10 +67,15 @@ router.get("/", async (req, res) => {
         { partNo: rx },
         { make: rx },
         { model: rx },
+        { trackingNo: rx }, // top-level trackingNo (if exists)
         { supportNotes: rx }, // search inside notes too
         { additionalInfo: { $elemMatch: { yardName: rx } } },
         { additionalInfo: { $elemMatch: { status: rx } } },
         { additionalInfo: { $elemMatch: { expShipDate: rx } } },
+        { additionalInfo: { $elemMatch: { trackingNo: rx } } }, // trackingNo array within additionalInfo
+        { additionalInfo: { $elemMatch: { customerTrackingNumberReplacement: rx } } },
+        { additionalInfo: { $elemMatch: { yardTrackingNumber: rx } } },
+        { additionalInfo: { $elemMatch: { returnTrackingCust: rx } } },
       ];
     }
 

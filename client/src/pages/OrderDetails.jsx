@@ -334,6 +334,7 @@ export default function OrderDetails() {
   const [cardChargedIdx, setCardChargedIdx] = useState(null);
   const [refundIdx, setRefundIdx] = useState(null);
   const [escalationIdx, setEscalationIdx] = useState(null);
+  const [activeYardIndex, setActiveYardIndex] = useState(null);
   const [showHistory, setShowHistory] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [showRefundModal, setShowRefundModal] = useState(false);
@@ -440,8 +441,16 @@ export default function OrderDetails() {
       if (msg?.type && ["YARD_UPDATED", "STATUS_CHANGED", "YARD_ADDED", "YARD_NOTE_ADDED", "ORDER_UPDATED"].includes(msg.type)) {
         console.log("[OrderDetails] Real-time update received:", msg.type, isSelf ? "(from self)" : "(from other user)");
         // Small delay to ensure backend has saved the changes
-        setTimeout(() => {
-          refresh();
+        setTimeout(async () => {
+          // Preserve activeYardIndex before refresh
+          const preservedIndex = activeYardIndex;
+          await refresh();
+          // Restore activeYardIndex after refresh - use another setTimeout to ensure it happens after React updates
+          setTimeout(() => {
+            if (preservedIndex !== null && preservedIndex !== undefined) {
+              setActiveYardIndex(preservedIndex);
+            }
+          }, 0);
         }, 300);
       }
       
@@ -505,7 +514,7 @@ export default function OrderDetails() {
   });
 
   /** DRY helper: recompute + persist + paint Actual GP */
-  const recomputeAndPersistActualGP = async ({ useServer = true } = {}) => {
+  const recomputeAndPersistActualGP = async ({ useServer = true, preserveActiveYardIndex = null } = {}) => {
     try {
       const firstName = localStorage.getItem("firstName");
       const orderLike = useServer
@@ -527,6 +536,12 @@ export default function OrderDetails() {
         );
         gpWriteGuardRef.current = true;
         setToast(`Actual GP recalculated: $${gp.toFixed(2)}`);
+        // Restore activeYardIndex after GP update if it was preserved
+        if (preserveActiveYardIndex !== null && preserveActiveYardIndex !== undefined) {
+          setTimeout(() => {
+            setActiveYardIndex(preserveActiveYardIndex);
+          }, 0);
+        }
       } else {
         console.log(
           `Skipped Actual GP update — unchanged at ${gp.toFixed(2)}`
@@ -1299,19 +1314,25 @@ export default function OrderDetails() {
                   }
                   canAddNewYard={canAddNewYard}
                   onOpenAdd={() => setShowAdd(true)}
+                  activeYardIndex={activeYardIndex}
+                  onActiveYardChange={setActiveYardIndex}
                   onEditStatus={(i) => {
+                    setActiveYardIndex(i); // Set the yard as active when opening modal
                     focusCommentsOnYard(i);
                     setEditStatusIdx(i);
                   }}
                   onEditDetails={(i) => {
+                    setActiveYardIndex(i); // Set the yard as active when opening modal
                     focusCommentsOnYard(i);
                     setEditDetailsIdx(i);
                   }}
                   onCardCharged={(i) => {
+                    setActiveYardIndex(i); // Set the yard as active when opening modal
                     focusCommentsOnYard(i);
                     setCardChargedIdx(i);
                   }}
                   onRefundStatus={(i) => {
+                    setActiveYardIndex(i); // Set the yard as active when opening modal
                     focusCommentsOnYard(i);
                     setRefundIdx(i);
                   }}
@@ -1322,6 +1343,7 @@ export default function OrderDetails() {
                       setToast("Set the yard status to Escalation before opening escalation details.");
                       return;
                     }
+                    setActiveYardIndex(i); // Set the yard as active when opening modal
                     focusCommentsOnYard(i);
                     setEscalationIdx(i);
                   }}
@@ -1403,13 +1425,24 @@ export default function OrderDetails() {
         initial={yards[editDetailsIdx]}
         order={order}
         orderNo={order?.orderNo}
-        onClose={() => setEditDetailsIdx(null)}
+        onClose={() => {
+          setEditDetailsIdx(null);
+          // Keep the active yard index after closing
+        }}
         onSubmit={async (updatedOrder) => {
           if (updatedOrder) {
             mutateOrder(updatedOrder);
           }
+          // Preserve activeYardIndex before refresh
+          const preservedIndex = activeYardIndex;
           await refresh();
-          await recomputeAndPersistActualGP({ useServer: true });
+          // Restore activeYardIndex after refresh - use setTimeout to ensure it happens after React updates
+          setTimeout(() => {
+            if (preservedIndex !== null && preservedIndex !== undefined) {
+              setActiveYardIndex(preservedIndex);
+            }
+          }, 0);
+          await recomputeAndPersistActualGP({ useServer: true, preserveActiveYardIndex: preservedIndex });
         }}
       />
 
@@ -1418,14 +1451,37 @@ export default function OrderDetails() {
         yardIndex={typeof editStatusIdx === "number" ? editStatusIdx : 0}
         yard={editStatusIdx !== null ? yards[editStatusIdx] : null}
         order={order}
-        onClose={() => setEditStatusIdx(null)}
-        onSave={() => { }}
+        onClose={() => {
+          setEditStatusIdx(null);
+          // Keep the active yard index after closing
+        }}
+        onSave={async () => {
+          // Preserve activeYardIndex before any updates
+          const preservedIndex = activeYardIndex;
+          await refresh();
+          // Restore activeYardIndex after refresh - use setTimeout to ensure it happens after React updates
+          setTimeout(() => {
+            if (preservedIndex !== null && preservedIndex !== undefined) {
+              setActiveYardIndex(preservedIndex);
+            }
+          }, 0);
+        }}
       />
 
       <CardChargedModal
         open={cardChargedIdx !== null}
         onClose={() => setCardChargedIdx(null)}
-        onSubmit={refresh}
+        onSubmit={async () => {
+          // Preserve activeYardIndex before refresh
+          const preservedIndex = activeYardIndex;
+          await refresh();
+          // Restore activeYardIndex after refresh - use setTimeout to ensure it happens after React updates
+          setTimeout(() => {
+            if (preservedIndex !== null && preservedIndex !== undefined) {
+              setActiveYardIndex(preservedIndex);
+            }
+          }, 0);
+        }}
         orderNo={orderNo}
         yardIndex={cardChargedIdx}
         yard={cardChargedIdx !== null ? yards[cardChargedIdx] : null}
@@ -1434,7 +1490,17 @@ export default function OrderDetails() {
       <RefundModal
         open={refundIdx !== null}
         onClose={() => setRefundIdx(null)}
-        onSubmit={refresh}
+        onSubmit={async () => {
+          // Preserve activeYardIndex before refresh
+          const preservedIndex = activeYardIndex;
+          await refresh();
+          // Restore activeYardIndex after refresh - use setTimeout to ensure it happens after React updates
+          setTimeout(() => {
+            if (preservedIndex !== null && preservedIndex !== undefined) {
+              setActiveYardIndex(preservedIndex);
+            }
+          }, 0);
+        }}
         orderNo={orderNo}
         yardIndex={refundIdx}
         yard={refundIdx !== null ? yards[refundIdx] : null}
@@ -1451,8 +1517,16 @@ export default function OrderDetails() {
         }
         order={order}
         onSaved={async () => {
+          // Preserve activeYardIndex before refresh
+          const preservedIndex = activeYardIndex;
           await refresh();
-          await recomputeAndPersistActualGP({ useServer: true });
+          // Restore activeYardIndex after refresh - use setTimeout to ensure it happens after React updates
+          setTimeout(() => {
+            if (preservedIndex !== null && preservedIndex !== undefined) {
+              setActiveYardIndex(preservedIndex);
+            }
+          }, 0);
+          await recomputeAndPersistActualGP({ useServer: true, preserveActiveYardIndex: preservedIndex });
         }}
       />
 

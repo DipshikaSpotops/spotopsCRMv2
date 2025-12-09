@@ -10,11 +10,14 @@ export default function YardActionButtons({
   const isRefundCollected = String(yard?.refundStatus || "").trim().toLowerCase() === "refund collected";
   const isEscalated = !!yard?.escTicked;
 
-  // For this step, Card Charged uses the same background as other buttons (base) in both light & dark modes
-  const cardCls = base;
+  // Card Charged button: match yard tab background (black) when payment status is "Card charged"
+  const cardCls = isCardCharged
+    ? "px-3 py-1.5 rounded-md text-sm border bg-black text-white border-black hover:bg-gray-900 dark:bg-black dark:text-white dark:border-black dark:hover:bg-gray-900"
+    : base;
 
+  // Refund Status button: match yard tab background (orange) when refund status is "Refund collected"
   const refundCls = isRefundCollected
-    ? "px-3 py-1.5 rounded-md text-sm border bg-orange-100 text-orange-800 border-orange-300 hover:bg-orange-200 dark:bg-[#f59e0b]/10 dark:text-[#f59e0b] dark:border-[#f59e0b] dark:hover:bg-[#f59e0b]/15 dark:shadow-[0_0_4px_rgba(245,158,11,0.3)] dark:hover:shadow-[0_0_12px_rgba(245,158,11,0.7),0_0_20px_rgba(245,158,11,0.4)] dark:[text-shadow:0_0_2px_rgba(245,158,11,0.5)] dark:hover:[text-shadow:0_0_8px_rgba(245,158,11,0.9),0_0_12px_rgba(245,158,11,0.6)]"
+    ? "px-3 py-1.5 rounded-md text-sm border bg-[#f97316] text-white border-[#f97316] hover:bg-[#ea580c] dark:bg-[#f97316] dark:text-white dark:border-[#f97316] dark:hover:bg-[#ea580c]"
     : base;
 
   // Escalation also uses the same blue background as other buttons

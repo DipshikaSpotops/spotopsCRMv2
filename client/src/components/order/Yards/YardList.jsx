@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import GlassCard from "../../ui/GlassCard";
 import YardCard from "./YardCard";
 
@@ -11,14 +11,75 @@ export default function YardList({
   onCardCharged,
   onRefundStatus,
   onEscalation,
+  activeYardIndex, // Optional: parent can control which yard is active
+  onActiveYardChange, // Optional: callback when user clicks a yard tab
 }) {
   const [activeIdx, setActiveIdx] = useState(0);
+  const prevYardsLengthRef = useRef(0);
+  const isInitialMountRef = useRef(true);
+  const parentControlledRef = useRef(false);
+
+  // If parent controls activeYardIndex, use it; otherwise use internal state
+  const effectiveActiveIdx = activeYardIndex !== undefined ? activeYardIndex : activeIdx;
+
+  // Sync with parent-controlled activeYardIndex
+  useEffect(() => {
+    if (activeYardIndex !== undefined && activeYardIndex !== null) {
+      parentControlledRef.current = true;
+      setActiveIdx(activeYardIndex);
+    } else if (activeYardIndex === null && parentControlledRef.current) {
+      // Parent explicitly set to null - release control
+      parentControlledRef.current = false;
+    }
+  }, [activeYardIndex]);
 
   useEffect(() => {
-    if (yards?.length) {
-      setActiveIdx(yards.length - 1); // default: last yard
+    if (!yards?.length) return;
+    
+    const currentLength = yards.length;
+    const prevLength = prevYardsLengthRef.current;
+    
+    // If parent is controlling via activeYardIndex prop, don't auto-reset (except for new yard)
+    // Check both the prop and the ref to handle timing issues
+    if ((activeYardIndex !== undefined && activeYardIndex !== null) || parentControlledRef.current) {
+      parentControlledRef.current = true;
+      // Only switch if a new yard was added
+      if (currentLength > prevLength) {
+        const newIdx = currentLength - 1;
+        setActiveIdx(newIdx);
+        if (onActiveYardChange) onActiveYardChange(newIdx);
+      }
+      // Otherwise, preserve current selection - don't reset on updates
+      // If parent provided activeYardIndex, use it; otherwise keep current activeIdx
+      if (activeYardIndex !== undefined && activeYardIndex !== null) {
+        setActiveIdx(activeYardIndex);
+      }
+      prevYardsLengthRef.current = currentLength;
+      return;
     }
-  }, [yards]);
+    
+    // Parent not controlling - use default behavior
+    if (isInitialMountRef.current) {
+      // Initial load: show the newest yard (last one)
+      const initialIdx = currentLength - 1;
+      setActiveIdx(initialIdx);
+      if (onActiveYardChange) onActiveYardChange(initialIdx);
+      isInitialMountRef.current = false;
+    } else if (currentLength > prevLength) {
+      // New yard was added: switch to the new one
+      const newIdx = currentLength - 1;
+      setActiveIdx(newIdx);
+      if (onActiveYardChange) onActiveYardChange(newIdx);
+    }
+    // Otherwise, preserve the current activeIdx (don't reset on updates)
+    
+    prevYardsLengthRef.current = currentLength;
+  }, [yards, onActiveYardChange, activeYardIndex]);
+
+  const handleSetActiveIdx = (idx) => {
+    setActiveIdx(idx);
+    if (onActiveYardChange) onActiveYardChange(idx);
+  };
 
   return (
     <>
@@ -77,7 +138,7 @@ export default function YardList({
       actions={
         <div className="flex gap-2 rounded-lg p-1 bg-blue-50 border border-gray-200 dark:bg-white/10 dark:border-white/20">
           {yards?.map((y, idx) => {
-            const isActive = activeIdx === idx;
+            const isActive = effectiveActiveIdx === idx;
             const paymentStatus = String(y?.paymentStatus || "").trim().toLowerCase();
             const refundStatus = String(y?.refundStatus || "").trim().toLowerCase();
             
@@ -121,7 +182,7 @@ export default function YardList({
             return (
               <button
                 key={idx}
-                onClick={() => setActiveIdx(idx)}
+                onClick={() => handleSetActiveIdx(idx)}
                 className={`px-3 py-1.5 rounded-md text-sm transition ${bgClasses}`}
                 {...buttonProps}
               >
@@ -160,8 +221,8 @@ export default function YardList({
         </div>
       ) : (
         <YardCard
-          yard={yards[activeIdx]}
-          index={activeIdx}
+          yard={yards[effectiveActiveIdx]}
+          index={effectiveActiveIdx}
           onEditStatus={onEditStatus}
           onEditDetails={onEditDetails}
           onCardCharged={onCardCharged}

@@ -140,6 +140,7 @@ router.get("/", async (req, res) => {
       "email",
       "vin",
       "desc",
+      "trackingNo", // top-level trackingNo (if exists)
       "additionalInfo.yardName",
       "additionalInfo.stockNo",
       "additionalInfo.trackingNo",

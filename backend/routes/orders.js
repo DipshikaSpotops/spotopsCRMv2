@@ -614,6 +614,7 @@ router.post("/:orderNo/additionalInfo", async (req, res) => {
       faxNo,
       expShipDate,
       warranty,
+      yardWarrantyField,
       stockNo,
       trackingNo,
       eta,
@@ -648,7 +649,7 @@ router.post("/:orderNo/additionalInfo", async (req, res) => {
       country, partPrice,
       ownShipping:  ownSet  ? ownShipping  : undefined,
       yardShipping: yardSet ? yardShipping : undefined,
-      shippingDetails, others, faxNo, expShipDate, warranty, stockNo,
+      shippingDetails, others, faxNo, expShipDate, warranty, yardWarrantyField, stockNo,
       trackingNo, eta, deliveredDate, status,
     };
 
@@ -908,7 +909,12 @@ router.put("/:orderNo/additionalInfo/:index", async (req, res) => {
             ? "—"
             : String(newVal).trim();
         acc[section] = acc[section] || [];
-        acc[section].push(`${label}: ${cleanOld} → ${cleanNew}`);
+        // If there was no previous value, just show the new value. Otherwise show old → new
+        if (cleanOld === "—") {
+          acc[section].push(`${label}: ${cleanNew}`);
+        } else {
+          acc[section].push(`${label}: ${cleanOld} → ${cleanNew}`);
+        }
         return acc;
       }, {});
 
@@ -1169,6 +1175,7 @@ router.patch("/:orderNo/additionalInfo/:index", async (req, res) => {
   faxNo: "Fax No.",
   expShipDate: "Expected Ship Date",
   warranty: "Warranty",
+  yardWarrantyField: "Warranty Unit",
   stockNo: "Stock No.",
   trackingNo: "Tracking No.",
   eta: "ETA",

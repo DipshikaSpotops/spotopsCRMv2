@@ -35,6 +35,7 @@ const gmailMessageSchema = new mongoose.Schema(
     claimedBy: { type: String, default: null, index: true },
     claimedAt: { type: Date, default: null },
     labels: { type: [String], default: [] },
+    bodyHtml: { type: String },
   },
   {
     timestamps: true,

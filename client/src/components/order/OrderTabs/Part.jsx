@@ -3,8 +3,21 @@ import Input from "../../ui/Input";
 
 export default function PartTab({ order }) {
   // Determine warranty label based on warrantyField (default to "days" if empty)
-  const warrantyField = order?.warrantyField || "days";
-  const warrantyLabel = `Warranty (${warrantyField})`;
+  const warrantyField = (order?.warrantyField || "days").toString().toLowerCase();
+  const warrantyValue = Number(order?.warranty) || 0;
+  
+  // Handle pluralization based on warranty value
+  let displayUnit;
+  if (warrantyField === "months") {
+    displayUnit = warrantyValue === 1 ? "Month" : "Months";
+  } else if (warrantyField === "years") {
+    displayUnit = warrantyValue === 1 ? "Year" : "Years";
+  } else {
+    // Default to days
+    displayUnit = warrantyValue === 1 ? "Day" : "Days";
+  }
+  
+  const warrantyLabel = `Warranty (${displayUnit})`;
 
   const rows = [
     [

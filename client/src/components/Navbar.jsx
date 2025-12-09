@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { useDispatch } from "react-redux";
 import { logout as logoutAction } from "../store/authSlice";
 import { clearStoredAuth } from "../utils/authStorage";
+import API from "../api";
 
 export default function Navbar() {
   const navigate = useNavigate();
@@ -12,6 +13,7 @@ export default function Navbar() {
   const [userName, setUserName] = useState("");
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
+  const [searchLoading, setSearchLoading] = useState(false);
   const dropdownRef = useRef(null);
 
   // --- Single read path for user name ---
@@ -96,21 +98,102 @@ export default function Navbar() {
         <div className="flex items-center space-x-4" ref={dropdownRef}>
           {/* Search */}
           <form
-            onSubmit={(e) => {
+            onSubmit={async (e) => {
               e.preventDefault();
+              if (searchLoading) return;
+
               const value = e.target.elements.orderSearch?.value?.trim();
-              if (value) {
-                navigate(`/order-details?orderNo=${encodeURIComponent(value)}`);
+              if (!value) return;
+
+              try {
+                setSearchLoading(true);
+
+                // If exactly 4 digits, try to find order where orderNo ends with those digits
+                const is4Digits = /^\d{4}$/.test(value);
+                let orders = [];
+
+                if (is4Digits) {
+                  // For 4-digit search: search broadly, then filter to only orders where orderNo ends with those 4 digits
+                  // Do NOT fall back to regular search if no match - user specifically searched for last 4 digits
+                  try {
+                    const exactRes = await API.get("/orders/ordersPerPage", {
+                      params: {
+                        page: 1,
+                        limit: 500, // Get many results to ensure we find the match
+                        // Use searchTerm to narrow results, but we'll filter client-side to only orderNo matches
+                        searchTerm: value,
+                        sortBy: "orderDate",
+                        sortOrder: "desc",
+                      },
+                    });
+                    const allOrders = exactRes?.data?.orders || [];
+                    // STRICT FILTER: Only orders where orderNo ends with these 4 digits (case-insensitive)
+                    orders = allOrders.filter((order) => {
+                      const orderNo = String(order.orderNo || "").trim();
+                      // Match ONLY if orderNo ends with the 4 digits (case-insensitive)
+                      return orderNo.toLowerCase().endsWith(value.toLowerCase());
+                    });
+                    // Sort by most recent first (already sorted by API, but ensure it)
+                    orders.sort((a, b) => {
+                      const dateA = new Date(a.orderDate || 0);
+                      const dateB = new Date(b.orderDate || 0);
+                      return dateB - dateA;
+                    });
+                    console.log(`Found ${orders.length} orders ending with ${value} out of ${allOrders.length} total results`);
+                  } catch (exactErr) {
+                    console.warn("4-digit search failed:", exactErr);
+                  }
+                  // IMPORTANT: For 4-digit searches, do NOT fall back to regular search
+                  // If no order number ends with these digits, show "Order not found"
+                } else {
+                  // If not 4 digits, use regular fuzzy search
+                  const res = await API.get("/orders/ordersPerPage", {
+                    params: {
+                      page: 1,
+                      limit: 1,
+                      searchTerm: value,
+                      sortBy: "orderDate",
+                      sortOrder: "desc",
+                    },
+                  });
+                  orders = res?.data?.orders || [];
+                }
+
+                if (orders.length > 0 && orders[0].orderNo) {
+                  navigate(
+                    `/order-details?orderNo=${encodeURIComponent(
+                      orders[0].orderNo
+                    )}`
+                  );
+                  setDropdownOpen(false);
+                } else {
+                  // Navigate to order details page - it will show "Order not found" message
+                  navigate(
+                    `/order-details?orderNo=${encodeURIComponent(value)}`
+                  );
+                  setDropdownOpen(false);
+                }
+              } catch (err) {
+                console.error("Order search failed:", err);
+                // Navigate to order details page - it will show the error message
+                navigate(
+                  `/order-details?orderNo=${encodeURIComponent(value)}`
+                );
                 setDropdownOpen(false);
+              } finally {
+                setSearchLoading(false);
               }
             }}
           >
             <input
               name="orderSearch"
               type="text"
-              placeholder="Search order no."
+              placeholder={
+                searchLoading ? "Searching..." : "Search order no."
+              }
+              disabled={searchLoading}
               className={`px-3 py-1 rounded-md focus:outline-none focus:ring focus:ring-[#c40505] w-40 sm:w-52 
-                ${isDarkMode ? "bg-gray-800 text-white border border-gray-600" : "bg-white text-black"}`}
+                ${isDarkMode ? "bg-gray-800 text-white border border-gray-600" : "bg-white text-black"} ${searchLoading ? "opacity-70 cursor-not-allowed" : ""}`}
             />
           </form>
 

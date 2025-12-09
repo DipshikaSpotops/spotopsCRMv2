@@ -88,6 +88,10 @@ export default function YardEscalationModal({
   const [showReturnFileInput, setShowReturnFileInput] = useState(false);
   const closeTimerRef = useRef(null);
   const [pendingConfirmation, setPendingConfirmation] = useState(null);
+  // State for "Others" shipper inputs
+  const [otherShipperReplacement, setOtherShipperReplacement] = useState("");
+  const [otherYardShipper, setOtherYardShipper] = useState("");
+  const [otherShipperReturn, setOtherShipperReturn] = useState("");
 
   const rootApiBase = useMemo(() => {
     const base = API?.defaults?.baseURL || "";
@@ -149,6 +153,29 @@ export default function YardEscalationModal({
       custReturnDelivery: toStr(yard?.custReturnDelivery) || "",
       shipToReturn: defaultShipToReturn,
     };
+    // Initialize "Others" shipper fields - if saved shipper is not in SHIPPERS list, it's a custom value
+    const savedReplacementShipper = toStr(yard?.customerShipperReplacement);
+    const savedYardShipper = toStr(yard?.yardShipper);
+    const savedReturnShipper = toStr(yard?.customerShipperReturn);
+    setOtherShipperReplacement(
+      savedReplacementShipper && !SHIPPERS.includes(savedReplacementShipper) ? savedReplacementShipper : ""
+    );
+    setOtherYardShipper(
+      savedYardShipper && !SHIPPERS.includes(savedYardShipper) ? savedYardShipper : ""
+    );
+    setOtherShipperReturn(
+      savedReturnShipper && !SHIPPERS.includes(savedReturnShipper) ? savedReturnShipper : ""
+    );
+    // If saved shipper is custom, set the dropdown to "Others"
+    if (savedReplacementShipper && !SHIPPERS.includes(savedReplacementShipper)) {
+      next.customerShipperReplacement = "Others";
+    }
+    if (savedYardShipper && !SHIPPERS.includes(savedYardShipper)) {
+      next.yardShipper = "Others";
+    }
+    if (savedReturnShipper && !SHIPPERS.includes(savedReturnShipper)) {
+      next.customerShipperReturn = "Others";
+    }
     setState(next);
     setToast("");
   }, [open, yard, defaultShipToReplacement, defaultShipToReturn]);
@@ -309,7 +336,10 @@ useEffect(() => {
       payload.yardShippingMethod = state.yardShippingMethod;
       payload.yardOwnShipping =
         state.yardShippingMethod === "Own shipping" ? state.yardOwnShipping : "";
-      payload.yardShipper = state.yardShipper;
+      payload.yardShipper = 
+        state.yardShipper === "Others" 
+          ? toStr(otherYardShipper) 
+          : state.yardShipper;
       payload.yardTrackingNumber = state.yardTrackingNumber;
       payload.yardTrackingETA = state.yardTrackingETA;
       payload.yardTrackingLink = state.yardTrackingLink;
@@ -347,7 +377,10 @@ useEffect(() => {
           state.customerShippingMethodReplacement === "Own shipping"
             ? state.custOwnShipReplacement
             : "";
-        payload.customerShipperReplacement = state.customerShipperReplacement;
+        payload.customerShipperReplacement = 
+          state.customerShipperReplacement === "Others" 
+            ? toStr(otherShipperReplacement) 
+            : state.customerShipperReplacement;
         payload.customerTrackingNumberReplacement =
           state.customerTrackingNumberReplacement;
         payload.customerETAReplacement = state.customerETAReplacement;
@@ -378,7 +411,10 @@ useEffect(() => {
         state.customerShippingMethodReturn === "Own shipping"
           ? state.custOwnShippingReturn
           : "";
-      payload.customerShipperReturn = state.customerShipperReturn;
+      payload.customerShipperReturn = 
+        state.customerShipperReturn === "Others" 
+          ? toStr(otherShipperReturn) 
+          : state.customerShipperReturn;
       payload.returnTrackingCust = state.returnTrackingCust;
       payload.custretPartETA = state.custretPartETA;
       payload.custReturnDelivery = state.custReturnDelivery;
@@ -421,6 +457,11 @@ useEffect(() => {
         setToast("Select the shipper name before saving.");
         return null;
       }
+      if (state.customerShipperReplacement === "Others" && !requireField(otherShipperReplacement)) {
+        setToastPersistent(true);
+        setToast("Please specify the other shipper name for replacement.");
+        return null;
+      }
       if (!requireField(state.customerTrackingNumberReplacement)) {
         setToastPersistent(true);
         setToast("Enter the tracking number before saving.");
@@ -455,6 +496,11 @@ useEffect(() => {
       if (!requireField(state.customerShipperReturn)) {
         setToastPersistent(true);
         setToast("Select the return shipper before saving.");
+        return null;
+      }
+      if (state.customerShipperReturn === "Others" && !requireField(otherShipperReturn)) {
+        setToastPersistent(true);
+        setToast("Please specify the other shipper name for return.");
         return null;
       }
       if (!requireField(state.returnTrackingCust)) {
@@ -526,6 +572,7 @@ useEffect(() => {
         !requireField(state.yardShippingStatus) ||
         !requireField(state.yardShippingMethod) ||
         !requireField(state.yardShipper) ||
+        (state.yardShipper === "Others" && !requireField(otherYardShipper)) ||
         !requireField(state.yardTrackingNumber) ||
         !requireField(state.yardTrackingLink)
       ) {
@@ -899,6 +946,7 @@ useEffect(() => {
       !requireField(state.yardShippingStatus) ||
       !requireField(state.yardShippingMethod) ||
       !requireField(state.yardShipper) ||
+      (state.yardShipper === "Others" && !requireField(otherYardShipper)) ||
       !requireField(state.yardTrackingNumber)
     ) {
       setToastPersistent(true);
@@ -917,7 +965,7 @@ useEffect(() => {
         {
           trackingNo: state.yardTrackingNumber,
           eta: state.yardTrackingETA,
-          shipperName: state.yardShipper,
+          shipperName: state.yardShipper === "Others" ? toStr(otherYardShipper) : state.yardShipper,
           link: state.yardTrackingLink,
           firstName,
         },
@@ -1311,6 +1359,16 @@ useEffect(() => {
                         </option>
                       ))}
                     </select>
+                    {state.customerShipperReplacement === "Others" && (
+                      <input
+                        type="text"
+                        value={otherShipperReplacement}
+                        onChange={(e) => setOtherShipperReplacement(e.target.value)}
+                        className="mt-2 w-full rounded-lg border border-white/30 bg-white/10 px-3 py-2 text-white outline-none placeholder:text-white/40 dark:bg-white/10 dark:border-white/30 dark:text-white"
+                        placeholder="Please specify other shipper"
+                        disabled={disableReplacementCustomerFields}
+                      />
+                    )}
                   </div>
                   <div>
                     <label className="block text-white/80">Tracking No</label>
@@ -1410,6 +1468,15 @@ useEffect(() => {
                         </option>
                       ))}
                     </select>
+                    {state.yardShipper === "Others" && (
+                      <input
+                        type="text"
+                        value={otherYardShipper}
+                        onChange={(e) => setOtherYardShipper(e.target.value)}
+                        className="mt-2 w-full rounded-lg border border-white/30 bg-white/10 px-3 py-2 text-white outline-none placeholder:text-white/40 dark:bg-white/10 dark:border-white/30 dark:text-white"
+                        placeholder="Please specify other shipper"
+                      />
+                    )}
                   </div>
                   <div>
                     <label className="block text-white/80">Tracking No</label>
@@ -1579,6 +1646,15 @@ useEffect(() => {
                       </option>
                     ))}
                   </select>
+                  {state.customerShipperReturn === "Others" && (
+                    <input
+                      type="text"
+                      value={otherShipperReturn}
+                      onChange={(e) => setOtherShipperReturn(e.target.value)}
+                      className="mt-2 w-full rounded-lg border border-white/30 bg-white/10 px-3 py-2 text-white outline-none placeholder:text-white/40 dark:bg-white/10 dark:border-white/30 dark:text-white"
+                      placeholder="Please specify other shipper"
+                    />
+                  )}
                 </div>
                 <div>
                   <label className="block text-white/80">Return Tracking No</label>

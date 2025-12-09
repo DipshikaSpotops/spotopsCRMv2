@@ -80,9 +80,14 @@ router.get('/', requireAuth, allow('Admin', 'Sales', 'Support'), async (req, res
         { orderNo: rx }, { customerName: rx }, { fName: rx }, { lName: rx },
         { salesAgent: rx }, { phone: rx }, { email: rx }, { pReq: rx },
         { desc: rx }, { partNo: rx }, { make: rx }, { model: rx },
+        { trackingNo: rx }, // top-level trackingNo (if exists)
         { additionalInfo: { $elemMatch: { yardName: rx } } },
         { additionalInfo: { $elemMatch: { status: rx } } },
         { additionalInfo: { $elemMatch: { expShipDate: rx } } },
+        { additionalInfo: { $elemMatch: { trackingNo: rx } } }, // trackingNo array within additionalInfo (regex matches any element)
+        { additionalInfo: { $elemMatch: { customerTrackingNumberReplacement: rx } } },
+        { additionalInfo: { $elemMatch: { yardTrackingNumber: rx } } },
+        { additionalInfo: { $elemMatch: { returnTrackingCust: rx } } },
       ];
       const maybeNum = Number(q.trim());
       if (Number.isFinite(maybeNum)) {
