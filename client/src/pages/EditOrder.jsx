@@ -315,7 +315,8 @@ export default function EditOrder() {
 
   // Fetch order when order number is entered
   const handleLoadOrder = async (orderNo = null) => {
-    const orderNoToLoad = orderNo || orderNoInput.trim();
+    // Normalize order number: trim whitespace and handle any encoding issues
+    const orderNoToLoad = (orderNo || orderNoInput || "").trim();
     if (!orderNoToLoad) {
       setToast({ message: "Please enter an order number.", variant: "error" });
       return;
@@ -324,7 +325,9 @@ export default function EditOrder() {
     setLoadingOrder(true);
     setToast(null);
     try {
-      const res = await API.get(`/orders/${encodeURIComponent(orderNoToLoad)}`);
+      // Encode the order number for URL, but ensure it's properly trimmed first
+      const encodedOrderNo = encodeURIComponent(orderNoToLoad);
+      const res = await API.get(`/orders/${encodedOrderNo}`);
       const order = res.data;
 
       // Format order date if it exists

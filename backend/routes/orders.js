@@ -514,9 +514,29 @@ router.put("/:orderNo", async (req, res) => {
 
 // Get order by orderNo
 router.get("/:orderNo", async (req, res) => {
-  const order = await Order.findOne({ orderNo: req.params.orderNo });
-  if (!order) return res.status(404).json({ message: "Order not found" });
-  res.json(order);
+  try {
+    // Decode and trim the order number to handle URL encoding and whitespace
+    const orderNoParam = decodeURIComponent(req.params.orderNo).trim();
+    
+    // Try exact match first (most common case)
+    let order = await Order.findOne({ orderNo: orderNoParam });
+    
+    // If not found, try case-insensitive search as fallback
+    if (!order) {
+      order = await Order.findOne({ 
+        orderNo: { $regex: new RegExp(`^${orderNoParam.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') }
+      });
+    }
+    
+    if (!order) {
+      return res.status(404).json({ message: "Order not found" });
+    }
+    
+    res.json(order);
+  } catch (err) {
+    console.error("Error fetching order:", err);
+    res.status(500).json({ message: "Error fetching order" });
+  }
 });
 
 // Refund/cancellation updates
