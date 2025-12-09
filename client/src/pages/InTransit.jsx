@@ -6,11 +6,11 @@ import OrdersTable from "../components/OrdersTable";
 const columns = [
   { key: "orderDate",     label: "Order Date" },
   { key: "orderNo",       label: "Order No" },
-  { key: "pReq",          label: "Part Info" },
-  { key: "salesAgent",    label: "Sales Agent" },
+  { key: "pReq",          label: "Part Name" },
+  // { key: "salesAgent",    label: "Sales Agent" },
   { key: "customerName",  label: "Customer Info" },
   { key: "yardName",      label: "Yard Details" },
-  { key: "lastComment",   label: "Last Comment" }, // <- custom render below
+  // { key: "lastComment",   label: "Last Comment" }, // <- custom render below
   // { key: "orderStatus",   label: "Order Status" },
 ];
 
@@ -72,116 +72,98 @@ export default function InTransitOrders() {
 
     switch (key) {
       case "orderDate":
-        return formatDateSafe(row.orderDate);
+        return <div className="text-base">{formatDateSafe(row.orderDate)}</div>;
 
       case "orderNo":
         return (
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="whitespace-nowrap">{row.orderNo || "—"}</span>
-            <button
+            <span className="whitespace-nowrap text-base">{row.orderNo || "—"}</span>
+            {/* <button
               onClick={(e) => { e.stopPropagation(); toggleExpand(row); }}
               className="text-blue-400 text-xs underline hover:text-blue-300 whitespace-nowrap shrink-0"
             >
               {open ? "Hide Details" : "Show Details"}
-            </button>
+            </button> */}
           </div>
         );
 
       case "pReq":
         return (
-          <div>
-            <div>{row.pReq || row.partName || "—"}</div>
-            {open && (
-              <div className="mt-2 border-t border-white/20 pt-2 text-xs space-y-1">
-                <b>{row.year} {row.make} {row.model}</b>
-                <div><b>Desc:</b> {row.desc}</div>
-                <div><b>Part No:</b> {row.partNo}</div>
-                <div><b>VIN:</b> {row.vin}</div>
-                <div><b>Warranty:</b> {row.warranty} days</div>
-                <div><b>Programming:</b> {row.programmingRequired ? "Yes" : "No"}</div>
-              </div>
-            )}
+          <div className="text-base">
+            {row.pReq || row.partName || "—"}
           </div>
         );
 
-      case "salesAgent":
-        return row.salesAgent || "—";
+      // case "salesAgent":
+      //   return row.salesAgent || "—";
 
       case "customerName":
+        const customerName = row.fName && row.lName 
+          ? `${row.fName} ${row.lName}` 
+          : row.customerName || "—";
+        const address = row.sAddressStreet && row.sAddressCity && row.sAddressState && row.sAddressZip
+          ? `${row.sAddressStreet}, ${row.sAddressCity}, ${row.sAddressState} ${row.sAddressZip}`
+          : row.sAddressStreet || row.sAddressCity || row.sAddressState || row.sAddressZip
+            ? `${row.sAddressStreet || ""}, ${row.sAddressCity || ""}, ${row.sAddressState || ""} ${row.sAddressZip || ""}`.replace(/^,\s*|,\s*$/g, "").trim() || "—"
+            : "—";
         return (
-          <div>
-            <div>{row.fName && row.lName ? `${row.fName} ${row.lName}` : (row.customerName || "—")}</div>
-            {open && (
-              <div className="mt-2 border-t border-white/20 pt-2 text-xs space-y-1">
-                <div><b>Email:</b> {row.email}</div>
-                <div><b>Phone:</b> {row.phone}</div>
-                <div>
-                  <b>Address:</b> {row.sAddressStreet}, {row.sAddressCity}, {row.sAddressState}, {row.sAddressZip}
-                </div>
-              </div>
-            )}
+          <div className="text-base space-y-1">
+            <div className="border-b border-white/20 pb-0.5 inline-block">{customerName}</div>
+            <div>{address}</div>
           </div>
         );
 
       case "yardName": {
         const yards = Array.isArray(row.additionalInfo) ? row.additionalInfo : [];
         const hasAnyYard = yards.some(y => (y?.yardName || "").trim().length > 0);
-        if (!hasAnyYard) return <span className="font-medium">—</span>;
+        if (!hasAnyYard) return <span className="font-medium text-base">—</span>;
 
         return (
           <div className="space-y-2 max-w-full">
-            <div className="flex-1 text-white">
-              {yards.map((y, idx) => (
-                <div key={idx} className="font-medium break-words overflow-wrap-anywhere">
-                  {y?.yardName || ""}
-                </div>
-              ))}
-            </div>
-
-            {open && (
-              <div className="mt-2 text-sm text-white/80 space-y-2">
-                {yards.map((yard, i) => {
-                  const d = computeYardDerived(yard);
-                  return (
-                    <div key={i} className="border-t border-white/15 pt-2">
-                      <div><b>Yard:</b> {yard?.yardName || "N/A"}</div>
-                      <div><b>Status:</b> {yard?.status || "N/A"}</div>
-                      <div><b>Expected Ship:</b> {yard?.expShipDate || "N/A"}</div>
-                      <div><b>Expedite:</b> {yard?.expediteShipping === "true" ? "Yes" : "No"}</div>
-                      <div className="text-xs opacity-80 pt-1">
-                        <b>Part Price:</b> {currency(d.partPrice)} • <b>Shipping:</b> {currency(d.shippingCost)} • <b>Others:</b> {currency(d.others)}
-                      </div>
+            <div className="flex-1 text-white text-base">
+              {yards.map((y, idx) => {
+                const trackingNo = Array.isArray(y?.trackingNo) && y.trackingNo.length > 0
+                  ? y.trackingNo.filter(t => t && String(t).trim()).join(", ") || "N/A"
+                  : y?.trackingNo && String(y.trackingNo).trim()
+                    ? String(y.trackingNo)
+                    : "N/A";
+                
+                return (
+                  <div key={idx} className="font-medium break-words overflow-wrap-anywhere space-y-1">
+                    <div className="border-b border-white/20 pb-0.5 inline-block">{y?.yardName || ""}</div>
+                    <div className="text-sm opacity-90">
+                      <b>Tracking No:</b> {trackingNo}
                     </div>
-                  );
-                })}
-              </div>
-            )}
+                  </div>
+                );
+              })}
+            </div>
           </div>
         );
       }
 
-      case "lastComment": {
-        // last note from the last additionalInfo item
-        const ai = Array.isArray(row.additionalInfo) ? row.additionalInfo : [];
-        const lastAI = ai.length ? ai[ai.length - 1] : null;
-        const n = lastAI?.notes;
-        const text = Array.isArray(n)
-          ? String(n[n.length - 1] ?? "").trim()
-          : String(n ?? "").trim();
+      // case "lastComment": {
+      //   // last note from the last additionalInfo item
+      //   const ai = Array.isArray(row.additionalInfo) ? row.additionalInfo : [];
+      //   const lastAI = ai.length ? ai[ai.length - 1] : null;
+      //   const n = lastAI?.notes;
+      //   const text = Array.isArray(n)
+      //     ? String(n[n.length - 1] ?? "").trim()
+      //     : String(n ?? "").trim();
 
-        return (
-          <div
-            className="
-              text-sm leading-snug
-              whitespace-normal break-words
-              max-w-full
-              [overflow-wrap:anywhere]
-            "
-          >
-            {text || "N/A"}
-          </div>
-        );
-      }
+      //   return (
+      //     <div
+      //       className="
+      //         text-sm leading-snug
+      //         whitespace-normal break-words
+      //         max-w-full
+      //         [overflow-wrap:anywhere]
+      //       "
+      //     >
+      //       {text || "N/A"}
+      //     </div>
+      //   );
+      // }
 
       // case "orderStatus":
       //   return row.orderStatus || "";
@@ -211,45 +193,39 @@ export default function InTransitOrders() {
           word-wrap: break-word !important;
           overflow-wrap: break-word !important;
           white-space: normal !important;
+          font-size: 0.9rem !important; /* Slightly smaller font size */
         }
-        /* Yard Details and Last Comment - wider and equal */
-        .in-transit-table-wrapper table th:nth-child(6),
-        .in-transit-table-wrapper table td:nth-child(6) {
-          width: 21% !important;
-          min-width: 21% !important;
-        }
-        .in-transit-table-wrapper table th:nth-child(7),
-        .in-transit-table-wrapper table td:nth-child(7) {
-          width: 21% !important;
-          min-width: 21% !important;
-        }
-        /* Order No column - wider to show "Show Det" button */
-        .in-transit-table-wrapper table th:nth-child(2),
-        .in-transit-table-wrapper table td:nth-child(2) {
-          width: 11% !important;
-        }
-        /* Order Date and Part Name columns */
-        .in-transit-table-wrapper table th:nth-child(1),
-        .in-transit-table-wrapper table td:nth-child(1),
-        .in-transit-table-wrapper table th:nth-child(3),
-        .in-transit-table-wrapper table td:nth-child(3) {
-          width: 7% !important;
-        }
-        /* Sales Agent column - wider for header */
-        .in-transit-table-wrapper table th:nth-child(4),
-        .in-transit-table-wrapper table td:nth-child(4) {
-          width: 9% !important;
-        }
-        /* Customer Name column - wider for header */
+        /* Yard Details - wider */
         .in-transit-table-wrapper table th:nth-child(5),
         .in-transit-table-wrapper table td:nth-child(5) {
-          width: 11% !important;
+          width: 28% !important;
+          min-width: 28% !important;
+        }
+        /* Order Date column - narrower */
+        .in-transit-table-wrapper table th:nth-child(1),
+        .in-transit-table-wrapper table td:nth-child(1) {
+          width: 8% !important;
+        }
+        /* Order No column - narrower */
+        .in-transit-table-wrapper table th:nth-child(2),
+        .in-transit-table-wrapper table td:nth-child(2) {
+          width: 10% !important;
+        }
+        /* Part Name column - wider to use the space */
+        .in-transit-table-wrapper table th:nth-child(3),
+        .in-transit-table-wrapper table td:nth-child(3) {
+          width: 20% !important;
+        }
+        /* Customer Info column - wider for header */
+        .in-transit-table-wrapper table th:nth-child(4),
+        .in-transit-table-wrapper table td:nth-child(4) {
+          width: 24% !important;
         }
         /* Actions column - narrower */
         .in-transit-table-wrapper table th:last-child,
         .in-transit-table-wrapper table td:last-child {
-          width: 6% !important;
-          min-width: 6% !important;
+          width: 10% !important;
+          min-width: 10% !important;
         }
       `}</style>
       <OrdersTable
