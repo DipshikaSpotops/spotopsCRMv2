@@ -52,7 +52,11 @@ export default function YardList({
       // Otherwise, preserve current selection - don't reset on updates
       // If parent provided activeYardIndex, use it; otherwise keep current activeIdx
       if (activeYardIndex !== undefined && activeYardIndex !== null) {
-        setActiveIdx(activeYardIndex);
+        // Only update if it's different to avoid unnecessary re-renders and loops
+        if (activeIdx !== activeYardIndex) {
+          setActiveIdx(activeYardIndex);
+          // Don't call onActiveYardChange here - parent already knows the value
+        }
       }
       prevYardsLengthRef.current = currentLength;
       return;
@@ -131,6 +135,29 @@ export default function YardList({
           background-color: #ea580c !important;
           background: #ea580c !important;
         }
+        html:not(.dark) .order-details-page .flex.gap-2.rounded-lg button.yard-po-cancelled,
+        html:not(.dark) .order-details-page .flex.gap-2.rounded-lg button[data-yard-po-cancelled],
+        html:not(.dark) .order-details-page .flex.gap-2.rounded-lg button[data-yard-po-cancelled-active],
+        html:not(.dark) button.yard-po-cancelled,
+        html:not(.dark) button[data-yard-po-cancelled],
+        html:not(.dark) button[data-yard-po-cancelled-active] {
+          background-color: #6b7280 !important;
+          background: #6b7280 !important;
+          color: white !important;
+          border-color: #6b7280 !important;
+        }
+        html:not(.dark) .order-details-page .flex.gap-2.rounded-lg button.yard-po-cancelled:hover,
+        html:not(.dark) .order-details-page .flex.gap-2.rounded-lg button[data-yard-po-cancelled]:hover,
+        html:not(.dark) button.yard-po-cancelled:hover,
+        html:not(.dark) button[data-yard-po-cancelled]:hover {
+          background-color: #4b5563 !important;
+          background: #4b5563 !important;
+        }
+        html:not(.dark) .order-details-page .flex.gap-2.rounded-lg button[data-yard-po-cancelled-active],
+        html:not(.dark) button[data-yard-po-cancelled-active] {
+          background-color: #4b5563 !important;
+          background: #4b5563 !important;
+        }
       `}</style>
     <GlassCard
       className="h-full flex flex-col"
@@ -141,25 +168,38 @@ export default function YardList({
             const isActive = effectiveActiveIdx === idx;
             const paymentStatus = String(y?.paymentStatus || "").trim().toLowerCase();
             const refundStatus = String(y?.refundStatus || "").trim().toLowerCase();
+            const yardStatus = String(y?.status || "").trim().toLowerCase();
             
             const isCardCharged = paymentStatus === "card charged";
             const isRefundCollected = refundStatus === "refund collected";
+            // Check for PO cancelled with various formats
+            const isPOCancelled = yardStatus.includes("po cancelled") || 
+                                  yardStatus.includes("po canceled") ||
+                                  yardStatus === "po cancelled" || 
+                                  yardStatus === "po canceled";
 
             // Debug
             if (idx < 3) {
-              console.log(`Yard ${idx + 1}: paymentStatus="${paymentStatus}", refundStatus="${refundStatus}", isCardCharged=${isCardCharged}, isRefundCollected=${isRefundCollected}`);
+              console.log(`Yard ${idx + 1}: paymentStatus="${paymentStatus}", refundStatus="${refundStatus}", yardStatus="${yardStatus}", isCardCharged=${isCardCharged}, isRefundCollected=${isRefundCollected}, isPOCancelled=${isPOCancelled}`);
             }
 
             let bgClasses = "";
             let dataAttr = "";
 
             if (isCardCharged && isRefundCollected) {
-              // Orange when both card charged and refund collected
+              // Orange when both card charged and refund collected (highest priority)
               dataAttr = isActive ? "data-yard-refund-collected-active" : "data-yard-refund-collected";
               // Only dark mode classes - light mode handled by CSS
               bgClasses = isActive
                 ? "yard-refund-collected shadow-inner dark:bg-[#ea580c] dark:text-white"
                 : "yard-refund-collected dark:bg-[#f97316] dark:text-black dark:hover:bg-[#ea580c]";
+            } else if (isPOCancelled) {
+              // Grey when PO cancelled (overrides card charged, but not orange combo)
+              dataAttr = isActive ? "data-yard-po-cancelled-active" : "data-yard-po-cancelled";
+              // Only dark mode classes - light mode handled by CSS
+              bgClasses = isActive
+                ? "yard-po-cancelled shadow-inner dark:bg-gray-600 dark:text-white"
+                : "yard-po-cancelled dark:bg-gray-500 dark:text-white dark:hover:bg-gray-600";
             } else if (isCardCharged) {
               // Black when card charged only
               dataAttr = isActive ? "data-yard-card-charged-active" : "data-yard-card-charged";
