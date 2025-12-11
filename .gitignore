@@ -7,6 +7,9 @@ client/.env
 credentials.json
 backend/credentials.json
 **/credentials.json
+token.json
+backend/token.json
+**/token.json
 
 # ===== Node & Dependencies =====
 node_modules/
