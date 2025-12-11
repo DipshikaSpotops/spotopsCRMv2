@@ -203,7 +203,7 @@
 //       {showCalendar && (
 //         <div
 //           ref={popoverRef}
-//           className="fixed z-50 bg-white shadow-lg rounded-lg p-3"
+//           className="fixed z-[9999] bg-white shadow-lg rounded-lg p-3"
 //           style={{
 //             top: popoverPos.top,
 //             left: popoverPos.left,
@@ -258,6 +258,7 @@
 
 // export default UnifiedDatePicker;
 import React, { useState, useRef, useEffect, useLayoutEffect, useMemo } from "react";
+import { createPortal } from "react-dom";
 import { DateRange } from "react-date-range";
 import moment from "moment-timezone";
 import "react-date-range/dist/styles.css";
@@ -463,7 +464,7 @@ const UnifiedDatePicker = ({
       top = btnRect.top - margin - height;
     }
 
-    let left = btnRect.right - width;
+    let left = btnRect.left; // Align left edge of popover with left edge of button
     if (left < margin) left = margin;
     if (left + width > vw - margin) left = vw - margin - width;
 
@@ -625,7 +626,7 @@ const UnifiedDatePicker = ({
   const shownDateProp = shownDate;
 
   return (
-    <div className="relative inline-block" ref={wrapperRef}>
+    <div className="relative inline-block" ref={wrapperRef} style={{ zIndex: 1 }}>
       <button
         ref={triggerRef}
         onClick={() => setShowCalendar((s) => !s)}
@@ -639,10 +640,10 @@ const UnifiedDatePicker = ({
       </button>
 
 
-      {showCalendar && (
+      {showCalendar && createPortal(
         <div
           ref={popoverRef}
-          className="fixed z-50 bg-white shadow-lg rounded-lg p-3"
+          className="fixed z-[99999] bg-white shadow-lg rounded-lg p-3"
           style={{
             top: popoverPos.top,
             left: popoverPos.left,
@@ -650,6 +651,8 @@ const UnifiedDatePicker = ({
             maxWidth: "90vw",
             maxHeight: "90vh",
             overflow: "auto",
+            isolation: "isolate",
+            willChange: "transform",
           }}
         >
           <div className="flex justify-end gap-3 mb-2 flex-wrap text-xs">
@@ -690,7 +693,8 @@ const UnifiedDatePicker = ({
               Close
             </button>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

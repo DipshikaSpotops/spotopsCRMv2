@@ -49,7 +49,7 @@ export default function Sidebar() {
     { text: "Fulfilled Orders", to: "/fulfilled-orders" },
     { text: "Overall Escalation", to: "/overall-escalation" },
     { text: "Ongoing Escalation", to: "/ongoing-escalation" },
-    { text: "Leads", to: "/leads" },
+    { text: "Leads", to: "/leads", roles: ["Admin", "Sales"] },
   ];
 
   const usersLinksBase = [
@@ -88,7 +88,13 @@ export default function Sidebar() {
       "Overall Escalation",
       "Ongoing Escalation",
     ]);
-    dashboardLinks = dashboardLinksBase.filter((l) => !hiddenForSales.has(l.text) && !l.adminOnly);
+    dashboardLinks = dashboardLinksBase.filter((l) => {
+      // Filter out hidden items and adminOnly items
+      if (hiddenForSales.has(l.text) || l.adminOnly) return false;
+      // If link has roles array, check if Sales is included
+      if (l.roles && !l.roles.includes("Sales")) return false;
+      return true;
+    });
 
     // Hide Users block entirely
     showUsersSection = false;
@@ -99,7 +105,13 @@ export default function Sidebar() {
   } else if (role === "Support") {
     // Hide "Sales Data" and "Add New Order" from Dashboards
     const hiddenForSupport = new Set(["Sales Data", "Add New Order"]);
-    dashboardLinks = dashboardLinksBase.filter((l) => !hiddenForSupport.has(l.text) && !l.adminOnly);
+    dashboardLinks = dashboardLinksBase.filter((l) => {
+      // Filter out hidden items and adminOnly items
+      if (hiddenForSupport.has(l.text) || l.adminOnly) return false;
+      // If link has roles array, check if Support is included
+      if (l.roles && !l.roles.includes("Support")) return false;
+      return true;
+    });
 
     // Hide Users block entirely
     showUsersSection = false;
@@ -110,7 +122,12 @@ export default function Sidebar() {
   } else {
     // Admin: see everything (no filtering, but keep adminOnly links)
     showUsersSection = true;
-    dashboardLinks = dashboardLinksBase; // Admins see all links including adminOnly
+    // Filter to only show links that Admin has access to (roles array includes Admin or no roles array)
+    dashboardLinks = dashboardLinksBase.filter((l) => {
+      // If link has roles array, check if Admin is included
+      if (l.roles && !l.roles.includes("Admin")) return false;
+      return true;
+    });
   }
 
   return (

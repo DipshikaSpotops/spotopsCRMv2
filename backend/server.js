@@ -83,6 +83,13 @@ app.use("/api/yards", yardsRouter);
 app.use("/api/utils/zip-lookup", zipLookupRouter);
 app.use("/debug", debugRouter);
 app.use("/api/gmail", gmailRouter);
+
+// Add redirect route for OAuth callback (in case credentials.json has wrong redirect URI)
+app.get("/oauth2/callback", (req, res) => {
+  // Redirect to the correct callback URL
+  const queryString = req.url.split("?")[1] || "";
+  res.redirect(`/api/gmail/oauth2/callback?${queryString}`);
+});
 // Catch-all /orders router LAST
 app.use("/api/orders", ordersRoute);
 
@@ -313,6 +320,149 @@ mongoose
 
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+
+// Background job: Proactively refresh Gmail OAuth tokens before they expire
+// This runs every hour to check and refresh tokens if needed
+import { getGmailClient } from "./services/googleAuth.js";
+import { startWatch } from "./services/gmailPubSubService.js";
+import GmailSyncState from "./models/GmailSyncState.js";
+
+// Refresh token on startup (with graceful error handling)
+setTimeout(async () => {
+  try {
+    await getGmailClient();
+    console.log("[Token Refresh] Initial token check completed");
+  } catch (err) {
+    // Don't log errors for missing token.json (expected if not configured)
+    if (err.message?.includes("Missing token.json")) {
+      return;
+    }
+    // For invalid_grant, just warn - email will still work from id_token
+    if (err.message?.includes("invalid_grant") || err.message?.includes("refresh token")) {
+      console.warn("[Token Refresh] Refresh token invalid - email will still be available from id_token");
+      console.warn("[Token Refresh] To fix Gmail API access, visit /api/gmail/oauth2/url to re-authorize");
+      return;
+    }
+    console.error("[Token Refresh] Initial check error:", err.message);
+  }
+}, 5000); // Wait 5 seconds after server starts
+
+// Periodic refresh job - runs every hour
+setInterval(async () => {
+  try {
+    // This will automatically refresh the token if it's expired or expiring soon
+    await getGmailClient();
+    console.log("[Token Refresh Job] Token check completed");
+  } catch (err) {
+    // Don't log errors for missing token.json (expected if not configured)
+    if (err.message?.includes("Missing token.json")) {
+      return;
+    }
+    // For invalid_grant, just warn - email will still work from id_token
+    if (err.message?.includes("invalid_grant") || err.message?.includes("refresh token")) {
+      console.warn("[Token Refresh Job] Refresh token invalid - email still available from id_token");
+      return;
+    }
+    console.error("[Token Refresh Job] Error:", err.message);
+  }
+}, 60 * 60 * 1000); // Run every hour
+
+// Gmail Watch Management: Auto-start and auto-renew watch
+async function initializeGmailWatch() {
+  // Wait for MongoDB to be connected
+  if (mongoose.connection.readyState !== 1) {
+    console.log("[Gmail Watch] Waiting for MongoDB connection...");
+    return;
+  }
+
+  // Check if Gmail Pub/Sub is configured
+  if (!process.env.GMAIL_PUBSUB_TOPIC) {
+    console.log("[Gmail Watch] GMAIL_PUBSUB_TOPIC not configured, skipping watch initialization");
+    return;
+  }
+
+  try {
+    // Check if we have a valid token
+    await getGmailClient();
+    
+    // Check existing watch state
+    const userEmail = (await import("./services/googleAuth.js")).getUserEmail() || process.env.GMAIL_IMPERSONATED_USER;
+    if (!userEmail) {
+      console.log("[Gmail Watch] No user email found, skipping watch initialization");
+      return;
+    }
+
+    const state = await GmailSyncState.findOne({ userEmail });
+    const now = new Date();
+    const oneDayFromNow = new Date(now.getTime() + 24 * 60 * 60 * 1000); // 1 day from now
+
+    // Check if watch exists and is still valid (not expired or expiring soon)
+    if (state?.expiration && new Date(state.expiration) > oneDayFromNow) {
+      console.log(`[Gmail Watch] Watch is active until ${state.expiration.toISOString()}, no action needed`);
+      return;
+    }
+
+    // Start or renew watch
+    console.log("[Gmail Watch] Starting/renewing Gmail watch...");
+    const result = await startWatch({
+      topicName: process.env.GMAIL_PUBSUB_TOPIC,
+      labelIds: (process.env.GMAIL_WATCH_LABELS || "INBOX,UNREAD").split(",").map(l => l.trim()).filter(Boolean),
+    });
+    
+    console.log(`[Gmail Watch] ✅ Watch started successfully. Expires: ${result.expiration ? new Date(Number(result.expiration)).toISOString() : "N/A"}`);
+  } catch (err) {
+    // Don't fail server startup if watch fails
+    if (err.message?.includes("Missing token.json")) {
+      console.log("[Gmail Watch] Token not configured, skipping watch initialization");
+      return;
+    }
+    if (err.message?.includes("invalid_grant") || err.message?.includes("refresh token")) {
+      console.warn("[Gmail Watch] Token invalid, skipping watch initialization. Re-authorize to enable auto-sync.");
+      return;
+    }
+    console.error("[Gmail Watch] Failed to initialize watch:", err.message);
+    console.error("[Gmail Watch] You can manually start watch via POST /api/gmail/watch");
+  }
+}
+
+// Auto-renew watch before expiration (check every 6 hours)
+async function checkAndRenewWatch() {
+  if (!process.env.GMAIL_PUBSUB_TOPIC) return;
+  
+  try {
+    const userEmail = (await import("./services/googleAuth.js")).getUserEmail() || process.env.GMAIL_IMPERSONATED_USER;
+    if (!userEmail) return;
+
+    const state = await GmailSyncState.findOne({ userEmail });
+    if (!state?.expiration) {
+      // No watch exists, try to start one
+      await initializeGmailWatch();
+      return;
+    }
+
+    const expiration = new Date(state.expiration);
+    const now = new Date();
+    const oneDayFromNow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+
+    // If watch expires within 24 hours, renew it
+    if (expiration <= oneDayFromNow) {
+      console.log(`[Gmail Watch] Watch expires soon (${expiration.toISOString()}), renewing...`);
+      await initializeGmailWatch();
+    }
+  } catch (err) {
+    console.error("[Gmail Watch] Error checking watch status:", err.message);
+  }
+}
+
+// Initialize watch after MongoDB connects and server starts
+mongoose.connection.once("open", () => {
+  console.log("[Gmail Watch] MongoDB connected, initializing Gmail watch...");
+  // Wait a bit for everything to be ready
+  setTimeout(initializeGmailWatch, 10000); // 10 seconds after MongoDB connects
+});
+
+// Check and renew watch every 6 hours
+setInterval(checkAndRenewWatch, 6 * 60 * 60 * 1000); // Every 6 hours
 
 // Export io if we still want it elsewhere
 export { io };

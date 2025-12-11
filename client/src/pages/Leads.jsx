@@ -3,6 +3,7 @@ import { formatDistanceToNow } from "date-fns";
 import { formatInTimeZone } from "date-fns-tz";
 import API from "../api";
 import AgentDropdown from "../components/AgentDropdown";
+import UnifiedDatePicker from "../components/UnifiedDatePicker";
 
 function readAuthFromStorage() {
   try {
@@ -152,7 +153,25 @@ export default function Leads() {
     return readAuthFromStorage();
   }, []);
   
+  // Only allow Admin and Sales roles to access this page
+  const isAdmin = role === "Admin";
   const isSales = role === "Sales";
+  const isAuthorized = isAdmin || isSales;
+  
+  // Show unauthorized message if user doesn't have access
+  if (!isAuthorized) {
+    return (
+      <div className="min-h-screen p-6 flex items-center justify-center">
+        <div className="text-center">
+          <h1 className="text-3xl font-bold text-red-400 mb-4">Access Denied</h1>
+          <p className="text-white/70">
+            This page is only accessible to Admin and Sales roles.
+          </p>
+          <p className="text-white/50 mt-2">Your current role: {role || "Not set"}</p>
+        </div>
+      </div>
+    );
+  }
   const [messages, setMessages] = useState([]);
   const [selectedMessage, setSelectedMessage] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -173,19 +192,21 @@ export default function Leads() {
   const [viewMode, setViewMode] = useState("leads"); // "leads" or "statistics"
   const [statistics, setStatistics] = useState(null);
   const [loadingStats, setLoadingStats] = useState(false);
-  const [startDate, setStartDate] = useState(() => {
-    // Default to 30 days ago to show more data
-    const date = new Date();
-    date.setDate(date.getDate() - 30);
-    return date.toISOString().split("T")[0];
-  });
-  const [endDate, setEndDate] = useState(() => {
-    const today = new Date();
-    return today.toISOString().split("T")[0];
+  const [dateFilter, setDateFilter] = useState(() => {
+    // Default to 30 days ago to today
+    const end = new Date();
+    const start = new Date();
+    start.setDate(start.getDate() - 30);
+    return {
+      start: start.toISOString(),
+      end: end.toISOString(),
+    };
   });
   const [selectedAgentForStats, setSelectedAgentForStats] = useState(null);
 
   const normalizedEmail = email?.toLowerCase();
+
+  const [syncing, setSyncing] = useState(false);
 
   const fetchMessages = useCallback(async () => {
     setLoading(true);
@@ -210,13 +231,69 @@ export default function Leads() {
     }
   }, [isSales, normalizedEmail, limit]);
 
+  const syncGmail = useCallback(async () => {
+    setSyncing(true);
+    setError("");
+    try {
+      console.log("[Leads] Starting Gmail sync...");
+      const { data } = await API.post("/gmail/sync");
+      console.log("[Leads] Sync completed:", data);
+      // Refresh messages after sync
+      setTimeout(() => {
+        fetchMessages();
+      }, 1000);
+    } catch (err) {
+      console.error("[Leads] sync error", err);
+      const errorData = err?.response?.data;
+      
+      // Check if it's a token issue (Gmail OAuth token, not user auth)
+      if (errorData?.errorCode === "GMAIL_TOKEN_INVALID" ||
+          errorData?.error === "Invalid token. Re-authorization required." || 
+          errorData?.message?.includes("re-authorize") ||
+          errorData?.message?.includes("invalid_grant") ||
+          (err?.response?.status === 400 && errorData?.message?.includes("Gmail token"))) {
+        const message = errorData?.message || "Gmail token is invalid. Please re-authorize.";
+        const helpUrl = errorData?.help || "http://localhost:5000/api/gmail/oauth2/url";
+        setError(
+          <div>
+            <p className="font-semibold mb-2">{message}</p>
+            <p className="text-sm mb-2">To fix this:</p>
+            <ol className="list-decimal list-inside text-sm space-y-1 mb-2">
+              <li>Open: <a href={helpUrl} target="_blank" rel="noopener noreferrer" className="text-blue-300 underline">{helpUrl}</a></li>
+              <li>Click "Authorize Gmail Access"</li>
+              <li>Sign in and grant permissions</li>
+              <li>Then try syncing again</li>
+            </ol>
+          </div>
+        );
+      } else {
+        const message =
+          errorData?.message ||
+          err?.message ||
+          "Failed to sync Gmail.";
+        setError(message);
+      }
+    } finally {
+      setSyncing(false);
+    }
+  }, [fetchMessages]);
+
   const fetchMessageDetail = useCallback(async (messageId) => {
-    if (!messageId) return;
+    if (!messageId) {
+      console.log("[Leads] No messageId provided to fetchMessageDetail");
+      return;
+    }
     setLoadingDetail(true);
     setError("");
     try {
+      console.log("[Leads] Fetching message detail for:", messageId);
       const { data } = await API.get(`/gmail/messages/${messageId}`);
-      setSelectedMessage(data);
+      console.log("[Leads] Message detail received:", data);
+      if (data) {
+        setSelectedMessage(data);
+      } else {
+        console.warn("[Leads] No data received from fetchMessageDetail");
+      }
     } catch (err) {
       console.error("[Leads] fetch detail error", err);
       const message =
@@ -224,6 +301,10 @@ export default function Leads() {
         err?.message ||
         "Failed to load lead details.";
       setError(message);
+      // If error is 403 (not claimed), show helpful message
+      if (err?.response?.status === 403) {
+        setError("Please claim this lead first to view details.");
+      }
     } finally {
       setLoadingDetail(false);
     }
@@ -234,13 +315,26 @@ export default function Leads() {
     setError("");
     try {
       const params = {};
-      if (startDate) params.startDate = startDate;
-      if (endDate) params.endDate = endDate;
-      if (isSales && normalizedEmail) {
+      if (dateFilter?.start) {
+        // UnifiedDatePicker sends UTC ISO strings representing Dallas day boundaries
+        // Extract the date part (YYYY-MM-DD) from the UTC ISO string
+        // The UTC string represents the start of day in Dallas timezone
+        const startDateStr = dateFilter.start.split("T")[0]; // Extract YYYY-MM-DD
+        params.startDate = startDateStr;
+      }
+      if (dateFilter?.end) {
+        // Extract the date part (YYYY-MM-DD) from the UTC ISO string
+        const endDateStr = dateFilter.end.split("T")[0]; // Extract YYYY-MM-DD
+        params.endDate = endDateStr;
+      }
+      // Use selectedAgentForStats if set, otherwise use sales user's email
+      if (selectedAgentForStats && selectedAgentForStats !== "All") {
+        params.agentEmail = selectedAgentForStats;
+      } else if (isSales && normalizedEmail) {
         params.agentEmail = normalizedEmail;
       }
       console.log("[Leads] Fetching statistics with params:", params);
-      console.log("[Leads] User email:", email, "Normalized:", normalizedEmail, "IsSales:", isSales);
+      console.log("[Leads] Selected agent for stats:", selectedAgentForStats);
       const { data } = await API.get("/gmail/statistics/daily", { params });
       console.log("[Leads] Statistics response:", data);
       setStatistics(data);
@@ -254,7 +348,7 @@ export default function Leads() {
     } finally {
       setLoadingStats(false);
     }
-  }, [startDate, endDate, isSales, normalizedEmail, email]);
+  }, [dateFilter, isSales, normalizedEmail, email, selectedAgentForStats]);
 
   useEffect(() => {
     fetchMessages();
@@ -279,14 +373,11 @@ export default function Leads() {
       try {
         const { data } = await API.get("/gmail/state");
         console.log("[Leads] Gmail state API response:", JSON.stringify(data, null, 2));
-        if (data?.configuredEmail) {
-          console.log("[Leads] ✅ Setting sourceEmail from configuredEmail:", data.configuredEmail);
-          setSourceEmail(data.configuredEmail);
-          return;
-        }
-        if (data?.state?.userEmail) {
-          console.log("[Leads] ✅ Setting sourceEmail from state.userEmail:", data.state.userEmail);
-          setSourceEmail(data.state.userEmail);
+        // Try multiple possible fields for email
+        const email = data?.configuredEmail || data?.email || data?.userEmail || data?.state?.userEmail;
+        if (email) {
+          console.log("[Leads] ✅ Setting sourceEmail:", email);
+          setSourceEmail(email);
           return;
         }
         console.log("[Leads] ⚠️ No email in API response. Data keys:", Object.keys(data || {}));
@@ -353,21 +444,45 @@ export default function Leads() {
   }, [fetchMessages]);
 
   const handleClaim = async (msg) => {
-    if (!msg._id || msg.status === "claimed") return;
-    setClaimingId(msg._id);
+    // Can claim using either _id or messageId
+    const claimId = msg._id || msg.messageId;
+    if (!claimId || msg.status === "claimed") return;
+    
+    setClaimingId(claimId);
     setError("");
     try {
-      const { data } = await API.post(`/gmail/messages/${msg._id}/claim-and-view`);
+      console.log("[Leads] Claiming message:", claimId);
+      const { data } = await API.post(`/gmail/messages/${claimId}/claim-and-view`);
+      console.log("[Leads] Claim response:", data);
+      
+      // Update messages list with the claimed status
       setMessages((prev) =>
-        prev.map((m) => (m._id === msg._id ? { ...m, ...data } : m))
+        prev.map((m) => {
+          if (m._id === msg._id || m.messageId === msg.messageId) {
+            return { ...m, ...data, status: "claimed" };
+          }
+          return m;
+        })
       );
-      // If this is the selected message, update it
-      if (selectedMessage?._id === msg._id) {
-        setSelectedMessage((prev) => ({ ...prev, ...data }));
-      }
-      // Fetch full details
-      await fetchMessageDetail(msg._id);
+      
+      // Fetch full details immediately after claiming
+      // Use the _id from the response (which is the database _id)
+      const messageIdToFetch = data._id || data.messageId || msg._id;
+      console.log("[Leads] Fetching details for claimed message:", messageIdToFetch);
+      
+      // Wait a moment for database to be updated, then fetch details
+      setTimeout(async () => {
+        try {
+          await fetchMessageDetail(messageIdToFetch);
+        } catch (fetchErr) {
+          console.error("[Leads] Failed to fetch details after claim:", fetchErr);
+          // If fetch fails, try refreshing messages
+          fetchMessages();
+        }
+      }, 500);
+      
     } catch (err) {
+      console.error("[Leads] Claim error:", err);
       const message =
         err?.response?.data?.message ||
         err?.message ||
@@ -382,6 +497,13 @@ export default function Leads() {
   };
 
   const handleViewLead = async (msg) => {
+    // Allow viewing if message is claimed or closed (closed leads can be viewed from statistics)
+    if (msg.status !== "claimed" && msg.status !== "closed") {
+      setError("Please claim this lead first to view details.");
+      return;
+    }
+    // Switch to leads view to show details panel
+    setViewMode("leads");
     await fetchMessageDetail(msg._id);
   };
 
@@ -403,6 +525,30 @@ export default function Leads() {
       setUpdatingLabels(false);
     }
   };
+
+  const [closingId, setClosingId] = useState(null);
+
+  const handleCloseLead = async (messageId) => {
+    if (!messageId) return;
+    setClosingId(messageId);
+    setError("");
+    try {
+      const { data } = await API.patch(`/gmail/messages/${messageId}/close`);
+      // Hide the details panel when lead is closed
+      setSelectedMessage(null);
+      setMessages((prev) =>
+        prev.map((m) => (m._id === messageId ? { ...m, ...data } : m))
+      );
+      // Refresh messages to show closed leads in the list
+      fetchMessages();
+    } catch (err) {
+      console.error("[Leads] close lead error", err);
+      setError(err?.response?.data?.message || "Failed to close lead");
+    } finally {
+      setClosingId(null);
+    }
+  };
+
 
   const handleToggleLabel = (label) => {
     if (!selectedMessage?._id) return;
@@ -440,6 +586,14 @@ export default function Leads() {
     const sorted = Array.from(set).sort();
     return [...opts, ...sorted];
   }, [messages]);
+
+  // Get agent options from statistics if available
+  const statsAgentOptions = useMemo(() => {
+    if (!statistics?.agentStats) return ["All"];
+    const opts = ["All"];
+    const emails = statistics.agentStats.map(a => a.agentEmail?.toLowerCase()).filter(Boolean);
+    return [...opts, ...new Set(emails)].sort();
+  }, [statistics]);
 
   const filteredMessages = useMemo(() => {
     return messages.filter((msg) => {
@@ -498,9 +652,13 @@ export default function Leads() {
               <> Last updated: <strong>{lastUpdatedLabel}</strong></>
             )}
           </p>
-          {sourceEmail && (
+          {sourceEmail ? (
             <p className="text-sm text-white/80 mt-1">
-              📧 Receiving leads from: <strong className="text-blue-300">{sourceEmail}</strong>
+              📧 Receiving leads from: <strong className="text-blue-300 font-semibold">{sourceEmail}</strong>
+            </p>
+          ) : (
+            <p className="text-sm text-yellow-300/80 mt-1">
+              ⚠️ Gmail source email not configured. Check backend environment variables.
             </p>
           )}
         </div>
@@ -529,13 +687,23 @@ export default function Leads() {
             </button>
           </div>
           {viewMode === "leads" && (
-            <button
-              onClick={fetchMessages}
-              className="px-3 py-2 rounded-lg bg-[#2c5d81] hover:bg-blue-700 text-white text-sm disabled:opacity-60"
-              disabled={loading}
-            >
-              {loading ? "Refreshing..." : "Refresh"}
-            </button>
+            <>
+              <button
+                onClick={syncGmail}
+                className="px-3 py-2 rounded-lg bg-green-600 hover:bg-green-700 text-white text-sm disabled:opacity-60"
+                disabled={syncing || loading}
+                title="Sync emails from Gmail"
+              >
+                {syncing ? "Syncing..." : "Sync Gmail"}
+              </button>
+              <button
+                onClick={fetchMessages}
+                className="px-3 py-2 rounded-lg bg-[#2c5d81] hover:bg-blue-700 text-white text-sm disabled:opacity-60"
+                disabled={loading}
+              >
+                {loading ? "Refreshing..." : "Refresh"}
+              </button>
+            </>
           )}
         </div>
       </div>
@@ -546,6 +714,7 @@ export default function Leads() {
         </div>
       )}
 
+      {/* Commented out - Source Email Address section
       {sourceEmail && (
         <div className="mb-4 rounded-lg border border-blue-500/30 bg-blue-900/40 px-4 py-3 text-sm">
           <div className="flex items-center gap-2">
@@ -557,12 +726,12 @@ export default function Leads() {
           </div>
         </div>
       )}
+      */}
 
       {viewMode === "statistics" ? (
         <div className="space-y-6">
-          {/* Email Info */}
+          {/* Email Info - Commented out
           <div className="space-y-3">
-            {/* Gmail Source Account */}
             <div className="rounded-lg border border-blue-500/30 bg-blue-900/40 px-4 py-3">
               <div className="flex items-center gap-2">
                 <span className="text-lg">📧</span>
@@ -592,49 +761,55 @@ export default function Leads() {
                 </div>
               </div>
             </div>
+          </div>
+          */}
 
-            {/* Agent Filter Info */}
-            <div className="rounded-lg border border-green-500/30 bg-green-900/40 px-4 py-3">
-              <div className="flex items-center gap-2">
-                <span className="text-lg">👤</span>
-                <div className="flex-1">
-                  <div className="text-green-200 font-semibold">Filtering Statistics by Agent:</div>
-                  <div className="text-green-100 text-base mt-1">
-                    {isSales && normalizedEmail ? (
-                      <strong>{normalizedEmail}</strong>
-                    ) : (
-                      <span className="text-white/70">All agents (Admin view)</span>
-                    )}
-                  </div>
-                  {email && (
-                    <div className="text-xs text-green-200/80 mt-1">
-                      Your login email: {email}
-                    </div>
+          {/* Agent Filter Info - Commented out
+          <div className="rounded-lg border border-green-500/30 bg-green-900/40 px-4 py-3">
+            <div className="flex items-center gap-2">
+              <span className="text-lg">👤</span>
+              <div className="flex-1">
+                <div className="text-green-200 font-semibold">Filtering Statistics by Agent:</div>
+                <div className="text-green-100 text-base mt-1">
+                  {isSales && normalizedEmail ? (
+                    <strong>{normalizedEmail}</strong>
+                  ) : (
+                    <span className="text-white/70">All agents (Admin view)</span>
                   )}
                 </div>
+                {email && (
+                  <div className="text-xs text-green-200/80 mt-1">
+                    Your login email: {email}
+                  </div>
+                )}
               </div>
             </div>
           </div>
+          */}
 
           {/* Date Range Filter */}
-          <div className="rounded-lg border border-white/20 bg-white/10 backdrop-blur-md p-4">
+          <div className="rounded-lg border border-white/20 bg-white/10 backdrop-blur-md p-4" style={{ isolation: "auto" }}>
             <div className="flex flex-wrap items-center gap-4">
-              <div className="flex items-center gap-2">
-                <label className="text-sm text-white/90 whitespace-nowrap">Start Date:</label>
-                <input
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                  className="px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-white outline-none focus:ring-2 focus:ring-white/30 text-sm"
-                />
-              </div>
-              <div className="flex items-center gap-2">
-                <label className="text-sm text-white/90 whitespace-nowrap">End Date:</label>
-                <input
-                  type="date"
-                  value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                  className="px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-white outline-none focus:ring-2 focus:ring-white/30 text-sm"
+              {/* Agent dropdown - only visible to Admin */}
+              {isAdmin && (
+                <div className="flex items-center gap-2">
+                  <label className="text-sm text-white/90 whitespace-nowrap">Agent:</label>
+                  <AgentDropdown
+                    options={statsAgentOptions.length > 1 ? statsAgentOptions : ["All"]}
+                    value={selectedAgentForStats || "All"}
+                    onChange={(value) => {
+                      setSelectedAgentForStats(value === "All" ? null : value);
+                    }}
+                  />
+                </div>
+              )}
+              <div style={{ position: "relative", zIndex: 1 }}>
+                <UnifiedDatePicker
+                  value={dateFilter}
+                  onFilterChange={(filter) => {
+                    setDateFilter(filter);
+                  }}
+                  buttonLabel="Select Date Range"
                 />
               </div>
               <button
@@ -695,17 +870,35 @@ export default function Leads() {
                               {agent.leads.map((lead) => (
                                 <div
                                   key={lead._id}
-                                  className="p-2 rounded bg-white/5 text-sm text-white/80 hover:bg-white/10 cursor-pointer"
+                                  className="p-3 rounded-lg border border-white/10 bg-white/5 text-sm text-white/80 hover:bg-white/10 cursor-pointer transition"
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     handleViewLead({ _id: lead._id });
                                     setViewMode("leads");
                                   }}
                                 >
-                                  <div className="font-medium">{lead.subject || "(no subject)"}</div>
-                                  <div className="text-xs text-white/60">From: {lead.from}</div>
-                                  <div className="text-xs text-white/60">
-                                    Claimed: {new Date(lead.claimedAt).toLocaleString()}
+                                  <div className="font-semibold text-white mb-2">{lead.subject || "(no subject)"}</div>
+                                  <div className="space-y-1 text-xs text-white/70">
+                                    {lead.name && <div><span className="font-medium">Name:</span> {lead.name}</div>}
+                                    {lead.email && <div><span className="font-medium">Email:</span> {lead.email}</div>}
+                                    {lead.phone && <div><span className="font-medium">Phone:</span> {lead.phone}</div>}
+                                    {(lead.year || lead.make || lead.model) && (
+                                      <div>
+                                        <span className="font-medium">Vehicle:</span> {[lead.year, lead.make, lead.model].filter(Boolean).join(" ")}
+                                      </div>
+                                    )}
+                                    {lead.partRequired && <div><span className="font-medium">Part:</span> {lead.partRequired}</div>}
+                                    <div><span className="font-medium">From:</span> {lead.from}</div>
+                                    <div><span className="font-medium">Claimed:</span> {new Date(lead.claimedAt).toLocaleString()}</div>
+                                    {lead.labels && lead.labels.length > 0 && (
+                                      <div className="flex flex-wrap gap-1 mt-2">
+                                        {lead.labels.map((label, idx) => (
+                                          <span key={idx} className="px-2 py-0.5 rounded-full border border-white/20 text-xs bg-purple-500/30 text-purple-200">
+                                            {label}
+                                          </span>
+                                        ))}
+                                      </div>
+                                    )}
                                   </div>
                                 </div>
                               ))}
@@ -738,14 +931,42 @@ export default function Leads() {
                           </div>
                           <div className="text-lg font-bold text-blue-400">{day.total} leads</div>
                         </div>
-                        <div className="space-y-2">
+                        <div className="space-y-3">
                           {day.agents.map((agent) => (
-                            <div
-                              key={agent.agentId}
-                              className="flex items-center justify-between p-2 rounded bg-white/5"
-                            >
-                              <div className="text-sm text-white/90">{agent.agentName}</div>
-                              <div className="text-sm font-semibold text-blue-300">{agent.count} leads</div>
+                            <div key={agent.agentId} className="rounded-lg border border-white/10 bg-white/5 p-3">
+                              <div className="flex items-center justify-between mb-2">
+                                <div className="text-sm font-semibold text-white/90">{agent.agentName}</div>
+                                <div className="text-sm font-semibold text-blue-300">{agent.count} leads</div>
+                              </div>
+                              {agent.leads && agent.leads.length > 0 && (
+                                <div className="space-y-2 mt-3 max-h-60 overflow-y-auto">
+                                  {agent.leads.map((lead) => (
+                                    <div
+                                      key={lead._id}
+                                      className="p-2 rounded border border-white/5 bg-white/5 text-xs text-white/80 hover:bg-white/10 cursor-pointer"
+                                      onClick={() => {
+                                        handleViewLead({ _id: lead._id });
+                                        setViewMode("leads");
+                                      }}
+                                    >
+                                      <div className="font-medium text-white mb-1">{lead.subject || "(no subject)"}</div>
+                                      <div className="space-y-0.5 text-white/70">
+                                        {lead.name && <div><span className="font-medium">Name:</span> {lead.name}</div>}
+                                        {lead.email && <div><span className="font-medium">Email:</span> {lead.email}</div>}
+                                        {lead.phone && <div><span className="font-medium">Phone:</span> {lead.phone}</div>}
+                                        {(lead.year || lead.make || lead.model) && (
+                                          <div>
+                                            <span className="font-medium">Vehicle:</span> {[lead.year, lead.make, lead.model].filter(Boolean).join(" ")}
+                                          </div>
+                                        )}
+                                        {lead.partRequired && <div><span className="font-medium">Part:</span> {lead.partRequired}</div>}
+                                        <div><span className="font-medium">From:</span> {lead.from}</div>
+                                        <div><span className="font-medium">Claimed:</span> {new Date(lead.claimedAt).toLocaleString()}</div>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
                             </div>
                           ))}
                         </div>
@@ -767,16 +988,6 @@ export default function Leads() {
         <div className="space-y-4">
           <div className="rounded-lg border border-white/20 bg-white/10 backdrop-blur-md p-4 shadow-sm">
             <div className="flex flex-wrap items-center gap-4 mb-4">
-              {!isSales && (
-                <div className="flex items-center gap-2">
-                  <label className="text-sm text-white/90 whitespace-nowrap">Agent:</label>
-                  <AgentDropdown
-                    options={agentOptions}
-                    value={agentFilter}
-                    onChange={setAgentFilter}
-                  />
-                </div>
-              )}
               {!isSales && (
                 <div className="flex items-center gap-2">
                   <label className="text-sm text-white/90 whitespace-nowrap">Max leads:</label>
@@ -807,7 +1018,7 @@ export default function Leads() {
               </form>
             </div>
 
-            <div className="space-y-2 max-h-[70vh] overflow-y-auto">
+            <div className="space-y-2 max-h-[70vh] overflow-y-auto" style={{ position: 'relative' }}>
               {loading ? (
                 <div className="text-center py-8 text-white/80">⏳ Loading leads...</div>
               ) : filteredMessages.length === 0 ? (
@@ -816,12 +1027,20 @@ export default function Leads() {
                 filteredMessages.map((msg) => (
                   <div
                     key={msg._id || msg.messageId}
-                    className={`p-3 rounded-lg border cursor-pointer transition ${
+                    className={`p-3 rounded-lg border transition ${
                       selectedMessage?._id === msg._id
                         ? "bg-blue-500/30 border-blue-400"
-                        : "bg-white/5 border-white/20 hover:bg-white/10"
+                        : msg.status === "claimed"
+                        ? "bg-white/5 border-white/20 hover:bg-white/10 cursor-pointer"
+                        : msg.status === "closed"
+                        ? "bg-white/5 border-white/20 hover:bg-white/10 cursor-pointer border-purple-400/50"
+                        : "bg-white/5 border-white/20 opacity-60"
                     }`}
-                    onClick={() => handleViewLead(msg)}
+                    onClick={() => {
+                      if (msg.status === "claimed" || msg.status === "closed") {
+                        handleViewLead(msg);
+                      }
+                    }}
                   >
                     <div className="font-medium text-white truncate">
                       {msg.subject || "(no subject)"}
@@ -837,16 +1056,35 @@ export default function Leads() {
                         : ""}
                     </div>
                     {msg.status === "active" && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleClaim(msg);
-                        }}
-                        disabled={claimingId === msg._id}
-                        className="mt-2 px-2 py-1 text-xs rounded bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white"
-                      >
-                        {claimingId === msg._id ? "Claiming..." : "Claim"}
-                      </button>
+                      <div className="mt-2" style={{ position: 'relative', zIndex: 50 }}>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleClaim(msg);
+                          }}
+                          disabled={claimingId === msg._id || claimingId === msg.messageId}
+                          className={`px-3 py-1 text-xs rounded text-white font-medium ${
+                            claimingId === msg._id || claimingId === msg.messageId
+                              ? "bg-gray-500 cursor-not-allowed opacity-50"
+                              : "bg-[#2c5d81] hover:bg-blue-700"
+                          }`}
+                          style={{ 
+                            backgroundColor: claimingId === msg._id || claimingId === msg.messageId 
+                              ? undefined 
+                              : '#2c5d81',
+                            opacity: claimingId === msg._id || claimingId === msg.messageId ? 0.5 : 1,
+                            position: 'relative',
+                            zIndex: 50
+                          }}
+                        >
+                          {claimingId === msg._id || claimingId === msg.messageId ? "Claiming..." : "Claim"}
+                        </button>
+                      </div>
+                    )}
+                    {msg.status === "closed" && (
+                      <div className="mt-2">
+                        <span className="text-xs text-purple-300/80 italic">Closed</span>
+                      </div>
                     )}
                   </div>
                 ))
@@ -856,15 +1094,9 @@ export default function Leads() {
         </div>
 
         {/* Right: Lead Details */}
+        {selectedMessage && (
         <div className="rounded-xl border border-white/20 bg-white/10 backdrop-blur-md shadow-sm p-5">
-          {!selectedMessage ? (
-            <div className="h-full grid place-items-center text-gray-400 text-sm">
-              <div className="text-center">
-                <div className="mx-auto mb-3 h-10 w-10 rounded-full border grid place-items-center">ℹ️</div>
-                <p>Select a lead from the left to see details.</p>
-              </div>
-            </div>
-          ) : loadingDetail ? (
+          {loadingDetail ? (
             <div className="text-center py-8 text-white/80">Loading details...</div>
           ) : (
             <div className="space-y-4">
@@ -887,6 +1119,33 @@ export default function Leads() {
                 </div>
                 <div className="text-sm text-white/70">
                   <b>From:</b> {selectedMessage.from || "—"}
+                </div>
+              </div>
+
+              {/* Status and Actions */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="text-sm text-white/80">Status:</div>
+                  <div className="flex items-center gap-2">
+                    <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                      selectedMessage.status === "claimed"
+                        ? "bg-blue-500/30 text-blue-200 border border-blue-400/50"
+                        : selectedMessage.status === "closed"
+                        ? "bg-gray-500/30 text-gray-200 border border-gray-400/50"
+                        : "bg-green-500/30 text-green-200 border border-green-400/50"
+                    }`}>
+                      {selectedMessage.status === "claimed" ? "Claimed" : selectedMessage.status === "closed" ? "Closed" : "Active"}
+                    </span>
+                    {selectedMessage.status === "claimed" && (
+                      <button
+                        onClick={() => handleCloseLead(selectedMessage._id)}
+                        disabled={closingId === selectedMessage._id}
+                        className="px-3 py-1.5 text-xs rounded-lg bg-gray-600 hover:bg-gray-700 disabled:opacity-60 text-white border border-gray-500/50"
+                      >
+                        {closingId === selectedMessage._id ? "Closing..." : "Close Lead"}
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -1009,45 +1268,28 @@ export default function Leads() {
                 )}
               </div>
 
-              {/* Parsed Fields */}
-              <div className="rounded-xl border border-white/20 bg-white/5 p-4">
-                {parsedFields.length > 0 ? (
-                  <div className="space-y-2">
-                    {parsedFields.map((row, idx) => (
-                      <div key={idx} className="text-sm leading-7 text-white">
-                        <span className="font-semibold">{row.label}</span>
-                        <span> : </span>
-                        {row.kind === "email" ? (
-                          <a
-                            className="underline text-blue-400 hover:text-blue-300"
-                            href={`mailto:${row.value}`}
-                          >
-                            {row.value}
-                          </a>
-                        ) : row.kind === "tel" ? (
-                          <a
-                            className="underline text-blue-400 hover:text-blue-300"
-                            href={`tel:${row.value.replace(/[^+\d]/g, "")}`}
-                          >
-                            {row.value}
-                          </a>
-                        ) : (
-                          <span className="break-words">{row.value}</span>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-sm opacity-70 italic text-white/70">
-                    No structured fields found.
-                  </p>
-                )}
-              </div>
+              {/* Email Body */}
+              {selectedMessage.bodyHtml && (
+                <div className="rounded-xl border border-white/20 bg-white/5 p-4">
+                  <div className="text-sm font-semibold text-white/80 mb-3">Email Body:</div>
+                  <div 
+                    className="prose prose-invert max-w-none text-white/90"
+                    dangerouslySetInnerHTML={{ __html: selectedMessage.bodyHtml }}
+                    style={{
+                      fontSize: '14px',
+                      lineHeight: '1.6',
+                    }}
+                  />
+                </div>
+              )}
+
             </div>
           )}
         </div>
+        )}
       </div>
       )}
+
     </div>
   );
 }

@@ -8,6 +8,8 @@ import {
   getMessageHandler,
   claimAndViewHandler,
   updateLabelsHandler,
+  closeLeadHandler,
+  reopenLeadHandler,
   getDailyStatisticsHandler,
   oauth2UrlHandler,
   oauth2CallbackHandler,
@@ -22,7 +24,7 @@ router.get("/oauth2/callback", oauth2CallbackHandler);
 
 router.post("/watch", startWatchHandler);
 router.post("/sync", manualSyncHandler);
-router.get("/messages", listMessagesHandler);
+router.get("/messages", requireAuth, listMessagesHandler);
 router.get("/state", syncStateHandler);
 router.post("/pubsub", pubsubWebhook);
 
@@ -30,6 +32,8 @@ router.post("/pubsub", pubsubWebhook);
 router.get("/messages/:id", requireAuth, getMessageHandler);
 router.post("/messages/:id/claim-and-view", requireAuth, claimAndViewHandler);
 router.patch("/messages/:id/labels", requireAuth, updateLabelsHandler);
+router.patch("/messages/:id/close", requireAuth, closeLeadHandler);
+router.patch("/messages/:id/reopen", requireAuth, reopenLeadHandler);
 router.get("/statistics/daily", requireAuth, getDailyStatisticsHandler);
 
 export default router;

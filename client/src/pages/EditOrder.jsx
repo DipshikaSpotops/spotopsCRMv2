@@ -506,10 +506,8 @@ export default function EditOrder() {
             : String(formData.notes).split('\n').filter(n => n.trim()))
         : [];
       
-      // Determine orderStatus based on chargedAmount vs soldP
       const soldPNum = parseFloat(formData.soldP) || 0;
       const chargedNum = parseFloat(formData.chargedAmount) || soldPNum;
-      const newOrderStatus = chargedNum === soldPNum ? "Placed" : "Partially charged order";
 
       const payload = {
         ...formDataWithoutSAttention,
@@ -522,7 +520,7 @@ export default function EditOrder() {
           : "",
         notes: notesArray,
         chargedAmount: chargedNum,
-        orderStatus: newOrderStatus,
+        orderStatus: formData.orderStatus, // Preserve existing orderStatus
         // Convert boolean toggles to strings (backend expects strings)
         expediteShipping: formData.expediteShipping ? "true" : "false",
         dsCall: formData.dsCall ? "true" : "false",

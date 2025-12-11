@@ -4,6 +4,9 @@
 backend/.env
 client/.env
 !.env.example
+credentials.json
+backend/credentials.json
+**/credentials.json
 
 # ===== Node & Dependencies =====
 node_modules/
