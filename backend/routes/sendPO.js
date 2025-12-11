@@ -418,15 +418,20 @@ router.post("/sendPOEmailYard/:orderNo", upload.any(), async (req, res) => {
 
     const stockNo = yard.stockNo || "NA";
     const warranty = yard.warranty || "NA";
-    const firstNameTrimmed = (firstName || "Auto Parts Group").trim();
+    // Clean firstName - remove duplicates if comma-separated, take first part only
+    const cleanFirstName = (name) => {
+      if (!name) return "Auto Parts Group";
+      let cleaned = String(name).trim();
+      // If firstName contains comma, split and take first part only
+      if (cleaned.includes(',')) {
+        const parts = cleaned.split(',').map(p => p.trim()).filter(Boolean);
+        cleaned = parts[0] || "Auto Parts Group";
+      }
+      return cleaned;
+    };
+    const firstNameTrimmed = cleanFirstName(firstName);
 
-    try {
-      await transporter.sendMail({
-      from: `"Auto Parts Group Corp" <${purchaseEmail}>`,
-      to: yardEmail,
-      bcc: "dipsikha.spotopsdigital@gmail.com,purchase@auto-partsgroup.com",
-      subject: `Purchase Order | ${order.orderNo} | ${year} ${make} ${model} | ${pReq}`,
-      html: `
+    const htmlContent = `
         <p style="font-size: 14px;">Dear ${yard.agentName || "Team"},</p>
         <p style="font-size: 14px;">Please find attached the Purchase Order for the following:</p>
         <ul style="font-size: 14px;">
@@ -466,7 +471,20 @@ router.post("/sendPOEmailYard/:orderNo", upload.any(), async (req, res) => {
           Auto Parts Group Corp<br>
           +1 (866) 207-5533 | purchase@auto-partsgroup.com
         </p>
-      `,
+      `;
+
+    try {
+      await transporter.sendMail({
+      from: `"Auto Parts Group Corp" <${purchaseEmail}>`,
+      to: yardEmail,
+      replyTo: purchaseEmail,
+      bcc: "dipsikha.spotopsdigital@gmail.com,purchase@auto-partsgroup.com",
+      subject: `Purchase Order | ${order.orderNo} | ${year} ${make} ${model} | ${pReq}`,
+      html: htmlContent,
+      // Minimal headers to avoid spam triggers
+      headers: {
+        "X-Mailer": "Auto Parts Group CRM",
+      },
       attachments: [
         ...attachments,
         {
@@ -499,13 +517,30 @@ order.additionalInfo[yardIndex].poSentDate = isoDallas;
 
 // ensure notes array exists
 order.additionalInfo[yardIndex].notes = order.additionalInfo[yardIndex].notes || [];
-order.additionalInfo[yardIndex].notes.push(`${yardLabel} PO sent by ${firstName} on ${formattedDate}`);
+const firstNameStr = String(firstName || "Auto Parts Group");
+order.additionalInfo[yardIndex].notes.push(`${yardLabel} PO sent by ${firstNameStr} on ${formattedDate}`);
 
 // Update main order fields
 order.orderStatus = "Yard Processing";
-order.orderHistory.push(`${yardLabel} PO sent by ${firstName} on ${formattedDate}`);
+order.orderHistory.push(`${yardLabel} PO sent by ${firstNameStr} on ${formattedDate}`);
 
     await order.save();
+
+    // Emit websocket event to notify frontend of status change
+    try {
+      const io = req.app.get("io");
+      if (io) {
+        io.to(`order.${orderNo}`).emit("order:msg", {
+          type: "STATUS_CHANGED",
+          orderNo,
+          yardIndex: yardIndex + 1,
+          status: "Yard PO Sent",
+          orderStatus: "Yard Processing",
+        });
+      }
+    } catch (wsErr) {
+      console.warn("[sendPO] Failed to emit websocket event:", wsErr);
+    }
 
     res.json({ message: "PO email sent and status updated" });
   } catch (err) {

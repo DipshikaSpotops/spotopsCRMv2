@@ -1038,7 +1038,8 @@ router.put("/:orderNo/additionalInfo/:index", async (req, res) => {
     // }
 
     /* ---------------- SEND TRACKING EMAIL ---------------- */
-    if (changed.includes("status") && newStatus === "Part shipped") {
+    // Only send email if frontend hasn't already sent it (skipEmail flag)
+    if (changed.includes("status") && newStatus === "Part shipped" && !req.body.skipEmail) {
       try {
         const API_BASE =
           process.env.PUBLIC_API_BASE_URL ||
@@ -1077,7 +1078,8 @@ router.put("/:orderNo/additionalInfo/:index", async (req, res) => {
     }
 
     /* ---------------- SEND DELIVERY EMAIL ---------------- */
-    if (changed.includes("status") && newStatus === "Part delivered") {
+    // Only send email if frontend hasn't already sent it (skipEmail flag)
+    if (changed.includes("status") && newStatus === "Part delivered" && !req.body.skipEmail) {
       try {
         const API_BASE =
           process.env.PUBLIC_API_BASE_URL ||
@@ -1111,7 +1113,8 @@ router.put("/:orderNo/additionalInfo/:index", async (req, res) => {
     publish(req, orderNo, {
       type: changed.includes("status") ? "STATUS_CHANGED" : "YARD_UPDATED",
       yardIndex: idx1,          
-      status: order.orderStatus,   
+      status: order.orderStatus,
+      yardStatus: newStatus, // Include the yard status for email loading detection
     });
     res.json(order);
   } catch (err) {

@@ -55,9 +55,11 @@ router.post("/order-cancel/:orderNo", async (req, res) => {
 
     const formattedDate = prettyDate(order.orderDate);
     console.log("formattedDate", formattedDate);
-    order.customerName ||
+    const customerName = cleanCustomerName(
+      order.customerName ||
       [order.fName, order.lName].filter(Boolean).join(" ") ||
-      "Customer";
+      "Customer"
+    );
     const toEmail = order.email;
     if (!toEmail)
       return res.status(400).json({ message: "No customer email on file" });
@@ -119,10 +121,11 @@ router.post("/sendReimburseEmail/:orderNo", async (req, res) => {
 
     const amount = Number(reimburesementValue) || 0;
 
-    const customerName =
+    const customerName = cleanCustomerName(
       order.customerName ||
       [order.fName, order.lName].filter(Boolean).join(" ") ||
-      "Customer";
+      "Customer"
+    );
     const toEmail = (order.email || "").trim();
     if (!toEmail)
       return res.status(400).json({ message: "No customer email on file" });
@@ -178,7 +181,7 @@ router.post("/orders/sendRefundConfirmation/:orderNo", upload.single("pdfFile"),
   try {
     const { orderNo } = req.params;
     const refundedAmount = req.query.refundedAmount;
-    const firstName = req.query.firstName?.trim();
+    const firstName = cleanFirstName(req.query.firstName);
     if (!firstName) {
       return res.status(400).json({ message: "firstName is required" });
     }
@@ -201,10 +204,11 @@ router.post("/orders/sendRefundConfirmation/:orderNo", upload.single("pdfFile"),
       },
     });
 
-    const customerName =
+    const customerName = cleanCustomerName(
       order.customerName ||
       [order.fName, order.lName].filter(Boolean).join(" ") ||
-      "Customer";
+      "Customer"
+    );
 
     const logoUrl =
       process.env.LOGO_URL ||
@@ -214,17 +218,12 @@ router.post("/orders/sendRefundConfirmation/:orderNo", upload.single("pdfFile"),
     if (!toEmail)
       return res.status(400).json({ message: "No customer email on file" });
 
-    const mailOptions = {
-      from: `"50 Stars Auto Parts" <${process.env.SERVICE_EMAIL}>`,
-      to: toEmail,
-      bcc: process.env.SUPPORT_BCC || "service@50starsautoparts.com,dipsikha.spotopsdigital@gmail.com",
-      subject: `Refund Processed for Your Order ${orderNo} | 50 Stars Auto Parts`,
-      html: `
+    const htmlContent = `
         <p>Dear ${customerName},</p>
         <p>We are reaching out to confirm that your refund of <b>$${refundedAmount}</b> for order <b>#${orderNo}</b> has been successfully processed.</p>
-        <p>Attached to this email, you’ll find a copy of the refund receipt for your records.</p>
+        <p>Attached to this email, you'll find a copy of the refund receipt for your records.</p>
         <p>Please allow <b>3–5 business days</b> for the refund to reflect on your original payment method, as processing times may vary based on your financial institution.</p>
-        <p>If you have any questions or require further assistance, please feel free to reach out — we’re happy to help.</p>
+        <p>If you have any questions or require further assistance, please feel free to reach out — we're happy to help.</p>
         <p>Thank you for choosing <b>50 Stars Auto Parts</b>. We appreciate your business and look forward to serving you again.</p>
         <p><img src="cid:logo" alt="logo" style="width: 180px; height: 100px;" /></p>
         <p>${firstName}<br/>
@@ -233,7 +232,19 @@ router.post("/orders/sendRefundConfirmation/:orderNo", upload.single("pdfFile"),
         +1 (866) 207-5533<br/>
         service@50starsautoparts.com<br/>
         <a href="https://www.50starsautoparts.com">www.50starsautoparts.com</a></p>
-      `,
+      `;
+
+    const mailOptions = {
+      from: `"50 Stars Auto Parts" <${process.env.SERVICE_EMAIL}>`,
+      to: toEmail,
+      replyTo: process.env.SERVICE_EMAIL,
+      bcc: process.env.SUPPORT_BCC || "service@50starsautoparts.com,dipsikha.spotopsdigital@gmail.com",
+      subject: `Refund Processed for Your Order ${orderNo} | 50 Stars Auto Parts`,
+      html: htmlContent,
+      // Minimal headers to avoid spam triggers
+      headers: {
+        "X-Mailer": "50 Stars Auto Parts CRM",
+      },
       attachments: [
         {
           filename: pdfFile.originalname,
@@ -267,7 +278,7 @@ router.post("/customer-delivered/:orderNo", async (req, res) => {
   try {
     const { orderNo } = req.params;
     const yardIndex = parseInt(req.query.yardIndex ?? req.body?.yardIndex ?? 1, 10);
-    const firstName  = (req.query.firstName ?? req.body?.firstName ?? "").toString().trim();
+    const firstName  = cleanFirstName(req.query.firstName ?? req.body?.firstName ?? "");
 
     if (!yardIndex || Number.isNaN(yardIndex)) {
       return res.status(400).json({ message: "yardIndex (1-based) is required" });
@@ -286,10 +297,11 @@ router.post("/customer-delivered/:orderNo", async (req, res) => {
     const cxShipperName = String(yard.shipperName ?? "").trim();
 
 
-    const customerName =
+    const customerName = cleanCustomerName(
       order.customerName ||
       [order.fName, order.lName].filter(Boolean).join(" ") ||
-      "Customer";
+      "Customer"
+    );
     const toEmail = (order.email || "").trim();
     if (!toEmail) return res.status(400).json({ message: "No customer email on file" });
 
@@ -312,20 +324,15 @@ router.post("/customer-delivered/:orderNo", async (req, res) => {
       process.env.LOGO_URL ||
       "https://assets-autoparts.s3.ap-south-1.amazonaws.com/images/logo.png";
 
-    await transporter.sendMail({
-      from: `"50 Stars Auto Parts" <${process.env.SERVICE_EMAIL}>`,
-      to: toEmail,
-      bcc: bccList,
-      subject: `Thank You for Your Order (${orderNo}) – Delivery Confirmation`,
-      html: `
+    const htmlContent = `
         <p>Hi ${customerName},</p>
-        <p>We’re excited to let you know that your order has been successfully delivered today!</p>
+        <p>We're excited to let you know that your order has been successfully delivered today!</p>
         <p>Thank you so much for choosing 50 Stars Auto Parts. We truly appreciate your trust in us and are grateful for the opportunity to serve you.</p>
-        <p>Here’s a quick summary of your order:<br>
+        <p>Here's a quick summary of your order:<br>
           <strong>Order Number:</strong> ${orderNo}<br>
           <strong>Tracking No:</strong> ${cxTrackingNo || "—"}<br>
           <strong>Tracking Link:</strong> ${cxShipperName || ""} ${trackingLink ? `- <a href="${trackingLink}" target="_blank" rel="noopener noreferrer">${trackingLink}</a>` : ""}</p>
-        <p>If there’s anything you need, or if you have any questions about your order, feel free to reach out — we’re always happy to help.</p>
+        <p>If there's anything you need, or if you have any questions about your order, feel free to reach out — we're always happy to help.</p>
         <p>Thanks once again for shopping with us. We look forward to helping you with your auto parts needs in the future!</p>
         <p><img src="cid:logo" alt="logo" style="width: 180px; height: 100px;"></p>
         <p>${firstName}<br/>
@@ -334,18 +341,65 @@ router.post("/customer-delivered/:orderNo", async (req, res) => {
         +1 (888) 732-8680<br/>
         service@50starsautoparts.com<br/>
         www.50starsautoparts.com</p>
-      `,
+      `;
+
+    await transporter.sendMail({
+      from: `"50 Stars Auto Parts" <${fromEmail}>`,
+      to: toEmail,
+      replyTo: fromEmail,
+      bcc: bccList,
+      subject: `Thank You for Your Order (${orderNo}) – Delivery Confirmation`,
+      html: htmlContent,
+      // Minimal headers to avoid spam triggers
+      headers: {
+        "X-Mailer": "50 Stars Auto Parts CRM",
+      },
       attachments: [
         { filename: "logo.png", path: logoUrl, cid: "logo" }
       ],
     });
 
+    // Emit websocket event to notify frontend that email was sent
+    try {
+      const io = req.app.get("io");
+      io.to(`order.${orderNo}`).emit("order:msg", {
+        orderNo,
+        type: "EMAIL_SENT",
+        emailType: "delivery",
+        yardIndex,
+        message: "Customer delivery email sent successfully",
+      });
+    } catch (wsErr) {
+      console.warn("[emails] Failed to emit websocket event:", wsErr);
+    }
+    
     return res.json({ message: "Customer delivery email sent." });
   } catch (err) {
     console.error("[emails] customer-delivered error:", err);
     res.status(500).json({ message: "Server error", error: String(err?.message || err) });
   }
 });
+// Helper function to clean firstName (remove duplicates, comma-separated values)
+const cleanFirstName = (firstName) => {
+  if (!firstName) return "Auto Parts Group";
+  let cleaned = String(firstName).trim();
+  // If firstName contains comma, split and take first part only
+  if (cleaned.includes(',')) {
+    const parts = cleaned.split(',').map(p => p.trim()).filter(Boolean);
+    cleaned = parts[0] || "Auto Parts Group";
+  }
+  return cleaned;
+};
+
+// Helper function to clean customer names (remove excessive repeated characters)
+const cleanCustomerName = (name) => {
+  if (!name) return "Customer";
+  let cleaned = String(name).trim();
+  // Remove any excessive repeated characters (like "Dipsikhaaaawwwwwwwwwww")
+  cleaned = cleaned.replace(/(.)\1{3,}/g, '$1$1$1'); // Limit to max 3 repeated chars
+  return cleaned.trim();
+};
+
 // to send tracking info email
 router.post("/orders/sendTrackingInfo/:orderNo", async (req, res) => {
   console.log("[emails] sendTrackingInfo hit");
@@ -353,8 +407,9 @@ router.post("/orders/sendTrackingInfo/:orderNo", async (req, res) => {
     const order = await Order.findOne({ orderNo: req.params.orderNo });
     if (!order) return res.status(400).send("Order not found");
 
-    const { trackingNo, eta, shipperName, link, firstName } = req.body;
-    const customerName = order.customerName || order.fName || "Customer";
+    const { trackingNo, eta, shipperName, link, firstName: rawFirstName } = req.body;
+    const firstName = cleanFirstName(rawFirstName);
+    const customerName = cleanCustomerName(order.customerName || order.fName || "Customer");
 
     const transporter = nodemailer.createTransport({
       service: "gmail",
@@ -425,14 +480,19 @@ router.post("/orders/sendTrackingInfo/:orderNo", async (req, res) => {
     const mailOptions = {
       from: `"50 Stars Auto Parts" <${process.env.SERVICE_EMAIL}>`,
       to: order.email,
+      replyTo: process.env.SERVICE_EMAIL,
       bcc: "dipsikha.spotopsdigital@gmail.com",
       subject: `Tracking Details / Order No. ${req.params.orderNo}`,
 
       // Add plain-text version (boosts deliverability)
       text: textBody,
 
-      // Clean, minimal HTML
+      // Simple HTML without complex styling that triggers spam filters
       html: htmlBody,
+      // Minimal headers to avoid spam triggers
+      headers: {
+        "X-Mailer": "50 Stars Auto Parts CRM",
+      },
 
       attachments: [
         {
@@ -446,7 +506,27 @@ router.post("/orders/sendTrackingInfo/:orderNo", async (req, res) => {
     console.log("mail", mailOptions);
 
     await transporter.sendMail(mailOptions);
-    console.log("Tracking email sent successfully.");
+    console.log("[emails] Tracking email sent successfully.");
+    
+    // Emit websocket event to notify frontend that email was sent
+    try {
+      const io = req.app.get("io");
+      const yardIndex = req.body.yardIndex || 1;
+      const orderNo = req.params.orderNo;
+      console.log("[emails] Emitting EMAIL_SENT event for order:", orderNo, "yardIndex:", yardIndex);
+      io.to(`order.${orderNo}`).emit("order:msg", {
+        orderNo,
+        type: "EMAIL_SENT",
+        emailType: "tracking",
+        yardIndex,
+        message: "Tracking email sent successfully",
+      });
+      console.log("[emails] EMAIL_SENT event emitted successfully");
+    } catch (wsErr) {
+      console.error("[emails] Failed to emit websocket event:", wsErr);
+      // Still return success even if websocket fails
+    }
+    
     res.json({ message: "Tracking email sent successfully." });
 
   } catch (error) {
@@ -459,8 +539,8 @@ router.post("/orders/sendRefundEmail/:orderNo", upload.single("pdfFile"), async 
   console.log("[emails] sendRefundEmailYard hit");
   try {
     const { orderNo } = req.params;
-    let { firstName, yardIndex, refundReason, returnTracking, refundToCollect, shipper } = req.query;
-    firstName = firstName?.trim() || "";
+    let { firstName: rawFirstName, yardIndex, refundReason, returnTracking, refundToCollect, shipper } = req.query;
+    const firstName = cleanFirstName(rawFirstName);
 
 
     const order = await Order.findOne({ orderNo });
@@ -607,7 +687,7 @@ router.post("/orders/sendReplaceEmailCustomerShipping/:orderNo", async (req, res
     const [firstLineRaw, rest] = retAddressReplacement.split(/,(.+)/);
     const line1 = (firstLineRaw || "").trim() || " ";
     const lineRest = (rest || "").trim() || " ";
-    const customerName = order.customerName || order.fName || "Customer";
+    const customerName = cleanCustomerName(order.customerName || order.fName || "Customer");
     const bccList =
       process.env.SUPPORT_BCC ||
       "service@50starsautoparts.com,dipsikha.spotopsdigital@gmail.com";
@@ -750,7 +830,7 @@ router.post("/orders/sendReturnEmailCustomerShipping/:orderNo", async (req, res)
     const [firstLineRaw, rest] = retAddress.split(/,(.+)/);
     const line1 = (firstLineRaw || "").trim() || " ";
     const lineRest = (rest || "").trim() || " ";
-    const customerName = order.customerName || order.fName || "Customer";
+    const customerName = cleanCustomerName(order.customerName || order.fName || "Customer");
     const bccList =
       process.env.SUPPORT_BCC ||
       "service@50starsautoparts.com,dipsikha.spotopsdigital@gmail.com";

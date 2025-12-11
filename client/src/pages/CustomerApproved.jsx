@@ -13,8 +13,34 @@ const prettyFilterLabel = (filter) => {
 
   if (filter.start && filter.end) {
     const TZ = "America/Chicago";
-    const s = moment.tz(filter.start, TZ);
-    const e = moment.tz(filter.end, TZ);
+    // Parse the dates - if they're UTC ISO strings, convert to Dallas time first
+    // then extract date components to ensure we get the correct calendar date
+    let s, e;
+    
+    if (typeof filter.start === 'string' && filter.start.includes('T')) {
+      // UTC ISO string - parse and convert to Dallas time to get the correct date
+      s = moment.utc(filter.start).tz(TZ);
+    } else {
+      // Date object - extract components and treat as Dallas date
+      const startDate = new Date(filter.start);
+      const startYear = startDate.getFullYear();
+      const startMonth = startDate.getMonth();
+      const startDay = startDate.getDate();
+      s = moment.tz({ year: startYear, month: startMonth, day: startDay }, TZ);
+    }
+    
+    if (typeof filter.end === 'string' && filter.end.includes('T')) {
+      // UTC ISO string - parse and convert to Dallas time
+      // The end date represents end of day, so we need to get the date it represents in Dallas
+      e = moment.utc(filter.end).tz(TZ);
+    } else {
+      // Date object - extract components and treat as Dallas date
+      const endDate = new Date(filter.end);
+      const endYear = endDate.getFullYear();
+      const endMonth = endDate.getMonth();
+      const endDay = endDate.getDate();
+      e = moment.tz({ year: endYear, month: endMonth, day: endDay }, TZ);
+    }
     if (s.isSame(s.clone().startOf("month")) && e.isSame(s.clone().endOf("month"))) {
       return s.format("MMM YYYY");
     }

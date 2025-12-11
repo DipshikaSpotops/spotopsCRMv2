@@ -14,6 +14,7 @@ export default function RefundModal({ open, onClose, onSubmit, orderNo, yardInde
   const [storeCredit, setStoreCredit] = useState(false);
   const [file, setFile] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [sendingEmail, setSendingEmail] = useState(false);
   const [toast, setToast] = useState("");
 
   const applySelection = (option) => {
@@ -24,16 +25,42 @@ export default function RefundModal({ open, onClose, onSubmit, orderNo, yardInde
 
   const handleSelectionChange = (option) => (event) => {
     const isChecked = event.target.checked;
-    if (isChecked) {
-      applySelection(option);
-      if (option === "collect" || option === "ups") {
+    
+    // Allow individual checkboxes to be checked/unchecked independently
+    if (option === "collect") {
+      setCollectRefund(isChecked);
+      if (isChecked) {
+        // When checking collect refund, uncheck others (mutually exclusive)
+        setUpsClaim(false);
+        setStoreCredit(false);
         setRefundStatus("Refund not collected");
+      } else {
+        // When unchecking, only update status if no other refund action is selected
+        if (!upsClaim && !storeCredit) {
+          setRefundStatus("Refund collected");
+        }
       }
-    } else {
-      applySelection(null);
-      if (option === "collect" || option === "ups") {
-        setRefundStatus("Refund collected");
+    } else if (option === "ups") {
+      setUpsClaim(isChecked);
+      if (isChecked) {
+        // When checking UPS claim, uncheck others (mutually exclusive)
+        setCollectRefund(false);
+        setStoreCredit(false);
+        setRefundStatus("Refund not collected");
+      } else {
+        // When unchecking, only update status if no other refund action is selected
+        if (!collectRefund && !storeCredit) {
+          setRefundStatus("Refund collected");
+        }
       }
+    } else if (option === "store") {
+      setStoreCredit(isChecked);
+      if (isChecked) {
+        // When checking store credit, uncheck others (mutually exclusive)
+        setCollectRefund(false);
+        setUpsClaim(false);
+      }
+      // Store credit doesn't affect refund status
     }
   };
 
@@ -167,6 +194,9 @@ export default function RefundModal({ open, onClose, onSubmit, orderNo, yardInde
   };
 
   const handleSendRefundEmail = async () => {
+    // Prevent multiple simultaneous calls
+    if (sendingEmail) return;
+    
     if (!file) return setToast("Attach a PO PDF first.");
 
     const trimmedCollect = String(refundToCollect ?? "").trim();
@@ -182,21 +212,27 @@ export default function RefundModal({ open, onClose, onSubmit, orderNo, yardInde
     }
 
     try {
-      setLoading(true);
+      setSendingEmail(true);
       const formData = new FormData();
       formData.append("pdfFile", file);
 
+      // Get firstName once and ensure it's not duplicated
+      const firstName = localStorage.getItem("firstName") || "";
+      
+      // Construct params object cleanly to avoid duplicates
+      const params = new URLSearchParams();
+      params.append("yardIndex", String(yardIndex + 1));
+      params.append("refundReason", refundReason || "");
+      params.append("refundToCollect", refundToCollect || "");
+      params.append("returnTracking", returnTrackingNo || "");
+      if (firstName) {
+        params.append("firstName", firstName);
+      }
+
       const response = await API.post(
-        `/emails/orders/sendRefundEmail/${encodeURIComponent(orderNo)}`,
+        `/emails/orders/sendRefundEmail/${encodeURIComponent(orderNo)}?${params.toString()}`,
         formData,
         {
-          params: {
-            yardIndex: yardIndex + 1,
-            refundReason: refundReason || "",
-            refundToCollect: refundToCollect || "",
-            returnTracking: returnTrackingNo || "",
-            firstName: localStorage.getItem("firstName") || "",
-          },
           headers: { "Content-Type": "multipart/form-data" },
         }
       );
@@ -209,7 +245,7 @@ export default function RefundModal({ open, onClose, onSubmit, orderNo, yardInde
       console.error("Send refund email error:", err);
       setToast("Error sending refund email.");
     } finally {
-      setLoading(false);
+      setSendingEmail(false);
     }
   };
 
@@ -430,8 +466,14 @@ export default function RefundModal({ open, onClose, onSubmit, orderNo, yardInde
           </div>
 
           <div className="pt-2">
-            <button onClick={handleSendRefundEmail} disabled={loading} className="px-3 py-1.5 rounded-md !bg-[#090c6c] hover:!bg-[#242775] text-white border-white/30">
-              Send Refund Email
+            <button 
+              onClick={handleSendRefundEmail} 
+              disabled={sendingEmail || loading} 
+              className={`px-3 py-1.5 rounded-md !bg-[#090c6c] hover:!bg-[#242775] text-white border-white/30 transition ${
+                sendingEmail || loading ? "opacity-60 cursor-not-allowed" : ""
+              }`}
+            >
+              {sendingEmail ? "Sending..." : "Send Refund Email"}
             </button>
           </div>
         </div>

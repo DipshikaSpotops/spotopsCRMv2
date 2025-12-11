@@ -49,6 +49,7 @@ export default function EditYardStatusModal({
   yardIndex,
   order,
   onClose,
+  onEmailSending,
 }) {
   const [status, setStatus] = useState(yard?.status || "Yard located");
   const [escCause, setEscCause] = useState(yard?.escalationCause || "");
@@ -143,6 +144,8 @@ export default function EditYardStatusModal({
         shipperName: showTracking ? chosenShipper : undefined,
         trackingLink: showTracking ? t(trackingLink) : undefined,
         orderStatus: ORDER_STATUS_MAP[status],
+        // Flag to prevent backend from sending email (frontend will handle it)
+        skipEmail: status === "Part shipped" || status === "Part delivered",
       };
 
       if (status === "Escalation") {
@@ -158,17 +161,27 @@ export default function EditYardStatusModal({
         body.escTicked = "Yes";
       }
 
+      // Save to MongoDB first
       await API.put(
         `/orders/${encodeURIComponent(orderNo)}/additionalInfo/${yardIndex + 1}`,
         body,
         { params: { firstName } }
       );
 
-      // Email logic
+      // Set loading state immediately if email needs to be sent
       if (status === "Part shipped" || status === "Part delivered") {
-        try {
-          if (status === "Part shipped") {
-            await API.post(
+        // Notify parent to show loading indicator with specific status
+        onEmailSending?.(true, status);
+      }
+
+      // Close modal immediately after saving
+      onClose();
+
+      // Send email in background if needed (don't await - let it run async)
+      if (status === "Part shipped" || status === "Part delivered") {
+        // Send email in background - websocket will notify when done
+        const emailPromise = status === "Part shipped"
+          ? API.post(
               `/emails/orders/sendTrackingInfo/${encodeURIComponent(orderNo)}`,
               {
                 trackingNo,
@@ -176,16 +189,13 @@ export default function EditYardStatusModal({
                 shipperName: chosenShipper,
                 link: trackingLink,
                 firstName,
+                yardIndex: yardIndex + 1,
               },
               {
                 baseURL: rootApiBase || undefined,
               }
-            );
-            setToast(
-              `Yard ${yardIndex + 1} status updated to ${status} — email sent successfully!`
-            );
-          } else {
-            await API.post(
+            )
+          : API.post(
               `/emails/customer-delivered/${encodeURIComponent(orderNo)}`,
               null,
               {
@@ -193,17 +203,29 @@ export default function EditYardStatusModal({
                 params: { yardIndex: yardIndex + 1, firstName },
               }
             );
-            setToast(
-              `Yard ${yardIndex + 1} status updated to ${status} — email sent successfully!`
-            );
-          }
-        } catch (emailErr) {
-          console.error("Email sending failed", emailErr);
-          setToast(
-            `Yard ${yardIndex + 1} status updated to ${status}, but email failed to send.`
-          );
-        }
+
+        // Don't await - let it run in background
+        emailPromise
+          .then((response) => {
+            console.log("[EditYardStatusModal] Email sent successfully", response?.data);
+            // Loading will be cleared by websocket EMAIL_SENT event
+            // But also set a fallback timeout in case websocket doesn't work
+            setTimeout(() => {
+              // If loading is still true after 5 seconds, clear it
+              // This handles cases where websocket fails
+              onEmailSending?.(false);
+            }, 5000);
+          })
+          .catch((emailErr) => {
+            console.error("[EditYardStatusModal] Email sending failed", emailErr);
+            // Hide loading on error immediately
+            onEmailSending?.(false);
+            // Show error toast
+            const errorMessage = emailErr?.response?.data?.message || emailErr?.message || "Failed to send email";
+            console.error("[EditYardStatusModal] Email error details:", errorMessage);
+          });
       } else {
+        // For non-email statuses, just show success
         setToast(`Yard ${yardIndex + 1} status updated to ${status}.`);
       }
     } catch (err) {
@@ -301,29 +323,13 @@ export default function EditYardStatusModal({
       if (data?.message?.includes?.("No yard email")) {
         setToast("Yard email missing. PO not sent.");
       } else {
-        // Update status to "Yard PO Sent" via API (backend already does this, but this ensures consistency)
-        try {
-          await API.put(
-            `/orders/${encodeURIComponent(orderNo)}/additionalInfo/${yardIndex + 1}`,
-            {
-              status: "Yard PO Sent",
-              orderStatus: "Yard Processing",
-            },
-            { params: { firstName } }
-          );
-          // Update local status to reflect the change
-          setStatus("Yard PO Sent");
-          setToast(data?.message || "PO sent successfully and status updated!");
-          // Close popup after a short delay
-          setTimeout(() => {
-            onClose();
-          }, 2000);
-        } catch (statusErr) {
-          console.error("Error updating status:", statusErr);
-          // Even if status update fails, PO was sent
-          setStatus("Yard PO Sent");
-          setToast(data?.message || "PO sent successfully, but status update failed.");
-        }
+        // Backend already updates status to "Yard PO Sent" - just update local state
+        setStatus("Yard PO Sent");
+        setToast(data?.message || "PO sent successfully and status updated!");
+        // Close popup after a short delay
+        setTimeout(() => {
+          onClose();
+        }, 2000);
       }
     } catch (err) {
       console.error("Error sending PO:", err);
@@ -765,38 +771,6 @@ export default function EditYardStatusModal({
         </footer>
       </div>
 
-      {/* Loader for email sending */}
-      {loading && (status === "Part shipped" || status === "Part delivered") && (
-        <div className="fixed inset-0 flex items-center justify-center bg-black/50 z-[100]">
-          <div className="bg-white text-black px-6 py-4 rounded-xl shadow-lg flex items-center gap-3">
-            <svg
-              className="animate-spin h-5 w-5 text-[#04356d]"
-              xmlns="http://www.w3.org/2000/svg"
-              fill="none"
-              viewBox="0 0 24 24"
-            >
-              <circle
-                className="opacity-25"
-                cx="12"
-                cy="12"
-                r="10"
-                stroke="currentColor"
-                strokeWidth="4"
-              ></circle>
-              <path
-                className="opacity-75"
-                fill="currentColor"
-                d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 000 16v-4l-3 3 3 3v-4a8 8 0 01-8-8z"
-              ></path>
-            </svg>
-            <span>
-              {status === "Part shipped"
-                ? "Sending tracking email..."
-                : "Sending delivery email..."}
-            </span>
-          </div>
-        </div>
-      )}
 
       {/* Toast visible until OK click */}
       <Toast

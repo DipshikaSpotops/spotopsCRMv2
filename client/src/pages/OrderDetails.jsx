@@ -342,6 +342,10 @@ export default function OrderDetails() {
   const [activeYardIndex, setActiveYardIndex] = useState(null);
   // Use a ref to preserve activeYardIndex across refreshes (including websocket-triggered ones)
   const activeYardIndexRef = useRef(null);
+  const [emailLoading, setEmailLoading] = useState(false);
+  const [emailLoadingStatus, setEmailLoadingStatus] = useState(null); // Track which email is being sent
+  const [emailToast, setEmailToast] = useState(null);
+  const emailLoadingTimeoutRef = useRef(null);
 
   const focusCommentsOnYard = useCallback(
     (yardIdx) => {
@@ -504,10 +508,28 @@ export default function OrderDetails() {
   // Listen for real-time updates via websocket
   useOrderRealtime(orderNo, {
     onEvent: (msg, { isSelf }) => {
+      // Handle email sent notification
+      if (msg?.type === "EMAIL_SENT") {
+        // Clear any existing timeout
+        if (emailLoadingTimeoutRef.current) {
+          clearTimeout(emailLoadingTimeoutRef.current);
+          emailLoadingTimeoutRef.current = null;
+        }
+        setEmailLoading(false);
+        setEmailLoadingStatus(null);
+        setEmailToast({
+          message: msg.message || "Email sent successfully!",
+          variant: "success",
+        });
+        // Auto-hide toast after 5 seconds
+        setTimeout(() => setEmailToast(null), 5000);
+      }
+      
       // Refresh order data when yard status/details change
       // We refresh even for isSelf because sometimes the UI doesn't update immediately
       if (msg?.type && ["YARD_UPDATED", "STATUS_CHANGED", "YARD_ADDED", "YARD_NOTE_ADDED", "ORDER_UPDATED"].includes(msg.type)) {
         console.log("[OrderDetails] Real-time update received:", msg.type, isSelf ? "(from self)" : "(from other user)");
+        
         // Preserve activeYardIndex before refresh - ensure ref is up to date
         const yardIndexToPreserve = activeYardIndexRef.current ?? activeYardIndex;
         // Update ref to ensure it's current
@@ -1544,6 +1566,36 @@ export default function OrderDetails() {
             setActiveYardIndex(editStatusIdx); // Then set state
           }
         }}
+        onEmailSending={(isSending, status) => {
+          setEmailLoading(isSending);
+          setEmailLoadingStatus(isSending ? status : null);
+          if (isSending) {
+            // Clear any existing timeout
+            if (emailLoadingTimeoutRef.current) {
+              clearTimeout(emailLoadingTimeoutRef.current);
+            }
+            // Set a fallback timeout to clear loading after 30 seconds
+            // This handles cases where websocket fails or email takes too long
+            emailLoadingTimeoutRef.current = setTimeout(() => {
+              console.warn("[OrderDetails] Email loading timeout - clearing loading state");
+              setEmailLoading(false);
+              setEmailLoadingStatus(null);
+              setEmailToast({
+                message: "Email may have been sent. Please check the order history.",
+                variant: "success",
+              });
+              setTimeout(() => setEmailToast(null), 5000);
+              emailLoadingTimeoutRef.current = null;
+            }, 30000); // 30 second timeout
+          } else {
+            // Clear timeout if loading is manually stopped
+            if (emailLoadingTimeoutRef.current) {
+              clearTimeout(emailLoadingTimeoutRef.current);
+              emailLoadingTimeoutRef.current = null;
+            }
+            setEmailLoadingStatus(null);
+          }
+        }}
       />
 
       <CardChargedModal
@@ -1671,6 +1723,62 @@ export default function OrderDetails() {
       />
 
       {toast && <Toast message={toast} onClose={() => setToast("")} />}
+      
+      {/* Email loading indicator */}
+      {emailLoading && (
+        <div className="fixed inset-0 flex items-center justify-center bg-black/50 z-[100] backdrop-blur-sm">
+          <div className="bg-white text-black px-6 py-4 rounded-xl shadow-lg flex items-center gap-3">
+            <svg
+              className="animate-spin h-5 w-5 text-[#04356d]"
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+            >
+              <circle
+                className="opacity-25"
+                cx="12"
+                cy="12"
+                r="10"
+                stroke="currentColor"
+                strokeWidth="4"
+              ></circle>
+              <path
+                className="opacity-75"
+                fill="currentColor"
+                d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 000 16v-4l-3 3 3 3v-4a8 8 0 01-8-8z"
+              ></path>
+            </svg>
+            <span>
+              {emailLoadingStatus === "Part shipped"
+                ? "Sending tracking email..."
+                : emailLoadingStatus === "Part delivered"
+                ? "Sending delivery email..."
+                : "Sending email..."}
+            </span>
+          </div>
+        </div>
+      )}
+      
+      {/* Email toast notification */}
+      {emailToast && (
+        <div className={`fixed bottom-5 left-1/2 -translate-x-1/2 px-6 py-3 rounded-lg shadow-lg border z-[200] text-sm font-medium flex items-center gap-4 ${
+          emailToast.variant === "error" 
+            ? "bg-red-100 text-red-900 border-red-300" 
+            : "bg-green-100 text-green-900 border-green-300"
+        }`}>
+          <span>{emailToast.message}</span>
+          <button
+            onClick={() => setEmailToast(null)}
+            className={`ml-3 px-3 py-1 text-sm font-semibold rounded-md transition ${
+              emailToast.variant === "error"
+                ? "bg-red-500 text-white hover:bg-red-600"
+                : "bg-green-500 text-white hover:bg-green-600"
+            }`}
+          >
+            OK
+          </button>
+        </div>
+      )}
     </>
   );
 }
