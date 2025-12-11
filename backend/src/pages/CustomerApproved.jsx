@@ -195,7 +195,7 @@ const CustomerApproved = () => {
           </form>
 
           <div className="shrink-0">
-            <UnifiedDatePicker onFilterChange={handleFilterChange} />
+            <UnifiedDatePicker value={currentFilter} onFilterChange={handleFilterChange} />
           </div>
         </div>
       </div>
