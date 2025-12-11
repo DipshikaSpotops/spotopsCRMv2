@@ -480,7 +480,19 @@ router.put("/:orderNo", async (req, res) => {
   const formattedDateTime = central.format("D MMM, YYYY HH:mm");
 
   try {
-    const order = await Order.findOne({ orderNo: req.params.orderNo });
+    // Decode and trim the order number to handle URL encoding and whitespace
+    const orderNoParam = decodeURIComponent(req.params.orderNo).trim();
+    
+    // Try exact match first (most common case)
+    let order = await Order.findOne({ orderNo: orderNoParam });
+    
+    // If not found, try case-insensitive search as fallback
+    if (!order) {
+      order = await Order.findOne({ 
+        orderNo: { $regex: new RegExp(`^${orderNoParam.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') }
+      });
+    }
+    
     if (!order) return res.status(404).send("Order not found");
 
     const oldStatus = order.orderStatus;
@@ -737,7 +749,8 @@ const ORDER_STATUS_MAP = {
 router.put("/:orderNo/additionalInfo/:index", async (req, res) => {
   console.log("REQ BODY:", JSON.stringify(req.body, null, 2));
   try {
-    const orderNo = req.params.orderNo;
+    // Decode and trim the order number to handle URL encoding and whitespace
+    const orderNo = decodeURIComponent(req.params.orderNo).trim();
     const idx1 = parseInt(req.params.index, 10);
     const idx0 = idx1 - 1;
 

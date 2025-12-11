@@ -1,39 +1,47 @@
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import { lazy, Suspense } from "react";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
-import { lazy, Suspense } from "react";
-const Dashboard = lazy(() => import("./pages/Dashboard"));
 import MainLayout from "./layouts/MainLayout";
-import AddOrder from "./pages/AddOrder";
-import PlacedOrders from "./pages/PlacedOrders";
-import CustomerApproved from "./pages/CustomerApproved";
-import MonthlyOrders from "./pages/MonthlyOrders";
-import AllOrders from "./pages/AllOrders";
-import OrderForm  from "./pages/OrderDetails";
-import YardProcessingOrders  from "./pages/YardProcessing";
-import InTransitOrders from "./pages/InTransit";
-import CancelledOrders from "./pages/CancelledOrders";
-import RefundedOrders from "./pages/RefundedOrders";
-import DisputedOrders from "./pages/DisputedOrders";
-import FulfilledOrders from "./pages/FulfilledOrders";
-import OverallEscalationOrders from "./pages/OverallEscalationOrders";
-import OngoingEscalationOrders from "./pages/OngoingEscalations";
-import CreateUser from "./pages/CreateUser";
-import ViewUsers from "./pages/ViewUsers";
-import OrderDetails from "./pages/OrderDetails";
-import CancelledRefundedOrders from "./pages/CancelledRefundedReport";
-import CardNotCharged from "./pages/CardNotCharged";
-import CollectRefund from "./pages/CollectRefund";
-import DeliveryTimeReport from "./pages/DeliveryReport";
-import MonthlyDisputes from "./pages/MonthlyDisputes";
-import Purchases from "./pages/Purchases";
-import POReport from "./pages/POReport";
-import ShippingExpenses from "./pages/ShippingExpenses";
-import StoreCredits from "./pages/StoreCredit";
-import TrackingInfo from "./pages/TrackingInfo"
 import useAuthBootstrap from "./hooks/useAuthBootstrap";
-import SalesData from "./pages/SalesData";
-import SalesReport from "./pages/SalesReport";
+
+// Lazy load pages for code splitting
+const Dashboard = lazy(() => import("./pages/Dashboard"));
+const AddOrder = lazy(() => import("./pages/AddOrder"));
+const PlacedOrders = lazy(() => import("./pages/PlacedOrders"));
+const CustomerApproved = lazy(() => import("./pages/CustomerApproved"));
+const MonthlyOrders = lazy(() => import("./pages/MonthlyOrders"));
+const AllOrders = lazy(() => import("./pages/AllOrders"));
+const YardProcessingOrders = lazy(() => import("./pages/YardProcessing"));
+const InTransitOrders = lazy(() => import("./pages/InTransit"));
+const CancelledOrders = lazy(() => import("./pages/CancelledOrders"));
+const RefundedOrders = lazy(() => import("./pages/RefundedOrders"));
+const DisputedOrders = lazy(() => import("./pages/DisputedOrders"));
+const FulfilledOrders = lazy(() => import("./pages/FulfilledOrders"));
+const OverallEscalationOrders = lazy(() => import("./pages/OverallEscalationOrders"));
+const OngoingEscalationOrders = lazy(() => import("./pages/OngoingEscalations"));
+const CreateUser = lazy(() => import("./pages/CreateUser"));
+const ViewUsers = lazy(() => import("./pages/ViewUsers"));
+const OrderDetails = lazy(() => import("./pages/OrderDetails"));
+const CancelledRefundedOrders = lazy(() => import("./pages/CancelledRefundedReport"));
+const CardNotCharged = lazy(() => import("./pages/CardNotCharged"));
+const CollectRefund = lazy(() => import("./pages/CollectRefund"));
+const DeliveryTimeReport = lazy(() => import("./pages/DeliveryReport"));
+const MonthlyDisputes = lazy(() => import("./pages/MonthlyDisputes"));
+const Purchases = lazy(() => import("./pages/Purchases"));
+const POReport = lazy(() => import("./pages/POReport"));
+const ShippingExpenses = lazy(() => import("./pages/ShippingExpenses"));
+const StoreCredits = lazy(() => import("./pages/StoreCredit"));
+const TrackingInfo = lazy(() => import("./pages/TrackingInfo"));
+const SalesData = lazy(() => import("./pages/SalesData"));
+const SalesReport = lazy(() => import("./pages/SalesReport"));
+
+// Loading fallback component
+const PageLoader = () => (
+  <div className="h-screen flex items-center justify-center">
+    <div className="text-white text-xl">Loading...</div>
+  </div>
+);
 
 function App() {
   useAuthBootstrap(); // read localStorage and dispatch setCredentials once.
@@ -50,7 +58,7 @@ function App() {
           path="/dashboard"
           element={
             <MainLayout>
-              <Suspense fallback={<div className="text-center p-8">Loading dashboard...</div>}>
+              <Suspense fallback={<PageLoader />}>
                 <Dashboard />
               </Suspense>
             </MainLayout>
@@ -60,7 +68,9 @@ function App() {
           path="/add-order"
           element={
             <MainLayout>
-              <AddOrder />
+              <Suspense fallback={<PageLoader />}>
+                <AddOrder />
+              </Suspense>
             </MainLayout>
           }
         />
@@ -68,7 +78,9 @@ function App() {
           path="/placed-orders"
           element={
             <MainLayout>
-              <PlacedOrders />
+              <Suspense fallback={<PageLoader />}>
+                <PlacedOrders />
+              </Suspense>
             </MainLayout>
           }
         />
@@ -76,7 +88,9 @@ function App() {
           path="/customer-approved"
           element={
             <MainLayout>
-              <CustomerApproved />
+              <Suspense fallback={<PageLoader />}>
+                <CustomerApproved />
+              </Suspense>
             </MainLayout>
           }
         />
@@ -84,7 +98,9 @@ function App() {
           path="/monthly-orders"
           element={
             <MainLayout>
-              <MonthlyOrders />
+              <Suspense fallback={<PageLoader />}>
+                <MonthlyOrders />
+              </Suspense>
             </MainLayout>
           }
         />
@@ -92,7 +108,9 @@ function App() {
           path="/view-all-orders"
           element={
             <MainLayout>
-              <AllOrders />
+              <Suspense fallback={<PageLoader />}>
+                <AllOrders />
+              </Suspense>
             </MainLayout>
           }
         />
@@ -105,174 +123,239 @@ function App() {
         <Route
           path="/yard-processing"
           element={
-               <MainLayout>
-              <YardProcessingOrders />
-              </MainLayout>
+            <MainLayout>
+              <Suspense fallback={<PageLoader />}>
+                <YardProcessingOrders />
+              </Suspense>
+            </MainLayout>
           }
         />
         <Route
           path="/in-transit"
           element={
-               <MainLayout>
-              <InTransitOrders />
-              </MainLayout>
+            <MainLayout>
+              <Suspense fallback={<PageLoader />}>
+                <InTransitOrders />
+              </Suspense>
+            </MainLayout>
           }
         />
         <Route
           path="/cancelled-orders"
           element={
-               <MainLayout>
-              <CancelledOrders />
-              </MainLayout>
+            <MainLayout>
+              <Suspense fallback={<PageLoader />}>
+                <CancelledOrders />
+              </Suspense>
+            </MainLayout>
           }
         />
         <Route
           path="/refunded-orders"
           element={
-               <MainLayout>
-              <RefundedOrders />
-              </MainLayout>
+            <MainLayout>
+              <Suspense fallback={<PageLoader />}>
+                <RefundedOrders />
+              </Suspense>
+            </MainLayout>
           }
         />
         <Route
           path="/disputed-orders"
           element={
-               <MainLayout>
-              <DisputedOrders />
-              </MainLayout>
+            <MainLayout>
+              <Suspense fallback={<PageLoader />}>
+                <DisputedOrders />
+              </Suspense>
+            </MainLayout>
           }
         />
         <Route
           path="/fulfilled-orders"
           element={
-               <MainLayout>
-              <FulfilledOrders />
-              </MainLayout>
+            <MainLayout>
+              <Suspense fallback={<PageLoader />}>
+                <FulfilledOrders />
+              </Suspense>
+            </MainLayout>
           }
         />
         <Route
           path="/overall-escalation"
           element={
-               <MainLayout>
-              <OverallEscalationOrders />
-              </MainLayout>
+            <MainLayout>
+              <Suspense fallback={<PageLoader />}>
+                <OverallEscalationOrders />
+              </Suspense>
+            </MainLayout>
           }
         />
         <Route
           path="/ongoing-escalation"
           element={
-               <MainLayout>
-              <OngoingEscalationOrders />
-              </MainLayout>
-          }
-        />
-        <Route          
-        path="/create-user"
-        element={
             <MainLayout>
-              <CreateUser/>
+              <Suspense fallback={<PageLoader />}>
+                <OngoingEscalationOrders />
+              </Suspense>
             </MainLayout>
           }
         />
         <Route
-        path="/view-users"
-        element={
-          <MainLayout>
-            <ViewUsers/>
-          </MainLayout>
-        }
+          path="/create-user"
+          element={
+            <MainLayout>
+              <Suspense fallback={<PageLoader />}>
+                <CreateUser />
+              </Suspense>
+            </MainLayout>
+          }
         />
-          <Route
-        path="/order-details"
-        element={
-            <OrderDetails />
-        }/>
-        <Route path="/order-details/:orderNo" element={<OrderDetails />} />
         <Route
-        path="/cancelled-refunded-report"
-        element={
-          <MainLayout>
-            <CancelledRefundedOrders/>
-          </MainLayout>
-        }/>
+          path="/view-users"
+          element={
+            <MainLayout>
+              <Suspense fallback={<PageLoader />}>
+                <ViewUsers />
+              </Suspense>
+            </MainLayout>
+          }
+        />
         <Route
-        path="/card-not-charged-report"
-        element={
-          <MainLayout>
-            <CardNotCharged/>
-          </MainLayout>
-        }/>
+          path="/order-details"
+          element={
+            <Suspense fallback={<PageLoader />}>
+              <OrderDetails />
+            </Suspense>
+          }
+        />
         <Route
-        path="/collect-refund"
-        element={
-          <MainLayout>
-            <CollectRefund/>
-          </MainLayout>
-        }/>
+          path="/order-details/:orderNo"
+          element={
+            <Suspense fallback={<PageLoader />}>
+              <OrderDetails />
+            </Suspense>
+          }
+        />
         <Route
-        path="/delivery-time"
-        element={
-          <MainLayout>
-            <DeliveryTimeReport/>
-          </MainLayout>
-        }/>
+          path="/cancelled-refunded-report"
+          element={
+            <MainLayout>
+              <Suspense fallback={<PageLoader />}>
+                <CancelledRefundedOrders />
+              </Suspense>
+            </MainLayout>
+          }
+        />
         <Route
-        path="/monthly-disputes"
-        element={
-          <MainLayout>
-            <MonthlyDisputes/>
-          </MainLayout>
-        }/>
+          path="/card-not-charged-report"
+          element={
+            <MainLayout>
+              <Suspense fallback={<PageLoader />}>
+                <CardNotCharged />
+              </Suspense>
+            </MainLayout>
+          }
+        />
         <Route
-        path="/purchases"
-        element={
-          <MainLayout>
-            <Purchases/>
-          </MainLayout>
-        }/>
+          path="/collect-refund"
+          element={
+            <MainLayout>
+              <Suspense fallback={<PageLoader />}>
+                <CollectRefund />
+              </Suspense>
+            </MainLayout>
+          }
+        />
         <Route
-        path="/po-report"
-        element={
-          <MainLayout>
-            <POReport/>
-          </MainLayout>
-        }/>
+          path="/delivery-time"
+          element={
+            <MainLayout>
+              <Suspense fallback={<PageLoader />}>
+                <DeliveryTimeReport />
+              </Suspense>
+            </MainLayout>
+          }
+        />
         <Route
-        path="/shipping-expenses"
-        element={
-          <MainLayout>
-            <ShippingExpenses/>
-          </MainLayout>
-        }/>
+          path="/monthly-disputes"
+          element={
+            <MainLayout>
+              <Suspense fallback={<PageLoader />}>
+                <MonthlyDisputes />
+              </Suspense>
+            </MainLayout>
+          }
+        />
         <Route
-        path="/store-credit"
-        element={
-          <MainLayout>
-            <StoreCredits/>
-          </MainLayout>
-        }/>
+          path="/purchases"
+          element={
+            <MainLayout>
+              <Suspense fallback={<PageLoader />}>
+                <Purchases />
+              </Suspense>
+            </MainLayout>
+          }
+        />
         <Route
-        path="/tracking-info"
-        element={
-          <MainLayout>
-            <TrackingInfo/>
-          </MainLayout>
-        }/>
+          path="/po-report"
+          element={
+            <MainLayout>
+              <Suspense fallback={<PageLoader />}>
+                <POReport />
+              </Suspense>
+            </MainLayout>
+          }
+        />
         <Route
-        path="/sales-data"
-        element={
-          <MainLayout>
-            <SalesData/>
-          </MainLayout>
-        }/>
+          path="/shipping-expenses"
+          element={
+            <MainLayout>
+              <Suspense fallback={<PageLoader />}>
+                <ShippingExpenses />
+              </Suspense>
+            </MainLayout>
+          }
+        />
         <Route
-        path="/sales-report"
-        element={
-          <MainLayout>
-            <SalesReport/>
-          </MainLayout>
-        }
-          />
+          path="/store-credit"
+          element={
+            <MainLayout>
+              <Suspense fallback={<PageLoader />}>
+                <StoreCredits />
+              </Suspense>
+            </MainLayout>
+          }
+        />
+        <Route
+          path="/tracking-info"
+          element={
+            <MainLayout>
+              <Suspense fallback={<PageLoader />}>
+                <TrackingInfo />
+              </Suspense>
+            </MainLayout>
+          }
+        />
+        <Route
+          path="/sales-data"
+          element={
+            <MainLayout>
+              <Suspense fallback={<PageLoader />}>
+                <SalesData />
+              </Suspense>
+            </MainLayout>
+          }
+        />
+        <Route
+          path="/sales-report"
+          element={
+            <MainLayout>
+              <Suspense fallback={<PageLoader />}>
+                <SalesReport />
+              </Suspense>
+            </MainLayout>
+          }
+        />
       </Routes>
     </Router>
   );
