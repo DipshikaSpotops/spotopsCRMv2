@@ -33,21 +33,54 @@ export default defineConfig({
   build: {
     target: "esnext",
     sourcemap: false,
-    chunkSizeWarningLimit: 1000,
+    chunkSizeWarningLimit: 3000,
     rollupOptions: {
       output: {
         manualChunks(id) {
           // Check if it's a node_modules dependency
           if (!id.includes('node_modules')) {
-            // Split source code by feature/route
+            // Split source code by feature/route - more granular splitting
             if (id.includes('/src/pages/')) {
+              // Split large pages into individual chunks
+              const pageMatch = id.match(/\/src\/pages\/([^/]+)/);
+              if (pageMatch) {
+                const pageName = pageMatch[1];
+                // Group related pages together
+                if (['OrderDetails', 'EditOrder', 'AddOrder'].includes(pageName)) {
+                  return 'pages-orders';
+                }
+                if (['Dashboard', 'SalesData', 'SalesReport'].includes(pageName)) {
+                  return 'pages-dashboard';
+                }
+                if (['PlacedOrders', 'CustomerApproved', 'AllOrders'].includes(pageName)) {
+                  return 'pages-listing';
+                }
+                if (['MonthlyOrders', 'CancelledOrders', 'RefundedOrders', 'DisputedOrders'].includes(pageName)) {
+                  return 'pages-reports';
+                }
+                // Keep other pages separate
+                return `pages-${pageName.toLowerCase()}`;
+              }
               return 'pages';
             }
             if (id.includes('/src/components/')) {
+              // Split components by type
+              if (id.includes('/components/order/')) {
+                return 'components-order';
+              }
+              if (id.includes('/components/ui/')) {
+                return 'components-ui';
+              }
               return 'components';
             }
             if (id.includes('/src/layouts/')) {
               return 'layouts';
+            }
+            if (id.includes('/src/hooks/')) {
+              return 'hooks';
+            }
+            if (id.includes('/src/utils/')) {
+              return 'utils';
             }
             return null;
           }
