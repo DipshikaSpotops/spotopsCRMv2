@@ -94,12 +94,20 @@ const setJSON = (k, v) => {
 /* =========================
    GP helpers (exactly like SalesData)
    ========================= */
+/**
+ * Extract numeric shipping value from shippingDetails string
+ * Handles both "Own shipping: X" and "Yard shipping: X" formats
+ * Always extracts from shippingDetails, never from ownShipping/yardShipping fields
+ */
 function parseShippingValue(field = "") {
-  if (typeof field !== "string") return 0;
-  if (!field.includes(":")) return 0;
-  const parts = field.split(":");
-  const num = parseFloat(String(parts[1]).trim());
-  return isNaN(num) ? 0 : num;
+  if (typeof field !== "string" || !field) return 0;
+  // Match "Own shipping: X" or "Yard shipping: X" (case-insensitive, handles decimals)
+  const match = field.match(/(?:Own shipping|Yard shipping):\s*([\d.]+)/i);
+  if (match) {
+    const num = parseFloat(match[1]);
+    return isNaN(num) ? 0 : num;
+  }
+  return 0;
 }
 function calculateCurrentGP(order) {
   if (!order || !Array.isArray(order.additionalInfo) || order.additionalInfo.length === 0)
@@ -138,12 +146,20 @@ function calculateCurrentGP(order) {
   const subtractRefund = spMinusTax - custRefundedAmount;
   return subtractRefund - totalYardSpent;
 }
-/** Parse shipping cost from "Label: 12.34" style strings */
+/**
+ * Extract numeric shipping value from shippingDetails string
+ * Handles both "Own shipping: X" and "Yard shipping: X" formats
+ * Always extracts from shippingDetails, never from ownShipping/yardShipping fields
+ */
 function parseShippingCostStrict(field) {
   if (!field || typeof field !== "string") return 0;
-  const parts = field.split(":");
-  const n = parseFloat(parts[1]?.trim());
-  return Number.isFinite(n) ? n : 0;
+  // Match "Own shipping: X" or "Yard shipping: X" (case-insensitive, handles decimals)
+  const match = field.match(/(?:Own shipping|Yard shipping):\s*([\d.]+)/i);
+  if (match) {
+    const num = parseFloat(match[1]);
+    return Number.isFinite(num) ? num : 0;
+  }
+  return 0;
 }
 
 /** Your exact yard spending formulas per yard */

@@ -215,11 +215,23 @@ const toHumanLabel = (field) => {
     .join(" ");
 };
 
+// Helper function to clean firstName (remove duplicates, comma-separated values)
+const cleanFirstName = (name) => {
+  if (!name) return "";
+  let cleaned = String(name).trim();
+  // If firstName contains comma, split and take first part only
+  if (cleaned.includes(',')) {
+    const parts = cleaned.split(',').map(p => p.trim()).filter(Boolean);
+    cleaned = parts[0] || "";
+  }
+  return cleaned;
+};
+
 const formatNote = (author, when, message) => {
   if (!author) {
     throw new Error("author (firstName) is required for formatNote");
   }
-  const name = author.toString().trim();
+  const name = cleanFirstName(author.toString().trim());
   const stamp = when || getWhen();
   return `${name}, ${stamp} : ${message}`;
 };
@@ -509,7 +521,7 @@ router.put("/:orderNo", async (req, res) => {
       }
     });
 
-    const firstName = req.query.firstName || req.user?.firstName;
+    const firstName = cleanFirstName(req.query.firstName || req.user?.firstName || "");
     if (!firstName) {
       return res.status(400).json({ message: "firstName is required" });
     }
@@ -633,7 +645,7 @@ router.post("/:orderNo/additionalInfo", async (req, res) => {
    const isoNow = getWhen("iso");
 
     const { orderNo } = req.params;
-    const firstName = (req.query.firstName || req.query.firstname || "").toString().trim();
+    const firstName = cleanFirstName(req.query.firstName || req.query.firstname || "");
 
     const {
       orderStatus,
@@ -754,11 +766,11 @@ router.put("/:orderNo/additionalInfo/:index", async (req, res) => {
     const idx1 = parseInt(req.params.index, 10);
     const idx0 = idx1 - 1;
 
-    const firstName = (
+    const firstName = cleanFirstName(
       req.query.firstName ||
       req.query.firstname ||
       "System"
-    ).toString().trim();
+    );
 
     const when = getWhen();     
     const isoNow = getWhen("iso");
@@ -1316,18 +1328,45 @@ router.patch("/:orderNo/additionalInfo/:index", async (req, res) => {
       typeof updates.shippingDetails === "string"
     ) {
       const trimmed = updates.shippingDetails.trim();
-      yard.shippingDetails = trimmed;
-      if (/^Own shipping:/i.test(trimmed)) {
-        const val = trimmed.replace(/^Own shipping:\s*/i, "");
-        yard.ownShipping = val;
-        yard.yardShipping = "";
-      } else if (/^Yard shipping:/i.test(trimmed)) {
-        const val = trimmed.replace(/^Yard shipping:\s*/i, "");
-        yard.yardShipping = val;
-        yard.ownShipping = "";
+      
+      // If shippingDetails is empty and yardShipping is provided separately, use it
+      if (!trimmed && updates.yardShipping !== undefined) {
+        const normalizedYard = normalize(updates.yardShipping);
+        if (normalizedYard) {
+          yard.shippingDetails = `Yard shipping: ${normalizedYard}`;
+          yard.yardShipping = normalizedYard;
+          yard.ownShipping = "";
+        } else {
+          yard.shippingDetails = "";
+          yard.ownShipping = "";
+          yard.yardShipping = "";
+        }
+      } else if (!trimmed && updates.ownShipping !== undefined) {
+        const normalizedOwn = normalize(updates.ownShipping);
+        if (normalizedOwn) {
+          yard.shippingDetails = `Own shipping: ${normalizedOwn}`;
+          yard.ownShipping = normalizedOwn;
+          yard.yardShipping = "";
+        } else {
+          yard.shippingDetails = "";
+          yard.ownShipping = "";
+          yard.yardShipping = "";
+        }
       } else {
-        yard.ownShipping = "";
-        yard.yardShipping = "";
+        // Process shippingDetails string as before
+        yard.shippingDetails = trimmed;
+        if (/^Own shipping:/i.test(trimmed)) {
+          const val = trimmed.replace(/^Own shipping:\s*/i, "");
+          yard.ownShipping = val;
+          yard.yardShipping = "";
+        } else if (/^Yard shipping:/i.test(trimmed)) {
+          const val = trimmed.replace(/^Yard shipping:\s*/i, "");
+          yard.yardShipping = val;
+          yard.ownShipping = "";
+        } else {
+          yard.ownShipping = "";
+          yard.yardShipping = "";
+        }
       }
       const newShippingDetails = yard.shippingDetails || "";
       if (newShippingDetails !== prevShippingDetails) {
@@ -1337,6 +1376,68 @@ router.patch("/:orderNo/additionalInfo/:index", async (req, res) => {
           }`
         );
       }
+    } else if (updates.yardShipping !== undefined || updates.ownShipping !== undefined) {
+      // Handle case where only yardShipping or ownShipping is provided without shippingDetails
+      if (updates.yardShipping !== undefined) {
+        const normalizedYard = normalize(updates.yardShipping);
+        if (normalizedYard) {
+          yard.shippingDetails = `Yard shipping: ${normalizedYard}`;
+          yard.yardShipping = normalizedYard;
+          yard.ownShipping = "";
+        } else {
+          yard.shippingDetails = "";
+          yard.ownShipping = "";
+          yard.yardShipping = "";
+        }
+      } else if (updates.ownShipping !== undefined) {
+        const normalizedOwn = normalize(updates.ownShipping);
+        if (normalizedOwn) {
+          yard.shippingDetails = `Own shipping: ${normalizedOwn}`;
+          yard.ownShipping = normalizedOwn;
+          yard.yardShipping = "";
+        } else {
+          yard.shippingDetails = "";
+          yard.ownShipping = "";
+          yard.yardShipping = "";
+        }
+      }
+      const newShippingDetails = yard.shippingDetails || "";
+      if (newShippingDetails !== prevShippingDetails) {
+        changes.push(
+          `Shipping Details ${prevShippingDetails || "—"} → ${
+            newShippingDetails || "—"
+          }`
+        );
+      }
+    }
+
+    // 5.5️ Ensure mutual exclusivity - only one shipping type should exist
+    // This is a safety check to prevent both ownShipping and yardShipping from being set
+    if (yard.ownShipping && yard.yardShipping) {
+      // If both are set, prioritize based on shippingDetails
+      if (yard.shippingDetails?.includes("Yard shipping")) {
+        yard.ownShipping = "";
+      } else if (yard.shippingDetails?.includes("Own shipping")) {
+        yard.yardShipping = "";
+      } else {
+        // If shippingDetails doesn't indicate which, clear both
+        yard.ownShipping = "";
+        yard.yardShipping = "";
+        yard.shippingDetails = "";
+      }
+    } else if (yard.ownShipping && !yard.yardShipping) {
+      // Ensure shippingDetails matches ownShipping
+      if (!yard.shippingDetails?.includes("Own shipping")) {
+        yard.shippingDetails = `Own shipping: ${yard.ownShipping}`;
+      }
+    } else if (yard.yardShipping && !yard.ownShipping) {
+      // Ensure shippingDetails matches yardShipping
+      if (!yard.shippingDetails?.includes("Yard shipping")) {
+        yard.shippingDetails = `Yard shipping: ${yard.yardShipping}`;
+      }
+    } else if (!yard.ownShipping && !yard.yardShipping) {
+      // Both cleared, ensure shippingDetails is also cleared
+      yard.shippingDetails = "";
     }
 
     // 6️ Log note only if something changed
@@ -1816,7 +1917,7 @@ router.patch("/:orderNo/storeCredits", async (req, res) => {
   try {
     const { orderNo } = req.params;
     const { usageType, amountUsed, orderNoUsedFor } = req.body;
-    const firstName = req.query.firstName || req.user?.firstName;
+    const firstName = cleanFirstName(req.query.firstName || req.user?.firstName || "");
     if (!firstName) {
       return res.status(400).json({ message: "firstName is required" });
     }

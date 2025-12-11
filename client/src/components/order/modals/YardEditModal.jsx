@@ -249,15 +249,28 @@ export default function YardEditModal({ open, initial, order, orderNo, yardIndex
     const ownChanged = nextOwn !== oldOwn;
     const yardChanged = nextYard !== oldYard;
 
-    if (ownChanged) {
-      changedFields.shippingDetails = nextOwn ? `Own shipping: ${nextOwn}` : "";
-    } else if (yardChanged) {
-      changedFields.shippingDetails = nextYard ? `Yard shipping: ${nextYard}` : "";
+    // Handle shipping changes - prioritize the one with a value if both changed
+    if (yardChanged && nextYard) {
+      // Changing to yard shipping (prioritize this if both changed)
+      changedFields.shippingDetails = `Yard shipping: ${nextYard}`;
+      changedFields.yardShipping = nextYard; // Send separately for backend fallback
+      changedFields.ownShipping = ""; // Clear own shipping
+    } else if (ownChanged && nextOwn) {
+      // Changing to own shipping
+      changedFields.shippingDetails = `Own shipping: ${nextOwn}`;
+      changedFields.ownShipping = nextOwn; // Send separately for backend fallback
+      changedFields.yardShipping = ""; // Clear yard shipping
+    } else if ((ownChanged || yardChanged) && !nextOwn && !nextYard) {
+      // Both cleared
+      changedFields.shippingDetails = "";
+      changedFields.ownShipping = "";
+      changedFields.yardShipping = "";
     } else {
+      // No shipping changes
       delete changedFields.shippingDetails;
+      delete changedFields.ownShipping;
+      delete changedFields.yardShipping;
     }
-    delete changedFields.ownShipping;
-    delete changedFields.yardShipping;
 
     const shippingChanged = ownChanged || yardChanged;
 

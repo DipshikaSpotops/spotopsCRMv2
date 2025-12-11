@@ -17,10 +17,20 @@ const columns = [
 ];
 
 /* ---------- Yard helpers (same math style you use on Refunded) ---------- */
+/**
+ * Extract numeric shipping value from shippingDetails string
+ * Handles both "Own shipping: X" and "Yard shipping: X" formats
+ * Always extracts from shippingDetails, never from ownShipping/yardShipping fields
+ */
 function parseShippingCost(field) {
   if (!field || typeof field !== "string") return 0;
-  const n = parseFloat(field.split(":")[1]?.trim());
-  return Number.isFinite(n) ? n : 0;
+  // Match "Own shipping: X" or "Yard shipping: X" (case-insensitive, handles decimals)
+  const match = field.match(/(?:Own shipping|Yard shipping):\s*([\d.]+)/i);
+  if (match) {
+    const num = parseFloat(match[1]);
+    return Number.isFinite(num) ? num : 0;
+  }
+  return 0;
 }
 function computeYardDerived(yard) {
   const shippingCost           = parseShippingCost(yard?.shippingDetails);

@@ -101,13 +101,18 @@ router.post("/sendPOEmailYard/:orderNo", upload.any(), async (req, res) => {
 
     // Calculate prices
     const partPrice = parseFloat(yard.partPrice) || 0;
+    // Extract numeric value from shippingDetails (handles both "Own shipping: X" and "Yard shipping: X")
     let shipping = 0;
     let shippingValue = "Included";
-    if (yard.shippingDetails?.includes("Yard shipping")) {
-      const match = yard.shippingDetails.match(/Yard shipping:\s*(\d+)/);
+    if (yard.shippingDetails) {
+      const match = yard.shippingDetails.match(/(?:Own shipping|Yard shipping):\s*([\d.]+)/i);
       if (match) {
-        shipping = parseFloat(match[1]);
+        shipping = parseFloat(match[1]) || 0;
         shippingValue = shipping === 0 ? "Included" : `$${shipping.toFixed(2)}`;
+      }
+      // If it's "Own shipping", show that label
+      if (yard.shippingDetails.includes("Own shipping") && !match) {
+        shippingValue = "Own Shipping (Auto Parts Group Corp)";
       }
     } else {
       shippingValue = "Own Shipping (Auto Parts Group Corp)";

@@ -183,11 +183,14 @@ const calcActualGP = (orderLike) => {
     // Only calculate yardSpent if paymentStatus is "Card charged"
     if (paymentStatus === "Card charged") {
       const yardPP = parseFloat(yard.partPrice) || 0;
-      const yardOSorYS = yard.shippingDetails || "";
+      // Extract numeric value from shippingDetails (handles both "Own shipping: X" and "Yard shipping: X")
+      const shippingDetails = yard.shippingDetails || "";
       let shippingValueYard = 0;
-      if (yardOSorYS && yardOSorYS.includes(":")) {
-        const [, valuePart] = yardOSorYS.split(":");
-        shippingValueYard = parseFloat(valuePart) || 0;
+      if (shippingDetails && shippingDetails.includes(":")) {
+        const match = shippingDetails.match(/(?:Own shipping|Yard shipping):\s*([\d.]+)/i);
+        if (match) {
+          shippingValueYard = parseFloat(match[1]) || 0;
+        }
       }
 
       const yardOthers = parseFloat(yard.others) || 0;

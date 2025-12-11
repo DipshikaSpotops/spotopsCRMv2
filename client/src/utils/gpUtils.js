@@ -1,9 +1,17 @@
+/**
+ * Extract numeric shipping value from shippingDetails string
+ * Handles both "Own shipping: X" and "Yard shipping: X" formats
+ * Always extracts from shippingDetails, never from ownShipping/yardShipping fields
+ */
 function parseShippingValue(field = "") {
-  if (typeof field !== "string") return 0;
-  if (!field.includes(":")) return 0;
-  const parts = field.split(":");
-  const num = parseFloat(String(parts[1]).trim());
-  return isNaN(num) ? 0 : num;
+  if (typeof field !== "string" || !field) return 0;
+  // Match "Own shipping: X" or "Yard shipping: X" (case-insensitive, handles decimals)
+  const match = field.match(/(?:Own shipping|Yard shipping):\s*([\d.]+)/i);
+  if (match) {
+    const num = parseFloat(match[1]);
+    return isNaN(num) ? 0 : num;
+  }
+  return 0;
 }
 
 export function calculateCurrentGP(order) {

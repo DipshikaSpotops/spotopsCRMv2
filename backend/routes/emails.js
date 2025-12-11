@@ -573,12 +573,16 @@ router.post("/orders/sendRefundEmail/:orderNo", upload.single("pdfFile"), async 
 
     const yardAgent = yard.agentName || "Yard";
     const partPrice = parseFloat(yard.partPrice ?? 0);
-    const yardOSorYS = yard.shippingDetails || "";
+    // Extract numeric value from shippingDetails (handles both "Own shipping: X" and "Yard shipping: X")
+    const shippingDetails = yard.shippingDetails || "";
     let shippingValueYard = 0;
-    if (yardOSorYS.includes("Yard shipping")) {
-      const splitVal = yardOSorYS.split(":")[1];
-      shippingValueYard = parseFloat(splitVal?.trim() || 0);
+    if (shippingDetails) {
+      const match = shippingDetails.match(/(?:Own shipping|Yard shipping):\s*([\d.]+)/i);
+      if (match) {
+        shippingValueYard = parseFloat(match[1]) || 0;
+      }
     }
+    // Note: shippingValueYard is already extracted above using the regex match
     const others = parseFloat(yard.others ?? 0);
     const chargedAmount = partPrice + shippingValueYard + others;
 
