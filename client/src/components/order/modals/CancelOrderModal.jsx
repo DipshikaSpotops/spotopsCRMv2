@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import API from "../../../api";
 import { getWhen, formatDallasDate } from "@spotops/shared";
+import EmailLoader from "../../common/EmailLoader";
+import EmailToast from "../../common/EmailToast";
 
 export default function CancelOrderModal({ open, onClose, orderNo, onSubmit }) {
   const [reason, setReason] = useState("");
@@ -8,6 +10,8 @@ export default function CancelOrderModal({ open, onClose, orderNo, onSubmit }) {
   const [cancelDate, setCancelDate] = useState("");
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState("");
+  const [sendingEmail, setSendingEmail] = useState(false);
+  const [emailToast, setEmailToast] = useState(null);
 
   const firstName = localStorage.getItem("firstName");
 
@@ -61,12 +65,23 @@ export default function CancelOrderModal({ open, onClose, orderNo, onSubmit }) {
 
       // Then send email if requested
       if (sendEmail) {
-        await API.post(
-          `/emails/order-cancel/${orderNo}`,
-          null,
-          { params: { cancelledRefAmount: refundAmount, firstName } }
-        );
-        setToast("Cancellation saved and email sent successfully!");
+        setLoading(false); // Clear main loading, email will have its own loading
+        setSendingEmail(true);
+        try {
+          await API.post(
+            `/emails/order-cancel/${orderNo}`,
+            null,
+            { params: { cancelledRefAmount: refundAmount, firstName } }
+          );
+          setSendingEmail(false);
+          setEmailToast({ message: "Cancellation saved and email sent successfully!", variant: "success" });
+          setToast("Cancellation saved and email sent successfully!");
+        } catch (emailErr) {
+          setSendingEmail(false);
+          const errorMsg = emailErr?.response?.data?.message || emailErr?.message || "Failed to send cancellation email.";
+          setEmailToast({ message: errorMsg, variant: "error" });
+          setToast("Cancellation saved, but email failed to send.");
+        }
       } else {
         setToast("Order cancellation saved.");
       }
@@ -309,6 +324,12 @@ export default function CancelOrderModal({ open, onClose, orderNo, onSubmit }) {
           </div>
         )}
       </div>
+      
+      {/* Email loading overlay */}
+      {sendingEmail && <EmailLoader message="Sending cancellation email..." />}
+      
+      {/* Email toast notification */}
+      <EmailToast toast={emailToast} onClose={() => setEmailToast(null)} />
     </div>
     </>
   );

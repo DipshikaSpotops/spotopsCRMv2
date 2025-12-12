@@ -1051,7 +1051,9 @@ router.put("/:orderNo/additionalInfo/:index", async (req, res) => {
 
     /* ---------------- SEND TRACKING EMAIL ---------------- */
     // Only send email if frontend hasn't already sent it (skipEmail flag)
-    if (changed.includes("status") && newStatus === "Part shipped" && !req.body.skipEmail) {
+    const shouldSkipEmail = req.body.skipEmail === true || req.body.skipEmail === "true";
+    if (changed.includes("status") && newStatus === "Part shipped" && !shouldSkipEmail) {
+      console.log("[orders] Sending tracking email from backend (skipEmail was false/undefined)");
       try {
         const API_BASE =
           process.env.PUBLIC_API_BASE_URL ||
@@ -1091,7 +1093,9 @@ router.put("/:orderNo/additionalInfo/:index", async (req, res) => {
 
     /* ---------------- SEND DELIVERY EMAIL ---------------- */
     // Only send email if frontend hasn't already sent it (skipEmail flag)
-    if (changed.includes("status") && newStatus === "Part delivered" && !req.body.skipEmail) {
+    const shouldSkipDeliveryEmail = req.body.skipEmail === true || req.body.skipEmail === "true";
+    if (changed.includes("status") && newStatus === "Part delivered" && !shouldSkipDeliveryEmail) {
+      console.log("[orders] Sending delivery email from backend (skipEmail was false/undefined)");
       try {
         const API_BASE =
           process.env.PUBLIC_API_BASE_URL ||

@@ -40,6 +40,17 @@ function prettyDate(iso, tz = "America/Chicago") {
     return "";
   }
 }
+// Helper function to clean firstName (remove duplicates, comma-separated values)
+const cleanFirstName = (firstName) => {
+  if (!firstName) return "Auto Parts Group";
+  let cleaned = String(firstName).trim();
+  // If firstName contains comma, split and take first part only
+  if (cleaned.includes(',')) {
+    const parts = cleaned.split(',').map(p => p.trim()).filter(Boolean);
+    cleaned = parts[0] || "Auto Parts Group";
+  }
+  return cleaned;
+};
 // POST /emails/order-cancel/:orderNo
 router.post("/order-cancel/:orderNo", async (req, res) => {
   console.log("[emails] order-cancel hit", req.method, req.originalUrl);
@@ -47,7 +58,7 @@ router.post("/order-cancel/:orderNo", async (req, res) => {
   try {
     const { orderNo } = req.params;
     const cancelledRefAmount = req.query.cancelledRefAmount ?? "0.00";
-    const firstName = req.query.firstName;
+    const firstName = cleanFirstName(req.query.firstName ?? "");
     console.log("[emails] params:", { orderNo, cancelledRefAmount, firstName });
 
     const order = await Order.findOne({ orderNo });
@@ -87,7 +98,7 @@ router.post("/order-cancel/:orderNo", async (req, res) => {
         <p>If you have any questions or require further assistance, please don't hesitate to contact our customer support team at <b>+1(888)-732-8680</b>. We are here to assist you in any way we can. Thank you for your understanding and continued support.</p>
         <p><b>Please reply to this email with a quick confirmation to acknowledge and approve this cancellation request.</b></p>
         <p><img src="cid:logo" alt="logo" style="width: 180px; height: 100px;"></p>
-        <p>Customer Service Team<br>${firstName || "Team Member"}<br>50 STARS AUTO PARTS<br>+1 (888) 732-8680<br>service@50starsautoparts.com<br>www.50starsautoparts.com</p>
+        <p>${firstName || "Team Member"}<br/>Customer Service Team<br/>50 STARS AUTO PARTS<br/>+1 (888) 732-8680<br/>service@50starsautoparts.com<br/>www.50starsautoparts.com</p>
       </div>`,
       attachments: [
         {
@@ -113,8 +124,7 @@ router.post("/sendReimburseEmail/:orderNo", async (req, res) => {
   try {
     const { orderNo } = req.params;
     const reimburesementValue = req.query.reimburesementValue ?? "0";
-    const agentFirstName =
-      (req.query.firstName ?? "").toString().trim() || "Customer Service Team";
+    const firstName = cleanFirstName(req.query.firstName ?? "");
 
     const order = await Order.findOne({ orderNo });
     if (!order) return res.status(404).json({ message: "Order not found" });
@@ -152,14 +162,14 @@ router.post("/sendReimburseEmail/:orderNo", async (req, res) => {
       html: `<div style="font-size:16px;line-height:1.7;">
   <p>Dear ${customerName},</p>
   <p>We are sorry to hear that the ABS module did not meet your expectations, and we are committed to providing a satisfactory resolution.</p>
-  <p>As discussed, we’re glad to hear that you’ve resolved the issue! We are reimbursing you $${amount.toFixed(
+  <p>As discussed, we're glad to hear that you've resolved the issue! We are reimbursing you $${amount.toFixed(
     2
   )} as a goodwill gesture, and we hope this reflects our commitment to supporting our customers. Once the refund is processed, we will share the refund receipt with you.</p>
-  <p>It’s been a pleasure interacting with you, and we look forward to assisting you with more orders in the future.</p>
-  <p>Thank you again, and please don’t hesitate to reach out anytime.</p>
+  <p>It's been a pleasure interacting with you, and we look forward to assisting you with more orders in the future.</p>
+  <p>Thank you again, and please don't hesitate to reach out anytime.</p>
   <p>If you have any questions or need further assistance, please feel free to reach out.</p>
   <p><img src="cid:logo" alt="logo" style="width: 180px; height: 100px;"></p>
-  <p>Customer Service Team<br>${agentFirstName}<br>50 STARS AUTO PARTS<br>+1 (866) 207-5533<br>service@50starsautoparts.com<br>www.50starsautoparts.com</p>
+  <p>${firstName}<br/>Customer Service Team<br/>50 STARS AUTO PARTS<br/>+1 (866) 207-5533<br/>service@50starsautoparts.com<br/>www.50starsautoparts.com</p>
 </div>`,
       attachments: [
         {
@@ -218,21 +228,16 @@ router.post("/orders/sendRefundConfirmation/:orderNo", upload.single("pdfFile"),
     if (!toEmail)
       return res.status(400).json({ message: "No customer email on file" });
 
-    const htmlContent = `
+    const htmlContent = `<div style="font-size:16px;line-height:1.7;">
         <p>Dear ${customerName},</p>
         <p>We are reaching out to confirm that your refund of <b>$${refundedAmount}</b> for order <b>#${orderNo}</b> has been successfully processed.</p>
         <p>Attached to this email, you'll find a copy of the refund receipt for your records.</p>
         <p>Please allow <b>3–5 business days</b> for the refund to reflect on your original payment method, as processing times may vary based on your financial institution.</p>
         <p>If you have any questions or require further assistance, please feel free to reach out — we're happy to help.</p>
         <p>Thank you for choosing <b>50 Stars Auto Parts</b>. We appreciate your business and look forward to serving you again.</p>
-        <p><img src="cid:logo" alt="logo" style="width: 180px; height: 100px;" /></p>
-        <p>${firstName}<br/>
-        Customer Service Team<br/>
-        50 STARS AUTO PARTS<br/>
-        +1 (866) 207-5533<br/>
-        service@50starsautoparts.com<br/>
-        <a href="https://www.50starsautoparts.com">www.50starsautoparts.com</a></p>
-      `;
+        <p><img src="cid:logo" alt="logo" style="width: 180px; height: 100px;"></p>
+        <p>${firstName}<br/>Customer Service Team<br/>50 STARS AUTO PARTS<br/>+1 (866) 207-5533<br/>service@50starsautoparts.com<br/><a href="https://www.50starsautoparts.com">www.50starsautoparts.com</a></p>
+      </div>`;
 
     const mailOptions = {
       from: `"50 Stars Auto Parts" <${process.env.SERVICE_EMAIL}>`,
@@ -324,7 +329,7 @@ router.post("/customer-delivered/:orderNo", async (req, res) => {
       process.env.LOGO_URL ||
       "https://assets-autoparts.s3.ap-south-1.amazonaws.com/images/logo.png";
 
-    const htmlContent = `
+    const htmlContent = `<div style="font-size:16px;line-height:1.7;">
         <p>Hi ${customerName},</p>
         <p>We're excited to let you know that your order has been successfully delivered today!</p>
         <p>Thank you so much for choosing 50 Stars Auto Parts. We truly appreciate your trust in us and are grateful for the opportunity to serve you.</p>
@@ -335,13 +340,8 @@ router.post("/customer-delivered/:orderNo", async (req, res) => {
         <p>If there's anything you need, or if you have any questions about your order, feel free to reach out — we're always happy to help.</p>
         <p>Thanks once again for shopping with us. We look forward to helping you with your auto parts needs in the future!</p>
         <p><img src="cid:logo" alt="logo" style="width: 180px; height: 100px;"></p>
-        <p>${firstName}<br/>
-        Customer Service Team<br/>
-        50 STARS AUTO PARTS<br/>
-        +1 (888) 732-8680<br/>
-        service@50starsautoparts.com<br/>
-        www.50starsautoparts.com</p>
-      `;
+        <p>${firstName}<br/>Customer Service Team<br/>50 STARS AUTO PARTS<br/>+1 (888) 732-8680<br/>service@50starsautoparts.com<br/>www.50starsautoparts.com</p>
+      </div>`;
 
     await transporter.sendMail({
       from: `"50 Stars Auto Parts" <${fromEmail}>`,
@@ -379,17 +379,6 @@ router.post("/customer-delivered/:orderNo", async (req, res) => {
     res.status(500).json({ message: "Server error", error: String(err?.message || err) });
   }
 });
-// Helper function to clean firstName (remove duplicates, comma-separated values)
-const cleanFirstName = (firstName) => {
-  if (!firstName) return "Auto Parts Group";
-  let cleaned = String(firstName).trim();
-  // If firstName contains comma, split and take first part only
-  if (cleaned.includes(',')) {
-    const parts = cleaned.split(',').map(p => p.trim()).filter(Boolean);
-    cleaned = parts[0] || "Auto Parts Group";
-  }
-  return cleaned;
-};
 
 // Helper function to clean customer names (remove excessive repeated characters)
 const cleanCustomerName = (name) => {
@@ -468,14 +457,9 @@ router.post("/orders/sendTrackingInfo/:orderNo", async (req, res) => {
       `<p><img src="cid:logo" alt="logo" style="width: 180px; height: 100px;"></p>`
     );
     htmlSections.push(
-      `<p>${firstName}<br>
-      Customer Service Team<br>
-      50 STARS AUTO PARTS<br>
-      +1 (888) 732-8680<br>
-      service@50starsautoparts.com<br>
-      <a href="https://www.50starsautoparts.com">www.50starsautoparts.com</a></p>`
+      `<p>${firstName}<br/>Customer Service Team<br/>50 STARS AUTO PARTS<br/>+1 (888) 732-8680<br/>service@50starsautoparts.com<br/><a href="https://www.50starsautoparts.com">www.50starsautoparts.com</a></p>`
     );
-    const htmlBody = htmlSections.join("\n");
+    const htmlBody = `<div style="font-size:16px;line-height:1.7;">${htmlSections.join("\n")}</div>`;
 
     const mailOptions = {
       from: `"50 Stars Auto Parts" <${process.env.SERVICE_EMAIL}>`,
@@ -604,7 +588,7 @@ router.post("/orders/sendRefundEmail/:orderNo", upload.single("pdfFile"), async 
       to: yardEmail,
       bcc: `dipsikha.spotopsdigital@gmail.com,purchase@auto-partsgroup.com`,
       subject: `Request for Yard Refund | ${order.orderNo}`,
-      html: `
+      html: `<div style="font-size:16px;line-height:1.7;">
         <p>Dear ${yardAgent},</p>
         <p>
           I am writing to bring to your attention that there was a charge on my credit card
@@ -631,14 +615,9 @@ router.post("/orders/sendRefundEmail/:orderNo", upload.single("pdfFile"), async 
           Note: If you have another company name or DBA, please let us know. The Purchase Order
           has been attached below for your reference.
         </p>
-        <p><img src="cid:logo" alt="logo" style="width: 180px; height: 100px;" /></p>
-        <p>${firstName},<br/>
-        Customer Service Team<br/>
-        50 STARS AUTO PARTS<br/>
-        +1 (866) 207-5533<br/>
-        service@50starsautoparts.com<br/>
-        <a href="https://www.50starsautoparts.com">www.50starsautoparts.com</a></p>
-      `,
+        <p><img src="cid:logo" alt="logo" style="width: 180px; height: 100px;"></p>
+        <p>${firstName}<br/>Customer Service Team<br/>50 STARS AUTO PARTS<br/>+1 (866) 207-5533<br/>service@50starsautoparts.com<br/><a href="https://www.50starsautoparts.com">www.50starsautoparts.com</a></p>
+      </div>`,
       attachments: [
         {
           filename: pdfFile.originalname,
@@ -672,10 +651,11 @@ router.post("/orders/sendRefundEmail/:orderNo", upload.single("pdfFile"), async 
 router.post("/orders/sendReplaceEmailCustomerShipping/:orderNo", async (req, res) => {
   try {
     const { orderNo } = req.params;
-    const firstName =
+    const firstName = cleanFirstName(
       (req.query.firstName ?? req.body?.firstName ?? "Customer Success Team")
         .toString()
-        .trim() || "Customer Success Team";
+        .trim() || "Customer Success Team"
+    );
     const retAddressReplacement = (req.query.retAddressReplacement ?? "").toString();
     const order = await Order.findOne({ orderNo });
     if (!order) return res.status(400).json({ message: "Order not found" });
@@ -688,9 +668,24 @@ router.post("/orders/sendReplaceEmailCustomerShipping/:orderNo", async (req, res
       },
     });
 
-    const [firstLineRaw, rest] = retAddressReplacement.split(/,(.+)/);
-    const line1 = (firstLineRaw || "").trim() || " ";
-    const lineRest = (rest || "").trim() || " ";
+    // Format address with commas: "Address, City, State, Zip"
+    // Parse: "Y1 S Address Dallas TX 75227" -> "Y1 S Address, Dallas, TX, 75227"
+    const parts = retAddressReplacement.trim().split(/\s+/).filter(Boolean);
+    let formattedAddress = retAddressReplacement;
+    if (parts.length >= 4) {
+      // Find state (2 letters) and zip (5 digits) from the end
+      const lastTwo = parts.slice(-2);
+      const stateMatch = lastTwo[0]?.match(/^[A-Z]{2}$/i);
+      const zipMatch = lastTwo[1]?.match(/^\d{5}$/);
+      if (stateMatch && zipMatch) {
+        // Format: [address parts], [city], [state], [zip]
+        const addressParts = parts.slice(0, -3).join(" ");
+        const city = parts[parts.length - 3];
+        const state = parts[parts.length - 2];
+        const zip = parts[parts.length - 1];
+        formattedAddress = `${addressParts}, ${city}, ${state}, ${zip}`;
+      }
+    }
     const customerName = cleanCustomerName(order.customerName || order.fName || "Customer");
     const bccList =
       process.env.SUPPORT_BCC ||
@@ -704,22 +699,17 @@ router.post("/orders/sendReplaceEmailCustomerShipping/:orderNo", async (req, res
       to: order.email,
       bcc: bccList,
       subject: `Return Required for Replacement of ABS Module Order | Order ${orderNo}`,
-      html: `
+      html: `<div style="font-size:16px;line-height:1.7;">
         <p>Dear ${customerName},</p>
         <p>We are sorry to hear that there was an issue with the ABS module you received. We are happy to offer a replacement to ensure you receive a fully functional part.</p>
         <p>Please return the part to the following address:</p>
-        <p>${line1}<br/>${lineRest}</p>
+        <p>${formattedAddress}</p>
         <p>Please note that the shipping costs for the return are your responsibility. Once we receive the part, we will process and ship out the replacement within 1-3 business days. We will notify you with tracking information once the replacement part is on its way.</p>
         <p>If you have any questions about the process or need further assistance, please feel free to contact us.</p>
         <p>Thank you for giving us an opportunity to make this right.</p>
-        <p><img src="cid:logo" alt="logo" style="width:180px;height:100px;" /></p>
-        <p>${firstName}<br/>
-        Customer Service Team<br/>
-        50 STARS AUTO PARTS<br/>
-        +1 (866) 207-5533<br/>
-        service@50starsautoparts.com<br/>
-        <a href="https://www.50starsautoparts.com">www.50starsautoparts.com</a></p>
-      `,
+        <p><img src="cid:logo" alt="logo" style="width: 180px; height: 100px;"></p>
+        <p>${firstName}<br/>Customer Service Team<br/>50 STARS AUTO PARTS<br/>+1 (866) 207-5533<br/>service@50starsautoparts.com<br/><a href="https://www.50starsautoparts.com">www.50starsautoparts.com</a></p>
+      </div>`,
       attachments: [
         {
           filename: "logo.png",
@@ -743,10 +733,11 @@ router.post(
   async (req, res) => {
     try {
       const { orderNo } = req.params;
-      const firstName =
+      const firstName = cleanFirstName(
         (req.query.firstName ?? req.body?.firstName ?? "Customer Success Team")
           .toString()
-          .trim() || "Customer Success Team";
+          .trim() || "Customer Success Team"
+      );
 
       if (!req.file) {
         return res.status(400).json({ message: "Attach the required document (pdfFile)." });
@@ -776,18 +767,12 @@ router.post(
         to: order.email,
         bcc: bccList,
         subject: `Replacement Instructions & Shipping Document | Order ${orderNo}`,
-        html: `
+        html: `<div style="font-size:16px;line-height:1.7;">
           <p>Dear ${customerName},</p>
           <p>Please find the attached shipping document for the replacement of your part. Kindly print and include it with the package when it is handed over to the carrier.</p>
-          <p>Once the package is on its way, feel free to share the tracking number so we can monitor the shipment and expedite the replacement.</p>
-          <p><img src="cid:logo" alt="logo" style="width:180px;height:100px;" /></p>
-          <p>${firstName}<br/>
-          Customer Service Team<br/>
-          50 STARS AUTO PARTS<br/>
-          +1 (866) 207-5533<br/>
-          service@50starsautoparts.com<br/>
-          <a href="https://www.50starsautoparts.com">www.50starsautoparts.com</a></p>
-        `,
+          <p><img src="cid:logo" alt="logo" style="width: 180px; height: 100px;"></p>
+          <p>${firstName}<br/>Customer Service Team<br/>50 STARS AUTO PARTS<br/>+1 (866) 207-5533<br/>service@50starsautoparts.com<br/><a href="https://www.50starsautoparts.com">www.50starsautoparts.com</a></p>
+        </div>`,
         attachments: [
           {
             filename: req.file.originalname || "replacement.pdf",
@@ -814,10 +799,11 @@ router.post(
 router.post("/orders/sendReturnEmailCustomerShipping/:orderNo", async (req, res) => {
   try {
     const { orderNo } = req.params;
-    const firstName =
+    const firstName = cleanFirstName(
       (req.query.firstName ?? req.body?.firstName ?? "Customer Success Team")
         .toString()
-        .trim() || "Customer Success Team";
+        .trim() || "Customer Success Team"
+    );
     const retAddress = (req.query.retAddress ?? "").toString();
 
     const order = await Order.findOne({ orderNo });
@@ -831,9 +817,24 @@ router.post("/orders/sendReturnEmailCustomerShipping/:orderNo", async (req, res)
       },
     });
 
-    const [firstLineRaw, rest] = retAddress.split(/,(.+)/);
-    const line1 = (firstLineRaw || "").trim() || " ";
-    const lineRest = (rest || "").trim() || " ";
+    // Format address with commas: "Address, City, State, Zip"
+    // Parse: "Y1 S Address Dallas TX 75227" -> "Y1 S Address, Dallas, TX, 75227"
+    const parts = retAddress.trim().split(/\s+/).filter(Boolean);
+    let formattedAddress = retAddress;
+    if (parts.length >= 4) {
+      // Find state (2 letters) and zip (5 digits) from the end
+      const lastTwo = parts.slice(-2);
+      const stateMatch = lastTwo[0]?.match(/^[A-Z]{2}$/i);
+      const zipMatch = lastTwo[1]?.match(/^\d{5}$/);
+      if (stateMatch && zipMatch) {
+        // Format: [address parts], [city], [state], [zip]
+        const addressParts = parts.slice(0, -3).join(" ");
+        const city = parts[parts.length - 3];
+        const state = parts[parts.length - 2];
+        const zip = parts[parts.length - 1];
+        formattedAddress = `${addressParts}, ${city}, ${state}, ${zip}`;
+      }
+    }
     const customerName = cleanCustomerName(order.customerName || order.fName || "Customer");
     const bccList =
       process.env.SUPPORT_BCC ||
@@ -847,19 +848,14 @@ router.post("/orders/sendReturnEmailCustomerShipping/:orderNo", async (req, res)
       to: order.email,
       bcc: bccList,
       subject: `Return Instructions for Your Order ${orderNo}`,
-      html: `
+      html: `<div style="font-size:16px;line-height:1.7;">
         <p>Dear ${customerName},</p>
         <p>Please ship the part back to the following address so we can continue processing your return:</p>
-        <p>${line1}<br/>${lineRest}</p>
+        <p>${formattedAddress}</p>
         <p>Kindly share the tracking number once the package is on its way. As soon as we receive and inspect the part, we will continue with the necessary next steps.</p>
-        <p><img src="cid:logo" alt="logo" style="width:180px;height:100px;" /></p>
-        <p>${firstName}<br/>
-        Customer Service Team<br/>
-        50 STARS AUTO PARTS<br/>
-        +1 (866) 207-5533<br/>
-        service@50starsautoparts.com<br/>
-        <a href="https://www.50starsautoparts.com">www.50starsautoparts.com</a></p>
-      `,
+        <p><img src="cid:logo" alt="logo" style="width: 180px; height: 100px;"></p>
+        <p>${firstName}<br/>Customer Service Team<br/>50 STARS AUTO PARTS<br/>+1 (866) 207-5533<br/>service@50starsautoparts.com<br/><a href="https://www.50starsautoparts.com">www.50starsautoparts.com</a></p>
+      </div>`,
       attachments: [
         {
           filename: "logo.png",
@@ -883,10 +879,11 @@ router.post(
   async (req, res) => {
     try {
       const { orderNo } = req.params;
-      const firstName =
+      const firstName = cleanFirstName(
         (req.query.firstName ?? req.body?.firstName ?? "Customer Success Team")
           .toString()
-          .trim() || "Customer Success Team";
+          .trim() || "Customer Success Team"
+      );
       const retAddress = (req.query.retAddress ?? "").toString();
 
       if (!req.file) {
@@ -904,9 +901,11 @@ router.post(
         },
       });
 
-      const [firstLineRaw, rest] = retAddress.split(/,(.+)/);
-      const line1 = (firstLineRaw || "").trim() || " ";
-      const lineRest = (rest || "").trim() || " ";
+      // Format address with commas: "Address, City, State, Zip"
+      const formattedAddress = retAddress
+        .split(/\s+/)
+        .filter(Boolean)
+        .join(", ");
       const customerName = order.customerName || order.fName || "Customer";
       const bccList =
         process.env.SUPPORT_BCC ||
@@ -920,19 +919,13 @@ router.post(
         to: order.email,
         bcc: bccList,
         subject: `Return Instructions & Shipping Document | Order ${orderNo}`,
-        html: `
+        html: `<div style="font-size:16px;line-height:1.7;">
           <p>Dear ${customerName},</p>
           <p>Please find the attached shipping document for the return of your part. Kindly attach it to the package before handing it over to the carrier.</p>
-          <p>Return Address:<br/>${line1}<br/>${lineRest}</p>
-          <p>Once shipped, please share the tracking number so we can monitor the return and process the resolution quickly.</p>
-          <p><img src="cid:logo" alt="logo" style="width:180px;height:100px;" /></p>
-          <p>${firstName}<br/>
-          Customer Service Team<br/>
-          50 STARS AUTO PARTS<br/>
-          +1 (866) 207-5533<br/>
-          service@50starsautoparts.com<br/>
-          <a href="https://www.50starsautoparts.com">www.50starsautoparts.com</a></p>
-        `,
+          <p>Return Address: ${formattedAddress}</p>
+          <p><img src="cid:logo" alt="logo" style="width: 180px; height: 100px;"></p>
+          <p>${firstName}<br/>Customer Service Team<br/>50 STARS AUTO PARTS<br/>+1 (866) 207-5533<br/>service@50starsautoparts.com<br/><a href="https://www.50starsautoparts.com">www.50starsautoparts.com</a></p>
+        </div>`,
         attachments: [
           {
             filename: req.file.originalname || "return-label.pdf",

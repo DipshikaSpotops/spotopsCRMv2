@@ -5,6 +5,8 @@ import Pill from "../components/ui/Pill";
 import { getStatusColor } from "../utils/formatter";
 import useOrderDetails from "../hooks/useOrderDetails";
 import useOrderRealtime from "../hooks/useOrderRealtime";
+import EmailLoader from "../components/common/EmailLoader";
+import EmailToast from "../components/common/EmailToast";
 import OrderSummaryStats from "../components/order/OrderSummaryStats";
 import OrderHistory from "../components/order/OrderTabs/OrderHistory";
 import CustomerTab from "../components/order/OrderTabs/CustomerTab";
@@ -349,6 +351,8 @@ export default function OrderDetails() {
   const [emailLoadingStatus, setEmailLoadingStatus] = useState(null); // Track which email is being sent
   const [emailToast, setEmailToast] = useState(null);
   const emailLoadingTimeoutRef = useRef(null);
+  const [sendingReimbursementEmail, setSendingReimbursementEmail] = useState(false);
+  const [reimbursementEmailToast, setReimbursementEmailToast] = useState(null);
 
   const focusCommentsOnYard = useCallback(
     (yardIdx) => {
@@ -786,23 +790,22 @@ export default function OrderDetails() {
         await refresh();
       }
 
-      let emailOk = true;
       if (sendEmail && numericAmount !== null) {
+        setSavingReimbursement(false); // Clear main loading, email will have its own loading
+        setSendingReimbursementEmail(true);
         try {
           await sendReimbursementEmail({
             amount: numericAmount,
           });
+          setSendingReimbursementEmail(false);
+          setReimbursementEmailToast({ message: "Reimbursement saved and email sent successfully!", variant: "success" });
+          setToast("Reimbursement saved and email sent.");
         } catch (emailErr) {
-          emailOk = false;
+          setSendingReimbursementEmail(false);
+          const errorMsg = emailErr?.response?.data?.message || emailErr?.message || "Failed to send reimbursement email.";
+          setReimbursementEmailToast({ message: errorMsg, variant: "error" });
+          setToast("Reimbursement saved, but email failed to send.");
         }
-      }
-
-      if (sendEmail) {
-        setToast(
-          emailOk
-            ? "Reimbursement saved and email sent."
-            : "Reimbursement saved, but email failed to send."
-        );
       } else {
         setToast("Reimbursement details saved.");
       }
@@ -1782,6 +1785,12 @@ export default function OrderDetails() {
           </button>
         </div>
       )}
+      
+      {/* Reimbursement email loading overlay */}
+      {sendingReimbursementEmail && <EmailLoader message="Sending reimbursement email..." />}
+      
+      {/* Reimbursement email toast notification */}
+      <EmailToast toast={reimbursementEmailToast} onClose={() => setReimbursementEmailToast(null)} />
     </>
   );
 }

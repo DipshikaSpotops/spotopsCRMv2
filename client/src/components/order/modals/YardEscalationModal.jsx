@@ -1236,7 +1236,7 @@ useEffect(() => {
           className="absolute inset-0 bg-black/40 backdrop-blur-sm"
           onClick={() => (!saving && !sendingEmail ? onClose?.() : null)}
         />
-        <div className="relative w-full max-w-4xl rounded-2xl border border-white/20 bg-white/10 text-white shadow-2xl backdrop-blur-xl yard-escalation-modal-container overflow-hidden dark:border-white/20 dark:bg-white/10 dark:text-white" style={{ minHeight: '600px' }}>
+        <div className="relative w-full max-w-4xl rounded-2xl border border-white/20 bg-white/10 text-white shadow-2xl backdrop-blur-xl yard-escalation-modal-container overflow-hidden dark:border-white/20 dark:bg-white/10 dark:text-white" style={{ height: '80vh', minHeight: '600px', maxHeight: '80vh' }}>
           <header className="flex items-center justify-between border-b border-white/20 px-6 py-4 rounded-t-2xl dark:border-white/20">
           <div>
             <h3 className="text-lg font-semibold">
@@ -1254,7 +1254,7 @@ useEffect(() => {
           </button>
         </header>
 
-        <div className="max-h-[72vh] overflow-y-auto px-6 py-5 space-y-6">
+        <div className="h-full overflow-y-auto px-6 py-5 space-y-6" style={{ height: 'calc(80vh - 120px)' }}>
           <div className="grid gap-4 md:grid-cols-2">
             <div>
               <label className="block text-sm text-white/80">Escalation Process</label>

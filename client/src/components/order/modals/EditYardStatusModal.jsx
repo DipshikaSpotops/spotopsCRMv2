@@ -178,7 +178,9 @@ export default function EditYardStatusModal({
       onClose();
 
       // Send email in background if needed (don't await - let it run async)
+      // Note: skipEmail flag is set in body to prevent backend from also sending
       if (status === "Part shipped" || status === "Part delivered") {
+        console.log("[EditYardStatusModal] Sending email from frontend (skipEmail=true set in backend request)");
         // Send email in background - websocket will notify when done
         const emailPromise = status === "Part shipped"
           ? API.post(
@@ -207,7 +209,7 @@ export default function EditYardStatusModal({
         // Don't await - let it run in background
         emailPromise
           .then((response) => {
-            console.log("[EditYardStatusModal] Email sent successfully", response?.data);
+            console.log("[EditYardStatusModal] Email sent successfully from frontend", response?.data);
             // Loading will be cleared by websocket EMAIL_SENT event
             // But also set a fallback timeout in case websocket doesn't work
             setTimeout(() => {

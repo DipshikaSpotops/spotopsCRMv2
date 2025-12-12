@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import API from "../../../api";
 import { getWhen, formatDallasDate } from "@spotops/shared";
+import EmailLoader from "../../common/EmailLoader";
+import EmailToast from "../../common/EmailToast";
 
 export default function RefundOrderModal({ open, onClose, orderNo, onSubmit }) {
   const [refundAmount, setRefundAmount] = useState("");
@@ -9,6 +11,8 @@ export default function RefundOrderModal({ open, onClose, orderNo, onSubmit }) {
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState("");
   const [isRefundLocked, setIsRefundLocked] = useState(false);
+  const [sendingEmail, setSendingEmail] = useState(false);
+  const [emailToast, setEmailToast] = useState(null);
   const firstName = localStorage.getItem("firstName");
 
   // Prefill refund details when modal opens
@@ -67,14 +71,25 @@ export default function RefundOrderModal({ open, onClose, orderNo, onSubmit }) {
 
       // Then send email if requested
       if (sendEmail) {
-        const formData = new FormData();
-        if (pdfFile) formData.append("pdfFile", pdfFile);
-        await API.post(
-          `/emails/orders/sendRefundConfirmation/${orderNo}`,
-          formData,
-          { params: { firstName, refundedAmount: refundAmount } }
-        );
-        setToast("Refund saved and email sent to the customer!");
+        setLoading(false); // Clear main loading, email will have its own loading
+        setSendingEmail(true);
+        try {
+          const formData = new FormData();
+          if (pdfFile) formData.append("pdfFile", pdfFile);
+          await API.post(
+            `/emails/orders/sendRefundConfirmation/${orderNo}`,
+            formData,
+            { params: { firstName, refundedAmount: refundAmount } }
+          );
+          setSendingEmail(false);
+          setEmailToast({ message: "Refund saved and email sent to the customer!", variant: "success" });
+          setToast("Refund saved and email sent to the customer!");
+        } catch (emailErr) {
+          setSendingEmail(false);
+          const errorMsg = emailErr?.response?.data?.message || emailErr?.message || "Failed to send refund email.";
+          setEmailToast({ message: errorMsg, variant: "error" });
+          setToast("Refund saved, but email failed to send.");
+        }
       } else {
         setToast("Refund saved successfully.");
       }
@@ -350,6 +365,12 @@ export default function RefundOrderModal({ open, onClose, orderNo, onSubmit }) {
           </div>
         )}
       </div>
+      
+      {/* Email loading overlay */}
+      {sendingEmail && <EmailLoader message="Sending refund email..." />}
+      
+      {/* Email toast notification */}
+      <EmailToast toast={emailToast} onClose={() => setEmailToast(null)} />
     </div>
     </>
   );
