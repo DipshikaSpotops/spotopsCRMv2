@@ -407,10 +407,29 @@ const PlacedOrders = () => {
                 <h3 className="text-lg font-semibold text-white">{order.orderNo}</h3>
                 <button
                   type="button"
-                  onClick={() => {
-                    navigator.clipboard?.writeText(String(order.orderNo || ""));
-                    setCopiedOrderId(order._id);
-                    setTimeout(() => setCopiedOrderId((prev) => (prev === order._id ? null : prev)), 1500);
+                  onClick={async () => {
+                    try {
+                      const textToCopy = String(order.orderNo || "");
+                      if (navigator.clipboard && navigator.clipboard.writeText) {
+                        await navigator.clipboard.writeText(textToCopy);
+                        setCopiedOrderId(order._id);
+                        setTimeout(() => setCopiedOrderId((prev) => (prev === order._id ? null : prev)), 1500);
+                      } else {
+                        // Fallback for older browsers
+                        const textArea = document.createElement("textarea");
+                        textArea.value = textToCopy;
+                        textArea.style.position = "fixed";
+                        textArea.style.opacity = "0";
+                        document.body.appendChild(textArea);
+                        textArea.select();
+                        document.execCommand("copy");
+                        document.body.removeChild(textArea);
+                        setCopiedOrderId(order._id);
+                        setTimeout(() => setCopiedOrderId((prev) => (prev === order._id ? null : prev)), 1500);
+                      }
+                    } catch (err) {
+                      console.error("Failed to copy:", err);
+                    }
                   }}
                   className="text-xs px-2 py-1 rounded-md border border-white/20 text-white/70 hover:text-white hover:border-white/40 transition"
                   title="Copy order number"
