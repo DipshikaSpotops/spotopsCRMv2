@@ -198,8 +198,15 @@ export default function MonthlyOrders() {
                     <b>Phone:</b> {row.phone}
                   </div>
                   <div>
-                    <b>Address:</b> {row.sAddressStreet}, {row.sAddressCity},{" "}
-                    {row.sAddressState}, {row.sAddressZip}
+                    <b>Address:</b> {(() => {
+                      const addressParts = [
+                        row.sAddressStreet,
+                        row.sAddressCity,
+                        row.sAddressState,
+                        row.sAddressZip
+                      ].filter(part => part && part.trim().length > 0);
+                      return addressParts.length > 0 ? addressParts.join(", ") : "—";
+                    })()}
                   </div>
                 </div>
               )}
