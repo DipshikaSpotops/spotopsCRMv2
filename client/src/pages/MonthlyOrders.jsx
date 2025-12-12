@@ -155,7 +155,19 @@ export default function MonthlyOrders() {
                     <b>VIN:</b> {row.vin}
                   </div>
                   <div>
-                    <b>Warranty:</b> {row.warranty} days
+                    <b>Warranty:</b> {(() => {
+                      const warrantyField = (row?.warrantyField || "days").toString().toLowerCase().trim();
+                      const warrantyValue = Number(row?.warranty) || 0;
+                      let displayUnit;
+                      if (warrantyField === "month" || warrantyField === "months") {
+                        displayUnit = warrantyValue === 1 ? "Month" : "Months";
+                      } else if (warrantyField === "year" || warrantyField === "years") {
+                        displayUnit = warrantyValue === 1 ? "Year" : "Years";
+                      } else {
+                        displayUnit = warrantyValue === 1 ? "Day" : "Days";
+                      }
+                      return `${row.warranty || 0} ${displayUnit}`;
+                    })()}
                   </div>
                   <div>
                     <b>Programming:</b>{" "}

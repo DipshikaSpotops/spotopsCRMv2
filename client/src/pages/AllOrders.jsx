@@ -54,6 +54,14 @@ const AllOrders = () => {
 
       const { data } = await API.get("/orders/ordersPerPage", { params });
 
+      // Debug: Check if warrantyField is in the response
+      if (data.orders && data.orders.length > 0) {
+        const firstOrder = data.orders[0];
+        if (!firstOrder.warrantyField && firstOrder.warranty) {
+          console.warn("⚠️ warrantyField missing in order response:", firstOrder.orderNo, "warranty:", firstOrder.warranty);
+        }
+      }
+
       setOrders(data.orders || []);
       setTotalPages(data.totalPages || 1);
       setTotalOrders(data.totalCount || 0);
@@ -362,7 +370,19 @@ const AllOrders = () => {
                       <div><b>Desc:</b> {order.desc}</div>
                       <div><b>Part No:</b> {order.partNo}</div>
                       <div><b>VIN:</b> {order.vin}</div>
-                      <div><b>Warranty:</b> {order.warranty} days</div>
+                      <div><b>Warranty:</b> {(() => {
+                        const warrantyField = (order?.warrantyField || "days").toString().toLowerCase().trim();
+                        const warrantyValue = Number(order?.warranty) || 0;
+                        let displayUnit;
+                        if (warrantyField === "month" || warrantyField === "months") {
+                          displayUnit = warrantyValue === 1 ? "Month" : "Months";
+                        } else if (warrantyField === "year" || warrantyField === "years") {
+                          displayUnit = warrantyValue === 1 ? "Year" : "Years";
+                        } else {
+                          displayUnit = warrantyValue === 1 ? "Day" : "Days";
+                        }
+                        return `${order.warranty || 0} ${displayUnit}`;
+                      })()}</div>
                       <div><b>Programming:</b> {order.programmingRequired ? "Yes" : "No"}</div>
                     </div>
                   )}

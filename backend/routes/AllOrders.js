@@ -65,6 +65,7 @@ router.get("/", async (req, res) => {
       sAddressStreet: 1,
       partNo: 1,
       warranty: 1,
+      warrantyField: 1,
       vin: 1,
       programmingRequired: 1,
       programmingCostQuoted: 1,

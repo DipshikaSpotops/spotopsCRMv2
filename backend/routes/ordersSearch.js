@@ -21,6 +21,7 @@ const PROJECTION = {
   model: 1,
   partNo: 1,
   warranty: 1,
+  warrantyField: 1,
   programmingRequired: 1,
   sAddressStreet: 1,
   sAddressCity: 1,
