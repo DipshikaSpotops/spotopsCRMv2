@@ -6,14 +6,15 @@ export default function PartTab({ order }) {
   const warrantyField = (order?.warrantyField || "days").toString().toLowerCase();
   const warrantyValue = Number(order?.warranty) || 0;
   
-  // Handle pluralization based on warranty value
+  // Handle pluralization based on warranty value and field type
+  // Normalize field to handle both singular and plural forms
   let displayUnit;
-  if (warrantyField === "months") {
+  if (warrantyField === "month" || warrantyField === "months") {
     displayUnit = warrantyValue === 1 ? "Month" : "Months";
-  } else if (warrantyField === "years") {
+  } else if (warrantyField === "year" || warrantyField === "years") {
     displayUnit = warrantyValue === 1 ? "Year" : "Years";
   } else {
-    // Default to days
+    // Default to days (handles "day", "days", or any other value)
     displayUnit = warrantyValue === 1 ? "Day" : "Days";
   }
   
