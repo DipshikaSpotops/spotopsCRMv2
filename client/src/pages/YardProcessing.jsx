@@ -72,7 +72,16 @@ export default function YardProcessingOrders() {
                 <div><b>Email:</b> {row.email}</div>
                 <div><b>Phone:</b> {row.phone}</div>
                 <div>
-                  <b>Address:</b> {row.sAddressStreet}, {row.sAddressCity}, {row.sAddressState}, {row.sAddressZip}
+                  <b>Address:</b> {(() => {
+                    const addressParts = [
+                      row.sAddressStreet,
+                      row.sAddressCity,
+                      row.sAddressState,
+                      row.sAddressZip,
+                      row.sAddressAcountry
+                    ].filter(part => part && part.trim().length > 0);
+                    return addressParts.length > 0 ? addressParts.join(", ") : "—";
+                  })()}
                 </div>
               </div>
             )}

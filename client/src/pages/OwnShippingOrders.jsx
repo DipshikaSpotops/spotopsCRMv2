@@ -67,13 +67,14 @@ export default function OwnShippingOrders() {
             <div>{row.customerName || (row.fName && row.lName ? `${row.fName} ${row.lName}` : "—")}</div>
             <div className="mt-1 text-sm text-white/80">
               {(() => {
-                const street = String(row.sAddressStreet || "").trim();
-                const city = String(row.sAddressCity || "").trim();
-                const state = String(row.sAddressState || "").trim();
-                const zip = String(row.sAddressZip || "").trim();
-                const addressParts = [street, city, state].filter(part => part.length > 0);
-                const address = addressParts.length > 0 ? addressParts.join(", ") : "—";
-                return zip ? `${address} ${zip}` : address;
+                const addressParts = [
+                  row.sAddressStreet,
+                  row.sAddressCity,
+                  row.sAddressState,
+                  row.sAddressZip,
+                  row.sAddressAcountry
+                ].filter(part => part && String(part).trim().length > 0);
+                return addressParts.length > 0 ? addressParts.join(", ") : "—";
               })()}
             </div>
             {/* {open && (

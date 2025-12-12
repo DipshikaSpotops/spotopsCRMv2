@@ -123,8 +123,8 @@ router.get('/', requireAuth, allow('Admin', 'Sales', 'Support'), async (req, res
     const projectFields = {
       orderDate: 1, orderNo: 1, salesAgent: 1, customerName: 1, fName: 1, lName: 1,
       soldP: 1, grossProfit: 1, actualGP: 1, orderStatus: 1, pReq: 1, additionalInfo: 1,
-      email: 1, phone: 1, bAddressCity: 1, bAddressState: 1, bAddressZip: 1, bAddressStreet: 1,
-      sAddressCity: 1, sAddressState: 1, sAddressZip: 1, sAddressStreet: 1, desc: 1, partNo: 1,
+      email: 1, phone: 1, bAddressCity: 1, bAddressState: 1, bAddressZip: 1, bAddressStreet: 1, bAddressAcountry: 1,
+      sAddressCity: 1, sAddressState: 1, sAddressZip: 1, sAddressStreet: 1, sAddressAcountry: 1, desc: 1, partNo: 1,
       warranty: 1, warrantyField: 1, vin: 1, programmingRequired: 1, programmingCostQuoted: 1, year: 1, make: 1, model: 1,
     };
 

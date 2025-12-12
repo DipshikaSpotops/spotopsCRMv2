@@ -72,10 +72,10 @@ const FulfilledOrders = () => {
                 <div className="border-t border-white/10 pt-2">
                   <div><b>Email:</b> {row.email || "—"}</div>
                   <div><b>Phone:</b> {row.phone || "—"}</div>
-                  {(row.sAddressStreet || row.sAddressCity || row.sAddressState || row.sAddressZip) && (
+                  {(row.sAddressStreet || row.sAddressCity || row.sAddressState || row.sAddressZip || row.sAddressAcountry) && (
                     <div>
                       <b>Address:</b>{" "}
-                      {[row.sAddressStreet, row.sAddressCity, row.sAddressState, row.sAddressZip]
+                      {[row.sAddressStreet, row.sAddressCity, row.sAddressState, row.sAddressZip, row.sAddressAcountry]
                         .filter(Boolean)
                         .join(", ")}
                     </div>

@@ -399,7 +399,16 @@ const AllOrders = () => {
                     <div className="mt-2 border-t border-white/20 pt-2 text-xs space-y-1">
                       <div><b>Email:</b> {order.email}</div>
                       <div><b>Phone:</b> {order.phone}</div>
-                      <div><b>Address:</b> {order.sAddressStreet}, {order.sAddressCity}, {order.sAddressState} {order.sAddressZip}</div>
+                      <div><b>Address:</b> {(() => {
+                        const addressParts = [
+                          order.sAddressStreet,
+                          order.sAddressCity,
+                          order.sAddressState,
+                          order.sAddressZip,
+                          order.sAddressAcountry
+                        ].filter(part => part && part.trim().length > 0);
+                        return addressParts.length > 0 ? addressParts.join(", ") : "—";
+                      })()}</div>
                     </div>
                   )}
                 </td>

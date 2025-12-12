@@ -203,7 +203,8 @@ export default function MonthlyOrders() {
                         row.sAddressStreet,
                         row.sAddressCity,
                         row.sAddressState,
-                        row.sAddressZip
+                        row.sAddressZip,
+                        row.sAddressAcountry
                       ].filter(part => part && part.trim().length > 0);
                       return addressParts.length > 0 ? addressParts.join(", ") : "—";
                     })()}

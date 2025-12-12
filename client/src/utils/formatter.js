@@ -4,6 +4,7 @@ export function fmtAddress(o = {}, prefix = "") {
     o?.[`${prefix}City`],
     o?.[`${prefix}State`],
     o?.[`${prefix}Zip`],
+    o?.[`${prefix}Acountry`],
   ]
     .filter(Boolean)
     .join(", ");

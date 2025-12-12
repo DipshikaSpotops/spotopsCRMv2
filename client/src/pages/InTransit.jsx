@@ -111,11 +111,14 @@ export default function InTransitOrders() {
         const customerName = row.fName && row.lName 
           ? `${row.fName} ${row.lName}` 
           : row.customerName || "—";
-        const address = row.sAddressStreet && row.sAddressCity && row.sAddressState && row.sAddressZip
-          ? `${row.sAddressStreet}, ${row.sAddressCity}, ${row.sAddressState} ${row.sAddressZip}`
-          : row.sAddressStreet || row.sAddressCity || row.sAddressState || row.sAddressZip
-            ? `${row.sAddressStreet || ""}, ${row.sAddressCity || ""}, ${row.sAddressState || ""} ${row.sAddressZip || ""}`.replace(/^,\s*|,\s*$/g, "").trim() || "—"
-            : "—";
+        const addressParts = [
+          row.sAddressStreet,
+          row.sAddressCity,
+          row.sAddressState,
+          row.sAddressZip,
+          row.sAddressAcountry
+        ].filter(part => part && part.trim().length > 0);
+        const address = addressParts.length > 0 ? addressParts.join(", ") : "—";
         return (
           <div className="text-base space-y-1">
             <div className="border-b border-white/20 pb-0.5 inline-block">{customerName}</div>

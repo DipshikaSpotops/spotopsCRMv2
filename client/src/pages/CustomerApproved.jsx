@@ -315,11 +315,29 @@ const CustomerApproved = () => {
                   </div>
                   <div>
                     <b>Billing Address:</b><br />
-                    {order.bAddressStreet || ""} {order.bAddressCity || ""} {order.bAddressState || ""} {order.bAddressZip || ""}
+                    {(() => {
+                      const addressParts = [
+                        order.bAddressStreet,
+                        order.bAddressCity,
+                        order.bAddressState,
+                        order.bAddressZip,
+                        order.bAddressAcountry
+                      ].filter(part => part && part.trim().length > 0);
+                      return addressParts.length > 0 ? addressParts.join(", ") : "—";
+                    })()}
                   </div>
                   <div>
                     <b>Shipping Address:</b><br />
-                    {order.sAddressStreet || ""} {order.sAddressCity || ""} {order.sAddressState || ""} {order.sAddressZip || ""}
+                    {(() => {
+                      const addressParts = [
+                        order.sAddressStreet,
+                        order.sAddressCity,
+                        order.sAddressState,
+                        order.sAddressZip,
+                        order.sAddressAcountry
+                      ].filter(part => part && part.trim().length > 0);
+                      return addressParts.length > 0 ? addressParts.join(", ") : "—";
+                    })()}
                   </div>
                   <div>
                     <b>Part:</b> {order.partName || order.pReq || "N/A"} <br />
