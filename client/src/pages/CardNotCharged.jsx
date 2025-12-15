@@ -3,6 +3,7 @@ import React, { useCallback, useState } from "react";
 import API from "../api";
 import OrdersTable from "../components/OrdersTable";
 import { formatInTimeZone } from "date-fns-tz";
+import useOrdersRealtime from "../hooks/useOrdersRealtime";
 
 const TZ = "America/Chicago";
 
@@ -233,6 +234,7 @@ export default function CardNotCharged() {
       onRowsChange={onRowsChange}
       totalLabel={totalLabel}
       showTotalsNearPill={true}
+      tableId="cardNotCharged"
     />
   );
 }

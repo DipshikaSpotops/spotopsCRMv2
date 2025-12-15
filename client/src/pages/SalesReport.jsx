@@ -7,6 +7,7 @@ import {
 import moment from "moment-timezone";
 import api from "../api";
 import AgentDropdown from "../components/AgentDropdown";
+import useOrdersRealtime from "../hooks/useOrdersRealtime";
 
 /* ----------------------------- Constants / helpers ----------------------------- */
 const TZ = "America/Chicago";
@@ -155,6 +156,9 @@ export default function SalesReport() {
   const [ymmMode, setYmmMode] = useState("count"); // 'count' | 'gp'
   const [gpCompare, setGpCompare] = useState({ actual: 0, est: 0 });
   const [loading, setLoading] = useState(false);
+
+  // Bump this to force a reload when realtime events arrive
+  const [reloadTick, setReloadTick] = useState(0);
 
   // Build admin agent options from this month's orders
   useEffect(() => {
@@ -313,7 +317,14 @@ export default function SalesReport() {
     })();
 
     return () => { cancel = true; };
-  }, [granularity, monthIdx, year, role, firstName, selectedAgent]);
+  }, [granularity, monthIdx, year, role, firstName, selectedAgent, reloadTick]);
+
+  // Realtime: when orders change, recompute charts for current filters
+  useOrdersRealtime({
+    enabled: true,
+    onOrderCreated: () => setReloadTick((t) => t + 1),
+    onOrderUpdated: () => setReloadTick((t) => t + 1),
+  });
 
   /* ----------------------------------- UI ----------------------------------- */
   const monthOptions = useMemo(

@@ -20,7 +20,7 @@ export default function OrderHistory({ timeline, loading, error }) {
                     <div className="font-medium">{t.event || t.text}</div>
                     {(t.by || t.when) && (
                       <div className="mt-1 text-xs text-[#04356d]/70 dark:text-white/70">
-                        {t.by ? `${t.by} on ` : ""}{t.when || ""}
+                        {t.by && t.when ? `${t.by} on ${t.when}` : t.by || t.when || ""}
                       </div>
                     )}
                   </div>

@@ -11,6 +11,7 @@ import SearchBar from "../components/SearchBar";
 import { formatDate, prettyFilterLabel, buildDefaultFilter } from "../utils/dateUtils";
 import { buildParams } from "../utils/apiParams";
 import { baseHeadClass, baseCellClass } from "../utils/tableStyles";
+import useOrdersRealtime from "../hooks/useOrdersRealtime";
 
 const TZ = "America/Chicago";
 const ROWS_PER_PAGE = 25;
@@ -228,6 +229,21 @@ const MonthlyDisputes = () => {
       return next;
     });
   };
+
+  // Realtime: refetch disputes when orders change
+  useOrdersRealtime({
+    enabled: true,
+    onOrderCreated: () => {
+      if (activeFilter) {
+        fetchDisputes(activeFilter, { silent: true });
+      }
+    },
+    onOrderUpdated: () => {
+      if (activeFilter) {
+        fetchDisputes(activeFilter, { silent: true });
+      }
+    },
+  });
 
   const handleSort = (field) => {
     let nextSortBy = field;

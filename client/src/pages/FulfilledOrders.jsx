@@ -1,6 +1,7 @@
 // src/pages/FulfilledOrders.jsx
 import React, { useCallback, useState } from "react";
 import OrdersTable from "../components/OrdersTable";
+import useOrdersRealtime from "../hooks/useOrdersRealtime";
 
 /* ---------- Columns (order matters) ---------- */
 const columns = [
@@ -116,6 +117,21 @@ const FulfilledOrders = () => {
     }
   }, [expandedIds, toggleExpand]);
 
+  // Realtime: refetch fulfilled orders when orders change
+  useOrdersRealtime({
+    enabled: true,
+    onOrderCreated: () => {
+      if (window.__ordersTableRefs?.fulfilledOrders?.refetch) {
+        window.__ordersTableRefs.fulfilledOrders.refetch();
+      }
+    },
+    onOrderUpdated: () => {
+      if (window.__ordersTableRefs?.fulfilledOrders?.refetch) {
+        window.__ordersTableRefs.fulfilledOrders.refetch();
+      }
+    },
+  });
+
   return (
     <OrdersTable
       title="Fulfilled Orders"
@@ -134,6 +150,7 @@ const FulfilledOrders = () => {
       showTotalsButton={false}
       /* No totals needed for this page */
       showOrdersCountInTotals={false}
+      tableId="fulfilledOrders"
     />
   );
 };

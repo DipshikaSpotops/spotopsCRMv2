@@ -6,6 +6,7 @@ import { formatInTimeZone } from "date-fns-tz";
 import { useNavigate } from "react-router-dom";
 import moment from "moment-timezone";
 import API from "../api";
+import useOrdersRealtime from "../hooks/useOrdersRealtime";
 
 const prettyFilterLabel = (filter) => {
   if (!filter) return "";
@@ -120,6 +121,23 @@ const CustomerApproved = () => {
     fetchOrders({ ...currentFilter, q: appliedQuery || undefined });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [appliedQuery]);
+
+  // 🔄 Realtime: when any order is created or updated, refetch with current filter + applied query
+  useOrdersRealtime({
+    enabled: true,
+    onOrderCreated: () => {
+      if (!currentFilter) return;
+      fetchOrders({ ...currentFilter, q: appliedQuery || undefined });
+    },
+    onOrderUpdated: (order) => {
+      // Only refetch if this order is Customer Approved or could have moved into/out of this view
+      if (!currentFilter) return;
+      const status = (order?.orderStatus || "").toLowerCase();
+      if (status.includes("approved") || status.includes("placed") || status.includes("refunded") || status.includes("cancel")) {
+        fetchOrders({ ...currentFilter, q: appliedQuery || undefined });
+      }
+    },
+  });
 
   // ✨ Auto-expand when a query is APPLIED; collapse when cleared
   useEffect(() => {

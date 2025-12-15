@@ -2,6 +2,7 @@
 import React, { useCallback, useState } from "react";
 import API from "../api";
 import OrdersTable from "../components/OrdersTable";
+import useOrdersRealtime from "../hooks/useOrdersRealtime";
 
 /* ---------- Columns (order matters) ---------- */
 const columns = [
@@ -310,6 +311,24 @@ export default function MonthlyOrders() {
     [paramsBuilder]
   );
 
+  // Realtime: when orders change, refetch monthly data with the current filter.
+  useOrdersRealtime({
+    enabled: true,
+    onOrderCreated: () => {
+      // OrdersTable will call our fetchOverride with its current filter.
+      // No extra work needed here.
+      // Triggering refetch is handled via tableId + global ref in OrdersTable.
+      if (window.__ordersTableRefs?.monthlyOrders?.refetch) {
+        window.__ordersTableRefs.monthlyOrders.refetch();
+      }
+    },
+    onOrderUpdated: () => {
+      if (window.__ordersTableRefs?.monthlyOrders?.refetch) {
+        window.__ordersTableRefs.monthlyOrders.refetch();
+      }
+    },
+  });
+
   return (
     <OrdersTable
       title="Monthly Orders"
@@ -327,6 +346,7 @@ export default function MonthlyOrders() {
       showTotalsButton={false}
       paramsBuilder={paramsBuilder}
       fetchOverride={fetchOverride}
+      tableId="monthlyOrders"
     />
   );
 }

@@ -1,6 +1,7 @@
 // src/pages/RefundedOrders.jsx
 import React, { useMemo, useState, useCallback } from "react";
 import OrdersTable from "../components/OrdersTable";
+import useOrdersRealtime from "../hooks/useOrdersRealtime";
 
 /** Table columns (order matters) */
 const columns = [
@@ -216,6 +217,21 @@ const RefundedOrders = () => {
     }
   }, [expandedIds, toggleExpand]);
 
+  // Realtime: refetch refunded orders when orders change
+  useOrdersRealtime({
+    enabled: true,
+    onOrderCreated: () => {
+      if (window.__ordersTableRefs?.refundedOrders?.refetch) {
+        window.__ordersTableRefs.refundedOrders.refetch();
+      }
+    },
+    onOrderUpdated: () => {
+      if (window.__ordersTableRefs?.refundedOrders?.refetch) {
+        window.__ordersTableRefs.refundedOrders.refetch();
+      }
+    },
+  });
+
   return (
     <OrdersTable
       title="Refunded Orders"
@@ -232,6 +248,7 @@ const RefundedOrders = () => {
       showGP={false}
       extraTotals={extraTotals}        // Totals modal shows total refunded amount
       showOrdersCountInTotals={false}
+      tableId="refundedOrders"
     />
   );
 };

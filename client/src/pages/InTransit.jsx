@@ -1,6 +1,7 @@
 // /src/pages/InTransitOrders.jsx
 import React, { useCallback, useState } from "react";
 import OrdersTable from "../components/OrdersTable";
+import useOrdersRealtime from "../hooks/useOrdersRealtime";
 
 /* ---------- Columns (order matters) ---------- */
 const columns = [
@@ -187,6 +188,21 @@ export default function InTransitOrders() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [expandedIds]);
 
+  // Realtime: when any order is created or updated, ask OrdersTable to refetch.
+  useOrdersRealtime({
+    enabled: true,
+    onOrderCreated: () => {
+      if (window.__ordersTableRefs?.inTransit?.refetch) {
+        window.__ordersTableRefs.inTransit.refetch();
+      }
+    },
+    onOrderUpdated: () => {
+      if (window.__ordersTableRefs?.inTransit?.refetch) {
+        window.__ordersTableRefs.inTransit.refetch();
+      }
+    },
+  });
+
   return (
     <div className="in-transit-table-wrapper">
       <style>{`
@@ -256,6 +272,7 @@ export default function InTransitOrders() {
         showGP={false}               // no GP totals here
         showTotalsButton={false}     // hide eye button
         rowsPerPage={25}
+        tableId="inTransit"
         paramsBuilder={({ filter, query, sortBy, sortOrder }) => {
           const params = {};
           if (filter?.start && filter?.end) {

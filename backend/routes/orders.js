@@ -3,7 +3,6 @@ import express from "express";
 import moment from "moment-timezone";
 import Order from "../models/Order.js";
 import { getDateRange } from "../utils/dateRange.js";
-// import { io } from "../server.js";
 import { getWhen } from "../../shared/utils/timeUtils.js";
 
 const router = express.Router();
@@ -26,6 +25,18 @@ const publish = (req, orderNo, payload = {}) => {
     });
   } catch (e) {
     console.warn("[ws] emit failed", e);
+  }
+};
+
+// broadcast an updated order object to all listeners (for list pages, dashboards, etc.)
+const broadcastOrder = (req, order) => {
+  try {
+    if (!order) return;
+    const io = req.app.get("io");
+    if (!io) return;
+    io.emit("orderUpdated", order);
+  } catch (e) {
+    console.warn("[ws] broadcastOrder failed", e);
   }
 };
 const coerceDate = (value) => {
@@ -476,6 +487,8 @@ router.post("/orders", async (req, res) => {
     await newOrder.save();
     const io = req.app.get("io");
     io.emit("orderCreated", newOrder);
+    // also broadcast for list pages
+    broadcastOrder(req, newOrder);
     publish(req, newOrder.orderNo, { type: "ORDER_CREATED" });
     res.status(201).json(newOrder);
   } catch (error) {
@@ -539,6 +552,7 @@ router.put("/:orderNo", async (req, res) => {
   type: updatedOrder.orderStatus !== oldStatus ? "STATUS_CHANGED" : "ORDER_UPDATED",
   status: updatedOrder.orderStatus,
 });
+    broadcastOrder(req, updatedOrder);
     res.json(updatedOrder);
   } catch (err) {
     res.status(400).send(err?.message || String(err));
@@ -628,6 +642,7 @@ router.put("/:orderNo/custRefund", async (req, res) => {
       type: "REFUND_SAVED",
       status: order.orderStatus,
     });
+    broadcastOrder(req, order);
     res.json(order);
   } catch (error) {
     console.error("Error updating refund/cancellation:", error);
@@ -739,6 +754,7 @@ router.post("/:orderNo/additionalInfo", async (req, res) => {
       yardIndex: order.additionalInfo.length, 
       status: order.orderStatus,
     });
+    broadcastOrder(req, order);
     res.json(order);
   } catch (error) {
     console.error("POST /orders/:orderNo/additionalInfo failed", error);
@@ -910,6 +926,7 @@ router.put("/:orderNo/additionalInfo/:index", async (req, res) => {
         yardIndex: idx1,         
         status: order.orderStatus,
       });
+      broadcastOrder(req, order);
       return res.json({ message: "Label voided", order });
     }
 
@@ -1210,6 +1227,7 @@ router.put("/:orderNo/cancelShipment", async (req, res) => {
       yardIndex: idx1,
       status: order.orderStatus,
     });
+    broadcastOrder(req, order);
     res.json({ message: "Shipment cancelled", order });
   } catch (err) {
     console.error("PUT cancelShipment failed", err);
@@ -1465,6 +1483,7 @@ router.patch("/:orderNo/additionalInfo/:index", async (req, res) => {
       yardIndex: i + 1,
       status: order.orderStatus,
     });
+    broadcastOrder(req, updatedOrder);
     res.json({
       message:
         changes.length > 0
@@ -1544,6 +1563,7 @@ router.patch("/:orderNo/additionalInfo/:yardIndex/paymentStatus", async (req, re
         yardIndex: idx0 + 1,
         status: order.orderStatus,
       });
+      broadcastOrder(req, order);
       return res.json({ message: "Payment status updated", changes, order });
     }
 
@@ -1604,6 +1624,7 @@ router.patch("/:orderNo/additionalInfo/:yardIndex/refundStatus", async (req, res
         yardIndex: idx0 + 1,
         status: order.orderStatus,
       });
+      broadcastOrder(req, order);
       return res.json({ message: "Refund info updated", changes, order });
     }
 
@@ -1659,6 +1680,7 @@ router.put("/:orderNo/reimbursement", async (req, res) => {
       reimbursementAmount: order.reimbursementAmount,
       reimbursementDate: order.reimbursementDate,
     });
+    broadcastOrder(req, order);
 
     res.json({
       message: "Reimbursement details updated",
@@ -1724,6 +1746,7 @@ router.put('/:orderNo/updateActualGP', async (req, res) => {
       type: "GP_UPDATED",
       actualGP: order.actualGP,
     });
+    broadcastOrder(req, order);
     res.json(order);
   } catch (error) {
     console.error("Error updating Actual GP:", error);
@@ -1749,6 +1772,7 @@ router.patch('/:orderNo/supportNotes', async (req, res) => {
     if (added) {
       publish(req, orderNo, { type: "SUPPORT_NOTE_ADDED" });
     }
+    broadcastOrder(req, order);
     res.json({ message: 'Support comment added', supportNotes: order.supportNotes });
   } catch (err) {
     console.error("PATCH /supportNotes error:", err);
@@ -1789,6 +1813,7 @@ router.patch("/:orderNo/additionalInfo/:index/notes", async (req, res) => {
     if (noteAdded) {
       publish(req, orderNo, { type: "YARD_NOTE_ADDED", yardIndex: Number(index) + 1 });
     }
+    broadcastOrder(req, order);
     return res.json({
       message: "Yard note added successfully.",
       notes: order.additionalInfo[index].notes,
@@ -1828,6 +1853,7 @@ router.put("/:orderNo/cancelOnly", async (req, res) => {
 
     await order.save();
     publish(req, orderNo, { type: "STATUS_CHANGED", status: order.orderStatus });
+    broadcastOrder(req, order);
     res.json({
       message: "Order cancelled and saved successfully (no email sent).",
       order,
@@ -1866,6 +1892,7 @@ router.put('/:orderNo/dispute', async (req, res) => {
 
     await order.save();
     publish(req, orderNo, { type: "STATUS_CHANGED", status: order.orderStatus });
+    broadcastOrder(req, order);
     res.json({ message: "Order marked as Dispute successfully.", order });
   } catch (error) {
     console.error("Error updating dispute:", error);
@@ -1906,6 +1933,7 @@ router.put("/:orderNo/refundOnly", async (req, res) => {
       type: "REFUND_SAVED",
       status: order.orderStatus,
     });
+    broadcastOrder(req, order);
     res.json({
       message: "Refund saved successfully (no email sent).",
       order,
@@ -2012,6 +2040,7 @@ router.patch("/:orderNo/storeCredits", async (req, res) => {
       amountUsed: amount,
       orderNoUsedFor: orderNoUsedFor.trim(),
     });
+    broadcastOrder(req, order);
 
     res.json({
       message: "Store credit updated successfully",

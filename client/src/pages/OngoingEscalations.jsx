@@ -1,6 +1,7 @@
 // src/pages/OngoingEscalationOrders.jsx
 import React from "react";
 import OrdersTable from "../components/OrdersTable";
+import useOrdersRealtime from "../hooks/useOrdersRealtime";
 
 // Unique storage keys for this page so it doesn't collide with others
 const STORAGE_KEYS = {
@@ -62,6 +63,21 @@ function renderCell(row, key, formatDateSafe /*, currency */) {
 const navigateTo = (row) => `/order-details?orderNo=${encodeURIComponent(row.orderNo)}`;
 
 export default function OngoingEscalationOrders() {
+  // Realtime: refetch ongoing escalation list when orders change
+  useOrdersRealtime({
+    enabled: true,
+    onOrderCreated: () => {
+      if (window.__ordersTableRefs?.ongoingEscalations?.refetch) {
+        window.__ordersTableRefs.ongoingEscalations.refetch();
+      }
+    },
+    onOrderUpdated: () => {
+      if (window.__ordersTableRefs?.ongoingEscalations?.refetch) {
+        window.__ordersTableRefs.ongoingEscalations.refetch();
+      }
+    },
+  });
+
   return (
     <OrdersTable
       title="Ongoing Escalations"
@@ -73,6 +89,7 @@ export default function OngoingEscalationOrders() {
       showAgentFilter={false}    // flip to true if you want Admin agent narrowing
       showGP={false}             // no GP math needed here
       navigateTo={navigateTo}
+      tableId="ongoingEscalations"
     />
   );
 }

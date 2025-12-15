@@ -3,6 +3,7 @@ import React, { useCallback, useMemo, useState, useEffect } from "react";
 import API from "../api";
 import OrdersTable from "../components/OrdersTable";
 import { formatInTimeZone } from "date-fns-tz";
+import useOrdersRealtime from "../hooks/useOrdersRealtime";
 
 const TZ = "America/Chicago";
 
@@ -212,6 +213,21 @@ export default function CancelledRefundedReport() {
     );
   }, []);
 
+  // Realtime: refetch cancelled + refunded report when orders change
+  useOrdersRealtime({
+    enabled: true,
+    onOrderCreated: () => {
+      if (window.__ordersTableRefs?.cancelledRefunds?.refetch) {
+        window.__ordersTableRefs.cancelledRefunds.refetch();
+      }
+    },
+    onOrderUpdated: () => {
+      if (window.__ordersTableRefs?.cancelledRefunds?.refetch) {
+        window.__ordersTableRefs.cancelledRefunds.refetch();
+      }
+    },
+  });
+
   return (
     <OrdersTable
       title="Cancellations / Refunds"
@@ -232,6 +248,7 @@ export default function CancelledRefundedReport() {
       onRowsChange={onRowsChange}     
       totalLabel={totalLabel}
       showTotalsNearPill={true}                  
+      tableId="cancelledRefunds"
     />
   );
 }

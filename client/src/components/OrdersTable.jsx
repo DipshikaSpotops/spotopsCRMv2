@@ -308,6 +308,7 @@ export default function OrdersTable({
   showTotalsNearPill = false,
   hideDefaultActions = false, // New prop to hide default Actions column
   rowsPerPage = ROWS_PER_PAGE, // allow per-page override
+  tableId, // optional: identifier so realtime hooks can trigger refetch
 }) {
   const navigate = useNavigate();
 
@@ -482,6 +483,22 @@ export default function OrdersTable({
     },
     [activeFilter, endpointURL, appliedQuery, sortBy, sortOrder, selectedAgent, userRole, firstName, fetchOverride, paramsBuilder]
   );
+
+  // Optional: expose a simple global refetch handle for realtime integrations
+  useEffect(() => {
+    if (!tableId) return;
+    if (!window.__ordersTableRefs) {
+      window.__ordersTableRefs = {};
+    }
+    window.__ordersTableRefs[tableId] = {
+      refetch: () => fetchOrders(activeFilter),
+    };
+    return () => {
+      if (window.__ordersTableRefs) {
+        delete window.__ordersTableRefs[tableId];
+      }
+    };
+  }, [tableId, fetchOrders, activeFilter]);
 
   useEffect(() => {
     if (activeFilter) {

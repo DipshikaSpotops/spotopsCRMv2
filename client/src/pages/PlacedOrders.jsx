@@ -5,6 +5,7 @@ import UnifiedDatePicker from "../components/UnifiedDatePicker";
 import { formatInTimeZone } from "date-fns-tz";
 import moment from "moment-timezone";
 import API from "../api";
+import useOrdersRealtime from "../hooks/useOrdersRealtime";
 
 const prettyFilterLabel = (filter) => {
   if (!filter) return "";
@@ -204,6 +205,20 @@ const PlacedOrders = () => {
     const base = currentFilter || {};
     fetchOrders({ ...base, q: q || undefined });
   };
+
+  // Realtime updates: when any order is created/updated anywhere,
+  // refetch this list with the current filter + search.
+  useOrdersRealtime({
+    enabled: true,
+    onOrderCreated: () => {
+      const base = currentFilter || {};
+      fetchOrders({ ...base, q: searchTerm.trim() || undefined });
+    },
+    onOrderUpdated: () => {
+      const base = currentFilter || {};
+      fetchOrders({ ...base, q: searchTerm.trim() || undefined });
+    },
+  });
 
   /* ----------------- Approve flow ----------------- */
   const openApprove = (order) => setApproveTarget(order);

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import API from "../api";
+import useOrdersRealtime from "../hooks/useOrdersRealtime";
 
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -173,6 +174,7 @@ export default function Dashboard() {
 
   // Cache strict year overview per year
   const [yearOverviewCache, setYearOverviewCache] = useState({}); // { [year]: [{month, actualGP}] }
+  const [reloadTick, setReloadTick] = useState(0);
 
   /* -------------------- Monthly data (reactive to filters) -------------------- */
   useEffect(() => {
@@ -308,7 +310,7 @@ export default function Dashboard() {
     loadDashboardMonthly();
     loadCancelRefund();
     loadReimbursements();
-  }, [selectedMonth, selectedYear]);
+  }, [selectedMonth, selectedYear, reloadTick]);
 
   /* ---- STRICT Year Overview (build from 12 calls to existing /orders/dashboard) ---- */
   useEffect(() => {
@@ -348,7 +350,14 @@ export default function Dashboard() {
 
     loadYearOverviewStrict();
     return () => { cancelled = true; };
-  }, [selectedYear, yearOverviewCache]);
+  }, [selectedYear, yearOverviewCache, reloadTick]);
+
+  // Realtime: when orders change, refresh dashboard for current month/year
+  useOrdersRealtime({
+    enabled: true,
+    onOrderCreated: () => setReloadTick((t) => t + 1),
+    onOrderUpdated: () => setReloadTick((t) => t + 1),
+  });
 
   /* ----------------------------------- UI ----------------------------------- */
 

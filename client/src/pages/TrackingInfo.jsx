@@ -3,6 +3,7 @@ import React, { useCallback, useMemo, useState } from "react";
 import API from "../api";
 import OrdersTable from "../components/OrdersTable";
 import { formatInTimeZone } from "date-fns-tz";
+import useOrdersRealtime from "../hooks/useOrdersRealtime";
 
 const TZ = "America/Chicago";
 
@@ -213,6 +214,21 @@ export default function TrackingInfo() {
     setTotalLabel(`Rows: ${rows.length}`);
   }, []);
 
+  // Realtime: refetch tracking info when orders change
+  useOrdersRealtime({
+    enabled: true,
+    onOrderCreated: () => {
+      if (window.__ordersTableRefs?.trackingInfo?.refetch) {
+        window.__ordersTableRefs.trackingInfo.refetch();
+      }
+    },
+    onOrderUpdated: () => {
+      if (window.__ordersTableRefs?.trackingInfo?.refetch) {
+        window.__ordersTableRefs.trackingInfo.refetch();
+      }
+    },
+  });
+
   return (
     <OrdersTable
       title="Tracking Info"
@@ -233,6 +249,7 @@ export default function TrackingInfo() {
       onRowsChange={onRowsChange}
       totalLabel={totalLabel}
       showTotalsNearPill={true}
+      tableId="trackingInfo"
     />
   );
 }

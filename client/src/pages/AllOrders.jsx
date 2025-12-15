@@ -4,6 +4,7 @@ import { formatInTimeZone } from "date-fns-tz";
 import { FaSort, FaSortUp, FaSortDown, FaChevronLeft, FaChevronRight } from "react-icons/fa";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import StickyXScrollbar from "../components/StickyXScrollbar";
+import useOrdersRealtime from "../hooks/useOrdersRealtime";
 
 const rowsPerPage = 25;
 
@@ -223,6 +224,18 @@ const AllOrders = () => {
   }, []);
 
   const tableScrollRef = useRef(null);
+
+  // Realtime updates: whenever an order is created or updated anywhere,
+  // silently refetch the current page with the active sort/search.
+  useOrdersRealtime({
+    enabled: true,
+    onOrderCreated: () => {
+      fetchOrders(currentPage, appliedQuery, sortBy, sortOrder, { silent: true });
+    },
+    onOrderUpdated: () => {
+      fetchOrders(currentPage, appliedQuery, sortBy, sortOrder, { silent: true });
+    },
+  });
 
   // -----------------------------------------------------------------------
   if (loading) return <div className="p-6 text-center text-white">⏳ Loading Orders...</div>;

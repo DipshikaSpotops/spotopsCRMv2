@@ -2,6 +2,7 @@
 import React, { useCallback, useMemo, useState } from "react";
 import API from "../api";
 import OrdersTable from "../components/OrdersTable";
+import useOrdersRealtime from "../hooks/useOrdersRealtime";
 
 /* ---------- Columns ---------- */
 const columns = [
@@ -219,6 +220,21 @@ export default function Purchases() {
     );
   }, []);
 
+  // Realtime: refetch purchases when orders change
+  useOrdersRealtime({
+    enabled: true,
+    onOrderCreated: () => {
+      if (window.__ordersTableRefs?.purchases?.refetch) {
+        window.__ordersTableRefs.purchases.refetch();
+      }
+    },
+    onOrderUpdated: () => {
+      if (window.__ordersTableRefs?.purchases?.refetch) {
+        window.__ordersTableRefs.purchases.refetch();
+      }
+    },
+  });
+
   return (
     <OrdersTable
       title="Purchases (Card Charged)"
@@ -239,6 +255,7 @@ export default function Purchases() {
       onRowsChange={onRowsChange}
       totalLabel={totalLabel}
       showTotalsNearPill={true}
+      tableId="purchases"
     />
   );
 }

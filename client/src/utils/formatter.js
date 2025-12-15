@@ -13,13 +13,30 @@ export function fmtAddress(o = {}, prefix = "") {
 export function parseOrderHistory(historyArr) {
   if (!Array.isArray(historyArr)) return [];
   return historyArr.map((line) => {
-    const byMatch = String(line).match(/\bby\s([^on]+?)\s+on\b/i);
-    const whenMatch = String(line).match(/\bon\s(.+)$/i);
+    const lineStr = String(line);
+    
+    // Match pattern: "... by PersonName on Date Time"
+    // The regex captures: 
+    // - Group 1: everything before " by "
+    // - Group 2: the person name (between " by " and " on ")
+    // - Group 3: the date/time (after " on ")
+    const fullMatch = lineStr.match(/^(.+?)\s+by\s+([^on]+?)\s+on\s+(.+)$/i);
+    
+    if (fullMatch) {
+      const event = fullMatch[1].trim();
+      const by = fullMatch[2].trim();
+      const when = fullMatch[3].trim();
+      return { by, when, event, text: line };
+    }
+    
+    // Fallback: try to extract "by X on Y" pattern (for backward compatibility)
+    const byMatch = lineStr.match(/\bby\s([^on]+?)\s+on\b/i);
+    const whenMatch = lineStr.match(/\bon\s(.+)$/i);
 
     const by = byMatch ? byMatch[1].trim() : "";
     const when = whenMatch ? whenMatch[1].trim() : "";
 
-    let event = String(line);
+    let event = lineStr;
     if (byMatch) event = event.replace(byMatch[0], "").trim();
     if (whenMatch) event = event.replace(whenMatch[0], "").trim();
     event = event.replace(/\s{2,}/g, " ");

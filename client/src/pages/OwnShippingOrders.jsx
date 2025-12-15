@@ -1,5 +1,6 @@
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import OrdersTable from "../components/OrdersTable";
+import useOrdersRealtime from "../hooks/useOrdersRealtime";
 
 const columns = [
   { key: "orderDate",    label: "Order Date" },
@@ -143,6 +144,46 @@ export default function OwnShippingOrders() {
     }
   }, [expandedIds, toggleExpand]);
 
+  // Role-based access: only Admin and Service accounts can view this page
+  const userRole = useMemo(() => {
+    try {
+      const raw = localStorage.getItem("auth");
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        return parsed?.user?.role || null;
+      }
+    } catch {}
+    return localStorage.getItem("role") || null;
+  }, []);
+
+  const roleOk = (() => {
+    const r = (userRole || "").toLowerCase();
+    return r === "admin" || r === "service" || r === "service account";
+  })();
+
+  // Realtime: refetch own-shipping table when relevant orders change
+  useOrdersRealtime({
+    enabled: roleOk,
+    onOrderCreated: () => {
+      if (window.__ordersTableRefs?.ownShipping?.refetch) {
+        window.__ordersTableRefs.ownShipping.refetch();
+      }
+    },
+    onOrderUpdated: () => {
+      if (window.__ordersTableRefs?.ownShipping?.refetch) {
+        window.__ordersTableRefs.ownShipping.refetch();
+      }
+    },
+  });
+
+  if (!roleOk) {
+    return (
+      <div className="min-h-screen flex items-center justify-center text-white/80">
+        You do not have access to view Own Shipping Orders.
+      </div>
+    );
+  }
+
   return (
     <div className="own-shipping-table-wrapper">
       <style>{`
@@ -226,6 +267,7 @@ export default function OwnShippingOrders() {
           if (sortOrder) params.sortOrder = sortOrder;
           return params;
         }}
+        tableId="ownShipping"
       />
     </div>
   );

@@ -1,6 +1,7 @@
 // src/pages/DisputedOrders.jsx
 import React, { useCallback, useMemo, useState } from "react";
 import OrdersTable from "../components/OrdersTable";
+import useOrdersRealtime from "../hooks/useOrdersRealtime";
 
 /* ---------- Columns (order matters) ---------- */
 const columns = [
@@ -205,6 +206,21 @@ const DisputedOrders = () => {
     }
   }, [expandedIds, toggleExpand]);
 
+  // Realtime: refetch disputed orders when orders change
+  useOrdersRealtime({
+    enabled: true,
+    onOrderCreated: () => {
+      if (window.__ordersTableRefs?.disputedOrders?.refetch) {
+        window.__ordersTableRefs.disputedOrders.refetch();
+      }
+    },
+    onOrderUpdated: () => {
+      if (window.__ordersTableRefs?.disputedOrders?.refetch) {
+        window.__ordersTableRefs.disputedOrders.refetch();
+      }
+    },
+  });
+
   return (
     <OrdersTable
       title="Disputed Orders"
@@ -223,6 +239,7 @@ const DisputedOrders = () => {
       showTotalsButton={false}
       /* No custom totals for this page */
       showOrdersCountInTotals={false}
+      tableId="disputedOrders"
     />
   );
 };

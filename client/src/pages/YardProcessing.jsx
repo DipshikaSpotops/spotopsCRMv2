@@ -1,5 +1,6 @@
 import React, { useCallback, useState } from "react";
 import OrdersTable from "../components/OrdersTable";
+import useOrdersRealtime from "../hooks/useOrdersRealtime";
 
 const columns = [
   { key: "orderDate",    label: "Order Date" },
@@ -137,6 +138,21 @@ export default function YardProcessingOrders() {
     }
   }, [expandedIds, toggleExpand]);
 
+  // Realtime: refetch yard-processing table when orders change
+  useOrdersRealtime({
+    enabled: true,
+    onOrderCreated: () => {
+      if (window.__ordersTableRefs?.yardProcessing?.refetch) {
+        window.__ordersTableRefs.yardProcessing.refetch();
+      }
+    },
+    onOrderUpdated: () => {
+      if (window.__ordersTableRefs?.yardProcessing?.refetch) {
+        window.__ordersTableRefs.yardProcessing.refetch();
+      }
+    },
+  });
+
   return (
     <div className="yard-processing-table-wrapper">
       <style>{`
@@ -238,6 +254,7 @@ export default function YardProcessingOrders() {
           if (sortOrder) params.sortOrder = sortOrder;
           return params;
         }}
+        tableId="yardProcessing"
       />
     </div>
   );

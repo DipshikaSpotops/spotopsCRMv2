@@ -3,6 +3,7 @@ import React, { useCallback, useMemo, useState } from "react";
 import API from "../api";
 import OrdersTable from "../components/OrdersTable";
 import { formatInTimeZone } from "date-fns-tz";
+import useOrdersRealtime from "../hooks/useOrdersRealtime";
 
 const TZ = "America/Chicago";
 
@@ -274,6 +275,21 @@ export default function POReport() {
     );
   }, []);
 
+  // Realtime: refetch PO report when orders change
+  useOrdersRealtime({
+    enabled: true,
+    onOrderCreated: () => {
+      if (window.__ordersTableRefs?.poReport?.refetch) {
+        window.__ordersTableRefs.poReport.refetch();
+      }
+    },
+    onOrderUpdated: () => {
+      if (window.__ordersTableRefs?.poReport?.refetch) {
+        window.__ordersTableRefs.poReport.refetch();
+      }
+    },
+  });
+
   return (
     <OrdersTable
       title="All Purchase Orders"
@@ -294,6 +310,7 @@ export default function POReport() {
       onRowsChange={onRowsChange}
       totalLabel={totalLabel}
       showTotalsNearPill={true}
+      tableId="poReport"
     />
   );
 }

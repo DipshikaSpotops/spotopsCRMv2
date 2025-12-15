@@ -1,6 +1,7 @@
 // src/pages/CancelledOrders.jsx
 import React, { useState, useCallback } from "react";
 import OrdersTable from "../components/OrdersTable";
+import useOrdersRealtime from "../hooks/useOrdersRealtime";
 
 /* ---------- Columns ---------- */
 const columns = [
@@ -193,6 +194,21 @@ const CancelledOrders = () => {
     }
   }, [expandedIds, toggleExpand]);
 
+  // Realtime: refetch cancelled orders when orders change
+  useOrdersRealtime({
+    enabled: true,
+    onOrderCreated: () => {
+      if (window.__ordersTableRefs?.cancelledOrders?.refetch) {
+        window.__ordersTableRefs.cancelledOrders.refetch();
+      }
+    },
+    onOrderUpdated: () => {
+      if (window.__ordersTableRefs?.cancelledOrders?.refetch) {
+        window.__ordersTableRefs.cancelledOrders.refetch();
+      }
+    },
+  });
+
   return (
     <OrdersTable
       title="Cancelled Orders"
@@ -209,6 +225,7 @@ const CancelledOrders = () => {
       computeCancellationRate={true}
       denominatorEndpoint="/orders/monthlyOrders"
       extraTotals={extraTotals}
+      tableId="cancelledOrders"
     />
   );
 };

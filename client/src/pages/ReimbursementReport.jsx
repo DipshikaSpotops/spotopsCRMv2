@@ -4,6 +4,7 @@ import API from "../api";
 import OrdersTable from "../components/OrdersTable";
 import { formatInTimeZone } from "date-fns-tz";
 import moment from "moment-timezone";
+import useOrdersRealtime from "../hooks/useOrdersRealtime";
 
 const TZ = "America/Chicago";
 
@@ -133,6 +134,21 @@ export default function ReimbursementReport() {
     }
   }, []);
 
+  // Realtime: refetch reimbursements/refunds when orders change
+  useOrdersRealtime({
+    enabled: true,
+    onOrderCreated: () => {
+      if (window.__ordersTableRefs?.reimbursementReport?.refetch) {
+        window.__ordersTableRefs.reimbursementReport.refetch();
+      }
+    },
+    onOrderUpdated: () => {
+      if (window.__ordersTableRefs?.reimbursementReport?.refetch) {
+        window.__ordersTableRefs.reimbursementReport.refetch();
+      }
+    },
+  });
+
   return (
     <OrdersTable
       title="Refunds/Reimbursements"
@@ -164,6 +180,7 @@ export default function ReimbursementReport() {
         }
         return params;
       }}
+      tableId="reimbursementReport"
     />
   );
 }

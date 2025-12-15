@@ -2,6 +2,7 @@
 import React, { useCallback } from "react";
 import API from "../api";
 import OrdersTable from "../components/OrdersTable";
+import useOrdersRealtime from "../hooks/useOrdersRealtime";
 
 // Columns (order matters)
 const columns = [
@@ -120,6 +121,21 @@ const SalesData = () => {
     [paramsBuilder]
   );
 
+  // Realtime: refetch sales data when orders change
+  useOrdersRealtime({
+    enabled: true,
+    onOrderCreated: () => {
+      if (window.__ordersTableRefs?.salesDataMonthly?.refetch) {
+        window.__ordersTableRefs.salesDataMonthly.refetch();
+      }
+    },
+    onOrderUpdated: () => {
+      if (window.__ordersTableRefs?.salesDataMonthly?.refetch) {
+        window.__ordersTableRefs.salesDataMonthly.refetch();
+      }
+    },
+  });
+
   return (
     <OrdersTable
       title="Sales Data—Monthly"
@@ -136,6 +152,7 @@ const SalesData = () => {
       showGP={true}
       paramsBuilder={paramsBuilder}
       fetchOverride={fetchOverride}
+      tableId="salesDataMonthly"
     />
   );
 };

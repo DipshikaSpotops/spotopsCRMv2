@@ -4,6 +4,7 @@ import API from "../api";
 import OrdersTable from "../components/OrdersTable";
 import { formatInTimeZone } from "date-fns-tz";
 import { useNavigate } from "react-router-dom";
+import useOrdersRealtime from "../hooks/useOrdersRealtime";
 
 const TZ = "America/Chicago";
 
@@ -297,8 +298,10 @@ export default function StoreCredits() {
       );
       
       setUseModalOpen(false);
-      // Reload data by triggering a refresh
-      window.location.reload();
+      // Trigger table refetch instead of full page reload
+      if (window.__ordersTableRefs?.storeCredits?.refetch) {
+        window.__ordersTableRefs.storeCredits.refetch();
+      }
     } catch (e) {
       console.error(e);
       setUseError("Failed to update store credit. Try again.");
@@ -306,6 +309,21 @@ export default function StoreCredits() {
       setUseLoading(false);
     }
   };
+
+  // Realtime: keep store credits list up-to-date when orders change
+  useOrdersRealtime({
+    enabled: true,
+    onOrderCreated: () => {
+      if (window.__ordersTableRefs?.storeCredits?.refetch) {
+        window.__ordersTableRefs.storeCredits.refetch();
+      }
+    },
+    onOrderUpdated: () => {
+      if (window.__ordersTableRefs?.storeCredits?.refetch) {
+        window.__ordersTableRefs.storeCredits.refetch();
+      }
+    },
+  });
 
   return (
     <>
@@ -329,6 +347,7 @@ export default function StoreCredits() {
         totalLabel={totalLabel}
         showTotalsNearPill={true}
         hideDefaultActions={true}
+        tableId="storeCredits"
       />
 
       {/* Use Modal */}
