@@ -226,6 +226,7 @@ const CancelledOrders = () => {
       denominatorEndpoint="/orders/monthlyOrders"
       extraTotals={extraTotals}
       tableId="cancelledOrders"
+      showTotalsButton={false}
     />
   );
 };
