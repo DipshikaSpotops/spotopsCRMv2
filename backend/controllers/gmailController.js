@@ -441,8 +441,25 @@ export async function listMessagesHandler(req, res, next) {
 export async function oauth2UrlHandler(req, res, next) {
   try {
     // Detect the correct redirect URI based on request origin
-    const protocol = req.protocol || (req.secure ? 'https' : 'http');
+    // Check for proxy headers first (X-Forwarded-Proto is set by reverse proxies like nginx)
+    const forwardedProto = req.headers['x-forwarded-proto'] || req.headers['x-forwarded-protocol'];
+    let protocol = 'https'; // Default to HTTPS for production
+    
+    if (forwardedProto) {
+      protocol = forwardedProto.split(',')[0].trim(); // Handle multiple values
+    } else if (req.secure) {
+      protocol = 'https';
+    } else if (req.protocol) {
+      protocol = req.protocol;
+    }
+    
     const host = req.get('host') || req.headers.host || 'localhost:5000';
+    
+    // Force HTTPS for production domains (unless localhost)
+    if (!host.includes('localhost') && !host.includes('127.0.0.1')) {
+      protocol = 'https';
+    }
+    
     const origin = `${protocol}://${host}`;
     
     // Use the exact origin from the request to build redirect URI (preserves www vs non-www)
@@ -564,8 +581,25 @@ export async function oauth2CallbackHandler(req, res, next) {
     clearTokenCache();
     
     // Detect the correct redirect URI based on request origin (must match what was used in auth URL)
-    const protocol = req.protocol || (req.secure ? 'https' : 'http');
+    // Check for proxy headers first (X-Forwarded-Proto is set by reverse proxies like nginx)
+    const forwardedProto = req.headers['x-forwarded-proto'] || req.headers['x-forwarded-protocol'];
+    let protocol = 'https'; // Default to HTTPS for production
+    
+    if (forwardedProto) {
+      protocol = forwardedProto.split(',')[0].trim(); // Handle multiple values
+    } else if (req.secure) {
+      protocol = 'https';
+    } else if (req.protocol) {
+      protocol = req.protocol;
+    }
+    
     const host = req.get('host') || req.headers.host || 'localhost:5000';
+    
+    // Force HTTPS for production domains (unless localhost)
+    if (!host.includes('localhost') && !host.includes('127.0.0.1')) {
+      protocol = 'https';
+    }
+    
     const origin = `${protocol}://${host}`;
     
     // Use the exact origin from the request to build redirect URI (preserves www vs non-www)
