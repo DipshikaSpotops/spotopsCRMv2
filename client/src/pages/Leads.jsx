@@ -243,10 +243,17 @@ export default function Leads() {
     } catch (err) {
       if (!silent) {
         console.error("[Leads] fetch error", err);
-        const message =
-          err?.response?.data?.message ||
-          err?.message ||
-          "Failed to load leads.";
+        let message;
+        
+        // Handle network errors specifically
+        if (err.code === "ERR_NETWORK" || err.message === "Network Error" || !err.response) {
+          message = "Network Error: Unable to connect to server. Please check if the backend is running.";
+        } else {
+          message =
+            err?.response?.data?.message ||
+            err?.message ||
+            "Failed to load leads.";
+        }
         setError(message);
       }
     } finally {
@@ -468,16 +475,71 @@ export default function Leads() {
     };
   }, [fetchMessages]);
 
-  // Auto-refresh leads every 10 seconds (silent update)
+  // Check if it's daytime in Dallas (6 AM - 8 PM)
+  const isDallasDaytime = () => {
+    const dallasTz = "America/Chicago";
+    const now = new Date();
+    const dallasTime = formatInTimeZone(now, dallasTz, "HH");
+    const hour = parseInt(dallasTime, 10);
+    return hour >= 6 && hour < 20; // 6 AM to 8 PM Dallas time
+  };
+
+  // Auto-refresh leads every 10 seconds (silent update) - only during Dallas daytime and when tab is visible
   useEffect(() => {
     if (viewMode !== "leads") return; // Only poll when in leads view
     
-    const interval = setInterval(() => {
-      fetchMessages(true); // Silent fetch - no loading state
-    }, 10000); // 10 seconds
+    let interval;
+    
+    const startPolling = () => {
+      // Poll every 10 seconds when tab is visible and during Dallas daytime
+      interval = setInterval(() => {
+        if (!document.hidden && isDallasDaytime()) {
+          fetchMessages(true); // Silent fetch - no loading state
+        }
+      }, 10000); // 10 seconds
+    };
+    
+    const stopPolling = () => {
+      if (interval) {
+        clearInterval(interval);
+        interval = null;
+      }
+    };
+    
+    // Start polling if tab is visible and it's daytime
+    if (!document.hidden && isDallasDaytime()) {
+      startPolling();
+    }
+    
+    // Handle visibility changes - stop polling when tab is hidden
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        stopPolling();
+      } else if (isDallasDaytime()) {
+        startPolling();
+        // Immediately fetch when tab becomes visible during daytime
+        fetchMessages(true);
+      }
+    };
+    
+    // Check every minute if we've entered/left daytime hours
+    const daytimeCheckInterval = setInterval(() => {
+      if (!document.hidden) {
+        if (isDallasDaytime() && !interval) {
+          startPolling();
+          fetchMessages(true);
+        } else if (!isDallasDaytime() && interval) {
+          stopPolling();
+        }
+      }
+    }, 60000); // Check every minute
+    
+    document.addEventListener("visibilitychange", handleVisibilityChange);
 
     return () => {
-      clearInterval(interval);
+      stopPolling();
+      clearInterval(daytimeCheckInterval);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, [fetchMessages, viewMode]);
 

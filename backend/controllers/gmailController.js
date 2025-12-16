@@ -280,10 +280,10 @@ export async function listMessagesHandler(req, res, next) {
     
     // Fetch messages directly from Gmail API (unread/unclaimed)
     let gmail;
-    let userEmail;
+    let gmailUserEmail;
     try {
       gmail = await getGmailClient();
-      userEmail = getUserEmail() || process.env.GMAIL_IMPERSONATED_USER;
+      gmailUserEmail = getUserEmail() || process.env.GMAIL_IMPERSONATED_USER;
     } catch (fetchErr) {
       console.error("[listMessages] Failed to create Gmail client:", fetchErr);
       // Mirror the friendlier error handling from manualSyncHandler so the UI
@@ -400,7 +400,7 @@ export async function listMessagesHandler(req, res, next) {
             date,
             snippet: fullMessage.data.snippet || "",
             agentEmail: detectedAgent,
-            userEmail,
+            userEmail: gmailUserEmail,
             labelIds: fullMessage.data.labelIds || [],
             internalDate: fullMessage.data.internalDate ? new Date(Number(fullMessage.data.internalDate)) : new Date(),
             // Merge with database record if claimed, otherwise use messageId as temporary _id
