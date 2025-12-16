@@ -732,26 +732,29 @@ export default function Leads() {
         <div className="space-y-6">
           {/* Top controls: agent filter, date picker, load button */}
           <div className="flex flex-wrap items-center gap-4 mb-2">
-            {/* Agent dropdown - only visible to Admin */}
-            {isAdmin && (
-              <div className="flex items-center gap-2">
-                <label className="text-sm text-white/90 whitespace-nowrap">Agent:</label>
-                <AgentDropdown
-                  options={statsAgentOptions.length > 1 ? statsAgentOptions : ["All"]}
-                  value={selectedAgentForStats || "All"}
-                  onChange={(value) => {
-                    setSelectedAgentForStats(value === "All" ? null : value);
-                  }}
-                />
-              </div>
-            )}
-            <UnifiedDatePicker
-              value={dateFilter}
-              onFilterChange={(filter) => {
-                setDateFilter(filter);
-              }}
-              buttonLabel="Select Range"
-            />
+            {/* Agent dropdown and Select Range button together */}
+            <div className="flex items-center gap-3">
+              {/* Agent dropdown - only visible to Admin */}
+              {isAdmin && (
+                <div className="flex items-center gap-2">
+                  <label className="text-sm text-white/90 whitespace-nowrap">Agent:</label>
+                  <AgentDropdown
+                    options={statsAgentOptions.length > 1 ? statsAgentOptions : ["All"]}
+                    value={selectedAgentForStats || "All"}
+                    onChange={(value) => {
+                      setSelectedAgentForStats(value === "All" ? null : value);
+                    }}
+                  />
+                </div>
+              )}
+              <UnifiedDatePicker
+                value={dateFilter}
+                onFilterChange={(filter) => {
+                  setDateFilter(filter);
+                }}
+                buttonLabel="Select Range"
+              />
+            </div>
             <button
               onClick={fetchStatistics}
               disabled={loadingStats}
