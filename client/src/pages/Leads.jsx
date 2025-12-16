@@ -1041,50 +1041,64 @@ export default function Leads() {
                       }
                     }}
                   >
-                    <div className="font-medium text-white truncate">
-                      {msg.subject || "(no subject)"}
-                    </div>
-                    <div className="text-xs text-white/70 mt-1">
-                      {msg.from || "—"}
-                    </div>
-                    <div className="text-xs text-white/60 mt-1">
-                      {msg.internalDate
-                        ? formatDistanceToNow(new Date(msg.internalDate), {
-                            addSuffix: true,
-                          })
-                        : ""}
-                    </div>
-                    {msg.status === "active" && (
-                      <div className="mt-2" style={{ position: 'relative', zIndex: 50 }}>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleClaim(msg);
-                          }}
-                          disabled={claimingId === msg._id || claimingId === msg.messageId}
-                          className={`px-3 py-1 text-xs rounded text-white font-medium ${
-                            claimingId === msg._id || claimingId === msg.messageId
-                              ? "bg-gray-500 cursor-not-allowed opacity-50"
-                              : "bg-[#2c5d81] hover:bg-blue-700"
-                          }`}
-                          style={{ 
-                            backgroundColor: claimingId === msg._id || claimingId === msg.messageId 
-                              ? undefined 
-                              : '#2c5d81',
-                            opacity: claimingId === msg._id || claimingId === msg.messageId ? 0.5 : 1,
-                            position: 'relative',
-                            zIndex: 50
-                          }}
-                        >
-                          {claimingId === msg._id || claimingId === msg.messageId ? "Claiming..." : "Claim"}
-                        </button>
+                    <div className="flex items-center gap-2 min-h-[2.5rem]">
+                      <div className="flex-1 min-w-0 flex items-center gap-2">
+                        <div className="font-medium text-white truncate text-sm">
+                          {msg.subject || "(no subject)"}
+                        </div>
+                        {msg.labels && msg.labels.length > 0 && (
+                          <div className="flex flex-wrap gap-1 shrink-0">
+                            {msg.labels.map((label) => (
+                              <span
+                                key={label}
+                                className="px-2 py-0.5 rounded-full border border-blue-300/50 text-xs bg-blue-400/20 text-white font-semibold whitespace-nowrap"
+                              >
+                                {label}
+                              </span>
+                            ))}
+                          </div>
+                        )}
                       </div>
-                    )}
-                    {msg.status === "closed" && (
-                      <div className="mt-2">
-                        <span className="text-xs text-purple-300/80 italic">Closed</span>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <div className="text-xs text-white/70">
+                          {msg.from || "—"}
+                        </div>
+                        <div className="text-xs text-white/60">
+                          {msg.internalDate
+                            ? formatDistanceToNow(new Date(msg.internalDate), {
+                                addSuffix: true,
+                              })
+                            : ""}
+                        </div>
+                        {msg.status === "closed" && (
+                          <span className="text-xs text-purple-300/80 italic">Closed</span>
+                        )}
+                        {msg.status === "active" && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleClaim(msg);
+                            }}
+                            disabled={claimingId === msg._id || claimingId === msg.messageId}
+                            className={`px-2 py-1 text-xs rounded text-white font-medium ${
+                              claimingId === msg._id || claimingId === msg.messageId
+                                ? "bg-gray-500 cursor-not-allowed opacity-50"
+                                : "bg-[#2c5d81] hover:bg-blue-700"
+                            }`}
+                            style={{ 
+                              backgroundColor: claimingId === msg._id || claimingId === msg.messageId 
+                                ? undefined 
+                                : '#2c5d81',
+                              opacity: claimingId === msg._id || claimingId === msg.messageId ? 0.5 : 1,
+                              position: 'relative',
+                              zIndex: 50
+                            }}
+                          >
+                            {claimingId === msg._id || claimingId === msg.messageId ? "Claiming..." : "Claim"}
+                          </button>
+                        )}
                       </div>
-                    )}
+                    </div>
                   </div>
                 ))
               )}
@@ -1154,24 +1168,24 @@ export default function Leads() {
                 <div className="relative inline-block" ref={labelsDropdownRef}>
                   <button
                     type="button"
-                    className="min-w-[14rem] inline-flex flex-wrap items-center gap-2 rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-sm text-white hover:bg-white/20"
+                    className="min-w-[14rem] inline-flex flex-wrap items-center gap-2 rounded-md border border-white/20 bg-[#04356d] hover:bg-[#3b89bf] px-3 py-2 text-sm text-white text-center focus:outline-none focus:ring-2 focus:ring-white/30 cursor-pointer"
                     onClick={() => setShowLabelsDropdown(!showLabelsDropdown)}
                   >
                     {!selectedMessage.labels?.length && (
-                      <span className="opacity-70">Select labels</span>
+                      <span className="opacity-90">Select labels</span>
                     )}
                     {selectedMessage.labels?.length > 0 && (
                       <>
                         {selectedMessage.labels.slice(0, 3).map((lab) => (
                           <span
                             key={lab}
-                            className="px-2 py-0.5 rounded-full border border-white/20 text-xs bg-purple-500/30 text-purple-200"
+                            className="px-2 py-0.5 rounded-full border border-white/30 text-xs bg-white/20 text-white font-medium"
                           >
                             {lab}
                           </span>
                         ))}
                         {selectedMessage.labels.length > 3 && (
-                          <span className="text-xs opacity-70">
+                          <span className="text-xs opacity-90">
                             +{selectedMessage.labels.length - 3} more
                           </span>
                         )}
@@ -1179,7 +1193,7 @@ export default function Leads() {
                     )}
                     <svg
                       xmlns="http://www.w3.org/2000/svg"
-                      className="h-4 w-4 ml-auto opacity-70"
+                      className="h-4 w-4 ml-auto opacity-90"
                       viewBox="0 0 20 20"
                       fill="currentColor"
                     >
@@ -1192,14 +1206,14 @@ export default function Leads() {
                   </button>
 
                   {showLabelsDropdown && (
-                    <div className="absolute z-50 mt-2 w-72 max-w-[calc(100vw-2rem)] rounded-xl border border-white/20 bg-[#0f1b2a] shadow-lg p-2">
+                    <div className="absolute z-50 mt-2 w-72 max-w-[calc(100vw-2rem)] rounded-md border border-white/20 bg-[#04356d] shadow-lg p-2">
                       <div className="p-1">
                         <input
                           type="text"
                           placeholder="Search labels…"
                           value={labelSearch}
                           onChange={(e) => setLabelSearch(e.target.value)}
-                          className="w-full border border-white/20 rounded px-2 py-1 text-sm bg-white/10 text-white placeholder-white/60"
+                          className="w-full border border-white/20 rounded px-2 py-1 text-sm bg-white/10 text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-white/30"
                         />
                       </div>
                       <div className="max-h-56 overflow-auto divide-y divide-white/10">
@@ -1209,7 +1223,7 @@ export default function Leads() {
                             <button
                               key={lab}
                               type="button"
-                              className="w-full text-left px-2 py-2 text-sm hover:bg-white/10 flex items-center gap-2 text-white"
+                              className="w-full text-left px-2 py-2 text-sm hover:bg-[#3b89bf] flex items-center gap-2 text-white"
                               onClick={() => handleToggleLabel(lab)}
                             >
                               <input
@@ -1228,7 +1242,7 @@ export default function Leads() {
                           </div>
                         )}
                       </div>
-                      <div className="flex items-center gap-2 p-2">
+                      <div className="flex items-center gap-2 p-2 border-t border-white/10">
                         <input
                           type="text"
                           placeholder="Create new label…"
@@ -1240,11 +1254,11 @@ export default function Leads() {
                               handleAddNewLabel();
                             }
                           }}
-                          className="flex-1 border border-white/20 rounded px-2 py-1 text-sm bg-white/10 text-white placeholder-white/60"
+                          className="flex-1 border border-white/20 rounded px-2 py-1 text-sm bg-white/10 text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-white/30"
                         />
                         <button
                           type="button"
-                          className="px-2 py-1 rounded border border-white/20 text-sm hover:bg-white/10 text-white"
+                          className="px-3 py-1 rounded-md border border-white/20 text-sm bg-[#3b89bf] hover:bg-[#04356d] text-white font-medium"
                           onClick={handleAddNewLabel}
                         >
                           Add
