@@ -529,7 +529,7 @@ export default function Leads() {
   const [closingId, setClosingId] = useState(null);
 
   const handleCloseLead = async (messageId) => {
-    if (!messageId) return;
+    if (!messageId) return;A
     setClosingId(messageId);
     setError("");
     try {

@@ -209,8 +209,8 @@ function App() {
             </Suspense>
           )}
         />
-        <Route
-          path="/create-user"
+        <Route          
+        path="/create-user"
           element={withLayout(
             <Suspense fallback={<PageLoader />}>
               <CreateUser />
@@ -218,15 +218,15 @@ function App() {
           )}
         />
         <Route
-          path="/view-users"
+        path="/view-users"
           element={withLayout(
             <Suspense fallback={<PageLoader />}>
               <ViewUsers />
             </Suspense>
           )}
         />
-        <Route
-          path="/order-details"
+          <Route
+        path="/order-details"
           element={requireAuth(
             <Suspense fallback={<PageLoader />}>
               <OrderDetails />
@@ -242,7 +242,7 @@ function App() {
           )}
         />
         <Route
-          path="/cancelled-refunded-report"
+        path="/cancelled-refunded-report"
           element={withLayout(
             <Suspense fallback={<PageLoader />}>
               <CancelledRefundedOrders />
@@ -250,7 +250,7 @@ function App() {
           )}
         />
         <Route
-          path="/card-not-charged-report"
+        path="/card-not-charged-report"
           element={withLayout(
             <Suspense fallback={<PageLoader />}>
               <CardNotCharged />
@@ -258,7 +258,7 @@ function App() {
           )}
         />
         <Route
-          path="/collect-refund"
+        path="/collect-refund"
           element={withLayout(
             <Suspense fallback={<PageLoader />}>
               <CollectRefund />
@@ -266,7 +266,7 @@ function App() {
           )}
         />
         <Route
-          path="/ups-claims"
+        path="/ups-claims"
           element={withLayout(
             <Suspense fallback={<PageLoader />}>
               <UPSClaims />
@@ -274,7 +274,7 @@ function App() {
           )}
         />
         <Route
-          path="/delivery-time"
+        path="/delivery-time"
           element={withLayout(
             <Suspense fallback={<PageLoader />}>
               <DeliveryTimeReport />
@@ -282,7 +282,7 @@ function App() {
           )}
         />
         <Route
-          path="/monthly-disputes"
+        path="/monthly-disputes"
           element={withLayout(
             <Suspense fallback={<PageLoader />}>
               <MonthlyDisputes />
@@ -290,7 +290,7 @@ function App() {
           )}
         />
         <Route
-          path="/purchases"
+        path="/purchases"
           element={withLayout(
             <Suspense fallback={<PageLoader />}>
               <Purchases />
@@ -298,7 +298,7 @@ function App() {
           )}
         />
         <Route
-          path="/po-report"
+        path="/po-report"
           element={withLayout(
             <Suspense fallback={<PageLoader />}>
               <POReport />
@@ -306,7 +306,7 @@ function App() {
           )}
         />
         <Route
-          path="/shipping-expenses"
+        path="/shipping-expenses"
           element={withLayout(
             <Suspense fallback={<PageLoader />}>
               <ShippingExpenses />
@@ -314,7 +314,7 @@ function App() {
           )}
         />
         <Route
-          path="/store-credit"
+        path="/store-credit"
           element={withLayout(
             <Suspense fallback={<PageLoader />}>
               <StoreCredits />
@@ -322,7 +322,7 @@ function App() {
           )}
         />
         <Route
-          path="/tracking-info"
+        path="/tracking-info"
           element={withLayout(
             <Suspense fallback={<PageLoader />}>
               <TrackingInfo />
@@ -330,7 +330,7 @@ function App() {
           )}
         />
         <Route
-          path="/sales-data"
+        path="/sales-data"
           element={withLayout(
             <Suspense fallback={<PageLoader />}>
               <SalesData />
@@ -338,13 +338,13 @@ function App() {
           )}
         />
         <Route
-          path="/sales-report"
+        path="/sales-report"
           element={withLayout(
             <Suspense fallback={<PageLoader />}>
               <SalesReport />
             </Suspense>
           )}
-        />
+          />
         <Route
           path="/email-leads"
           element={withLayout(

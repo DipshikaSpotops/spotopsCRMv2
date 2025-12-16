@@ -84,6 +84,7 @@ export default function Sidebar() {
       "Placed Orders",
       "Customer Approved",
       "Yard Processing Orders",
+      "Own Shipping Orders",
       "In Transit Orders",
       "Overall Escalation",
       "Ongoing Escalation",

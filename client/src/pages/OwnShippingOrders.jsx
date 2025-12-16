@@ -144,7 +144,7 @@ export default function OwnShippingOrders() {
     }
   }, [expandedIds, toggleExpand]);
 
-  // Role-based access: only Admin and Service accounts can view this page
+  // Role-based access: only Admin, Service, and Support accounts can view this page
   const userRole = useMemo(() => {
     try {
       const raw = localStorage.getItem("auth");
@@ -158,7 +158,13 @@ export default function OwnShippingOrders() {
 
   const roleOk = (() => {
     const r = (userRole || "").toLowerCase();
-    return r === "admin" || r === "service" || r === "service account";
+    // Allow Admin, Service, Service Account, and Support
+    return (
+      r === "admin" ||
+      r === "service" ||
+      r === "service account" ||
+      r === "support"
+    );
   })();
 
   // Realtime: refetch own-shipping table when relevant orders change

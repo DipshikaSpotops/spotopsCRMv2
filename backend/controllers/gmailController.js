@@ -277,8 +277,32 @@ export async function listMessagesHandler(req, res, next) {
     console.log(`[listMessages] Fetching messages: agentEmail=${agentEmail}, limit=${parsedLimit}, userFirstName=${userFirstName}`);
     
     // Fetch messages directly from Gmail API (unread/unclaimed)
-    const gmail = await getGmailClient();
-    const userEmail = getUserEmail() || process.env.GMAIL_IMPERSONATED_USER;
+    let gmail;
+    let userEmail;
+    try {
+      gmail = await getGmailClient();
+      userEmail = getUserEmail() || process.env.GMAIL_IMPERSONATED_USER;
+    } catch (fetchErr) {
+      console.error("[listMessages] Failed to create Gmail client:", fetchErr);
+      // Mirror the friendlier error handling from manualSyncHandler so the UI
+      // can show a clear message instead of a generic 500.
+      if (
+        fetchErr.message?.includes("invalid_grant") ||
+        fetchErr.code === "invalid_grant"
+      ) {
+        return res.status(400).json({
+          message: "Gmail token is invalid. Please re-authorize via /api/gmail/oauth2/url",
+          error: "Invalid token. Re-authorization required.",
+          errorCode: "GMAIL_TOKEN_INVALID",
+          help: "http://localhost:5000/api/gmail/oauth2/url",
+        });
+      }
+
+      return res.status(500).json({
+        message: "Failed to connect to Gmail. Make sure Gmail API credentials are configured.",
+        error: fetchErr.message,
+      });
+    }
     
     // Build Gmail query
     let gmailQuery = "is:unread in:inbox";
