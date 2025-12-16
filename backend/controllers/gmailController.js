@@ -440,7 +440,25 @@ export async function listMessagesHandler(req, res, next) {
 
 export async function oauth2UrlHandler(req, res, next) {
   try {
-    const url = getAuthUrl();
+    // Detect the correct redirect URI based on request origin
+    const protocol = req.protocol || (req.secure ? 'https' : 'http');
+    const host = req.get('host') || req.headers.host || 'localhost:5000';
+    const origin = `${protocol}://${host}`;
+    
+    // Choose redirect URI based on origin
+    let redirectUri;
+    if (host.includes('spotops360.com') || host.includes('spotops360')) {
+      redirectUri = 'https://spotops360.com/api/gmail/oauth2/callback';
+    } else if (host.includes('localhost') || host.includes('127.0.0.1')) {
+      redirectUri = 'http://localhost:5000/api/gmail/oauth2/callback';
+    } else {
+      // Fallback: use the origin from the request
+      redirectUri = `${origin}/api/gmail/oauth2/callback`;
+    }
+    
+    console.log(`[oauth2UrlHandler] Detected origin: ${origin}, using redirect URI: ${redirectUri}`);
+    
+    const url = getAuthUrl(redirectUri);
     
     // If request wants HTML (browser), show a nice page with the link
     if (req.headers.accept?.includes("text/html")) {
@@ -547,7 +565,22 @@ export async function oauth2CallbackHandler(req, res, next) {
     // Clear old cached tokens before setting new ones
     clearTokenCache();
     
-    await setTokensFromCode(code);
+    // Detect the correct redirect URI based on request origin (must match what was used in auth URL)
+    const protocol = req.protocol || (req.secure ? 'https' : 'http');
+    const host = req.get('host') || req.headers.host || 'localhost:5000';
+    
+    let redirectUri;
+    if (host.includes('spotops360.com') || host.includes('spotops360')) {
+      redirectUri = 'https://spotops360.com/api/gmail/oauth2/callback';
+    } else if (host.includes('localhost') || host.includes('127.0.0.1')) {
+      redirectUri = 'http://localhost:5000/api/gmail/oauth2/callback';
+    } else {
+      redirectUri = `${protocol}://${host}/api/gmail/oauth2/callback`;
+    }
+    
+    console.log(`[oauth2CallbackHandler] Using redirect URI: ${redirectUri}`);
+    
+    await setTokensFromCode(code, redirectUri);
     const userEmail = getUserEmail();
     
     res.send(`

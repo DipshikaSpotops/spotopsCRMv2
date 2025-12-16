@@ -30,7 +30,7 @@ export function clearTokenCache() {
   console.log("[googleAuth] Token cache cleared");
 }
 
-function createOAuthClient() {
+function createOAuthClient(redirectUriOverride = null) {
   if (!fs.existsSync(CREDS_PATH)) {
     throw new Error(
       `Missing credentials.json file. Please download it from Google Cloud Console and place it at: ${CREDS_PATH}`
@@ -44,20 +44,19 @@ function createOAuthClient() {
     throw new Error("Invalid credentials.json format. Missing client_id or client_secret.");
   }
 
-  // Use redirect URI from credentials.json (which matches Google Cloud Console)
-  // If not found, use env var or default
-  // We have a redirect route that handles /oauth2/callback -> /api/gmail/oauth2/callback
-  const redirectUri = web.redirect_uris?.[0] || 
-                      process.env.GMAIL_OAUTH_REDIRECT_URI || 
-                      "http://localhost:5000/oauth2/callback";
+  // Use provided redirect URI, or from credentials.json, or env var, or default
+  const redirectUri = redirectUriOverride ||
+                      process.env.GMAIL_OAUTH_REDIRECT_URI ||
+                      web.redirect_uris?.[0] || 
+                      "http://localhost:5000/api/gmail/oauth2/callback";
   
   console.log("[googleAuth] Using redirect URI:", redirectUri);
   
   return new google.auth.OAuth2(web.client_id, web.client_secret, redirectUri);
 }
 
-export function getAuthUrl() {
-  const oAuth2Client = createOAuthClient();
+export function getAuthUrl(redirectUriOverride = null) {
+  const oAuth2Client = createOAuthClient(redirectUriOverride);
   return oAuth2Client.generateAuthUrl({
     access_type: "offline",
     prompt: "consent",
@@ -67,8 +66,8 @@ export function getAuthUrl() {
   });
 }
 
-export async function setTokensFromCode(code) {
-  const oAuth2Client = createOAuthClient();
+export async function setTokensFromCode(code, redirectUriOverride = null) {
+  const oAuth2Client = createOAuthClient(redirectUriOverride);
   let { tokens } = await oAuth2Client.getToken(code);
   
   // Ensure token.json directory exists
