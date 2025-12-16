@@ -273,8 +273,10 @@ export async function listMessagesHandler(req, res, next) {
     // Get logged-in user's firstName to match with salesAgent
     const user = req.user;
     const userFirstName = user?.firstName || "";
+    const userEmail = user?.email || agentEmail || "";
+    const normalizedEmail = userEmail?.toLowerCase();
     
-    console.log(`[listMessages] Fetching messages: agentEmail=${agentEmail}, limit=${parsedLimit}, userFirstName=${userFirstName}`);
+    console.log(`[listMessages] Fetching messages: agentEmail=${agentEmail}, limit=${parsedLimit}, userFirstName=${userFirstName}, userEmail=${userEmail}`);
     
     // Fetch messages directly from Gmail API (unread/unclaimed)
     let gmail;
@@ -370,6 +372,16 @@ export async function listMessagesHandler(req, res, next) {
           // Check if this message is claimed in database
           const dbRecord = await GmailMessage.findOne({ messageId: msg.id }).lean();
           
+          // For sales agents: skip messages claimed by other agents
+          if (user?.role === "Sales" && dbRecord?.claimedBy && dbRecord.claimedBy !== user.id) {
+            // Also check Lead collection to be sure
+            const leadRecord = await Lead.findOne({ messageId: msg.id }).lean();
+            if (leadRecord && leadRecord.salesAgent && leadRecord.salesAgent !== userFirstName) {
+              console.log(`[listMessages] Skipping message ${msg.id} - claimed by another agent (${leadRecord.salesAgent})`);
+              continue; // Skip this message
+            }
+          }
+          
           // Extract message data
           const headers = fullMessage.data.payload?.headers || [];
           const subject = headers.find(h => h.name === "Subject")?.value || "";
@@ -428,7 +440,28 @@ export async function listMessagesHandler(req, res, next) {
       }
     });
     
-    const combinedMessages = Array.from(messageMap.values());
+    let combinedMessages = Array.from(messageMap.values());
+    
+    // For sales agents: filter out messages claimed by other agents
+    if (user?.role === "Sales" && userFirstName) {
+      combinedMessages = combinedMessages.filter(msg => {
+        // Allow unclaimed messages (status === "active" or no claimedBy)
+        if (!msg.claimedBy || msg.status === "active") {
+          return true;
+        }
+        // Allow messages claimed by current user
+        if (msg.claimedBy === user.id) {
+          return true;
+        }
+        // Check Lead collection for salesAgent field
+        // If message has agentEmail that matches, allow it (it's assigned to this agent)
+        if (msg.agentEmail && msg.agentEmail.toLowerCase() === normalizedEmail?.toLowerCase()) {
+          return true;
+        }
+        // Otherwise, filter it out (claimed by another agent)
+        return false;
+      });
+    }
     
     console.log(`[listMessages] Returning ${combinedMessages.length} messages (${allMessages.filter(m => m.status === 'claimed').length} claimed from Gmail, ${userLeads.filter(l => l.status === 'claimed').length} claimed from DB, ${userLeads.filter(l => l.status === 'closed').length} closed)`);
     return res.json({ messages: combinedMessages });

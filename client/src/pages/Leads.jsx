@@ -635,6 +635,14 @@ export default function Leads() {
 
   const filteredMessages = useMemo(() => {
     return messages.filter((msg) => {
+      // For sales agents: only show unclaimed leads or leads claimed by them
+      if (isSales && normalizedEmail) {
+        // If lead is claimed by another agent, don't show it
+        if (msg.agentEmail && msg.agentEmail.toLowerCase() !== normalizedEmail) {
+          return false;
+        }
+      }
+      
       const matchesAgent =
         isSales ||
         agentFilter === "Select" ||
@@ -650,7 +658,7 @@ export default function Leads() {
       }`.toLowerCase();
       return haystack.includes(search.toLowerCase());
     });
-  }, [messages, agentFilter, search, isSales]);
+  }, [messages, agentFilter, search, isSales, normalizedEmail]);
 
   const parsedFields = useMemo(() => {
     if (!selectedMessage?.bodyHtml) return [];
