@@ -730,6 +730,37 @@ export default function Leads() {
 
       {viewMode === "statistics" ? (
         <div className="space-y-6">
+          {/* Top controls: agent filter, date picker, load button */}
+          <div className="flex flex-wrap items-center gap-4 mb-2">
+            {/* Agent dropdown - only visible to Admin */}
+            {isAdmin && (
+              <div className="flex items-center gap-2">
+                <label className="text-sm text-white/90 whitespace-nowrap">Agent:</label>
+                <AgentDropdown
+                  options={statsAgentOptions.length > 1 ? statsAgentOptions : ["All"]}
+                  value={selectedAgentForStats || "All"}
+                  onChange={(value) => {
+                    setSelectedAgentForStats(value === "All" ? null : value);
+                  }}
+                />
+              </div>
+            )}
+            <UnifiedDatePicker
+              value={dateFilter}
+              onFilterChange={(filter) => {
+                setDateFilter(filter);
+              }}
+              buttonLabel="Select Range"
+            />
+            <button
+              onClick={fetchStatistics}
+              disabled={loadingStats}
+              className="px-4 py-2 rounded-lg bg-[#2c5d81] hover:bg-blue-700 text-white text-sm disabled:opacity-60"
+            >
+              {loadingStats ? "Loading..." : "Load Statistics"}
+            </button>
+          </div>
+
           {/* Email Info - Commented out
           <div className="space-y-3">
             <div className="rounded-lg border border-blue-500/30 bg-blue-900/40 px-4 py-3">
@@ -786,41 +817,6 @@ export default function Leads() {
             </div>
           </div>
           */}
-
-          {/* Date Range Filter */}
-          <div className="rounded-lg border border-white/20 bg-white/10 backdrop-blur-md p-4" style={{ isolation: "auto" }}>
-            <div className="flex flex-wrap items-center gap-4">
-              {/* Agent dropdown - only visible to Admin */}
-              {isAdmin && (
-                <div className="flex items-center gap-2">
-                  <label className="text-sm text-white/90 whitespace-nowrap">Agent:</label>
-                  <AgentDropdown
-                    options={statsAgentOptions.length > 1 ? statsAgentOptions : ["All"]}
-                    value={selectedAgentForStats || "All"}
-                    onChange={(value) => {
-                      setSelectedAgentForStats(value === "All" ? null : value);
-                    }}
-                  />
-                </div>
-              )}
-              <div style={{ position: "relative", zIndex: 1 }}>
-                <UnifiedDatePicker
-                  value={dateFilter}
-                  onFilterChange={(filter) => {
-                    setDateFilter(filter);
-                  }}
-                  buttonLabel="Select Date Range"
-                />
-              </div>
-              <button
-                onClick={fetchStatistics}
-                disabled={loadingStats}
-                className="px-4 py-2 rounded-lg bg-[#2c5d81] hover:bg-blue-700 text-white text-sm disabled:opacity-60"
-              >
-                {loadingStats ? "Loading..." : "Load Statistics"}
-              </button>
-            </div>
-          </div>
 
           {loadingStats ? (
             <div className="text-center py-8 text-white/80">⏳ Loading statistics...</div>
