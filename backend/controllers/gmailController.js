@@ -445,14 +445,12 @@ export async function oauth2UrlHandler(req, res, next) {
     const host = req.get('host') || req.headers.host || 'localhost:5000';
     const origin = `${protocol}://${host}`;
     
-    // Choose redirect URI based on origin
+    // Use the exact origin from the request to build redirect URI (preserves www vs non-www)
     let redirectUri;
-    if (host.includes('spotops360.com') || host.includes('spotops360')) {
-      redirectUri = 'https://spotops360.com/api/gmail/oauth2/callback';
-    } else if (host.includes('localhost') || host.includes('127.0.0.1')) {
+    if (host.includes('localhost') || host.includes('127.0.0.1')) {
       redirectUri = 'http://localhost:5000/api/gmail/oauth2/callback';
     } else {
-      // Fallback: use the origin from the request
+      // Use the exact origin from the request (preserves www, subdomain, etc.)
       redirectUri = `${origin}/api/gmail/oauth2/callback`;
     }
     
@@ -568,14 +566,15 @@ export async function oauth2CallbackHandler(req, res, next) {
     // Detect the correct redirect URI based on request origin (must match what was used in auth URL)
     const protocol = req.protocol || (req.secure ? 'https' : 'http');
     const host = req.get('host') || req.headers.host || 'localhost:5000';
+    const origin = `${protocol}://${host}`;
     
+    // Use the exact origin from the request to build redirect URI (preserves www vs non-www)
     let redirectUri;
-    if (host.includes('spotops360.com') || host.includes('spotops360')) {
-      redirectUri = 'https://spotops360.com/api/gmail/oauth2/callback';
-    } else if (host.includes('localhost') || host.includes('127.0.0.1')) {
+    if (host.includes('localhost') || host.includes('127.0.0.1')) {
       redirectUri = 'http://localhost:5000/api/gmail/oauth2/callback';
     } else {
-      redirectUri = `${protocol}://${host}/api/gmail/oauth2/callback`;
+      // Use the exact origin from the request (preserves www, subdomain, etc.)
+      redirectUri = `${origin}/api/gmail/oauth2/callback`;
     }
     
     console.log(`[oauth2CallbackHandler] Using redirect URI: ${redirectUri}`);
