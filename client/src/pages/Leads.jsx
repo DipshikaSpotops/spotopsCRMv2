@@ -208,26 +208,51 @@ export default function Leads() {
 
   const [syncing, setSyncing] = useState(false);
 
-  const fetchMessages = useCallback(async () => {
-    setLoading(true);
-    setError("");
+  const fetchMessages = useCallback(async (silent = false) => {
+    if (!silent) {
+      setLoading(true);
+      setError("");
+    }
     try {
       const params = { limit };
       if (isSales && normalizedEmail) {
         params.agentEmail = normalizedEmail;
       }
       const { data } = await API.get("/gmail/messages", { params });
-      setMessages(data?.messages || []);
+      const newMessages = data?.messages || [];
+      
+      if (silent) {
+        // Silent update: only append new messages without showing loading
+        setMessages((prevMessages) => {
+          const existingIds = new Set(prevMessages.map(m => m._id || m.messageId));
+          const newOnes = newMessages.filter(m => !existingIds.has(m._id || m.messageId));
+          
+          if (newOnes.length > 0) {
+            // New messages found, prepend them
+            return [...newOnes, ...prevMessages];
+          }
+          
+          // No new messages, but update existing ones in case status changed
+          const updatedMap = new Map(newMessages.map(m => [m._id || m.messageId, m]));
+          return prevMessages.map(m => updatedMap.get(m._id || m.messageId) || m);
+        });
+      } else {
+        setMessages(newMessages);
+      }
       setLastUpdated(new Date());
     } catch (err) {
-      console.error("[Leads] fetch error", err);
-      const message =
-        err?.response?.data?.message ||
-        err?.message ||
-        "Failed to load leads.";
-      setError(message);
+      if (!silent) {
+        console.error("[Leads] fetch error", err);
+        const message =
+          err?.response?.data?.message ||
+          err?.message ||
+          "Failed to load leads.";
+        setError(message);
+      }
     } finally {
-      setLoading(false);
+      if (!silent) {
+        setLoading(false);
+      }
     }
   }, [isSales, normalizedEmail, limit]);
 
@@ -426,14 +451,14 @@ export default function Leads() {
     const es = new EventSource(`${base}/events`);
     
     es.addEventListener("gmail", () => {
-      fetchMessages();
+      fetchMessages(true); // Silent fetch - no loading state
     });
     
     es.addEventListener("error", () => {
       try { es?.close(); } catch {}
       setTimeout(() => {
         const newEs = new EventSource(`${base}/events`);
-        newEs.addEventListener("gmail", () => fetchMessages());
+        newEs.addEventListener("gmail", () => fetchMessages(true)); // Silent fetch
         newEs.addEventListener("error", () => {});
       }, 3000);
     });
@@ -442,6 +467,19 @@ export default function Leads() {
       try { es?.close(); } catch {}
     };
   }, [fetchMessages]);
+
+  // Auto-refresh leads every 10 seconds (silent update)
+  useEffect(() => {
+    if (viewMode !== "leads") return; // Only poll when in leads view
+    
+    const interval = setInterval(() => {
+      fetchMessages(true); // Silent fetch - no loading state
+    }, 10000); // 10 seconds
+
+    return () => {
+      clearInterval(interval);
+    };
+  }, [fetchMessages, viewMode]);
 
   const handleClaim = async (msg) => {
     // Can claim using either _id or messageId
@@ -1026,15 +1064,20 @@ export default function Leads() {
                 filteredMessages.map((msg) => (
                   <div
                     key={msg._id || msg.messageId}
-                    className={`p-3 rounded-lg border transition ${
+                    className={`p-3 rounded-lg border transition relative ${
                       selectedMessage?._id === msg._id
                         ? "bg-blue-500/30 border-blue-400"
+                        : msg.status === "active"
+                        ? "bg-white/5 border-white/20 hover:bg-white/10"
                         : msg.status === "claimed"
-                        ? "bg-white/5 border-white/20 hover:bg-white/10 cursor-pointer"
+                        ? "bg-white/5 border-white/20 hover:bg-white/10 cursor-pointer opacity-70"
                         : msg.status === "closed"
-                        ? "bg-white/5 border-white/20 hover:bg-white/10 cursor-pointer border-purple-400/50"
-                        : "bg-white/5 border-white/20 opacity-60"
+                        ? "bg-white/5 border-white/20 hover:bg-white/10 cursor-pointer border-purple-400/30 opacity-50"
+                        : "bg-white/5 border-white/20"
                     }`}
+                    style={{ 
+                      zIndex: 1
+                    }}
                     onClick={() => {
                       if (msg.status === "claimed" || msg.status === "closed") {
                         handleViewLead(msg);
@@ -1091,7 +1134,10 @@ export default function Leads() {
                                 : '#2c5d81',
                               opacity: claimingId === msg._id || claimingId === msg.messageId ? 0.5 : 1,
                               position: 'relative',
-                              zIndex: 50
+                              zIndex: 100,
+                              isolation: 'isolate',
+                              transform: 'translateZ(0)',
+                              willChange: 'transform'
                             }}
                           >
                             {claimingId === msg._id || claimingId === msg.messageId ? "Claiming..." : "Claim"}
@@ -1267,18 +1313,6 @@ export default function Leads() {
                     </div>
                   )}
                 </div>
-                {selectedMessage.labels?.length > 0 && (
-                  <div className="flex flex-wrap gap-2 pt-1">
-                    {selectedMessage.labels.map((lab) => (
-                      <span
-                        key={lab}
-                        className="px-2 py-0.5 rounded-full border border-white/20 text-xs bg-purple-500/30 text-purple-200"
-                      >
-                        {lab}
-                      </span>
-                    ))}
-                  </div>
-                )}
               </div>
 
               {/* Email Body */}
