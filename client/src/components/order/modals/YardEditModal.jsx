@@ -1,7 +1,12 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import Field from "../../ui/Field";
 import Input from "../../ui/Input";
-import Select, { SelectItem } from "../../ui/Select";
+import Select, {
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+} from "../../ui/Select";
 import API from "../../../api";
 import { extractOwn, extractYard } from "../../../utils/yards";
 
@@ -9,6 +14,13 @@ const ALLOWED_COUNTRIES = ["US", "Canada"];
 const normalizeCountry = (value) => {
   const normalized = String(value ?? "").trim();
   return ALLOWED_COUNTRIES.includes(normalized) ? normalized : "US";
+};
+
+const buildAddress = (street, city, state, zipcode, country) => {
+  const parts = [street, city, state, zipcode, country]
+    .map((v) => String(v ?? "").trim().replace(/,+$/, ""))
+    .filter(Boolean);
+  return parts.join(", ");
 };
 function Toast({ message, onClose }) {
   if (!message) return null;
@@ -216,7 +228,7 @@ export default function YardEditModal({ open, initial, order, orderNo, yardIndex
           ...prev,
           city: result.city || prev.city,
           state: result.state || prev.state,
-          country: result.country || prev.country,
+          country: normalizeCountry(result.country || prev.country),
         }));
       }
     }, 400);
@@ -279,8 +291,20 @@ export default function YardEditModal({ open, initial, order, orderNo, yardIndex
       return;
     }
 
-    if (changedFields.street || changedFields.city || changedFields.state || changedFields.zipcode) {
-      changedFields.address = `${form.street} ${form.city} ${form.state} ${form.zipcode}`.trim();
+    if (
+      changedFields.street ||
+      changedFields.city ||
+      changedFields.state ||
+      changedFields.zipcode ||
+      changedFields.country
+    ) {
+      changedFields.address = buildAddress(
+        form.street,
+        form.city,
+        form.state,
+        form.zipcode,
+        form.country
+      );
     }
 
     const shippingLabel = shippingChanged ? "Shipping Details" : null;
@@ -511,11 +535,26 @@ export default function YardEditModal({ open, initial, order, orderNo, yardIndex
             <Field label="State / Province"><Input value={form.state} onChange={set("state")} /></Field>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <Field label="Zip"><Input value={form.zipcode} onChange={set("zipcode")} /></Field>
+            <Field label="Zip">
+              <Input value={form.zipcode} onChange={set("zipcode")} />
+            </Field>
             <Field label="Country">
-              <Select value={form.country} onChange={set("country")}>
-                <option value="US">US</option>
-                <option value="Canada">Canada</option>
+              <Select
+                value={form.country}
+                onValueChange={(val) =>
+                  setForm((prev) => ({
+                    ...prev,
+                    country: normalizeCountry(val),
+                  }))
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select Country" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="US">US</SelectItem>
+                  <SelectItem value="Canada">Canada</SelectItem>
+                </SelectContent>
               </Select>
             </Field>
             <div />

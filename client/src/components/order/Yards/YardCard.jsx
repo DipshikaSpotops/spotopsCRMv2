@@ -14,6 +14,27 @@ export default function YardCard({
 }) {
   const y = yard || {};
 
+  const buildAddress = () => {
+    const clean = (val) =>
+      String(val ?? "")
+        .trim()
+        .replace(/,+$/, "");
+
+    const parts = [
+      clean(y.street),
+      clean(y.city),
+      clean(y.state),
+      clean(y.zipcode),
+      clean(y.country),
+    ].filter(Boolean);
+
+    if (parts.length > 0) return parts.join(", ");
+
+    // Fallback to existing combined address if structured fields are missing
+    const addr = clean(y.address);
+    return addr || "";
+  };
+
   const ownVal = extractOwn(y.shippingDetails) ?? y.ownShipping;
   const yardVal = extractYard(y.shippingDetails) ?? y.yardShipping;
 
@@ -89,17 +110,7 @@ export default function YardCard({
   <div className="text-sm text-[#09325d]/90 dark:text-white/80 leading-relaxed space-y-1">
     {/* Address - its own row, bolder & slightly larger (especially in light mode) */}
     {(() => {
-      // Build full address from separate fields or use combined address field
-      const addressParts = [];
-      if (y.street) addressParts.push(y.street);
-      if (y.city) addressParts.push(y.city);
-      if (y.state) addressParts.push(y.state);
-      if (y.zipcode) addressParts.push(y.zipcode);
-      
-      const fullAddress = addressParts.length > 0 
-        ? addressParts.join(", ")
-        : (y.address || "");
-      
+      const fullAddress = buildAddress();
       return fullAddress ? (
         <div className="flex items-start">
           <span className="font-semibold text-[#09325d] dark:text-white/80 mr-1 underline">

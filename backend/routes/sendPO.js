@@ -522,12 +522,26 @@ order.additionalInfo[yardIndex].poSentDate = isoDallas;
 
 // ensure notes array exists
 order.additionalInfo[yardIndex].notes = order.additionalInfo[yardIndex].notes || [];
-const firstNameStr = String(firstName || "Auto Parts Group");
-order.additionalInfo[yardIndex].notes.push(`${yardLabel} PO sent by ${firstNameStr} on ${formattedDate}`);
+
+// Normalize firstName to avoid duplicates like "Tristan,Tristan"
+let firstNameStr = String(firstName || "Auto Parts Group").trim();
+if (firstNameStr.includes(",")) {
+  const parts = firstNameStr
+    .split(",")
+    .map((p) => p.trim())
+    .filter(Boolean);
+  firstNameStr = [...new Set(parts)].join(", ");
+}
+
+order.additionalInfo[yardIndex].notes.push(
+  `${yardLabel} PO sent by ${firstNameStr} on ${formattedDate}`
+);
 
 // Update main order fields
 order.orderStatus = "Yard Processing";
-order.orderHistory.push(`${yardLabel} PO sent by ${firstNameStr} on ${formattedDate}`);
+order.orderHistory.push(
+  `${yardLabel} PO sent by ${firstNameStr} on ${formattedDate}`
+);
 
     await order.save();
 
