@@ -317,6 +317,22 @@ const CustomerApproved = () => {
                 </div>
               </div>
 
+              {/* Year, Make, Model */}
+              <div className="mt-2 text-sm text-white/80">
+                <div>
+                  <b>Vehicle:</b> {order.year || "N/A"} {order.make || ""} {order.model || ""}
+                </div>
+              </div>
+
+              {/* Description */}
+              {order.desc && (
+                <div className="mt-2 text-sm text-white/80">
+                  <div className="break-words">
+                    <b>Description:</b> {order.desc}
+                  </div>
+                </div>
+              )}
+
               {/* Expand/collapse */}
               <button
                 onClick={() => toggleDetails(order._id)}
