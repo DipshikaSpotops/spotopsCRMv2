@@ -210,8 +210,8 @@ export default function Leads() {
 
   const fetchMessages = useCallback(async (silent = false) => {
     if (!silent) {
-      setLoading(true);
-      setError("");
+    setLoading(true);
+    setError("");
     }
     try {
       const params = { limit };
@@ -242,7 +242,7 @@ export default function Leads() {
       setLastUpdated(new Date());
     } catch (err) {
       if (!silent) {
-        console.error("[Leads] fetch error", err);
+      console.error("[Leads] fetch error", err);
         let message;
         
         // Handle network errors specifically
@@ -250,15 +250,15 @@ export default function Leads() {
           message = "Network Error: Unable to connect to server. Please check if the backend is running.";
         } else {
           message =
-            err?.response?.data?.message ||
-            err?.message ||
-            "Failed to load leads.";
+        err?.response?.data?.message ||
+        err?.message ||
+        "Failed to load leads.";
         }
-        setError(message);
+      setError(message);
       }
     } finally {
       if (!silent) {
-        setLoading(false);
+      setLoading(false);
       }
     }
   }, [isSales, normalizedEmail, limit]);
@@ -1157,8 +1157,8 @@ export default function Leads() {
                     <div className="flex items-center gap-2 min-h-[2.5rem]">
                       <div className="flex-1 min-w-0 flex items-center gap-2">
                         <div className="font-medium text-white truncate text-sm">
-                          {msg.subject || "(no subject)"}
-                        </div>
+                      {msg.subject || "(no subject)"}
+                    </div>
                         {msg.labels && msg.labels.length > 0 && (
                           <div className="flex flex-wrap gap-1 shrink-0">
                             {msg.labels.map((label) => (
@@ -1174,45 +1174,45 @@ export default function Leads() {
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
                         <div className="text-xs text-white/70">
-                          {msg.from || "—"}
-                        </div>
+                      {msg.from || "—"}
+                    </div>
                         <div className="text-xs text-white/60">
-                          {msg.internalDate
-                            ? formatDistanceToNow(new Date(msg.internalDate), {
-                                addSuffix: true,
-                              })
-                            : ""}
-                        </div>
+                      {msg.internalDate
+                        ? formatDistanceToNow(new Date(msg.internalDate), {
+                            addSuffix: true,
+                          })
+                        : ""}
+                    </div>
                         {msg.status === "closed" && (
                           <span className="text-xs text-purple-300/80 italic">Closed</span>
                         )}
-                        {msg.status === "active" && (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleClaim(msg);
-                            }}
-                            disabled={claimingId === msg._id || claimingId === msg.messageId}
+                    {msg.status === "active" && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleClaim(msg);
+                          }}
+                          disabled={claimingId === msg._id || claimingId === msg.messageId}
                             className={`px-2 py-1 text-xs rounded text-white font-medium ${
-                              claimingId === msg._id || claimingId === msg.messageId
-                                ? "bg-gray-500 cursor-not-allowed opacity-50"
-                                : "bg-[#2c5d81] hover:bg-blue-700"
-                            }`}
-                            style={{ 
-                              backgroundColor: claimingId === msg._id || claimingId === msg.messageId 
-                                ? undefined 
-                                : '#2c5d81',
-                              opacity: claimingId === msg._id || claimingId === msg.messageId ? 0.5 : 1,
-                              position: 'relative',
+                            claimingId === msg._id || claimingId === msg.messageId
+                              ? "bg-gray-500 cursor-not-allowed opacity-50"
+                              : "bg-[#2c5d81] hover:bg-blue-700"
+                          }`}
+                          style={{ 
+                            backgroundColor: claimingId === msg._id || claimingId === msg.messageId 
+                              ? undefined 
+                              : '#2c5d81',
+                            opacity: claimingId === msg._id || claimingId === msg.messageId ? 0.5 : 1,
+                            position: 'relative',
                               zIndex: 100,
                               isolation: 'isolate',
                               transform: 'translateZ(0)',
                               willChange: 'transform'
-                            }}
-                          >
-                            {claimingId === msg._id || claimingId === msg.messageId ? "Claiming..." : "Claim"}
-                          </button>
-                        )}
+                          }}
+                        >
+                          {claimingId === msg._id || claimingId === msg.messageId ? "Claiming..." : "Claim"}
+                        </button>
+                    )}
                       </div>
                     </div>
                   </div>

@@ -137,26 +137,26 @@ export default function YardList({
         }
         html:not(.dark) .order-details-page .flex.gap-2.rounded-lg button.yard-po-cancelled,
         html:not(.dark) .order-details-page .flex.gap-2.rounded-lg button[data-yard-po-cancelled],
-        html:not(.dark) .order-details-page .flex.gap-2.rounded-lg button[data-yard-po-cancelled-active],
         html:not(.dark) button.yard-po-cancelled,
-        html:not(.dark) button[data-yard-po-cancelled],
-        html:not(.dark) button[data-yard-po-cancelled-active] {
-          background-color: #6b7280 !important;
-          background: #6b7280 !important;
-          color: white !important;
-          border-color: #6b7280 !important;
+        html:not(.dark) button[data-yard-po-cancelled] {
+          background-color: #d1d5db !important;
+          background: #d1d5db !important;
+          color: #1f2937 !important;
+          border-color: #d1d5db !important;
         }
         html:not(.dark) .order-details-page .flex.gap-2.rounded-lg button.yard-po-cancelled:hover,
         html:not(.dark) .order-details-page .flex.gap-2.rounded-lg button[data-yard-po-cancelled]:hover,
         html:not(.dark) button.yard-po-cancelled:hover,
         html:not(.dark) button[data-yard-po-cancelled]:hover {
-          background-color: #4b5563 !important;
-          background: #4b5563 !important;
+          background-color: #9ca3af !important;
+          background: #9ca3af !important;
         }
         html:not(.dark) .order-details-page .flex.gap-2.rounded-lg button[data-yard-po-cancelled-active],
         html:not(.dark) button[data-yard-po-cancelled-active] {
-          background-color: #4b5563 !important;
-          background: #4b5563 !important;
+          background-color: #9ca3af !important;
+          background: #9ca3af !important;
+          color: white !important;
+          border-color: #9ca3af !important;
         }
       `}</style>
     <GlassCard
