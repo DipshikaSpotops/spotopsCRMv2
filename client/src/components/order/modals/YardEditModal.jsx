@@ -132,14 +132,14 @@ export default function YardEditModal({ open, initial, order, orderNo, yardIndex
       country: normalizeCountry(initial?.country || "US"),
       partPrice: initial?.partPrice || "",
       status: initial?.status || "Yard located",
+      // For shipping, treat shippingDetails as the single source of truth.
+      // If it exists, ignore legacy ownShipping/yardShipping fields to avoid both being set.
       ownShipping:
         extractOwn(initial?.shippingDetails) ??
-        initial?.ownShipping ??
-        "",
+        (initial?.shippingDetails ? "" : initial?.ownShipping ?? ""),
       yardShipping:
         extractYard(initial?.shippingDetails) ??
-        initial?.yardShipping ??
-        "",
+        (initial?.shippingDetails ? "" : initial?.yardShipping ?? ""),
       others: initial?.others || "",
       faxNo: initial?.faxNo || "",
       expShipDate: initial?.expShipDate || "",
@@ -253,38 +253,45 @@ export default function YardEditModal({ open, initial, order, orderNo, yardIndex
       }
     });
 
-    const oldOwn = (initial?.ownShipping ?? extractOwn(initial?.shippingDetails) ?? "").toString().trim();
-    const oldYard = (initial?.yardShipping ?? extractYard(initial?.shippingDetails) ?? "").toString().trim();
-    const nextOwn = String(form.ownShipping ?? "").trim();
-    const nextYard = String(form.yardShipping ?? "").trim();
+    const oldOwn = (extractOwn(initial?.shippingDetails) ?? initial?.ownShipping ?? "")
+      .toString()
+      .trim();
+    const oldYard = (extractYard(initial?.shippingDetails) ?? initial?.yardShipping ?? "")
+      .toString()
+      .trim();
 
-    const ownChanged = nextOwn !== oldOwn;
-    const yardChanged = nextYard !== oldYard;
+    const nextOwnRaw = String(form.ownShipping ?? "").trim();
+    const nextYardRaw = String(form.yardShipping ?? "").trim();
 
-    // Handle shipping changes - prioritize the one with a value if both changed
-    if (yardChanged && nextYard) {
-      // Changing to yard shipping (prioritize this if both changed)
-      changedFields.shippingDetails = `Yard shipping: ${nextYard}`;
-      changedFields.yardShipping = nextYard; // Send separately for backend fallback
-      changedFields.ownShipping = ""; // Clear own shipping
-    } else if (ownChanged && nextOwn) {
-      // Changing to own shipping
-      changedFields.shippingDetails = `Own shipping: ${nextOwn}`;
-      changedFields.ownShipping = nextOwn; // Send separately for backend fallback
-      changedFields.yardShipping = ""; // Clear yard shipping
-    } else if ((ownChanged || yardChanged) && !nextOwn && !nextYard) {
-      // Both cleared
-      changedFields.shippingDetails = "";
-      changedFields.ownShipping = "";
-      changedFields.yardShipping = "";
-    } else {
-      // No shipping changes
-      delete changedFields.shippingDetails;
-      delete changedFields.ownShipping;
-      delete changedFields.yardShipping;
+    // Normalize so that at most ONE of own/yard is set
+    let nextOwn = "";
+    let nextYard = "";
+    if (nextYardRaw) {
+      nextYard = nextYardRaw;
+      nextOwn = "";
+    } else if (nextOwnRaw) {
+      nextOwn = nextOwnRaw;
+      nextYard = "";
     }
 
-    const shippingChanged = ownChanged || yardChanged;
+    const shippingChanged = oldOwn !== nextOwn || oldYard !== nextYard;
+
+    if (shippingChanged) {
+      if (nextYard) {
+        changedFields.shippingDetails = `Yard shipping: ${nextYard}`;
+        changedFields.yardShipping = nextYard;
+        changedFields.ownShipping = "";
+      } else if (nextOwn) {
+        changedFields.shippingDetails = `Own shipping: ${nextOwn}`;
+        changedFields.ownShipping = nextOwn;
+        changedFields.yardShipping = "";
+      } else {
+        // Both cleared
+        changedFields.shippingDetails = "";
+        changedFields.ownShipping = "";
+        changedFields.yardShipping = "";
+      }
+    }
 
     if (Object.keys(changedFields).length === 0 && !shippingChanged) {
       setToast("No changes detected.");
@@ -347,14 +354,13 @@ export default function YardEditModal({ open, initial, order, orderNo, yardIndex
             country: normalizeCountry(latestYard.country || "US"),
             partPrice: latestYard.partPrice || "",
             status: latestYard.status || "Yard located",
+            // Same logic here: when shippingDetails is present, ignore legacy fields
             ownShipping:
               extractOwn(latestYard.shippingDetails) ??
-              latestYard.ownShipping ??
-              "",
+              (latestYard.shippingDetails ? "" : latestYard.ownShipping ?? ""),
             yardShipping:
               extractYard(latestYard.shippingDetails) ??
-              latestYard.yardShipping ??
-              "",
+              (latestYard.shippingDetails ? "" : latestYard.yardShipping ?? ""),
             others: latestYard.others || "",
             faxNo: latestYard.faxNo || "",
             expShipDate: latestYard.expShipDate || "",

@@ -103,10 +103,10 @@ export default function EditYardStatusModal({
   /* ---------------------- helpers ---------------------- */
   const t = (v) => (v == null ? "" : String(v)).trim();
 
-  const hasBackendLabelData = () => {
-    if (!yard) return false;
-    const chosen = t(yard.shipperName);
-    return [t(yard.trackingNo), t(yard.eta), chosen, t(yard.trackingLink)].some(Boolean);
+  // Check if we have enough label-related data in the current form
+  const hasLabelFormData = () => {
+    const chosenShipper = shipperName === "Others" ? t(otherShipper) : t(shipperName);
+    return [t(trackingNo), t(eta), chosenShipper, t(trackingLink)].some(Boolean);
   };
 
   /* ---------------------- SAVE ---------------------- */
@@ -602,7 +602,7 @@ export default function EditYardStatusModal({
               </div>
 
               {/* Void / Cancel */}
-              {yard?.status === "Label created" && hasBackendLabelData() && (
+              {status === "Label created" && hasLabelFormData() && (
                 <div className="mt-2">
                   <button
                     type="button"
@@ -645,7 +645,7 @@ export default function EditYardStatusModal({
                 </div>
               )}
 
-              {yard?.status === "Part shipped" && hasBackendLabelData() && (
+              {status === "Part shipped" && hasLabelFormData() && (
                 <div className="mt-2">
                   <button
                     type="button"

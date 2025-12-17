@@ -15,7 +15,16 @@ export function parseOrderHistory(historyArr) {
     const byMatch = String(line).match(/\bby\s([^on]+?)\s+on\b/i);
     const whenMatch = String(line).match(/\bon\s(.+)$/i);
 
-    const by = byMatch ? byMatch[1].trim() : "";
+    let by = byMatch ? byMatch[1].trim() : "";
+    // Clean cases like "Tristan,Tristan" -> "Tristan"
+    if (by && by.includes(",")) {
+      const parts = by
+        .split(",")
+        .map((p) => p.trim())
+        .filter(Boolean);
+      const uniqueParts = [...new Set(parts)];
+      by = uniqueParts.join(", ");
+    }
     const when = whenMatch ? whenMatch[1].trim() : "";
 
     let event = String(line);
