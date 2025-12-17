@@ -13,6 +13,7 @@ import {
   getDailyStatisticsHandler,
   oauth2UrlHandler,
   oauth2CallbackHandler,
+  addCommentHandler,
 } from "../controllers/gmailController.js";
 import { requireAuth } from "../middleware/auth.js";
 
@@ -34,6 +35,7 @@ router.post("/messages/:id/claim-and-view", requireAuth, claimAndViewHandler);
 router.patch("/messages/:id/labels", requireAuth, updateLabelsHandler);
 router.patch("/messages/:id/close", requireAuth, closeLeadHandler);
 router.patch("/messages/:id/reopen", requireAuth, reopenLeadHandler);
+router.post("/messages/:id/comments", requireAuth, addCommentHandler);
 router.get("/statistics/daily", requireAuth, getDailyStatisticsHandler);
 
 export default router;

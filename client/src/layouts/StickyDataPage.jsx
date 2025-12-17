@@ -24,7 +24,7 @@ const StickyDataPage = forwardRef(
     return (
       <div className="h-[calc(100vh-var(--topbar-h,0px))] overflow-hidden flex flex-col bg-transparent">
         {/* Sticky Header */}
-        <header className="flex-none px-6 py-3 bg-[#0b1524] border-b border-white/10">
+        <header className="flex-none px-6 py-3 bg-transparent border-b border-white/10">
           <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
             {/* Left side */}
             <div className="flex flex-col">

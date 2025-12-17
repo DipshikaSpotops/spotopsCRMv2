@@ -57,8 +57,13 @@ function escapeRegex(str) {
 router.get("/ordersPerPage", async (req, res) => {
   try {
     const { page, limit, skip } = getPaging(req);
-    const searchTerm = (req.query.searchTerm || "").trim();
+    let searchTerm = (req.query.searchTerm || "").trim();
     const coll = mongoose.connection.collection("orders");
+
+    // Handle "Dispute AC" search - also search for "Dispute 2"
+    // If user searches for "Dispute AC", we want to find orders with status "Dispute 2"
+    // Normalize the search term for both Atlas Search and regex fallback
+    const normalizedSearchTerm = searchTerm.replace(/\bDispute\s+AC\b/gi, "Dispute 2");
 
     // No search term → normal paginate (fast path)
     if (searchTerm.length < 2) {
@@ -87,6 +92,7 @@ router.get("/ordersPerPage", async (req, res) => {
       "email",
       "vin",
       "desc",
+      "orderStatus",
       "trackingNo", // top-level trackingNo (if exists)
       "additionalInfo.yardName",
       "additionalInfo.stockNo",
@@ -99,7 +105,7 @@ router.get("/ordersPerPage", async (req, res) => {
     const shouldClauses = searchablePaths.flatMap((field) => [
       {
         autocomplete: {
-          query: searchTerm,
+          query: normalizedSearchTerm,
           path: field,
           tokenOrder: "any",
           fuzzy: { maxEdits: 1, prefixLength: 1 },
@@ -107,7 +113,7 @@ router.get("/ordersPerPage", async (req, res) => {
       },
       {
         text: {
-          query: searchTerm,
+          query: normalizedSearchTerm,
           path: field,
           fuzzy: { maxEdits: 1, prefixLength: 1 },
         },
@@ -189,7 +195,7 @@ router.get("/ordersPerPage", async (req, res) => {
       );
 
       // Escape special regex characters to prevent errors with phone numbers, etc.
-      const escapedSearchTerm = escapeRegex(searchTerm);
+      const escapedSearchTerm = escapeRegex(normalizedSearchTerm);
       const orClauses = searchablePaths.map((field) => {
         // Handle nested additionalInfo fields (including trackingNo which is an array of strings)
         if (field.startsWith("additionalInfo.")) {

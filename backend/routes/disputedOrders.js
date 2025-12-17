@@ -53,7 +53,7 @@ router.get("/", async (req, res) => {
 
     const filter = {
       orderDate: { $gte: startDate, $lt: endDate },
-      orderStatus: "Dispute",
+      orderStatus: { $in: ["Dispute", "Dispute 2"] },
     };
 
     // ---------- SEARCH ----------

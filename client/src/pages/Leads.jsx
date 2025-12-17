@@ -627,6 +627,8 @@ export default function Leads() {
   };
 
   const [closingId, setClosingId] = useState(null);
+  const [commentText, setCommentText] = useState("");
+  const [addingComment, setAddingComment] = useState(false);
 
   const handleCloseLead = async (messageId) => {
     if (!messageId) return;A
@@ -673,6 +675,24 @@ export default function Leads() {
     handleUpdateLabels(selectedMessage._id, [...set]);
     setNewLabel("");
     setLabelSearch("");
+  };
+
+  const handleAddComment = async () => {
+    if (!selectedMessage?._id || !commentText.trim()) return;
+    setAddingComment(true);
+    setError("");
+    try {
+      const { data } = await API.post(`/gmail/messages/${selectedMessage._id}/comments`, {
+        comment: commentText.trim(),
+      });
+      setSelectedMessage((prev) => (prev?._id === selectedMessage._id ? { ...prev, ...data } : prev));
+      setCommentText("");
+    } catch (err) {
+      console.error("[Leads] add comment error", err);
+      setError(err?.response?.data?.message || "Failed to add comment");
+    } finally {
+      setAddingComment(false);
+    }
   };
 
   const agentOptions = useMemo(() => {
@@ -1278,13 +1298,15 @@ export default function Leads() {
                 </div>
               </div>
 
-              {/* Labels */}
+              {/* Labels and Comments */}
               <div className="space-y-2">
-                <div className="text-sm text-white/80">Labels:</div>
-                <div className="relative inline-block" ref={labelsDropdownRef}>
+                <div className="flex items-center gap-2">
+                  <div className="flex-shrink-0">
+                    <div className="text-sm text-white/80 mb-2">Labels:</div>
+                    <div className="relative inline-block" ref={labelsDropdownRef}>
                   <button
                     type="button"
-                    className="min-w-[14rem] inline-flex flex-wrap items-center gap-2 rounded-md border border-white/20 bg-[#04356d] hover:bg-[#3b89bf] px-3 py-2 text-sm text-white text-center focus:outline-none focus:ring-2 focus:ring-white/30 cursor-pointer"
+                    className="min-w-[14rem] inline-flex flex-wrap items-center gap-2 rounded-md border border-white/20 bg-white/10 hover:bg-white/20 px-3 py-2 text-sm text-white text-center focus:outline-none focus:ring-2 focus:ring-white/30 cursor-pointer"
                     onClick={() => setShowLabelsDropdown(!showLabelsDropdown)}
                   >
                     {!selectedMessage.labels?.length && (
@@ -1382,7 +1404,54 @@ export default function Leads() {
                       </div>
                     </div>
                   )}
+                    </div>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm text-white/80 mb-2">Comments:</div>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        placeholder="Add a comment..."
+                        value={commentText}
+                        onChange={(e) => setCommentText(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" && !e.shiftKey) {
+                            e.preventDefault();
+                            handleAddComment();
+                          }
+                        }}
+                        className="flex-1 min-w-[20rem] border border-white/20 rounded-md px-3 py-2 text-sm bg-white/10 text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-white/30"
+                        disabled={addingComment}
+                      />
+                      <button
+                        type="button"
+                        onClick={handleAddComment}
+                        disabled={addingComment || !commentText.trim()}
+                        className="px-3 py-2 rounded-md border border-white/20 text-sm bg-[#3b89bf] hover:bg-[#04356d] text-white font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {addingComment ? "..." : "Add"}
+                      </button>
+                    </div>
+                  </div>
                 </div>
+                {/* Display existing comments */}
+                {selectedMessage.comments && selectedMessage.comments.length > 0 && (
+                  <div className="mt-3 space-y-2">
+                    {selectedMessage.comments.map((comment, idx) => (
+                      <div
+                        key={idx}
+                        className="rounded-md border border-white/20 bg-white/5 p-3 text-sm"
+                      >
+                        <div className="flex items-start justify-between gap-2 mb-1">
+                          <div className="text-white/90 font-medium">{comment.text}</div>
+                        </div>
+                        <div className="text-white/60 text-xs">
+                          {comment.author} • {comment.createdAt ? new Date(comment.createdAt).toLocaleString() : ""}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* Email Body */}

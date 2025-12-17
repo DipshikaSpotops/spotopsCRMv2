@@ -15,8 +15,11 @@ router.get("/", async (req, res) => {
     // ---- Build search query ---------------------------------------------
     const query = {};
     if (searchTerm) {
+      // Handle "Dispute AC" search - normalize to "Dispute 2" for database search
+      const normalizedSearchTerm = searchTerm.replace(/\bDispute\s+AC\b/gi, "Dispute 2");
+      
       // Escape special regex characters in search term
-      const escapedSearchTerm = searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const escapedSearchTerm = normalizedSearchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       const rx = new RegExp(escapedSearchTerm, "i");
       query.$or = [
         { orderNo: rx },
@@ -30,6 +33,7 @@ router.get("/", async (req, res) => {
         { desc: rx },
         { make: rx },
         { model: rx },
+        { orderStatus: rx }, // Added orderStatus to searchable fields
         { trackingNo: rx }, // top-level trackingNo (if exists)
         { additionalInfo: { $elemMatch: { yardName: rx } } },
         { additionalInfo: { $elemMatch: { trackingNo: rx } } }, // trackingNo array within additionalInfo

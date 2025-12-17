@@ -77,7 +77,13 @@ export default function EditYardStatusModal({
 
   /* ---------------------- useEffects ---------------------- */
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      // Clear toast when modal closes
+      setToast("");
+      return;
+    }
+    // Clear toast when modal opens
+    setToast("");
     setStatus(yard?.status || "Yard located");
     setEscCause(yard?.escalationCause || "");
     setTrackingNo(yard?.trackingNo || "");
@@ -110,12 +116,12 @@ export default function EditYardStatusModal({
   };
 
   /* ---------------------- SAVE ---------------------- */
-  const save = async () => {
+  const save = async (sendEmail = false) => {
     if (savingAction) return;
 
     try {
       setLoading(true);
-      setSavingAction("save");
+      setSavingAction(sendEmail ? "saveAndSendEmail" : "save");
       setToast("");
 
       const firstName = localStorage.getItem("firstName");
@@ -130,6 +136,7 @@ export default function EditYardStatusModal({
       ) {
         setToast("Please fill Tracking No, ETA, Shipper, and Tracking Link before saving.");
         setLoading(false);
+        setSavingAction(null);
         return;
       }
 
@@ -139,12 +146,13 @@ export default function EditYardStatusModal({
       const body = {
         status,
         escalationCause: showEsc ? t(escCause) : undefined,
-        trackingNo: showTracking ? t(trackingNo) : undefined,
-        eta: showTracking ? t(eta) : undefined,
-        shipperName: showTracking ? chosenShipper : undefined,
-        trackingLink: showTracking ? t(trackingLink) : undefined,
+        // For "Part delivered", preserve existing tracking fields if they exist, otherwise use form values
+        trackingNo: showTracking ? t(trackingNo) : (status === "Part delivered" && yard?.trackingNo ? yard.trackingNo : undefined),
+        eta: showTracking ? t(eta) : (status === "Part delivered" && yard?.eta ? yard.eta : undefined),
+        shipperName: showTracking ? chosenShipper : (status === "Part delivered" && yard?.shipperName ? yard.shipperName : undefined),
+        trackingLink: showTracking ? t(trackingLink) : (status === "Part delivered" && yard?.trackingLink ? yard.trackingLink : undefined),
         orderStatus: ORDER_STATUS_MAP[status],
-        // Flag to prevent backend from sending email (frontend will handle it)
+        // Always skip backend email sending - frontend will handle it exclusively when sendEmail is true
         skipEmail: status === "Part shipped" || status === "Part delivered",
       };
 
@@ -162,25 +170,54 @@ export default function EditYardStatusModal({
       }
 
       // Save to MongoDB first
-      await API.put(
+      console.log("[EditYardStatusModal] Saving with body:", body);
+      const saveResponse = await API.put(
         `/orders/${encodeURIComponent(orderNo)}/additionalInfo/${yardIndex + 1}`,
         body,
         { params: { firstName } }
       );
 
+      // Verify save was successful
+      if (!saveResponse?.data) {
+        throw new Error("Save failed - no response from server");
+      }
+
+      // Verify the status was actually saved
+      const savedOrder = saveResponse.data?.order || saveResponse.data;
+      const savedYard = savedOrder?.additionalInfo?.[yardIndex];
+      const savedStatus = savedYard?.status;
+      
+      console.log("[EditYardStatusModal] Save response:", {
+        requestedStatus: status,
+        savedStatus: savedStatus,
+        savedYard: savedYard
+      });
+
+      if (savedStatus && savedStatus !== status) {
+        console.warn(`[EditYardStatusModal] Status mismatch: requested "${status}" but saved "${savedStatus}"`);
+      }
+
+      // Show success message
+      if (sendEmail && (status === "Part shipped" || status === "Part delivered")) {
+        setToast(`Yard ${yardIndex + 1} status updated to ${status}. Sending email...`);
+      } else {
+        setToast(`Yard ${yardIndex + 1} status updated to ${status}.`);
+      }
+
       // Set loading state immediately if email needs to be sent
-      if (status === "Part shipped" || status === "Part delivered") {
+      if (sendEmail && (status === "Part shipped" || status === "Part delivered")) {
         // Notify parent to show loading indicator with specific status
         onEmailSending?.(true, status);
       }
 
-      // Close modal immediately after saving
-      onClose();
+      // Close modal after a brief delay to show success message
+      setTimeout(() => {
+        onClose();
+      }, sendEmail ? 500 : 0);
 
-      // Send email in background if needed (don't await - let it run async)
-      // Note: skipEmail flag is set in body to prevent backend from also sending
-      if (status === "Part shipped" || status === "Part delivered") {
-        console.log("[EditYardStatusModal] Sending email from frontend (skipEmail=true set in backend request)");
+      // Send email in background if sendEmail is true (don't await - let it run async)
+      if (sendEmail && (status === "Part shipped" || status === "Part delivered")) {
+        console.log("[EditYardStatusModal] Sending email from frontend (sendEmail=true)");
         // Send email in background - websocket will notify when done
         const emailPromise = status === "Part shipped"
           ? API.post(
@@ -210,6 +247,8 @@ export default function EditYardStatusModal({
         emailPromise
           .then((response) => {
             console.log("[EditYardStatusModal] Email sent successfully from frontend", response?.data);
+            // Clear the toast since email is sent
+            setToast("");
             // Loading will be cleared by websocket EMAIL_SENT event
             // But also set a fallback timeout in case websocket doesn't work
             setTimeout(() => {
@@ -222,13 +261,12 @@ export default function EditYardStatusModal({
             console.error("[EditYardStatusModal] Email sending failed", emailErr);
             // Hide loading on error immediately
             onEmailSending?.(false);
+            // Clear the toast and show error message if modal is still open
+            setToast("");
             // Show error toast
             const errorMessage = emailErr?.response?.data?.message || emailErr?.message || "Failed to send email";
             console.error("[EditYardStatusModal] Email error details:", errorMessage);
           });
-      } else {
-        // For non-email statuses, just show success
-        setToast(`Yard ${yardIndex + 1} status updated to ${status}.`);
       }
     } catch (err) {
       console.error("Error updating yard:", err);
@@ -238,6 +276,11 @@ export default function EditYardStatusModal({
       setLoading(false);
       setSavingAction(null);
     }
+  };
+
+  /* ---------------------- SAVE AND SEND EMAIL ---------------------- */
+  const saveAndSendEmail = () => {
+    save(true);
   };
 
   /* ---------------------- VOID LABEL ---------------------- */
@@ -732,44 +775,126 @@ export default function EditYardStatusModal({
           >
             Close
           </button>
-          <button
-            onClick={save}
-            disabled={!!savingAction}
-            className={`px-3 py-1.5 rounded-md border transition edit-yard-status-modal-submit-btn ${
-              savingAction
-                ? "bg-gray-400 text-gray-700 border-gray-300 cursor-not-allowed"
-                : "bg-white text-[#04356d] border-white/20 hover:bg-white/90 hover:scale-[1.02] dark:bg-white dark:text-[#04356d] dark:hover:bg-white/90"
-            }`}
-            title={savingAction ? "Please wait..." : "Save changes"}
-          >
-            {savingAction === "save" ? (
-              <span className="flex items-center gap-2">
-                <svg
-                  className="animate-spin h-4 w-4 text-[#04356d]"
-                  xmlns="http://www.w3.org/2000/svg"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                >
-                  <circle
-                    className="opacity-25"
-                    cx="12"
-                    cy="12"
-                    r="10"
-                    stroke="currentColor"
-                    strokeWidth="4"
-                  ></circle>
-                  <path
-                    className="opacity-75"
-                    fill="currentColor"
-                    d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 000 16v-4l-3 3 3 3v-4a8 8 0 01-8-8z"
-                  ></path>
-                </svg>
-                Saving...
-              </span>
-            ) : (
-              "Save"
-            )}
-          </button>
+          {/* Show two buttons for Part shipped or Part delivered */}
+          {(status === "Part shipped" || status === "Part delivered") ? (
+            <>
+              <button
+                onClick={() => save(false)}
+                disabled={!!savingAction}
+                className={`px-3 py-1.5 rounded-md border transition edit-yard-status-modal-submit-btn ${
+                  savingAction
+                    ? "bg-gray-400 text-gray-700 border-gray-300 cursor-not-allowed"
+                    : "bg-white text-[#04356d] border-white/20 hover:bg-white/90 hover:scale-[1.02] dark:bg-white dark:text-[#04356d] dark:hover:bg-white/90"
+                }`}
+                title={savingAction ? "Please wait..." : "Save without sending email"}
+              >
+                {savingAction === "save" ? (
+                  <span className="flex items-center gap-2">
+                    <svg
+                      className="animate-spin h-4 w-4 text-[#04356d]"
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                    >
+                      <circle
+                        className="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        strokeWidth="4"
+                      ></circle>
+                      <path
+                        className="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 000 16v-4l-3 3 3 3v-4a8 8 0 01-8-8z"
+                      ></path>
+                    </svg>
+                    Saving...
+                  </span>
+                ) : (
+                  "Save"
+                )}
+              </button>
+              <button
+                onClick={saveAndSendEmail}
+                disabled={!!savingAction}
+                className={`px-3 py-1.5 rounded-md border transition edit-yard-status-modal-submit-btn ${
+                  savingAction
+                    ? "bg-gray-400 text-gray-700 border-gray-300 cursor-not-allowed"
+                    : "bg-[#04356d] text-white border-[#04356d] hover:bg-[#021f4b] hover:scale-[1.02] dark:bg-[#2b2d68] dark:border-white/20 dark:hover:bg-[#1a1f4b]"
+                }`}
+                title={savingAction ? "Please wait..." : "Save and send email to customer"}
+              >
+                {savingAction === "saveAndSendEmail" ? (
+                  <span className="flex items-center gap-2">
+                    <svg
+                      className="animate-spin h-4 w-4 text-white"
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                    >
+                      <circle
+                        className="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        strokeWidth="4"
+                      ></circle>
+                      <path
+                        className="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 000 16v-4l-3 3 3 3v-4a8 8 0 01-8-8z"
+                      ></path>
+                    </svg>
+                    Saving & Sending...
+                  </span>
+                ) : (
+                  "Save & Send Email"
+                )}
+              </button>
+            </>
+          ) : (
+            <button
+              onClick={() => save(false)}
+              disabled={!!savingAction}
+              className={`px-3 py-1.5 rounded-md border transition edit-yard-status-modal-submit-btn ${
+                savingAction
+                  ? "bg-gray-400 text-gray-700 border-gray-300 cursor-not-allowed"
+                  : "bg-white text-[#04356d] border-white/20 hover:bg-white/90 hover:scale-[1.02] dark:bg-white dark:text-[#04356d] dark:hover:bg-white/90"
+              }`}
+              title={savingAction ? "Please wait..." : "Save changes"}
+            >
+              {savingAction === "save" ? (
+                <span className="flex items-center gap-2">
+                  <svg
+                    className="animate-spin h-4 w-4 text-[#04356d]"
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                  >
+                    <circle
+                      className="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                    ></circle>
+                    <path
+                      className="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 000 16v-4l-3 3 3 3v-4a8 8 0 01-8-8z"
+                    ></path>
+                  </svg>
+                  Saving...
+                </span>
+              ) : (
+                "Save"
+              )}
+            </button>
+          )}
         </footer>
       </div>
 

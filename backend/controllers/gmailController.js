@@ -1562,3 +1562,59 @@ export async function updateLabelsHandler(req, res, next) {
   }
 }
 
+export async function addCommentHandler(req, res, next) {
+  try {
+    const user = req.user;
+    if (!user) {
+      return res.status(401).json({ message: "Not authenticated" });
+    }
+
+    const id = String(req.params.id);
+    const commentText = String(req.body?.comment || "").trim();
+
+    if (!commentText) {
+      return res.status(400).json({ message: "Comment text is required" });
+    }
+
+    // Find message by _id or messageId
+    let message = await GmailMessage.findById(id);
+    if (!message && id.length !== 24) {
+      // Try as messageId
+      message = await GmailMessage.findOne({ messageId: id });
+    }
+    if (!message) {
+      return res.status(404).json({ message: "Lead not found" });
+    }
+
+    // Get user's firstName for the comment author
+    const userDoc = await User.findById(user.id).select("firstName email");
+    const authorName = userDoc?.firstName || userDoc?.email || "Unknown";
+
+    // Add comment to the array
+    if (!message.comments) {
+      message.comments = [];
+    }
+    message.comments.push({
+      text: commentText,
+      author: authorName,
+      createdAt: new Date(),
+    });
+
+    await message.save();
+
+    const messageObj = message.toObject();
+
+    // Broadcast SSE event for live updates
+    if (req.app?.locals?.sseBroadcast) {
+      req.app.locals.sseBroadcast("gmail", { reason: "comment_added", messageId: messageObj._id });
+    }
+
+    return res.json({
+      _id: String(messageObj._id),
+      ...messageObj,
+    });
+  } catch (err) {
+    return next(err);
+  }
+}
+

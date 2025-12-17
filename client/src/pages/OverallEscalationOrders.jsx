@@ -3,6 +3,17 @@ import React from "react";
 import OrdersTable from "../components/OrdersTable";
 import useOrdersRealtime from "../hooks/useOrdersRealtime";
 
+/* ---------- Helpers ---------- */
+/**
+ * Format order status for display
+ * Transforms "Dispute 2" to "Dispute AC"
+ */
+function formatOrderStatus(status) {
+  if (!status) return "";
+  if (status === "Dispute 2") return "Dispute AC";
+  return status;
+}
+
 // Unique storage keys for this page
 const STORAGE_KEYS = {
   page:   "overallEsc_page",
@@ -48,7 +59,7 @@ function renderCell(row, key, formatDateSafe /*, currency */) {
     }
 
     case "orderStatus":
-      return row.orderStatus || "";
+      return formatOrderStatus(row.orderStatus) || "";
 
     case "orderNo":
       return row.orderNo || "—";

@@ -8,6 +8,17 @@ import useOrdersRealtime from "../hooks/useOrdersRealtime";
 
 const rowsPerPage = 25;
 
+/* ---------- Helpers ---------- */
+/**
+ * Format order status for display
+ * Transforms "Dispute 2" to "Dispute AC"
+ */
+function formatOrderStatus(status) {
+  if (!status) return "";
+  if (status === "Dispute 2") return "Dispute AC";
+  return status;
+}
+
 const AllOrders = () => {
   const navigate = useNavigate();
 
@@ -432,7 +443,7 @@ const AllOrders = () => {
                 </td>
 
                 <td className="p-2.5 border-r border-white/20 whitespace-nowrap text-bodyText">
-                  {order.orderStatus}
+                  {formatOrderStatus(order.orderStatus)}
                 </td>
 
                 <td className="p-2.5 whitespace-nowrap">

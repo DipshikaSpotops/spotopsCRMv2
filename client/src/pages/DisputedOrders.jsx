@@ -20,6 +20,16 @@ const columns = [
 
 /* ---------- Helpers (same style as Refunded/Cancelled) ---------- */
 /**
+ * Format order status for display
+ * Transforms "Dispute 2" to "Dispute AC"
+ */
+function formatOrderStatus(status) {
+  if (!status) return "";
+  if (status === "Dispute 2") return "Dispute AC";
+  return status;
+}
+
+/**
  * Extract numeric shipping value from shippingDetails string
  * Handles both "Own shipping: X" and "Yard shipping: X" formats
  * Always extracts from shippingDetails, never from ownShipping/yardShipping fields
@@ -199,7 +209,7 @@ const DisputedOrders = () => {
         return row.disputeReason || "—";
 
       case "orderStatus":
-        return row.orderStatus || "";
+        return formatOrderStatus(row.orderStatus) || "";
 
       default:
         return row[key] ?? "—";
