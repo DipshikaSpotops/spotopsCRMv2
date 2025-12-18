@@ -43,6 +43,8 @@ const ORDER_STATUS_MAP = {
   Escalation: "Escalation",
 };
 
+const SHIPPERS = ["UPS", "World Wide Express", "FedEx", "Others"];
+
 export default function EditYardStatusModal({
   open,
   yard,
@@ -88,8 +90,17 @@ export default function EditYardStatusModal({
     setEscCause(yard?.escalationCause || "");
     setTrackingNo(yard?.trackingNo || "");
     setEta(yard?.eta || "");
-    setShipperName(yard?.shipperName || "");
-    setOtherShipper("");
+    
+    // Handle shipper name - if saved shipper is not in SHIPPERS list, set to "Others" and populate otherShipper
+    const savedShipperName = (yard?.shipperName == null ? "" : String(yard.shipperName)).trim();
+    if (savedShipperName && !SHIPPERS.includes(savedShipperName)) {
+      setShipperName("Others");
+      setOtherShipper(savedShipperName);
+    } else {
+      setShipperName(savedShipperName || "");
+      setOtherShipper("");
+    }
+    
     setTrackingLink(yard?.trackingLink || "");
 
     const st = yard?.status || "";
