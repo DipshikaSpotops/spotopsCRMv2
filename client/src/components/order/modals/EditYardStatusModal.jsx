@@ -43,7 +43,14 @@ const ORDER_STATUS_MAP = {
   Escalation: "Escalation",
 };
 
-const SHIPPERS = ["UPS", "World Wide Express", "FedEx", "Others"];
+const SHIPPERS = [
+  "UPS",
+  "World Wide Express",
+  "FedEx",
+  "Central Transport",
+  "R&L Carriers",
+  "Others",
+];
 
 export default function EditYardStatusModal({
   open,
@@ -632,6 +639,8 @@ export default function EditYardStatusModal({
                   <option value="UPS">UPS</option>
                   <option value="World Wide Express">World Wide Express</option>
                   <option value="FedEx">FedEx</option>
+                  <option value="Central Transport">Central Transport</option>
+                  <option value="R&L Carriers">R&L Carriers</option>
                   <option value="Others">Others</option>
                 </select>
 

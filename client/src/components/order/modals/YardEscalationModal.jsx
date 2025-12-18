@@ -12,7 +12,15 @@ const ESC_CAUSES = [
 
 const SHIPPING_METHODS = ["Customer shipping", "Own shipping", "Yard shipping"];
 const SHIPPING_STATUS = ["Ready to ship", "In Transit", "Delivered"];
-const SHIPPERS = ["UPS", "FedEx", "World Wide Express", "USPS", "Others"];
+const SHIPPERS = [
+  "UPS",
+  "FedEx",
+  "World Wide Express",
+  "USPS",
+  "Central Transport",
+  "R&L Carriers",
+  "Others",
+];
 
 const toStr = (v) => (v == null ? "" : String(v));
 
