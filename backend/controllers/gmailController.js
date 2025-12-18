@@ -673,6 +673,53 @@ export async function oauth2CallbackHandler(req, res, next) {
   }
 }
 
+export async function checkTokenHandler(req, res, next) {
+  try {
+    const tokenInfo = {
+      exists: false,
+      email: null,
+      hasAccessToken: false,
+      hasRefreshToken: false,
+      expiryDate: null,
+      error: null,
+    };
+
+    if (fs.existsSync(TOKEN_PATH)) {
+      tokenInfo.exists = true;
+      try {
+        const tokens = JSON.parse(fs.readFileSync(TOKEN_PATH, "utf-8"));
+        tokenInfo.hasAccessToken = !!tokens.access_token;
+        tokenInfo.hasRefreshToken = !!tokens.refresh_token;
+        tokenInfo.expiryDate = tokens.expiry_date ? new Date(tokens.expiry_date).toISOString() : null;
+        
+        // Try to extract email from id_token
+        if (tokens.id_token) {
+          try {
+            const base64Url = tokens.id_token.split('.')[1];
+            const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+            const jsonPayload = Buffer.from(base64, 'base64').toString('utf-8');
+            const decoded = JSON.parse(jsonPayload);
+            tokenInfo.email = decoded.email || null;
+          } catch (err) {
+            tokenInfo.error = `Failed to decode id_token: ${err.message}`;
+          }
+        }
+        
+        // Also try getUserEmail() which might have cached it
+        if (!tokenInfo.email) {
+          tokenInfo.email = getUserEmail();
+        }
+      } catch (err) {
+        tokenInfo.error = `Failed to read token.json: ${err.message}`;
+      }
+    }
+
+    return res.json(tokenInfo);
+  } catch (err) {
+    return next(err);
+  }
+}
+
 export async function syncStateHandler(req, res, next) {
   try {
     // Try to get email from OAuth2 first

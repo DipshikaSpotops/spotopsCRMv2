@@ -14,6 +14,7 @@ import {
   oauth2UrlHandler,
   oauth2CallbackHandler,
   addCommentHandler,
+  checkTokenHandler,
 } from "../controllers/gmailController.js";
 import { requireAuth } from "../middleware/auth.js";
 
@@ -27,6 +28,7 @@ router.post("/watch", startWatchHandler);
 router.post("/sync", manualSyncHandler);
 router.get("/messages", requireAuth, listMessagesHandler);
 router.get("/state", syncStateHandler);
+router.get("/check-token", checkTokenHandler); // Debug endpoint to check token.json
 router.post("/pubsub", pubsubWebhook);
 
 // Protected routes (require auth)
