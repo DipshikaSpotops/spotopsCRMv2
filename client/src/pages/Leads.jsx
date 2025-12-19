@@ -243,18 +243,47 @@ export default function Leads() {
     } catch (err) {
       if (!silent) {
       console.error("[Leads] fetch error", err);
-        let message;
+      console.error("[Leads] Error response:", err?.response?.data);
+      console.error("[Leads] Error status:", err?.response?.status);
+        const errorData = err?.response?.data;
         
-        // Handle network errors specifically
-        if (err.code === "ERR_NETWORK" || err.message === "Network Error" || !err.response) {
-          message = "Network Error: Unable to connect to server. Please check if the backend is running.";
+        // Check if it's a Gmail token issue (Gmail OAuth token, not user auth)
+        if (errorData?.errorCode === "GMAIL_TOKEN_INVALID" ||
+            errorData?.error === "Invalid token. Re-authorization required." || 
+            errorData?.message?.includes("re-authorize") ||
+            errorData?.message?.includes("invalid_grant") ||
+            (err?.response?.status === 400 && errorData?.message?.includes("Gmail token"))) {
+          const message = errorData?.message || "Gmail token is invalid. Please re-authorize.";
+          const helpUrl = errorData?.help || (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1" 
+            ? "http://localhost:5000/api/gmail/oauth2/url" 
+            : "https://www.spotops360.com/api/gmail/oauth2/url");
+          setError(
+            <div>
+              <p className="font-semibold mb-2">{message}</p>
+              <p className="text-sm mb-2">To fix this:</p>
+              <ol className="list-decimal list-inside text-sm space-y-1 mb-2">
+                <li>Open: <a href={helpUrl} target="_blank" rel="noopener noreferrer" className="text-blue-300 underline">{helpUrl}</a></li>
+                <li>Click "Authorize Gmail Access"</li>
+                <li>Sign in and grant permissions</li>
+                <li>Then refresh this page</li>
+              </ol>
+            </div>
+          );
         } else {
-          message =
-        err?.response?.data?.message ||
-        err?.message ||
-        "Failed to load leads.";
+          // Handle network errors specifically
+          let message;
+          if (err.code === "ERR_NETWORK" || err.message === "Network Error" || !err.response) {
+            message = "Network Error: Unable to connect to server. Please check if the backend is running.";
+          } else {
+            // Show the actual error message from backend
+            message = errorData?.message || 
+                     errorData?.error || 
+                     (err?.response?.status === 400 ? "Bad Request: " + JSON.stringify(errorData) : null) ||
+                     err?.message ||
+                     "Failed to load leads.";
+          }
+          setError(message);
         }
-      setError(message);
       }
     } finally {
       if (!silent) {

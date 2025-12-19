@@ -164,14 +164,33 @@ export async function getGmailClient() {
   
   const tokens = JSON.parse(fs.readFileSync(TOKEN_PATH, "utf-8"));
   
+  // Validate that we have a refresh_token
+  if (!tokens.refresh_token) {
+    throw new Error("No refresh token available. Please re-authorize via /api/gmail/oauth2/url");
+  }
+  
+  // Set up automatic token refresh handler BEFORE setting credentials
+  // This will be called automatically by the OAuth2 client when tokens are refreshed
+  oAuth2Client.on('tokens', (newTokens) => {
+    console.log("[googleAuth] Tokens automatically refreshed by OAuth2 client");
+    // Merge new tokens with existing ones (preserve refresh_token)
+    const currentTokens = JSON.parse(fs.readFileSync(TOKEN_PATH, "utf-8"));
+    const updatedTokens = { ...currentTokens, ...newTokens };
+    if (!updatedTokens.refresh_token && currentTokens.refresh_token) {
+      updatedTokens.refresh_token = currentTokens.refresh_token;
+    }
+    // Save updated tokens to disk
+    try {
+      fs.writeFileSync(TOKEN_PATH, JSON.stringify(updatedTokens, null, 2));
+      console.log("[googleAuth] Updated tokens saved to token.json");
+    } catch (err) {
+      console.error("[googleAuth] Failed to save refreshed tokens:", err.message);
+    }
+  });
+  
   // Check if access_token is blocked by reauth policy
   if (tokens.access_token === "blocked_by_reauth_policy" || !tokens.access_token || tokens.access_token === "") {
     console.log("[googleAuth] Access token is blocked or missing, refreshing immediately...");
-    
-    // Make sure we have a refresh_token
-    if (!tokens.refresh_token) {
-      throw new Error("No refresh token available. Please re-authorize via /api/gmail/oauth2/url");
-    }
     
     try {
       // Set all credentials first (including refresh_token)
@@ -196,6 +215,7 @@ export async function getGmailClient() {
       Object.assign(tokens, newTokens);
     } catch (err) {
       console.error("[googleAuth] Failed to refresh blocked token:", err.message);
+      console.error("[googleAuth] Error details:", JSON.stringify(err.response?.data || err.message, null, 2));
       
       // Check if it's a rapt_required error (Google security feature)
       if (err.message?.includes("rapt_required") || err.response?.data?.error_subtype === "rapt_required") {
@@ -204,12 +224,41 @@ export async function getGmailClient() {
         throw new Error("Google security policy (RAPT) requires re-authorization. Please visit /api/gmail/oauth2/url to re-authorize.");
       }
       
+      // Check if refresh token is invalid
+      if (err.message?.includes("invalid_grant") || err.code === "invalid_grant") {
+        console.error("[googleAuth] Refresh token is invalid. This usually means:");
+        console.error("[googleAuth] 1. The token was revoked by the user");
+        console.error("[googleAuth] 2. The token expired (unlikely but possible)");
+        console.error("[googleAuth] 3. The OAuth client credentials changed");
+        throw new Error("Refresh token is invalid. Please re-authorize via /api/gmail/oauth2/url");
+      }
+      
       throw new Error("Token is blocked by reauth policy and refresh failed. Please re-authorize via /api/gmail/oauth2/url");
     }
   }
   
+  // Set up automatic token refresh handler
+  // This will be called automatically by the OAuth2 client when tokens are refreshed
+  oAuth2Client.on('tokens', (newTokens) => {
+    console.log("[googleAuth] Tokens automatically refreshed by OAuth2 client");
+    // Merge new tokens with existing ones (preserve refresh_token)
+    const updatedTokens = { ...tokens, ...newTokens };
+    if (!updatedTokens.refresh_token && tokens.refresh_token) {
+      updatedTokens.refresh_token = tokens.refresh_token;
+    }
+    // Save updated tokens to disk
+    try {
+      fs.writeFileSync(TOKEN_PATH, JSON.stringify(updatedTokens, null, 2));
+      console.log("[googleAuth] Updated tokens saved to token.json");
+      // Update cached tokens
+      Object.assign(tokens, updatedTokens);
+    } catch (err) {
+      console.error("[googleAuth] Failed to save refreshed tokens:", err.message);
+    }
+  });
+
   oAuth2Client.setCredentials(tokens);
-  
+
   // Refresh token if expired or expiring soon (within 5 minutes)
   const fiveMinutesFromNow = Date.now() + (5 * 60 * 1000);
   if (tokens.expiry_date && tokens.expiry_date <= fiveMinutesFromNow) {

@@ -313,11 +313,41 @@ export async function listMessagesHandler(req, res, next) {
       gmailQuery = `is:unread in:inbox to:${agentEmail}`;
     }
     
-    const { data } = await gmail.users.messages.list({
-      userId: "me",
-      q: gmailQuery,
-      maxResults: parsedLimit,
-    });
+    let gmailMessagesData;
+    try {
+      const response = await gmail.users.messages.list({
+        userId: "me",
+        q: gmailQuery,
+        maxResults: parsedLimit,
+      });
+      gmailMessagesData = response.data;
+    } catch (gmailErr) {
+      console.error("[listMessages] Gmail API error:", gmailErr);
+      // Check if it's a token/auth error
+      if (
+        gmailErr.message?.includes("invalid_grant") ||
+        gmailErr.code === "invalid_grant" ||
+        gmailErr.response?.status === 401 ||
+        gmailErr.response?.status === 403
+      ) {
+        return res.status(400).json({
+          message: "Gmail token is invalid. Please re-authorize via /api/gmail/oauth2/url",
+          error: "Invalid token. Re-authorization required.",
+          errorCode: "GMAIL_TOKEN_INVALID",
+          help: process.env.NODE_ENV === "production" 
+            ? "https://www.spotops360.com/api/gmail/oauth2/url"
+            : "http://localhost:5000/api/gmail/oauth2/url",
+        });
+      }
+      // Other Gmail API errors
+      return res.status(400).json({
+        message: "Failed to fetch messages from Gmail",
+        error: gmailErr.message || "Gmail API error",
+        details: gmailErr.response?.data || gmailErr.message,
+      });
+    }
+    
+    const { data } = { data: gmailMessagesData };
     
     // Also fetch closed and claimed leads from Lead collection for the logged-in user
     const userLeads = [];

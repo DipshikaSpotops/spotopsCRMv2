@@ -24,7 +24,7 @@ const API = axios.create({
   withCredentials: true,
   timeout: 15000,
 });
-// Attach Bearer token and firstName from localStorage if present
+// Attach Bearer token from localStorage if present
 API.interceptors.request.use((cfg) => {
   const token = localStorage.getItem("token");
   if (token) {
@@ -32,13 +32,8 @@ API.interceptors.request.use((cfg) => {
     cfg.headers.Authorization = `Bearer ${token}`;
   }
   
-  // Always add firstName from localStorage to query params if not already present
-  const firstName = localStorage.getItem("firstName");
-  if (firstName && !cfg.url.includes("firstName=")) {
-    // Parse existing URL or create new one
-    const separator = cfg.url.includes("?") ? "&" : "?";
-    cfg.url = `${cfg.url}${separator}firstName=${encodeURIComponent(firstName)}`;
-  }
+  // Note: firstName is no longer added to query params
+  // The backend gets user info from the JWT token via requireAuth middleware
   
   return cfg;
 });
