@@ -15,16 +15,32 @@ function readAuthFromStorage() {
         email: parsed?.user?.email || localStorage.getItem("email") || undefined,
         name: parsed?.user?.firstName || parsed?.user?.lastName ? `${parsed?.user?.firstName ?? ""} ${parsed?.user?.lastName ?? ""}`.trim() : undefined,
         firstName: parsed?.user?.firstName || undefined,
+        id: parsed?.user?.id || parsed?.user?._id || undefined,
       };
     }
   } catch (err) {
     console.warn("Failed to parse auth storage", err);
   }
+  
+  // Try to get user ID from JWT token
+  let userId = undefined;
+  try {
+    const token = localStorage.getItem("token");
+    if (token) {
+      // Decode JWT to get user ID (simple base64 decode, no verification needed for just reading)
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      userId = payload?.id || payload?.userId || undefined;
+    }
+  } catch (err) {
+    // Ignore JWT decode errors
+  }
+  
   return {
     role: localStorage.getItem("role") || undefined,
     email: localStorage.getItem("email") || undefined,
     name: localStorage.getItem("username") || undefined,
     firstName: undefined,
+    id: userId,
   };
 }
 
@@ -149,7 +165,7 @@ function cleanText(s = "") {
 }
 
 export default function Leads() {
-  const { role, email, name, firstName } = useMemo(() => {
+  const { role, email, name, firstName, id: userId } = useMemo(() => {
     return readAuthFromStorage();
   }, []);
   
@@ -207,6 +223,110 @@ export default function Leads() {
   const normalizedEmail = email?.toLowerCase();
 
   const [syncing, setSyncing] = useState(false);
+  
+  // Initialize AudioContext on user interaction (required for autoplay)
+  const audioContextRef = useRef(null);
+  
+  useEffect(() => {
+    // Initialize AudioContext on first user interaction
+    const initAudio = () => {
+      if (!audioContextRef.current) {
+        try {
+          const AudioContext = window.AudioContext || window.webkitAudioContext;
+          audioContextRef.current = new AudioContext();
+          console.log("[Leads] AudioContext initialized");
+        } catch (err) {
+          console.warn("[Leads] Could not initialize AudioContext:", err);
+        }
+      }
+    };
+    
+    // Initialize on any user interaction
+    const events = ['click', 'keydown', 'touchstart'];
+    events.forEach(event => {
+      document.addEventListener(event, initAudio, { once: true });
+    });
+    
+    return () => {
+      events.forEach(event => {
+        document.removeEventListener(event, initAudio);
+      });
+    };
+  }, []);
+
+  // Play notification sound when new fresh leads arrive
+  const playNotificationSound = useCallback(() => {
+    // Play sound regardless of tab visibility or current view mode
+    // This allows notifications even when user is in another tab or viewing statistics
+    
+    try {
+      // Use existing AudioContext or create new one
+      const AudioContext = window.AudioContext || window.webkitAudioContext;
+      let ctx = audioContextRef.current;
+      
+      if (!ctx || ctx.state === 'closed') {
+        ctx = new AudioContext();
+        audioContextRef.current = ctx;
+      }
+      
+      // Resume audio context if suspended (browser autoplay policy)
+      const playTone = (audioCtx) => {
+        // Create a pleasant notification sound (three-tone chime)
+        const now = audioCtx.currentTime;
+        
+        // First tone: 523.25 Hz (C5) - 0.15s
+        const osc1 = audioCtx.createOscillator();
+        const gain1 = audioCtx.createGain();
+        osc1.type = 'sine';
+        osc1.frequency.setValueAtTime(523.25, now);
+        gain1.gain.setValueAtTime(0, now);
+        gain1.gain.linearRampToValueAtTime(0.4, now + 0.05);
+        gain1.gain.linearRampToValueAtTime(0, now + 0.15);
+        osc1.connect(gain1);
+        gain1.connect(audioCtx.destination);
+        osc1.start(now);
+        osc1.stop(now + 0.15);
+        
+        // Second tone: 659.25 Hz (E5) - 0.15s, starts at 0.1s
+        const osc2 = audioCtx.createOscillator();
+        const gain2 = audioCtx.createGain();
+        osc2.type = 'sine';
+        osc2.frequency.setValueAtTime(659.25, now);
+        gain2.gain.setValueAtTime(0, now + 0.1);
+        gain2.gain.linearRampToValueAtTime(0.4, now + 0.15);
+        gain2.gain.linearRampToValueAtTime(0, now + 0.25);
+        osc2.connect(gain2);
+        gain2.connect(audioCtx.destination);
+        osc2.start(now + 0.1);
+        osc2.stop(now + 0.25);
+        
+        // Third tone: 783.99 Hz (G5) - 0.15s, starts at 0.2s
+        const osc3 = audioCtx.createOscillator();
+        const gain3 = audioCtx.createGain();
+        osc3.type = 'sine';
+        osc3.frequency.setValueAtTime(783.99, now);
+        gain3.gain.setValueAtTime(0, now + 0.2);
+        gain3.gain.linearRampToValueAtTime(0.4, now + 0.25);
+        gain3.gain.linearRampToValueAtTime(0, now + 0.35);
+        osc3.connect(gain3);
+        gain3.connect(audioCtx.destination);
+        osc3.start(now + 0.2);
+        osc3.stop(now + 0.35);
+      };
+      
+      if (ctx.state === 'suspended') {
+        ctx.resume().then(() => {
+          playTone(ctx);
+        }).catch((err) => {
+          console.warn("[Leads] Could not resume AudioContext:", err);
+        });
+      } else {
+        playTone(ctx);
+      }
+    } catch (err) {
+      console.warn("[Leads] Could not play notification sound:", err);
+    }
+  }, []);
 
   const fetchMessages = useCallback(async (silent = false) => {
     if (!silent) {
@@ -226,6 +346,17 @@ export default function Leads() {
         setMessages((prevMessages) => {
           const existingIds = new Set(prevMessages.map(m => m._id || m.messageId));
           const newOnes = newMessages.filter(m => !existingIds.has(m._id || m.messageId));
+          
+          // Filter to only fresh/active leads (not claimed or closed)
+          const freshLeads = newOnes.filter(m => {
+            const status = m.status || "active";
+            return status === "active";
+          });
+          
+          // Play notification sound only for fresh/active leads
+          if (freshLeads.length > 0) {
+            playNotificationSound();
+          }
           
           if (newOnes.length > 0) {
             // New messages found, prepend them
@@ -270,19 +401,19 @@ export default function Leads() {
             </div>
           );
         } else {
-          // Handle network errors specifically
+        // Handle network errors specifically
           let message;
-          if (err.code === "ERR_NETWORK" || err.message === "Network Error" || !err.response) {
-            message = "Network Error: Unable to connect to server. Please check if the backend is running.";
-          } else {
+        if (err.code === "ERR_NETWORK" || err.message === "Network Error" || !err.response) {
+          message = "Network Error: Unable to connect to server. Please check if the backend is running.";
+        } else {
             // Show the actual error message from backend
             message = errorData?.message || 
                      errorData?.error || 
                      (err?.response?.status === 400 ? "Bad Request: " + JSON.stringify(errorData) : null) ||
-                     err?.message ||
-                     "Failed to load leads.";
-          }
-          setError(message);
+        err?.message ||
+        "Failed to load leads.";
+        }
+      setError(message);
         }
       }
     } finally {
@@ -290,7 +421,7 @@ export default function Leads() {
       setLoading(false);
       }
     }
-  }, [isSales, normalizedEmail, limit]);
+  }, [isSales, normalizedEmail, limit, playNotificationSound]);
 
   const syncGmail = useCallback(async () => {
     setSyncing(true);
@@ -584,7 +715,7 @@ export default function Leads() {
       const { data } = await API.post(`/gmail/messages/${claimId}/claim-and-view`);
       console.log("[Leads] Claim response:", data);
       
-      // Update messages list with the claimed status
+      // Update the message status to claimed (keep it visible in the list)
       setMessages((prev) =>
         prev.map((m) => {
           if (m._id === msg._id || m.messageId === msg.messageId) {
@@ -746,6 +877,26 @@ export default function Leads() {
 
   const filteredMessages = useMemo(() => {
     return messages.filter((msg) => {
+      // Filter out leads claimed by other users
+      // Show:
+      // 1. Active (unclaimed) leads
+      // 2. Leads claimed by the current logged-in user
+      // 3. Leads closed by the current logged-in user
+      // Hide:
+      // - Leads claimed by other users
+      
+      const status = msg.status || "active";
+      
+      // Always show active leads
+      if (status === "active") {
+        // Continue with other filters below
+      } else if (status === "claimed" || status === "closed") {
+        // Only show if claimed by current user
+        if (msg.claimedBy && userId && msg.claimedBy !== userId) {
+          return false; // Hide leads claimed by other users
+        }
+      }
+      
       // For sales agents: only show unclaimed leads or leads claimed by them
       if (isSales && normalizedEmail) {
         // If lead is claimed by another agent, don't show it
@@ -769,7 +920,7 @@ export default function Leads() {
       }`.toLowerCase();
       return haystack.includes(search.toLowerCase());
     });
-  }, [messages, agentFilter, search, isSales, normalizedEmail]);
+  }, [messages, agentFilter, search, isSales, normalizedEmail, userId]);
 
   const parsedFields = useMemo(() => {
     if (!selectedMessage?.bodyHtml) return [];

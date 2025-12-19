@@ -105,7 +105,7 @@ export default function EditYardStatusModal({
       setOtherShipper(savedShipperName);
     } else {
       setShipperName(savedShipperName || "");
-      setOtherShipper("");
+    setOtherShipper("");
     }
     
     setTrackingLink(yard?.trackingLink || "");
