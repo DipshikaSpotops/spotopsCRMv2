@@ -549,7 +549,7 @@ export default function EditOrder() {
         ...(role === "Admin" && formData.orderDateISO ? { orderDate: new Date(formData.orderDateISO) } : {}),
       };
 
-      await API.put(`/orders/${encodeURIComponent(formData.orderNo)}`, payload);
+      await API.put(`/orders/${encodeURIComponent(formData.orderNo)}?firstName=${encodeURIComponent(firstName)}`, payload);
 
       setToast({ message: `Order ${formData.orderNo} updated successfully!`, variant: "success" });
     } catch (err) {
