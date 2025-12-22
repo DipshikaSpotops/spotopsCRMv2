@@ -58,6 +58,7 @@ export default function EditYardStatusModal({
   yardIndex,
   order,
   onClose,
+  onSave,
   onEmailSending,
 }) {
   const [status, setStatus] = useState(yard?.status || "Yard located");
@@ -221,6 +222,9 @@ export default function EditYardStatusModal({
       } else {
         setToast(`Yard ${yardIndex + 1} status updated to ${status}.`);
       }
+
+      // CRITICAL: Call onSave to preserve active yard index before refresh happens
+      onSave?.();
 
       // Set loading state immediately if email needs to be sent
       if (sendEmail && (status === "Part shipped" || status === "Part delivered")) {

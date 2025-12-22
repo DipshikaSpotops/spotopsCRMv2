@@ -1524,7 +1524,14 @@ export default function OrderDetails() {
         initial={yards[editDetailsIdx]}
         order={order}
         orderNo={order?.orderNo}
-        onClose={() => setEditDetailsIdx(null)}
+        onClose={() => {
+          // Preserve active yard index when closing modal
+          if (editDetailsIdx !== null && editDetailsIdx !== undefined) {
+            activeYardIndexRef.current = editDetailsIdx;
+            setActiveYardIndex(editDetailsIdx);
+          }
+          setEditDetailsIdx(null);
+        }}
         onSubmit={async (updatedOrder) => {
           // CRITICAL: Preserve the active yard index BEFORE any refresh happens
           // This ensures websocket-triggered refreshes also use the correct index
@@ -1562,14 +1569,30 @@ export default function OrderDetails() {
         yardIndex={typeof editStatusIdx === "number" ? editStatusIdx : 0}
         yard={editStatusIdx !== null ? yards[editStatusIdx] : null}
         order={order}
-        onClose={() => setEditStatusIdx(null)}
-        onSave={() => {
-          // CRITICAL: Set active yard index when status is saved (websocket will trigger refresh)
-          // Set ref FIRST so websocket refresh can use it
+        onClose={() => {
+          // Preserve active yard index when closing modal
           if (editStatusIdx !== null && editStatusIdx !== undefined) {
-            console.log(`[OrderDetails] Saving status for Yard ${editStatusIdx + 1} (index ${editStatusIdx}), preserving in ref`);
-            activeYardIndexRef.current = editStatusIdx; // Set ref FIRST
-            setActiveYardIndex(editStatusIdx); // Then set state
+            activeYardIndexRef.current = editStatusIdx;
+            setActiveYardIndex(editStatusIdx);
+          }
+          setEditStatusIdx(null);
+        }}
+        onSave={async () => {
+          // CRITICAL: Preserve index BEFORE refresh so websocket can use it
+          const yardIndexToPreserve = editStatusIdx;
+          if (yardIndexToPreserve !== null && yardIndexToPreserve !== undefined) {
+            console.log(`[OrderDetails] Saving status for Yard ${yardIndexToPreserve + 1} (index ${yardIndexToPreserve}), preserving in ref`);
+            activeYardIndexRef.current = yardIndexToPreserve; // Set ref FIRST
+            setActiveYardIndex(yardIndexToPreserve); // Then set state
+          }
+          // Refresh to get latest data (websocket may also trigger refresh, but this ensures consistency)
+          await refresh();
+          // Restore after refresh (in case websocket also refreshed)
+          if (yardIndexToPreserve !== null && yardIndexToPreserve !== undefined) {
+            setTimeout(() => {
+              activeYardIndexRef.current = yardIndexToPreserve;
+              setActiveYardIndex(yardIndexToPreserve);
+            }, 100);
           }
         }}
         onEmailSending={(isSending, status) => {
@@ -1606,7 +1629,14 @@ export default function OrderDetails() {
 
       <CardChargedModal
         open={cardChargedIdx !== null}
-        onClose={() => setCardChargedIdx(null)}
+        onClose={() => {
+          // Preserve active yard index when closing modal
+          if (cardChargedIdx !== null && cardChargedIdx !== undefined) {
+            activeYardIndexRef.current = cardChargedIdx;
+            setActiveYardIndex(cardChargedIdx);
+          }
+          setCardChargedIdx(null);
+        }}
         onSubmit={async () => {
           // CRITICAL: Preserve index BEFORE refresh so websocket can use it
           const yardIndexToPreserve = cardChargedIdx;
@@ -1630,7 +1660,14 @@ export default function OrderDetails() {
 
       <RefundModal
         open={refundIdx !== null}
-        onClose={() => setRefundIdx(null)}
+        onClose={() => {
+          // Preserve active yard index when closing modal
+          if (refundIdx !== null && refundIdx !== undefined) {
+            activeYardIndexRef.current = refundIdx;
+            setActiveYardIndex(refundIdx);
+          }
+          setRefundIdx(null);
+        }}
         onSubmit={async () => {
           // CRITICAL: Preserve index BEFORE refresh so websocket can use it
           const yardIndexToPreserve = refundIdx;
@@ -1654,7 +1691,14 @@ export default function OrderDetails() {
 
       <YardEscalationModal
         open={escalationIdx !== null}
-        onClose={() => setEscalationIdx(null)}
+        onClose={() => {
+          // Preserve active yard index when closing modal
+          if (escalationIdx !== null && escalationIdx !== undefined) {
+            activeYardIndexRef.current = escalationIdx;
+            setActiveYardIndex(escalationIdx);
+          }
+          setEscalationIdx(null);
+        }}
         yardIndex={typeof escalationIdx === "number" ? escalationIdx : 0}
         yard={
           escalationIdx !== null && Array.isArray(yards)
