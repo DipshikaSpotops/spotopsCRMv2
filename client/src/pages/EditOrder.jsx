@@ -3,7 +3,6 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { useSelector } from "react-redux";
 import { STATES } from "../data/states";
 import { selectRole } from "../store/authSlice";
-const SALES_AGENTS = ["David", "Dipshika", "John", "Mark", "Michael", "Richard", "Tristan"];
 const REQUIRED_FIELD_LABELS = {
   orderNo: "Order No",
   salesAgent: "Sales Agent",
@@ -132,6 +131,27 @@ export default function EditOrder() {
   const [formData, setFormData] = useState(buildInitialFormData());
   const [partNames, setPartNames] = useState([]);
   const [fieldErrors, setFieldErrors] = useState(new Set());
+  const [salesAgents, setSalesAgents] = useState([]);
+  
+  // Fetch all sales agents from API
+  useEffect(() => {
+    const fetchSalesAgents = async () => {
+      try {
+        const { data } = await API.get("/users", { params: { role: "Sales" } });
+        // Extract firstName from users and sort alphabetically
+        const agentNames = data
+          .map(user => user.firstName)
+          .filter(Boolean)
+          .sort();
+        setSalesAgents(agentNames);
+      } catch (err) {
+        console.error("Error fetching sales agents:", err);
+        // Fallback to hardcoded list if API fails
+        setSalesAgents(["David", "Dipshika", "John", "Mark", "Michael", "Nik", "Richard", "Tristan"]);
+      }
+    };
+    fetchSalesAgents();
+  }, []);
 
   // Get role with fallback to localStorage (like Sidebar does)
   const role = userRole ?? (() => {
@@ -617,7 +637,7 @@ export default function EditOrder() {
             <Section title="Sales Agent">
               <Dropdown
                 placeholder="Select Sales Agent"
-                options={SALES_AGENTS}
+                options={salesAgents}
                 value={formData.salesAgent}
                 onChange={(e) => handleFieldChange("salesAgent", e.target.value)}
                 error={fieldErrors.has("salesAgent")}
@@ -783,7 +803,7 @@ export default function EditOrder() {
 
               <Dropdown
                 placeholder="Country"
-                options={["US", "`qB `ada"]}
+                options={["US", "Canada"]}
                 value={formData.bAddressAcountry}
                 onChange={(e) => handleFieldChange("bAddressAcountry", e.target.value)}
                 error={fieldErrors.has("bAddressAcountry")}

@@ -35,10 +35,12 @@ router.post("/", async (req, res) => {
   }
 });
 
-// GET all users
-router.get("/", async (_req, res) => {
+// GET all users (optionally filter by role)
+router.get("/", async (req, res) => {
   try {
-    const users = await User.find().sort({ createdAt: -1 }).lean();
+    const { role } = req.query;
+    const query = role ? { role } : {};
+    const users = await User.find(query).sort({ createdAt: -1 }).lean();
     users.forEach(u => delete u.password);
     res.json(users);
   } catch (e) {

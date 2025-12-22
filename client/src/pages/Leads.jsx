@@ -229,22 +229,44 @@ export default function Leads() {
   
   useEffect(() => {
     // Initialize AudioContext on first user interaction
-    const initAudio = () => {
-      if (!audioContextRef.current) {
+    // This is required for browser autoplay policies
+    const initAudio = async () => {
+      if (!audioContextRef.current || audioContextRef.current.state === 'closed') {
         try {
           const AudioContext = window.AudioContext || window.webkitAudioContext;
-          audioContextRef.current = new AudioContext();
-          console.log("[Leads] AudioContext initialized");
+          const ctx = new AudioContext();
+          audioContextRef.current = ctx;
+          console.log("[Leads] AudioContext initialized, state:", ctx.state);
+          
+          // Try to resume if suspended (for background tab support)
+          if (ctx.state === 'suspended') {
+            try {
+              await ctx.resume();
+              console.log("[Leads] AudioContext resumed during initialization");
+            } catch (err) {
+              console.warn("[Leads] Could not resume AudioContext during init:", err);
+            }
+          }
         } catch (err) {
           console.warn("[Leads] Could not initialize AudioContext:", err);
+        }
+      } else {
+        // AudioContext exists, try to resume if suspended (for background tab support)
+        if (audioContextRef.current.state === 'suspended') {
+          audioContextRef.current.resume().then(() => {
+            console.log("[Leads] AudioContext resumed on user interaction");
+          }).catch(err => {
+            console.warn("[Leads] Could not resume AudioContext:", err);
+          });
         }
       }
     };
     
     // Initialize on any user interaction
-    const events = ['click', 'keydown', 'touchstart'];
+    // Use 'once: false' so we can resume AudioContext on each interaction if needed
+    const events = ['click', 'keydown', 'touchstart', 'mousedown'];
     events.forEach(event => {
-      document.addEventListener(event, initAudio, { once: true });
+      document.addEventListener(event, initAudio, { once: false });
     });
     
     return () => {
@@ -254,74 +276,122 @@ export default function Leads() {
     };
   }, []);
 
+  // Custom notification sound file path
+  // Place your sound file in: client/public/sounds/notification.mp3 (or .wav, .ogg)
+  // Supported formats: mp3, wav, ogg, m4a
+  const NOTIFICATION_SOUND_PATH = "/sounds/notification.mp3";
+
   // Play notification sound when new fresh leads arrive
-  const playNotificationSound = useCallback(() => {
+  // Works like WhatsApp/Instagram: plays even when tab is in background
+  const playNotificationSound = useCallback(async () => {
     // Play sound regardless of tab visibility or current view mode
     // This allows notifications even when user is in another tab or viewing statistics
     
     try {
-      // Use existing AudioContext or create new one
-      const AudioContext = window.AudioContext || window.webkitAudioContext;
-      let ctx = audioContextRef.current;
-      
-      if (!ctx || ctx.state === 'closed') {
-        ctx = new AudioContext();
-        audioContextRef.current = ctx;
+      // Try to play custom sound file first
+      if (NOTIFICATION_SOUND_PATH && NOTIFICATION_SOUND_PATH.trim() !== "") {
+        try {
+          const audio = new Audio(NOTIFICATION_SOUND_PATH);
+          audio.volume = 0.7; // Adjust volume (0.0 to 1.0)
+          
+          // Handle audio loading errors
+          audio.onerror = () => {
+            console.warn("[Leads] Custom sound file not found, using default beep");
+            playDefaultBeep();
+          };
+          
+          // Play the custom sound
+          const playPromise = audio.play();
+          if (playPromise !== undefined) {
+            playPromise
+              .then(() => {
+                console.log("[Leads] ✅ Custom notification sound played successfully");
+              })
+              .catch((err) => {
+                console.warn("[Leads] Could not play custom sound (autoplay blocked), trying default:", err);
+                playDefaultBeep();
+              });
+          }
+          return; // Exit early if custom sound is being used
+        } catch (err) {
+          console.warn("[Leads] Error loading custom sound, using default:", err);
+          // Fall through to default beep
+        }
       }
       
-      // Resume audio context if suspended (browser autoplay policy)
-      const playTone = (audioCtx) => {
-        // Create a pleasant notification sound (three-tone chime)
-        const now = audioCtx.currentTime;
-        
-        // First tone: 523.25 Hz (C5) - 0.15s
-        const osc1 = audioCtx.createOscillator();
-        const gain1 = audioCtx.createGain();
-        osc1.type = 'sine';
-        osc1.frequency.setValueAtTime(523.25, now);
-        gain1.gain.setValueAtTime(0, now);
-        gain1.gain.linearRampToValueAtTime(0.4, now + 0.05);
-        gain1.gain.linearRampToValueAtTime(0, now + 0.15);
-        osc1.connect(gain1);
-        gain1.connect(audioCtx.destination);
-        osc1.start(now);
-        osc1.stop(now + 0.15);
-        
-        // Second tone: 659.25 Hz (E5) - 0.15s, starts at 0.1s
-        const osc2 = audioCtx.createOscillator();
-        const gain2 = audioCtx.createGain();
-        osc2.type = 'sine';
-        osc2.frequency.setValueAtTime(659.25, now);
-        gain2.gain.setValueAtTime(0, now + 0.1);
-        gain2.gain.linearRampToValueAtTime(0.4, now + 0.15);
-        gain2.gain.linearRampToValueAtTime(0, now + 0.25);
-        osc2.connect(gain2);
-        gain2.connect(audioCtx.destination);
-        osc2.start(now + 0.1);
-        osc2.stop(now + 0.25);
-        
-        // Third tone: 783.99 Hz (G5) - 0.15s, starts at 0.2s
-        const osc3 = audioCtx.createOscillator();
-        const gain3 = audioCtx.createGain();
-        osc3.type = 'sine';
-        osc3.frequency.setValueAtTime(783.99, now);
-        gain3.gain.setValueAtTime(0, now + 0.2);
-        gain3.gain.linearRampToValueAtTime(0.4, now + 0.25);
-        gain3.gain.linearRampToValueAtTime(0, now + 0.35);
-        osc3.connect(gain3);
-        gain3.connect(audioCtx.destination);
-        osc3.start(now + 0.2);
-        osc3.stop(now + 0.35);
-      };
+      // Fallback to default beep sound
+      playDefaultBeep();
       
-      if (ctx.state === 'suspended') {
-        ctx.resume().then(() => {
-          playTone(ctx);
-        }).catch((err) => {
-          console.warn("[Leads] Could not resume AudioContext:", err);
-        });
-      } else {
-        playTone(ctx);
+      function playDefaultBeep() {
+        try {
+          // Use existing AudioContext or create new one
+          const AudioContext = window.AudioContext || window.webkitAudioContext;
+          let ctx = audioContextRef.current;
+          
+          if (!ctx || ctx.state === 'closed') {
+            ctx = new AudioContext();
+            audioContextRef.current = ctx;
+          }
+          
+          // Always try to resume AudioContext (required for background tab playback)
+          // This is essential for WhatsApp/Instagram-like notifications
+          const resumeAndPlay = async () => {
+            if (ctx.state === 'suspended') {
+              try {
+                await ctx.resume();
+                console.log("[Leads] AudioContext resumed for notification");
+              } catch (resumeErr) {
+                console.warn("[Leads] Could not resume AudioContext for notification:", resumeErr);
+              }
+            }
+            
+            // Create a pleasant notification sound (three-tone chime)
+            const now = ctx.currentTime;
+            
+            // First tone: 523.25 Hz (C5) - 0.15s
+            const osc1 = ctx.createOscillator();
+            const gain1 = ctx.createGain();
+            osc1.type = 'sine';
+            osc1.frequency.setValueAtTime(523.25, now);
+            gain1.gain.setValueAtTime(0, now);
+            gain1.gain.linearRampToValueAtTime(0.4, now + 0.05);
+            gain1.gain.linearRampToValueAtTime(0, now + 0.15);
+            osc1.connect(gain1);
+            gain1.connect(ctx.destination);
+            osc1.start(now);
+            osc1.stop(now + 0.15);
+            
+            // Second tone: 659.25 Hz (E5) - 0.15s, starts at 0.1s
+            const osc2 = ctx.createOscillator();
+            const gain2 = ctx.createGain();
+            osc2.type = 'sine';
+            osc2.frequency.setValueAtTime(659.25, now);
+            gain2.gain.setValueAtTime(0, now + 0.1);
+            gain2.gain.linearRampToValueAtTime(0.4, now + 0.15);
+            gain2.gain.linearRampToValueAtTime(0, now + 0.25);
+            osc2.connect(gain2);
+            gain2.connect(ctx.destination);
+            osc2.start(now + 0.1);
+            osc2.stop(now + 0.25);
+            
+            // Third tone: 783.99 Hz (G5) - 0.15s, starts at 0.2s
+            const osc3 = ctx.createOscillator();
+            const gain3 = ctx.createGain();
+            osc3.type = 'sine';
+            osc3.frequency.setValueAtTime(783.99, now);
+            gain3.gain.setValueAtTime(0, now + 0.2);
+            gain3.gain.linearRampToValueAtTime(0.4, now + 0.25);
+            gain3.gain.linearRampToValueAtTime(0, now + 0.35);
+            osc3.connect(gain3);
+            gain3.connect(ctx.destination);
+            osc3.start(now + 0.2);
+            osc3.stop(now + 0.35);
+          };
+          
+          resumeAndPlay();
+        } catch (err) {
+          console.warn("[Leads] Could not play default beep sound:", err);
+        }
       }
     } catch (err) {
       console.warn("[Leads] Could not play notification sound:", err);
@@ -339,7 +409,32 @@ export default function Leads() {
         params.agentEmail = normalizedEmail;
       }
       const { data } = await API.get("/gmail/messages", { params });
-      const newMessages = data?.messages || [];
+      let newMessages = data?.messages || [];
+      
+      // Frontend filter: Remove read emails that aren't claimed/closed by current user
+      // This is a safety measure in case any read emails slip through from the backend
+      newMessages = newMessages.filter((msg) => {
+        const labelIds = msg.labelIds || [];
+        const isUnread = labelIds.includes("UNREAD");
+        const status = msg.status || "active";
+        
+        // Always show unread messages
+        if (isUnread) {
+          return true;
+        }
+        
+        // If message is read, only show if it's claimed/closed by current user
+        if (!isUnread) {
+          // Show if claimed/closed by current user
+          if ((status === "claimed" || status === "closed") && msg.claimedBy && userId && msg.claimedBy === userId) {
+            return true;
+          }
+          // Hide read emails that aren't claimed/closed by current user
+          return false;
+        }
+        
+        return true;
+      });
       
       if (silent) {
         // Silent update: only append new messages without showing loading
@@ -347,14 +442,21 @@ export default function Leads() {
           const existingIds = new Set(prevMessages.map(m => m._id || m.messageId));
           const newOnes = newMessages.filter(m => !existingIds.has(m._id || m.messageId));
           
-          // Filter to only fresh/active leads (not claimed or closed)
+          // Filter to only fresh/active leads (not claimed or closed AND unread)
           const freshLeads = newOnes.filter(m => {
             const status = m.status || "active";
-            return status === "active";
+            const labelIds = m.labelIds || [];
+            const isUnread = labelIds.includes("UNREAD");
+            
+            // Only consider it fresh if:
+            // 1. Status is active (unclaimed)
+            // 2. Has UNREAD label (not read in Gmail)
+            return status === "active" && isUnread;
           });
           
-          // Play notification sound only for fresh/active leads
+          // Play notification sound ONLY for fresh/active/unread leads
           if (freshLeads.length > 0) {
+            console.log(`[Leads] 🎉 ${freshLeads.length} fresh unread lead(s) detected! Playing notification sound.`);
             playNotificationSound();
           }
           
@@ -364,8 +466,36 @@ export default function Leads() {
           }
           
           // No new messages, but update existing ones in case status changed
+          // Also filter out any that became read (lost UNREAD label)
           const updatedMap = new Map(newMessages.map(m => [m._id || m.messageId, m]));
-          return prevMessages.map(m => updatedMap.get(m._id || m.messageId) || m);
+          return prevMessages
+            .map(m => {
+              const updated = updatedMap.get(m._id || m.messageId);
+              // If message was updated, use the updated version
+              // Otherwise keep the original
+              return updated || m;
+            })
+            .filter(m => {
+              // Filter out read emails that aren't claimed/closed by current user
+              const labelIds = m.labelIds || [];
+              const isUnread = labelIds.includes("UNREAD");
+              const status = m.status || "active";
+              
+              // Always keep unread messages
+              if (isUnread) {
+                return true;
+              }
+              
+              // If read, only keep if claimed/closed by current user
+              if (status === "claimed" || status === "closed") {
+                if (m.claimedBy && userId && m.claimedBy === userId) {
+                  return true;
+                }
+              }
+              
+              // Remove read emails that aren't claimed by current user
+              return false;
+            });
         });
       } else {
         setMessages(newMessages);
@@ -644,18 +774,19 @@ export default function Leads() {
     return hour >= 6 && hour < 20; // 6 AM to 8 PM Dallas time
   };
 
-  // Auto-refresh leads every 10 seconds (silent update) - only during Dallas daytime and when tab is visible
+  // Auto-refresh leads continuously - works like WhatsApp/Instagram: continues even in background tabs
+  // Continuous polling ensures read emails are removed immediately when they're read in Gmail
   useEffect(() => {
     if (viewMode !== "leads") return; // Only poll when in leads view
     
     let interval;
     
     const startPolling = () => {
-      // Poll every 10 seconds when tab is visible and during Dallas daytime
+      // Poll every 10 seconds continuously (not just during daytime)
+      // This ensures read emails are removed immediately when they're read in Gmail
+      // Works even when tab is hidden (like WhatsApp/Instagram notifications)
       interval = setInterval(() => {
-        if (!document.hidden && isDallasDaytime()) {
-          fetchMessages(true); // Silent fetch - no loading state
-        }
+        fetchMessages(true); // Silent fetch - no loading state
       }, 10000); // 10 seconds
     };
     
@@ -666,33 +797,21 @@ export default function Leads() {
       }
     };
     
-    // Start polling if tab is visible and it's daytime
-    if (!document.hidden && isDallasDaytime()) {
-      startPolling();
-    }
+    // Start polling immediately (regardless of tab visibility or time)
+    // This ensures read emails are removed as soon as they're read in Gmail
+    startPolling();
     
-    // Handle visibility changes - stop polling when tab is hidden
+    // Handle visibility changes - continue polling even when tab is hidden
+    // This allows notifications to work like WhatsApp/Instagram
     const handleVisibilityChange = () => {
-      if (document.hidden) {
-        stopPolling();
-      } else if (isDallasDaytime()) {
+      if (!interval) {
         startPolling();
-        // Immediately fetch when tab becomes visible during daytime
+      }
+      // Immediately fetch when tab becomes visible
+      if (!document.hidden) {
         fetchMessages(true);
       }
     };
-    
-    // Check every minute if we've entered/left daytime hours
-    const daytimeCheckInterval = setInterval(() => {
-      if (!document.hidden) {
-        if (isDallasDaytime() && !interval) {
-          startPolling();
-          fetchMessages(true);
-        } else if (!isDallasDaytime() && interval) {
-          stopPolling();
-        }
-      }
-    }, 60000); // Check every minute
     
     document.addEventListener("visibilitychange", handleVisibilityChange);
 
@@ -877,17 +996,41 @@ export default function Leads() {
 
   const filteredMessages = useMemo(() => {
     return messages.filter((msg) => {
+      // Filter out read emails that aren't claimed/closed by current user
+      const labelIds = msg.labelIds || [];
+      const isUnread = labelIds.includes("UNREAD");
+      const status = msg.status || "active";
+      
+      // If labelIds is missing or empty, treat as potentially read and check status
+      // If message is read (no UNREAD label), only show if claimed/closed by current user
+      if (!isUnread) {
+        // Show read emails only if they're claimed/closed by current user
+        if (status === "claimed" || status === "closed") {
+          if (msg.claimedBy && userId && msg.claimedBy === userId) {
+            // Continue with other filters - this is a claimed/closed lead by current user
+          } else {
+            return false; // Hide read emails that aren't claimed by current user
+          }
+        } else {
+          // Hide read emails that are active/unclaimed
+          // Also hide if labelIds is missing and status is active (likely read)
+          if (status === "active" && (!labelIds || labelIds.length === 0)) {
+            // If no labelIds and status is active, assume it might be read - hide it to be safe
+            return false;
+          }
+          return false;
+        }
+      }
+      
       // Filter out leads claimed by other users
       // Show:
-      // 1. Active (unclaimed) leads
+      // 1. Active (unclaimed) leads (must be unread)
       // 2. Leads claimed by the current logged-in user
       // 3. Leads closed by the current logged-in user
       // Hide:
       // - Leads claimed by other users
       
-      const status = msg.status || "active";
-      
-      // Always show active leads
+      // Always show active leads (they should be unread at this point)
       if (status === "active") {
         // Continue with other filters below
       } else if (status === "claimed" || status === "closed") {

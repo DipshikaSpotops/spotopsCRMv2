@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { STATES } from "../data/states";
-const SALES_AGENTS = ["David", "Dipshika", "John", "Mark", "Michael", "Richard", "Tristan"];
 const REQUIRED_FIELD_LABELS = {
   orderNo: "Order No",
   salesAgent: "Sales Agent",
@@ -38,14 +37,6 @@ const getStoredFirstName = () => {
   if (typeof window === "undefined") return "";
   const stored = localStorage.getItem("firstName");
   return stored ? stored.trim() : "";
-};
-
-const resolveSalesAgentValue = (value) => {
-  if (!value) return "";
-  const match = SALES_AGENTS.find(
-    (agent) => agent.toLowerCase() === value.toLowerCase()
-  );
-  return match || value;
 };
 
 const buildInitialFormData = (defaultSalesAgent = "") => ({
@@ -135,17 +126,48 @@ function Toast({ toast, onClose }) {
 
 export default function AddOrder() {
   const navigate = useNavigate();
+  const [salesAgents, setSalesAgents] = useState([]);
+  
+  // Fetch all sales agents from API
+  useEffect(() => {
+    const fetchSalesAgents = async () => {
+      try {
+        const { data } = await API.get("/users", { params: { role: "Sales" } });
+        // Extract firstName from users and sort alphabetically
+        const agentNames = data
+          .map(user => user.firstName)
+          .filter(Boolean)
+          .sort();
+        setSalesAgents(agentNames);
+      } catch (err) {
+        console.error("Error fetching sales agents:", err);
+        // Fallback to hardcoded list if API fails
+        setSalesAgents(["David", "Dipshika", "John", "Mark", "Michael", "Nik", "Richard", "Tristan"]);
+      }
+    };
+    fetchSalesAgents();
+  }, []);
+
+  const resolveSalesAgentValue = useCallback((value, agents) => {
+    if (!value || !agents.length) return "";
+    const match = agents.find(
+      (agent) => agent.toLowerCase() === value.toLowerCase()
+    );
+    return match || value;
+  }, []);
+
   const defaultSalesAgent = useMemo(
-    () => resolveSalesAgentValue(getStoredFirstName()),
-    []
+    () => resolveSalesAgentValue(getStoredFirstName(), salesAgents),
+    [salesAgents, resolveSalesAgentValue]
   );
+  
   const salesAgentOptions = useMemo(() => {
-    if (!defaultSalesAgent) return SALES_AGENTS;
-    const exists = SALES_AGENTS.some(
+    if (!defaultSalesAgent) return salesAgents;
+    const exists = salesAgents.some(
       (agent) => agent.toLowerCase() === defaultSalesAgent.toLowerCase()
     );
-    return exists ? SALES_AGENTS : [defaultSalesAgent, ...SALES_AGENTS];
-  }, [defaultSalesAgent]);
+    return exists ? salesAgents : [defaultSalesAgent, ...salesAgents];
+  }, [defaultSalesAgent, salesAgents]);
   const [toast, setToast] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [formData, setFormData] = useState(() =>

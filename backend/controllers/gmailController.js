@@ -412,6 +412,28 @@ export async function listMessagesHandler(req, res, next) {
             }
           }
           
+          // Check if message is actually unread (has UNREAD label)
+          // If message was read in Gmail, it won't have UNREAD in labelIds
+          const labelIds = fullMessage.data.labelIds || [];
+          const isUnread = labelIds.includes("UNREAD");
+          
+          // STRICT FILTER: Only show unread messages OR messages already claimed/closed in our database
+          // If message is read in Gmail and not in our database, skip it completely
+          if (!isUnread) {
+            if (!dbRecord) {
+              // Message is read in Gmail and not in our database - skip it
+              console.log(`[listMessages] ⏭️ Skipping message ${msg.id} - already read in Gmail (no UNREAD label) and not in database`);
+              continue;
+            } else {
+              // Message is read in Gmail but exists in our database (was previously claimed/closed)
+              // Include it so users can see their claimed/closed leads
+              console.log(`[listMessages] ✅ Including read message ${msg.id} - exists in database with status: ${dbRecord.status}`);
+            }
+          } else {
+            // Message is unread - always include it
+            console.log(`[listMessages] ✅ Including unread message ${msg.id}`);
+          }
+          
           // Extract message data
           const headers = fullMessage.data.payload?.headers || [];
           const subject = headers.find(h => h.name === "Subject")?.value || "";
@@ -431,7 +453,7 @@ export async function listMessagesHandler(req, res, next) {
             snippet: fullMessage.data.snippet || "",
             agentEmail: detectedAgent,
             userEmail: gmailUserEmail,
-            labelIds: fullMessage.data.labelIds || [],
+            labelIds: labelIds,
             internalDate: fullMessage.data.internalDate ? new Date(Number(fullMessage.data.internalDate)) : new Date(),
             // Merge with database record if claimed, otherwise use messageId as temporary _id
             ...(dbRecord ? {
