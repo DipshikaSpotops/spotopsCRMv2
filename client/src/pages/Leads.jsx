@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import { formatDistanceToNow } from "date-fns";
 import { formatInTimeZone } from "date-fns-tz";
+import moment from "moment-timezone";
 import API from "../api";
 import AgentDropdown from "../components/AgentDropdown";
 import UnifiedDatePicker from "../components/UnifiedDatePicker";
@@ -209,16 +210,21 @@ export default function Leads() {
   const [statistics, setStatistics] = useState(null);
   const [loadingStats, setLoadingStats] = useState(false);
   const [dateFilter, setDateFilter] = useState(() => {
-    // Default to 30 days ago to today
-    const end = new Date();
-    const start = new Date();
-    start.setDate(start.getDate() - 30);
+    // Default to today (start and end both today) in Dallas timezone
+    const ZONE = "America/Chicago";
+    const todayDallas = moment.tz(ZONE);
+    const startDallas = todayDallas.clone().startOf("day");
+    const endDallas = todayDallas.clone().endOf("day");
+    const startUTC = startDallas.utc().format(); // ISO string in UTC
+    const endUTC = endDallas.utc().format(); // ISO string in UTC
     return {
-      start: start.toISOString(),
-      end: end.toISOString(),
+      start: startUTC,
+      end: endUTC,
     };
   });
   const [selectedAgentForStats, setSelectedAgentForStats] = useState(null);
+  const [allSalesAgents, setAllSalesAgents] = useState([]); // For admin dropdown - stores emails
+  const [emailToNameMap, setEmailToNameMap] = useState(new Map()); // Maps email -> firstName
 
   const normalizedEmail = email?.toLowerCase();
 
@@ -411,30 +417,41 @@ export default function Leads() {
       const { data } = await API.get("/gmail/messages", { params });
       let newMessages = data?.messages || [];
       
+      console.log(`[Leads] Fetched ${newMessages.length} messages from API. isAdmin: ${isAdmin}, role: ${role}`);
+      if (isAdmin) {
+        const claimedLeads = newMessages.filter(m => m.status === "claimed" || m.status === "closed");
+        const uniqueClaimedBy = [...new Set(claimedLeads.map(m => m.claimedBy).filter(Boolean))];
+        console.log(`[Leads] Admin view - Total claimed/closed leads: ${claimedLeads.length}, claimedBy IDs: ${uniqueClaimedBy.length}`);
+      }
+      
       // Frontend filter: Remove read emails that aren't claimed/closed by current user
       // This is a safety measure in case any read emails slip through from the backend
-      newMessages = newMessages.filter((msg) => {
-        const labelIds = msg.labelIds || [];
-        const isUnread = labelIds.includes("UNREAD");
-        const status = msg.status || "active";
-        
-        // Always show unread messages
-        if (isUnread) {
-          return true;
-        }
-        
-        // If message is read, only show if it's claimed/closed by current user
-        if (!isUnread) {
-          // Show if claimed/closed by current user
-          if ((status === "claimed" || status === "closed") && msg.claimedBy && userId && msg.claimedBy === userId) {
+      // Admin users can see ALL leads, so skip this filtering for Admin
+      if (!isAdmin) {
+        newMessages = newMessages.filter((msg) => {
+          const labelIds = msg.labelIds || [];
+          const isUnread = labelIds.includes("UNREAD");
+          const status = msg.status || "active";
+          
+          // Always show unread messages
+          if (isUnread) {
             return true;
           }
-          // Hide read emails that aren't claimed/closed by current user
-          return false;
-        }
-        
-        return true;
-      });
+          
+          // If message is read, only show if it's claimed/closed by current user
+          if (!isUnread) {
+            // Show if claimed/closed by current user
+            if ((status === "claimed" || status === "closed") && msg.claimedBy && userId && msg.claimedBy === userId) {
+              return true;
+            }
+            // Hide read emails that aren't claimed/closed by current user
+            return false;
+          }
+          
+          return true;
+        });
+      }
+      // Admin users see all messages (no filtering by claimedBy)
       
       if (silent) {
         // Silent update: only append new messages without showing loading
@@ -636,6 +653,7 @@ export default function Leads() {
     setLoadingStats(true);
     setError("");
     try {
+      console.log("[Leads] fetchStatistics called with dateFilter:", dateFilter);
       const params = {};
       if (dateFilter?.start) {
         // UnifiedDatePicker sends UTC ISO strings representing Dallas day boundaries
@@ -643,11 +661,13 @@ export default function Leads() {
         // The UTC string represents the start of day in Dallas timezone
         const startDateStr = dateFilter.start.split("T")[0]; // Extract YYYY-MM-DD
         params.startDate = startDateStr;
+        console.log("[Leads] Extracted startDate:", startDateStr);
       }
       if (dateFilter?.end) {
         // Extract the date part (YYYY-MM-DD) from the UTC ISO string
         const endDateStr = dateFilter.end.split("T")[0]; // Extract YYYY-MM-DD
         params.endDate = endDateStr;
+        console.log("[Leads] Extracted endDate:", endDateStr);
       }
       // Use selectedAgentForStats if set, otherwise use sales user's email
       if (selectedAgentForStats && selectedAgentForStats !== "All") {
@@ -657,8 +677,13 @@ export default function Leads() {
       }
       console.log("[Leads] Fetching statistics with params:", params);
       console.log("[Leads] Selected agent for stats:", selectedAgentForStats);
+      console.log("[Leads] Is Admin:", isAdmin, "Is Sales:", isSales);
+      console.log("[Leads] Date filter:", dateFilter);
       const { data } = await API.get("/gmail/statistics/daily", { params });
       console.log("[Leads] Statistics response:", data);
+      console.log("[Leads] Daily stats count:", data?.dailyStats?.length || 0);
+      console.log("[Leads] Agent stats count:", data?.agentStats?.length || 0);
+      console.log("[Leads] Total leads:", data?.totalLeads || 0);
       setStatistics(data);
     } catch (err) {
       console.error("[Leads] fetch statistics error", err);
@@ -678,9 +703,51 @@ export default function Leads() {
 
   useEffect(() => {
     if (viewMode === "statistics") {
+      // Always auto-fetch when entering statistics view (dateFilter defaults to today)
       fetchStatistics();
     }
   }, [viewMode, fetchStatistics]);
+
+  // Fetch all sales agents for admin users (so dropdown shows even before statistics load)
+  useEffect(() => {
+    if (!isAdmin) return;
+    
+    const fetchSalesAgents = async () => {
+      try {
+        const { data } = await API.get("/users", { params: { role: "Sales" } });
+        // Extract emails from sales users
+        const emails = data
+          .map(user => user.email?.toLowerCase())
+          .filter(Boolean);
+        setAllSalesAgents(emails);
+        
+        // Create email -> firstName mapping
+        const emailMap = new Map();
+        data.forEach(user => {
+          if (user.email && user.firstName) {
+            emailMap.set(user.email.toLowerCase(), user.firstName);
+          }
+        });
+        setEmailToNameMap(emailMap);
+        console.log("[Leads] Fetched sales agents for dropdown:", emails);
+        console.log("[Leads] Email to name map:", Object.fromEntries(emailMap));
+      } catch (err) {
+        console.error("[Leads] Error fetching sales agents:", err);
+      }
+    };
+    
+    fetchSalesAgents();
+  }, [isAdmin]);
+
+  // Auto-refresh statistics when date filter or agent selection changes (only when in statistics view)
+  useEffect(() => {
+    if (viewMode !== "statistics") return;
+    
+    // Only auto-fetch if we have a date filter set
+    if (dateFilter?.start || dateFilter?.end) {
+      fetchStatistics();
+    }
+  }, [dateFilter, selectedAgentForStats, viewMode, fetchStatistics]);
 
   // Fetch the source email address - try API first, then messages
   useEffect(() => {
@@ -817,7 +884,6 @@ export default function Leads() {
 
     return () => {
       stopPolling();
-      clearInterval(daytimeCheckInterval);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, [fetchMessages, viewMode]);
@@ -986,67 +1052,115 @@ export default function Leads() {
     return [...opts, ...sorted];
   }, [messages]);
 
-  // Get agent options from statistics if available
-  const statsAgentOptions = useMemo(() => {
-    if (!statistics?.agentStats) return ["All"];
-    const opts = ["All"];
-    const emails = statistics.agentStats.map(a => a.agentEmail?.toLowerCase()).filter(Boolean);
-    return [...opts, ...new Set(emails)].sort();
+  // Update email->name map when statistics load
+  useEffect(() => {
+    if (statistics?.agentStats && statistics.agentStats.length > 0) {
+      setEmailToNameMap(prevMap => {
+        const newMap = new Map(prevMap);
+        let updated = false;
+        statistics.agentStats.forEach(agent => {
+          if (agent.agentEmail && agent.agentName) {
+            const emailKey = agent.agentEmail.toLowerCase();
+            if (!newMap.has(emailKey)) {
+              newMap.set(emailKey, agent.agentName);
+              updated = true;
+            }
+          }
+        });
+        return updated ? newMap : prevMap;
+      });
+    }
   }, [statistics]);
 
+  // Get agent options from statistics if available, otherwise use allSalesAgents or agentOptions
+  // Values are emails (for API calls), but we'll display firstName in the dropdown
+  const statsAgentOptions = useMemo(() => {
+    const opts = ["All"];
+    
+    // If we have statistics with agent stats, use those emails (they're the ones with leads)
+    if (statistics?.agentStats && statistics.agentStats.length > 0) {
+      const emails = statistics.agentStats.map(a => a.agentEmail?.toLowerCase()).filter(Boolean);
+      return [...opts, ...new Set(emails)].sort();
+    }
+    
+    // For admin users, use allSalesAgents (fetched from backend) or agentOptions as fallback
+    if (isAdmin) {
+      if (allSalesAgents.length > 0) {
+        return [...opts, ...allSalesAgents].sort();
+      } else if (agentOptions && agentOptions.length > 1) {
+        // Filter out "Select" and "All" if they exist
+        const filtered = agentOptions.filter(opt => opt !== "Select" && opt !== "All");
+        return ["All", ...new Set(filtered.map(opt => opt.toLowerCase()))].sort();
+      }
+    }
+    
+    // Default fallback
+    return opts;
+  }, [statistics, allSalesAgents, agentOptions, isAdmin]);
+
   const filteredMessages = useMemo(() => {
+    console.log(`[Leads] filteredMessages - isAdmin: ${isAdmin}, total messages: ${messages.length}`);
+    if (isAdmin) {
+      const claimedLeads = messages.filter(m => m.status === "claimed" || m.status === "closed");
+      console.log(`[Leads] Admin view - Claimed/closed leads in messages: ${claimedLeads.length}`);
+    }
+    
     return messages.filter((msg) => {
-      // Filter out read emails that aren't claimed/closed by current user
-      const labelIds = msg.labelIds || [];
-      const isUnread = labelIds.includes("UNREAD");
-      const status = msg.status || "active";
-      
-      // If labelIds is missing or empty, treat as potentially read and check status
-      // If message is read (no UNREAD label), only show if claimed/closed by current user
-      if (!isUnread) {
-        // Show read emails only if they're claimed/closed by current user
-        if (status === "claimed" || status === "closed") {
-          if (msg.claimedBy && userId && msg.claimedBy === userId) {
-            // Continue with other filters - this is a claimed/closed lead by current user
+      // Admin users can see ALL leads (claimed by anyone), so skip all claimedBy filtering for Admin
+      if (!isAdmin) {
+        // Filter out read emails that aren't claimed/closed by current user (Sales users only)
+        const labelIds = msg.labelIds || [];
+        const isUnread = labelIds.includes("UNREAD");
+        const status = msg.status || "active";
+        
+        // If labelIds is missing or empty, treat as potentially read and check status
+        // If message is read (no UNREAD label), only show if claimed/closed by current user
+        if (!isUnread) {
+          // Show read emails only if they're claimed/closed by current user
+          if (status === "claimed" || status === "closed") {
+            if (msg.claimedBy && userId && msg.claimedBy === userId) {
+              // Continue with other filters - this is a claimed/closed lead by current user
+            } else {
+              return false; // Hide read emails that aren't claimed by current user
+            }
           } else {
-            return false; // Hide read emails that aren't claimed by current user
-          }
-        } else {
-          // Hide read emails that are active/unclaimed
-          // Also hide if labelIds is missing and status is active (likely read)
-          if (status === "active" && (!labelIds || labelIds.length === 0)) {
-            // If no labelIds and status is active, assume it might be read - hide it to be safe
+            // Hide read emails that are active/unclaimed
+            // Also hide if labelIds is missing and status is active (likely read)
+            if (status === "active" && (!labelIds || labelIds.length === 0)) {
+              // If no labelIds and status is active, assume it might be read - hide it to be safe
+              return false;
+            }
             return false;
           }
-          return false;
+        }
+        
+        // Filter out leads claimed by other users (Sales users only)
+        // Show:
+        // 1. Active (unclaimed) leads (must be unread)
+        // 2. Leads claimed by the current logged-in user
+        // 3. Leads closed by the current logged-in user
+        // Hide:
+        // - Leads claimed by other users
+        
+        // Always show active leads (they should be unread at this point)
+        if (status === "active") {
+          // Continue with other filters below
+        } else if (status === "claimed" || status === "closed") {
+          // Only show if claimed by current user
+          if (msg.claimedBy && userId && msg.claimedBy !== userId) {
+            return false; // Hide leads claimed by other users
+          }
+        }
+        
+        // For sales agents: only show unclaimed leads or leads claimed by them
+        if (isSales && normalizedEmail) {
+          // If lead is claimed by another agent, don't show it
+          if (msg.agentEmail && msg.agentEmail.toLowerCase() !== normalizedEmail) {
+            return false;
+          }
         }
       }
-      
-      // Filter out leads claimed by other users
-      // Show:
-      // 1. Active (unclaimed) leads (must be unread)
-      // 2. Leads claimed by the current logged-in user
-      // 3. Leads closed by the current logged-in user
-      // Hide:
-      // - Leads claimed by other users
-      
-      // Always show active leads (they should be unread at this point)
-      if (status === "active") {
-        // Continue with other filters below
-      } else if (status === "claimed" || status === "closed") {
-        // Only show if claimed by current user
-        if (msg.claimedBy && userId && msg.claimedBy !== userId) {
-          return false; // Hide leads claimed by other users
-        }
-      }
-      
-      // For sales agents: only show unclaimed leads or leads claimed by them
-      if (isSales && normalizedEmail) {
-        // If lead is claimed by another agent, don't show it
-        if (msg.agentEmail && msg.agentEmail.toLowerCase() !== normalizedEmail) {
-          return false;
-        }
-      }
+      // Admin users: no filtering by claimedBy - they see all leads
       
       const matchesAgent =
         isSales ||
@@ -1063,7 +1177,7 @@ export default function Leads() {
       }`.toLowerCase();
       return haystack.includes(search.toLowerCase());
     });
-  }, [messages, agentFilter, search, isSales, normalizedEmail, userId]);
+  }, [messages, agentFilter, search, isSales, isAdmin, normalizedEmail, userId]);
 
   const parsedFields = useMemo(() => {
     if (!selectedMessage?.bodyHtml) return [];
@@ -1185,17 +1299,28 @@ export default function Leads() {
           <div className="flex flex-wrap items-center gap-4 mb-2">
             {/* Agent dropdown and Select Range button together */}
             <div className="flex items-center gap-3">
-              {/* Agent dropdown - only visible to Admin */}
+              {/* Agent dropdown - always visible to Admin */}
               {isAdmin && (
                 <div className="flex items-center gap-2">
                   <label className="text-sm text-white/90 whitespace-nowrap">Agent:</label>
-                  <AgentDropdown
-                    options={statsAgentOptions.length > 1 ? statsAgentOptions : ["All"]}
+                  <select
                     value={selectedAgentForStats || "All"}
-                    onChange={(value) => {
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      console.log("[Leads] Agent selection changed:", value, "Setting to:", value === "All" ? null : value);
                       setSelectedAgentForStats(value === "All" ? null : value);
                     }}
-                  />
+                    className="px-3 py-2 rounded-md bg-[#04356d] hover:bg-[#3b89bf] text-white border border-white/20 text-sm text-center focus:outline-none focus:ring-2 focus:ring-white/30 cursor-pointer"
+                  >
+                    {statsAgentOptions.map((email) => (
+                      <option key={email} value={email}>
+                        {email === "All" 
+                          ? "All" 
+                          : emailToNameMap.get(email.toLowerCase()) || email
+                        }
+                      </option>
+                    ))}
+                  </select>
                 </div>
               )}
               <UnifiedDatePicker
@@ -1297,23 +1422,38 @@ export default function Leads() {
                 <h2 className="text-xl font-bold text-white mb-4">Agent Statistics</h2>
                 <div className="space-y-3">
                   {statistics.agentStats && statistics.agentStats.length > 0 ? (
-                    statistics.agentStats.map((agent) => (
+                    statistics.agentStats.map((agent) => {
+                      // Use agentEmail for comparison since dropdown uses emails
+                      const agentEmailLower = agent.agentEmail?.toLowerCase() || "";
+                      const isSelected = selectedAgentForStats && selectedAgentForStats.toLowerCase() === agentEmailLower;
+                      
+                      return (
                       <div
                         key={agent.agentId}
                         className="rounded-lg border border-white/20 bg-white/5 p-4 cursor-pointer hover:bg-white/10 transition"
-                        onClick={() => setSelectedAgentForStats(selectedAgentForStats === agent.agentId ? null : agent.agentId)}
+                        onClick={() => {
+                          // Use agentEmail to match dropdown values
+                          const newValue = isSelected ? null : agentEmailLower;
+                          console.log("[Leads] Agent card clicked:", agent.agentName, "Setting to:", newValue);
+                          setSelectedAgentForStats(newValue);
+                        }}
                       >
                         <div className="flex items-center justify-between">
                           <div>
                             <div className="font-semibold text-white">{agent.agentName}</div>
                             <div className="text-sm text-white/70">{agent.agentEmail}</div>
+                            {agent.avgResponseTimeFormatted && (
+                              <div className="text-xs text-green-400 mt-1">
+                                ⏱️ Avg Response: {agent.avgResponseTimeFormatted}
+                              </div>
+                            )}
                           </div>
                           <div className="text-right">
                             <div className="text-2xl font-bold text-blue-400">{agent.totalLeads}</div>
                             <div className="text-xs text-white/60">leads claimed</div>
                           </div>
                         </div>
-                        {selectedAgentForStats === agent.agentId && (
+                        {isSelected && (
                           <div className="mt-4 pt-4 border-t border-white/20">
                             <div className="text-sm font-semibold text-white/90 mb-2">Leads:</div>
                             <div className="space-y-2 max-h-60 overflow-y-auto">
@@ -1327,7 +1467,6 @@ export default function Leads() {
                                     setViewMode("leads");
                                   }}
                                 >
-                                  <div className="font-semibold text-white mb-2">{lead.subject || "(no subject)"}</div>
                                   <div className="space-y-1 text-xs text-white/70">
                                     {lead.name && <div><span className="font-medium">Name:</span> {lead.name}</div>}
                                     {lead.email && <div><span className="font-medium">Email:</span> {lead.email}</div>}
@@ -1337,16 +1476,76 @@ export default function Leads() {
                                         <span className="font-medium">Vehicle:</span> {[lead.year, lead.make, lead.model].filter(Boolean).join(" ")}
                                       </div>
                                     )}
-                                    {lead.partRequired && <div><span className="font-medium">Part:</span> {lead.partRequired}</div>}
-                                    <div><span className="font-medium">From:</span> {lead.from}</div>
-                                    <div><span className="font-medium">Claimed:</span> {new Date(lead.claimedAt).toLocaleString()}</div>
-                                    {lead.labels && lead.labels.length > 0 && (
-                                      <div className="flex flex-wrap gap-1 mt-2">
-                                        {lead.labels.map((label, idx) => (
-                                          <span key={idx} className="px-2 py-0.5 rounded-full border border-white/20 text-xs bg-purple-500/30 text-purple-200">
-                                            {label}
-                                          </span>
-                                        ))}
+                                    {lead.partRequired && <div><span className="font-medium">Part Required:</span> {lead.partRequired}</div>}
+                                    {/* Timeline Section */}
+                                    {(lead.enteredAt || lead.claimedAt) && (
+                                      <div className="mt-2 pt-2 border-t border-white/10 space-y-1">
+                                        <div className="text-xs font-semibold text-white/80 mb-1">Timeline:</div>
+                                        {lead.enteredAt && (
+                                          <div>
+                                            <span className="font-medium text-blue-300">📥 Entered System:</span>{" "}
+                                            <span className="text-white/70">
+                                              {new Date(lead.enteredAt).toLocaleString("en-US", {
+                                                timeZone: "America/Chicago",
+                                                month: "short",
+                                                day: "numeric",
+                                                year: "numeric",
+                                                hour: "numeric",
+                                                minute: "2-digit",
+                                                second: "2-digit",
+                                                hour12: true,
+                                              })}
+                                            </span>
+                                          </div>
+                                        )}
+                                        {lead.claimedAt && (
+                                          <div>
+                                            <span className="font-medium text-green-300">✅ Claimed:</span>{" "}
+                                            <span className="text-white/70">
+                                              {new Date(lead.claimedAt).toLocaleString("en-US", {
+                                                timeZone: "America/Chicago",
+                                                month: "short",
+                                                day: "numeric",
+                                                year: "numeric",
+                                                hour: "numeric",
+                                                minute: "2-digit",
+                                                second: "2-digit",
+                                                hour12: true,
+                                              })}
+                                            </span>
+                                          </div>
+                                        )}
+                                        {lead.enteredAt && lead.claimedAt && (
+                                          (() => {
+                                            const entered = new Date(lead.enteredAt);
+                                            const claimed = new Date(lead.claimedAt);
+                                            const diffMs = claimed - entered;
+                                            const diffSeconds = diffMs / 1000;
+                                            const diffMinutes = diffSeconds / 60;
+                                            let timeDiffFormatted = "";
+                                            if (diffSeconds < 60) {
+                                              timeDiffFormatted = `${diffSeconds.toFixed(1)} sec`;
+                                            } else if (diffMinutes < 60) {
+                                              const mins = Math.floor(diffMinutes);
+                                              const secs = Math.round((diffMinutes - mins) * 60);
+                                              timeDiffFormatted = secs > 0 ? `${mins} min ${secs} sec` : `${mins} min`;
+                                            } else if (diffMinutes < 1440) {
+                                              const hours = Math.floor(diffMinutes / 60);
+                                              const mins = Math.round(diffMinutes % 60);
+                                              timeDiffFormatted = `${hours}h ${mins}m`;
+                                            } else {
+                                              const days = Math.floor(diffMinutes / 1440);
+                                              const hours = Math.floor((diffMinutes % 1440) / 60);
+                                              timeDiffFormatted = `${days}d ${hours}h`;
+                                            }
+                                            return (
+                                              <div>
+                                                <span className="font-medium text-purple-300">⏱️ Response Time:</span>{" "}
+                                                <span className="text-white/70">{timeDiffFormatted}</span>
+                                              </div>
+                                            );
+                                          })()
+                                        )}
                                       </div>
                                     )}
                                   </div>
@@ -1356,7 +1555,8 @@ export default function Leads() {
                           </div>
                         )}
                       </div>
-                    ))
+                      );
+                    })
                   ) : (
                     <div className="text-center py-8 text-white/80">No agent statistics found for this date range.</div>
                   )}
@@ -1399,7 +1599,6 @@ export default function Leads() {
                                         setViewMode("leads");
                                       }}
                                     >
-                                      <div className="font-medium text-white mb-1">{lead.subject || "(no subject)"}</div>
                                       <div className="space-y-0.5 text-white/70">
                                         {lead.name && <div><span className="font-medium">Name:</span> {lead.name}</div>}
                                         {lead.email && <div><span className="font-medium">Email:</span> {lead.email}</div>}
@@ -1409,9 +1608,78 @@ export default function Leads() {
                                             <span className="font-medium">Vehicle:</span> {[lead.year, lead.make, lead.model].filter(Boolean).join(" ")}
                                           </div>
                                         )}
-                                        {lead.partRequired && <div><span className="font-medium">Part:</span> {lead.partRequired}</div>}
-                                        <div><span className="font-medium">From:</span> {lead.from}</div>
-                                        <div><span className="font-medium">Claimed:</span> {new Date(lead.claimedAt).toLocaleString()}</div>
+                                        {lead.partRequired && <div><span className="font-medium">Part Required:</span> {lead.partRequired}</div>}
+                                        {/* Timeline Section */}
+                                        {(lead.enteredAt || lead.claimedAt) && (
+                                          <div className="mt-1 pt-1 border-t border-white/10 space-y-0.5">
+                                            <div className="text-xs font-semibold text-white/80 mb-0.5">Timeline:</div>
+                                            {lead.enteredAt && (
+                                              <div>
+                                                <span className="font-medium text-blue-300">📥 Entered System:</span>{" "}
+                                                <span className="text-white/70">
+                                                  {new Date(lead.enteredAt).toLocaleString("en-US", {
+                                                    timeZone: "America/Chicago",
+                                                    month: "short",
+                                                    day: "numeric",
+                                                    year: "numeric",
+                                                    hour: "numeric",
+                                                    minute: "2-digit",
+                                                    second: "2-digit",
+                                                    hour12: true,
+                                                  })}
+                                                </span>
+                                              </div>
+                                            )}
+                                            {lead.claimedAt && (
+                                              <div>
+                                                <span className="font-medium text-green-300">✅ Claimed:</span>{" "}
+                                                <span className="text-white/70">
+                                                  {new Date(lead.claimedAt).toLocaleString("en-US", {
+                                                    timeZone: "America/Chicago",
+                                                    month: "short",
+                                                    day: "numeric",
+                                                    year: "numeric",
+                                                    hour: "numeric",
+                                                    minute: "2-digit",
+                                                    second: "2-digit",
+                                                    hour12: true,
+                                                  })}
+                                                </span>
+                                              </div>
+                                            )}
+                                            {lead.enteredAt && lead.claimedAt && (
+                                              (() => {
+                                                const entered = new Date(lead.enteredAt);
+                                                const claimed = new Date(lead.claimedAt);
+                                                const diffMs = claimed - entered;
+                                                const diffSeconds = diffMs / 1000;
+                                                const diffMinutes = diffSeconds / 60;
+                                                let timeDiffFormatted = "";
+                                                if (diffSeconds < 60) {
+                                                  timeDiffFormatted = `${diffSeconds.toFixed(1)} sec`;
+                                                } else if (diffMinutes < 60) {
+                                                  const mins = Math.floor(diffMinutes);
+                                                  const secs = Math.round((diffMinutes - mins) * 60);
+                                                  timeDiffFormatted = secs > 0 ? `${mins} min ${secs} sec` : `${mins} min`;
+                                                } else if (diffMinutes < 1440) {
+                                                  const hours = Math.floor(diffMinutes / 60);
+                                                  const mins = Math.round(diffMinutes % 60);
+                                                  timeDiffFormatted = `${hours}h ${mins}m`;
+                                                } else {
+                                                  const days = Math.floor(diffMinutes / 1440);
+                                                  const hours = Math.floor((diffMinutes % 1440) / 60);
+                                                  timeDiffFormatted = `${days}d ${hours}h`;
+                                                }
+                                                return (
+                                                  <div>
+                                                    <span className="font-medium text-purple-300">⏱️ Response Time:</span>{" "}
+                                                    <span className="text-white/70">{timeDiffFormatted}</span>
+                                                  </div>
+                                                );
+                                              })()
+                                            )}
+                                          </div>
+                                        )}
                                       </div>
                                     </div>
                                   ))}
@@ -1519,13 +1787,18 @@ export default function Leads() {
                         <div className="text-xs text-white/70">
                       {msg.from || "—"}
                     </div>
-                        <div className="text-xs text-white/60">
-                      {msg.internalDate
-                        ? formatDistanceToNow(new Date(msg.internalDate), {
-                            addSuffix: true,
-                          })
-                        : ""}
-                    </div>
+                        {msg.claimedAt && (
+                          <div className="text-xs text-green-300" title={`Claimed: ${new Date(msg.claimedAt).toLocaleString()}`}>
+                            ✅ {formatDistanceToNow(new Date(msg.claimedAt), { addSuffix: true })}
+                          </div>
+                        )}
+                        {!msg.claimedAt && msg.internalDate && (
+                          <div className="text-xs text-white/60">
+                            {formatDistanceToNow(new Date(msg.internalDate), {
+                              addSuffix: true,
+                            })}
+                          </div>
+                        )}
                         {msg.status === "closed" && (
                           <span className="text-xs text-purple-300/80 italic">Closed</span>
                         )}
@@ -1593,6 +1866,80 @@ export default function Leads() {
                   <b>From:</b> {selectedMessage.from || "—"}
                 </div>
               </div>
+
+              {/* Timestamps: Entered and Claimed */}
+              {(selectedMessage.enteredAt || selectedMessage.claimedAt) && (
+                <div className="rounded-xl border border-white/20 bg-white/5 p-4 space-y-2">
+                  <div className="text-sm font-semibold text-white/90 mb-2">Timeline:</div>
+                  {selectedMessage.enteredAt && (
+                    <div className="text-sm text-white/80">
+                      <span className="font-medium text-blue-300">📥 Entered System:</span>{" "}
+                      <span className="text-white/70">
+                        {new Date(selectedMessage.enteredAt).toLocaleString("en-US", {
+                          timeZone: "America/Chicago",
+                          month: "short",
+                          day: "numeric",
+                          year: "numeric",
+                          hour: "numeric",
+                          minute: "2-digit",
+                          second: "2-digit",
+                          hour12: true,
+                        })}
+                      </span>
+                    </div>
+                  )}
+                  {selectedMessage.claimedAt && (
+                    <div className="text-sm text-white/80">
+                      <span className="font-medium text-green-300">✅ Claimed:</span>{" "}
+                      <span className="text-white/70">
+                        {new Date(selectedMessage.claimedAt).toLocaleString("en-US", {
+                          timeZone: "America/Chicago",
+                          month: "short",
+                          day: "numeric",
+                          year: "numeric",
+                          hour: "numeric",
+                          minute: "2-digit",
+                          second: "2-digit",
+                          hour12: true,
+                        })}
+                      </span>
+                    </div>
+                  )}
+                  {selectedMessage.enteredAt && selectedMessage.claimedAt && (
+                    (() => {
+                      const entered = new Date(selectedMessage.enteredAt);
+                      const claimed = new Date(selectedMessage.claimedAt);
+                      const diffMs = claimed - entered;
+                      const diffSeconds = diffMs / 1000;
+                      const diffMinutes = diffSeconds / 60;
+                      let timeDiffFormatted = "";
+                      if (diffSeconds < 60) {
+                        // Show seconds with up to 1 decimal place
+                        timeDiffFormatted = `${diffSeconds.toFixed(1)} sec`;
+                      } else if (diffMinutes < 60) {
+                        // Show minutes and seconds if less than 60 minutes
+                        const mins = Math.floor(diffMinutes);
+                        const secs = Math.round((diffMinutes - mins) * 60);
+                        timeDiffFormatted = secs > 0 ? `${mins} min ${secs} sec` : `${mins} min`;
+                      } else if (diffMinutes < 1440) {
+                        const hours = Math.floor(diffMinutes / 60);
+                        const mins = Math.round(diffMinutes % 60);
+                        timeDiffFormatted = `${hours}h ${mins}m`;
+                      } else {
+                        const days = Math.floor(diffMinutes / 1440);
+                        const hours = Math.floor((diffMinutes % 1440) / 60);
+                        timeDiffFormatted = `${days}d ${hours}h`;
+                      }
+                      return (
+                        <div className="text-sm text-white/80 mt-2 pt-2 border-t border-white/10">
+                          <span className="font-medium text-purple-300">⏱️ Response Time:</span>{" "}
+                          <span className="text-white/70">{timeDiffFormatted}</span>
+                        </div>
+                      );
+                    })()
+                  )}
+                </div>
+              )}
 
               {/* Status and Actions */}
               <div className="space-y-3">
@@ -1777,20 +2124,41 @@ export default function Leads() {
                 )}
               </div>
 
-              {/* Email Body */}
-              {selectedMessage.bodyHtml && (
-                <div className="rounded-xl border border-white/20 bg-white/5 p-4">
-                  <div className="text-sm font-semibold text-white/80 mb-3">Email Body:</div>
-                  <div 
-                    className="prose prose-invert max-w-none text-white/90"
-                    dangerouslySetInnerHTML={{ __html: selectedMessage.bodyHtml }}
-                    style={{
-                      fontSize: '14px',
-                      lineHeight: '1.6',
-                    }}
-                  />
+              {/* Lead Information - Only show essential fields */}
+              <div className="rounded-xl border border-white/20 bg-white/5 p-4">
+                <div className="text-sm font-semibold text-white/80 mb-3">Lead Information:</div>
+                <div className="space-y-2 text-sm text-white/80">
+                  {selectedMessage.name && (
+                    <div>
+                      <span className="font-medium text-white/90">Name:</span>{" "}
+                      <span className="text-white/70">{selectedMessage.name}</span>
+                    </div>
+                  )}
+                  {selectedMessage.email && (
+                    <div>
+                      <span className="font-medium text-white/90">Email:</span>{" "}
+                      <span className="text-white/70">{selectedMessage.email}</span>
+                    </div>
+                  )}
+                  {selectedMessage.phone && (
+                    <div>
+                      <span className="font-medium text-white/90">Phone:</span>{" "}
+                      <span className="text-white/70">{selectedMessage.phone}</span>
+                    </div>
+                  )}
+                  {(selectedMessage.year || selectedMessage.make || selectedMessage.model) && (
+                    <div>
+                      <span className="font-medium text-white/90">Vehicle:</span>{" "}
+                      <span className="text-white/70">
+                        {[selectedMessage.year, selectedMessage.make, selectedMessage.model].filter(Boolean).join(" ")}
+                      </span>
+                    </div>
+                  )}
+                  {(!selectedMessage.name && !selectedMessage.email && !selectedMessage.phone && !selectedMessage.year && !selectedMessage.make && !selectedMessage.model) && (
+                    <div className="text-white/60 italic">No lead information available</div>
+                  )}
                 </div>
-              )}
+              </div>
 
             </div>
           )}

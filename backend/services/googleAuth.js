@@ -55,20 +55,75 @@ function createOAuthClient(redirectUriOverride = null) {
   return new google.auth.OAuth2(web.client_id, web.client_secret, redirectUri);
 }
 
-export function getAuthUrl(redirectUriOverride = null) {
+export function getAuthUrl(redirectUriOverride = null, forceConsent = false) {
   const oAuth2Client = createOAuthClient(redirectUriOverride);
-  return oAuth2Client.generateAuthUrl({
+  
+  // Check if we already have a refresh token
+  let hasRefreshToken = false;
+  if (fs.existsSync(TOKEN_PATH)) {
+    try {
+      const existingTokens = JSON.parse(fs.readFileSync(TOKEN_PATH, "utf-8"));
+      hasRefreshToken = !!existingTokens.refresh_token;
+    } catch (err) {
+      // If we can't read token.json, assume no refresh token
+      hasRefreshToken = false;
+    }
+  }
+  
+  const authUrlOptions = {
     access_type: "offline",
-    prompt: "consent",
     scope: DEFAULT_SCOPES,
-    // Add include_granted_scopes to help with token refresh
     include_granted_scopes: true,
-  });
+  };
+  
+  // Only add prompt: "consent" if:
+  // 1. Force consent is explicitly requested, OR
+  // 2. We don't have a refresh token (first time setup)
+  // Otherwise, let Google decide (don't set prompt parameter)
+  // This allows Google to show consent screen if needed, or skip if not
+  if (forceConsent || !hasRefreshToken) {
+    authUrlOptions.prompt = "consent";
+    console.log("[googleAuth] Using consent prompt -", forceConsent ? "forced" : "no refresh token found");
+  } else {
+    // Don't set prompt parameter - let Google decide
+    // Google will show consent screen only if needed (e.g., token expired, permissions changed)
+    // This prevents "interaction_required" errors when refresh token is still valid
+    console.log("[googleAuth] Omitting prompt parameter - refresh token exists, letting Google decide");
+  }
+  
+  return oAuth2Client.generateAuthUrl(authUrlOptions);
 }
 
 export async function setTokensFromCode(code, redirectUriOverride = null) {
   const oAuth2Client = createOAuthClient(redirectUriOverride);
-  let { tokens } = await oAuth2Client.getToken(code);
+  
+  console.log("[googleAuth] Attempting to exchange authorization code for tokens...");
+  console.log("[googleAuth] Using redirect URI:", redirectUriOverride || "default");
+  console.log("[googleAuth] Code length:", code?.length || 0);
+  
+  let tokens;
+  try {
+    const response = await oAuth2Client.getToken(code);
+    tokens = response.tokens;
+    console.log("[googleAuth] Successfully exchanged code for tokens");
+  } catch (err) {
+    console.error("[googleAuth] Failed to exchange authorization code:", err.message);
+    console.error("[googleAuth] Error details:", JSON.stringify(err.response?.data || err.message, null, 2));
+    
+    // Handle invalid_grant error specifically
+    if (err.message?.includes("invalid_grant") || err.code === "invalid_grant" || err.response?.data?.error === "invalid_grant") {
+      const errorDetails = err.response?.data?.error_description || err.message;
+      console.error("[googleAuth] invalid_grant error - common causes:");
+      console.error("[googleAuth] 1. Authorization code was already used (codes are single-use)");
+      console.error("[googleAuth] 2. Authorization code expired (codes expire after ~10 minutes)");
+      console.error("[googleAuth] 3. Redirect URI mismatch between auth URL and callback");
+      console.error("[googleAuth] 4. Server clock is out of sync with Google's servers");
+      
+      throw new Error(`Invalid authorization code: ${errorDetails}. Please start a new authorization flow by visiting /api/gmail/oauth2/url`);
+    }
+    
+    throw err;
+  }
   
   // Ensure token.json directory exists
   const tokenDir = path.dirname(TOKEN_PATH);

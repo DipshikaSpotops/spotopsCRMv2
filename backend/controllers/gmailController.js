@@ -26,25 +26,94 @@ function extractStructuredFields(html) {
   
   const fields = {};
   
-  // Remove HTML tags for text extraction
-  const textContent = html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
+  // Remove HTML tags for text extraction, decode HTML entities
+  let textContent = html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
+  // Decode common HTML entities
+  textContent = textContent.replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'");
   
-  // Patterns to extract fields
+  // Clean up common patterns that might interfere
+  textContent = textContent.replace(/@media[^}]*}/g, ""); // Remove CSS media queries
+  
+  // Patterns to extract fields - stop at next field label or ending phrase
   const patterns = {
-    name: /(?:name|full name|customer name)[\s:]*([^<\n\r]+?)(?:\n|$|<\/)/i,
-    phone: /(?:phone|telephone|phone number|phone)[\s:]*([+\d\s\-()]+)/i,
-    year: /(?:year)[\s:]*(\d{4})/i,
-    makeAndModel: /(?:make\s*[&]?\s*model|make and model)[\s:]*([^<\n\r]+?)(?:\n|$|<\/)/i,
-    make: /(?:^make[^&]|^make$)[\s:]*([^<\n\r]+?)(?:\n|$|<\/)/i,
-    model: /(?:^model)[\s:]*([^<\n\r]+?)(?:\n|$|<\/)/i,
-    partRequired: /(?:part required|part|part needed)[\s:]*([^<\n\r]+?)(?:\n|$|<\/)/i,
+    // Name: stop at Email, Phone, Year, etc.
+    name: /(?:Name|Full Name|Customer Name)[\s:]+([^:]*?)(?=\s*(?:Email|Phone|Phone Number|Year|Make|Model|Part|Good Luck|©|50 Stars)|$)/i,
+    // Email: extract email address, stop at Phone, Year, etc.
+    email: /(?:Email|Email Address)[\s:]+([^\s:<>]+@[^\s:<>]+(?:\.[^\s:<>]+)*)(?=\s*(?:Phone|Phone Number|Year|Make|Model|Part|Good Luck|©|50 Stars)|$)/i,
+    // Phone: stop at Year, Make, Model, etc.
+    phone: /(?:Phone|Telephone|Phone Number)[\s:]+([+\d\s\-()]+?)(?=\s*(?:Year|Make|Model|Part|Email|Good Luck|©|50 Stars)|$)/i,
+    // Year: 4 digits, stop at Make, Model, etc.
+    year: /(?:Year)[\s:]+(\d{4})(?=\s*(?:Make|Model|Part|Email|Phone|Good Luck|©|50 Stars)|$)/i,
+    // Make & Model: stop at Part Required, Part, etc.
+    makeAndModel: /(?:Make\s*[&]?\s*Model|Make and Model)[\s:]+([^:]*?)(?=\s*(?:Part Required|Part|Year|Email|Phone|Good Luck|©|50 Stars)|$)/i,
+    // Make: stop at Model, Part, etc.
+    make: /(?:^|\s)(?:Make)[\s:]+([^:&]*?)(?=\s*(?:Model|Part|Year|Email|Phone|Good Luck|©|50 Stars)|$)/i,
+    // Model: stop at Part, Year, etc.
+    model: /(?:^|\s)(?:Model)[\s:]+([^:]*?)(?=\s*(?:Part|Year|Make|Email|Phone|Good Luck|©|50 Stars)|$)/i,
+    // Part Required: Find the LAST occurrence (to avoid matching email header), stop at Offer, Good Luck, etc.
+    // Use a more specific pattern that looks for the actual part field in the body
+    partRequired: /(?:Part Required|Part Needed)[\s:]+([^:]*?)(?=\s*(?:Offer|Offer Selected|Good Luck|©|50 Stars|@media|\n\n|\r\n\r\n)|$)/i,
   };
   
   // Try to extract each field using patterns
   for (const [key, pattern] of Object.entries(patterns)) {
-    const match = textContent.match(pattern);
-    if (match && match[1]) {
-      fields[key] = match[1].trim();
+    // For partRequired, find ALL matches and use the LAST one (to avoid email header)
+    if (key === "partRequired") {
+      const allMatches = [...textContent.matchAll(new RegExp(pattern.source, pattern.flags + "g"))];
+      if (allMatches.length > 0) {
+        // Use the last match (most likely the actual field in the email body)
+        const match = allMatches[allMatches.length - 1];
+        if (match && match[1]) {
+          let value = match[1].trim();
+          // Stop at common ending phrases
+          const endPhrases = ["Offer", "Offer Selected", "Good Luck", "©", "50 Stars", "Auto Parts", "@media"];
+          for (const phrase of endPhrases) {
+            const idx = value.toLowerCase().indexOf(phrase.toLowerCase());
+            if (idx > 0) {
+              value = value.substring(0, idx).trim();
+            }
+          }
+          // Remove trailing punctuation and extra spaces
+          value = value.replace(/\s+/g, " ").replace(/[.\s]+$/, "").trim();
+          // Additional cleanup: remove anything that looks like it's part of the email header
+          // (e.g., "s 50 Stars Auto Parts - New Lead")
+          if (value.toLowerCase().includes("50 stars auto parts") || value.toLowerCase().includes("new lead")) {
+            // Try to extract just the part name after the last "Part Required:" in the value itself
+            const lastPartRequired = value.toLowerCase().lastIndexOf("part required:");
+            if (lastPartRequired > 0) {
+              value = value.substring(lastPartRequired + "part required:".length).trim();
+            }
+            // If it still contains email header text, try to find the actual part
+            const actualPartMatch = value.match(/([^:]+?)(?:\s*(?:Email|Phone|Year|Make|Model|Offer|Good Luck|©|50 Stars))/i);
+            if (actualPartMatch) {
+              value = actualPartMatch[1].trim();
+            }
+          }
+          if (value) {
+            fields[key] = value;
+          }
+        }
+      }
+    } else {
+      // For other fields, use first match as before
+      const match = textContent.match(pattern);
+      if (match && match[1]) {
+        // Clean up the extracted value - remove extra spaces and stop at common ending phrases
+        let value = match[1].trim();
+        // Stop at common ending phrases
+        const endPhrases = ["Offer", "Offer Selected", "Good Luck", "©", "50 Stars", "Auto Parts", "@media"];
+        for (const phrase of endPhrases) {
+          const idx = value.toLowerCase().indexOf(phrase.toLowerCase());
+          if (idx > 0) {
+            value = value.substring(0, idx).trim();
+          }
+        }
+        // Remove trailing punctuation and extra spaces
+        value = value.replace(/\s+/g, " ").replace(/[.\s]+$/, "").trim();
+        if (value) {
+          fields[key] = value;
+        }
+      }
     }
   }
   
@@ -62,26 +131,62 @@ function extractStructuredFields(html) {
     delete fields.makeAndModel; // Remove the combined field
   }
   
+  // Helper function to clean extracted values
+  function cleanFieldValue(value) {
+    if (!value) return "";
+    let cleaned = value.trim();
+    // Stop at next field label or ending phrase
+    const stopPatterns = [
+      /\s*(?:Email|Phone|Phone Number|Year|Make|Model|Part Required|Part|Offer|Offer Selected|Good Luck|©|50 Stars|@media)/i,
+      /\s+Email\s*:/i,
+      /\s+Phone\s*:/i,
+      /\s+Year\s*:/i,
+      /\s+Make/i,
+      /\s+Model\s*:/i,
+      /\s+Part\s+Required\s*:/i,
+      /\s+Offer\s*(?:Selected)?\s*:/i,
+      /\s+Good\s+Luck/i,
+      /\s*©/i,
+      /\s*50\s+Stars/i,
+      /\s*@media/i,
+    ];
+    
+    for (const pattern of stopPatterns) {
+      const match = cleaned.match(pattern);
+      if (match && match.index > 0) {
+        cleaned = cleaned.substring(0, match.index).trim();
+      }
+    }
+    
+    // Remove trailing punctuation, extra spaces, and HTML entities
+    cleaned = cleaned.replace(/\s+/g, " ").replace(/[.\s]+$/, "").trim();
+    return cleaned;
+  }
+  
   // Also try to extract from HTML structure (if fields are in labels/strong tags)
   // Look for patterns like <strong>Name:</strong> Dipsikha Pradhan
   const labelValuePattern = /<(?:strong|b|label|td|th)[^>]*>([^<]+)<\/\w+>[\s:]*([^<\n]+)/gi;
   let match;
   while ((match = labelValuePattern.exec(html)) !== null) {
     const label = match[1].toLowerCase().trim();
-    const value = match[2].trim();
+    let value = cleanFieldValue(match[2]);
     
-    if (label.includes("name") && !fields.name) fields.name = value;
-    if (label.includes("phone") && !fields.phone) fields.phone = value;
-    if (label.includes("year") && !fields.year) fields.year = value;
+    if (label.includes("name") && !fields.name && value) fields.name = value;
+    if ((label.includes("email") || label.includes("email address")) && !fields.email && value) {
+      // Extract just the email address
+      const emailMatch = value.match(/([^\s<>]+@[^\s<>]+(?:\.[^\s<>]+)*)/);
+      if (emailMatch) fields.email = emailMatch[1];
+    }
+    if (label.includes("phone") && !fields.phone && value) fields.phone = value;
+    if (label.includes("year") && !fields.year && value) fields.year = value;
     if ((label.includes("make") && label.includes("model")) || label.includes("make & model")) {
-      // Handle "Make & Model" combined field
-      if (!fields.makeAndModel) fields.makeAndModel = value;
-    } else if (label.includes("make") && !label.includes("model") && !fields.make) {
+      if (!fields.makeAndModel && value) fields.makeAndModel = value;
+    } else if (label.includes("make") && !label.includes("model") && !fields.make && value) {
       fields.make = value;
-    } else if (label.includes("model") && !label.includes("make") && !fields.model) {
+    } else if (label.includes("model") && !label.includes("make") && !fields.model && value) {
       fields.model = value;
     }
-    if ((label.includes("part") || label.includes("required")) && !fields.partRequired) {
+    if (label.includes("part") && label.includes("required") && !fields.partRequired && value) {
       fields.partRequired = value;
     }
   }
@@ -90,20 +195,24 @@ function extractStructuredFields(html) {
   const tableRowPattern = /<td[^>]*>([^<]+)<\/td>\s*<td[^>]*>([^<]+)<\/td>/gi;
   while ((match = tableRowPattern.exec(html)) !== null) {
     const label = match[1].toLowerCase().trim();
-    const value = match[2].trim();
+    let value = cleanFieldValue(match[2]);
     
-    if (label.includes("name") && !fields.name) fields.name = value;
-    if (label.includes("phone") && !fields.phone) fields.phone = value;
-    if (label.includes("year") && !fields.year) fields.year = value;
+    if (label.includes("name") && !fields.name && value) fields.name = value;
+    if ((label.includes("email") || label.includes("email address")) && !fields.email && value) {
+      // Extract just the email address
+      const emailMatch = value.match(/([^\s<>]+@[^\s<>]+(?:\.[^\s<>]+)*)/);
+      if (emailMatch) fields.email = emailMatch[1];
+    }
+    if (label.includes("phone") && !fields.phone && value) fields.phone = value;
+    if (label.includes("year") && !fields.year && value) fields.year = value;
     if ((label.includes("make") && label.includes("model")) || label.includes("make & model")) {
-      // Handle "Make & Model" combined field
-      if (!fields.makeAndModel) fields.makeAndModel = value;
-    } else if (label.includes("make") && !label.includes("model") && !fields.make) {
+      if (!fields.makeAndModel && value) fields.makeAndModel = value;
+    } else if (label.includes("make") && !label.includes("model") && !fields.make && value) {
       fields.make = value;
-    } else if (label.includes("model") && !label.includes("make") && !fields.model) {
+    } else if (label.includes("model") && !label.includes("make") && !fields.model && value) {
       fields.model = value;
     }
-    if ((label.includes("part") || label.includes("required")) && !fields.partRequired) {
+    if (label.includes("part") && label.includes("required") && !fields.partRequired && value) {
       fields.partRequired = value;
     }
   }
@@ -275,8 +384,12 @@ export async function listMessagesHandler(req, res, next) {
     const userFirstName = user?.firstName || "";
     const userEmail = user?.email || agentEmail || "";
     const normalizedEmail = userEmail?.toLowerCase();
+    const userRole = user?.role || "Unknown";
     
-    console.log(`[listMessages] Fetching messages: agentEmail=${agentEmail}, limit=${parsedLimit}, userFirstName=${userFirstName}, userEmail=${userEmail}`);
+    console.log(`[listMessages] Fetching messages: agentEmail=${agentEmail}, limit=${parsedLimit}, userFirstName=${userFirstName}, userEmail=${userEmail}, userRole=${userRole}`);
+    if (userRole === "Admin") {
+      console.log(`[listMessages] ⚠️ ADMIN USER DETECTED - Should see ALL claimed/closed leads (no filtering)`);
+    }
     
     // Fetch messages directly from Gmail API (unread/unclaimed)
     let gmail;
@@ -349,19 +462,37 @@ export async function listMessagesHandler(req, res, next) {
     
     const { data } = { data: gmailMessagesData };
     
-    // Also fetch closed and claimed leads from Lead collection for the logged-in user
+    // Also fetch closed and claimed leads from Lead collection
     const userLeads = [];
-    if (userFirstName) {
-      // Fetch both closed and claimed leads for the logged-in user
-      const leads = await Lead.find({
-        salesAgent: userFirstName,
-        status: { $in: ["closed", "claimed"] }
-      })
-      .sort({ claimedAt: -1 })
-      .limit(parsedLimit)
-      .lean();
+    // For Admin: fetch ALL claimed/closed leads (irrespective of salesAgent/firstName/claimedBy)
+    // For Sales: only their own leads (filtered by salesAgent/firstName)
+    let leadQuery;
+    if (user?.role === "Admin") {
+      // Admin sees ALL claimed/closed leads - NO filtering by salesAgent, firstName, or claimedBy
+      leadQuery = { status: { $in: ["closed", "claimed"] } };
+      console.log(`[listMessages] Admin user detected - fetching ALL claimed/closed leads (no salesAgent/firstName filter)`);
+    } else if (userFirstName) {
+      // Sales users only see their own leads
+      leadQuery = { salesAgent: userFirstName, status: { $in: ["closed", "claimed"] } };
+      console.log(`[listMessages] Sales user detected - fetching leads for ${userFirstName}`);
+    } else {
+      leadQuery = null;
+    }
+    
+    if (leadQuery) {
+      // Fetch both closed and claimed leads
+      const leads = await Lead.find(leadQuery)
+        .sort({ claimedAt: -1 })
+        .limit(parsedLimit)
+        .lean();
       
-      console.log(`[listMessages] Found ${leads.length} leads (closed + claimed) for ${userFirstName}`);
+      const userType = user?.role === "Admin" ? "Admin (all leads)" : userFirstName;
+      console.log(`[listMessages] Found ${leads.length} leads (closed + claimed) for ${userType}`);
+      if (user?.role === "Admin" && leads.length > 0) {
+        // Log sample of salesAgents to verify we're getting all leads
+        const uniqueSalesAgents = [...new Set(leads.map(l => l.salesAgent).filter(Boolean))];
+        console.log(`[listMessages] Admin view - Leads from salesAgents: ${uniqueSalesAgents.join(", ")}`);
+      }
       
       // Convert leads to message format
       for (const lead of leads) {
@@ -377,8 +508,9 @@ export async function listMessagesHandler(req, res, next) {
           status: lead.status, // Keep the actual status (closed or claimed)
           claimedBy: lead.claimedBy,
           claimedAt: lead.claimedAt,
+          enteredAt: lead.enteredAt || lead.claimedAt || new Date(), // When lead entered system
           labels: lead.labels || [],
-          internalDate: lead.claimedAt || new Date(),
+          internalDate: lead.enteredAt || lead.claimedAt || new Date(), // Use enteredAt if available, fallback to claimedAt
           // Mark as lead from database
           isFromDatabase: true,
         });
@@ -402,7 +534,7 @@ export async function listMessagesHandler(req, res, next) {
           // Check if this message is claimed in database
           const dbRecord = await GmailMessage.findOne({ messageId: msg.id }).lean();
           
-          // For sales agents: skip messages claimed by other agents
+          // For sales agents: skip messages claimed by other agents (Admin can see all)
           if (user?.role === "Sales" && dbRecord?.claimedBy && dbRecord.claimedBy !== user.id) {
             // Also check Lead collection to be sure
             const leadRecord = await Lead.findOne({ messageId: msg.id }).lean();
@@ -411,6 +543,7 @@ export async function listMessagesHandler(req, res, next) {
               continue; // Skip this message
             }
           }
+          // Admin users can see all messages, including those claimed by others
           
           // Check if message is actually unread (has UNREAD label)
           // If message was read in Gmail, it won't have UNREAD in labelIds
@@ -442,6 +575,19 @@ export async function listMessagesHandler(req, res, next) {
           const date = headers.find(h => h.name === "Date")?.value || "";
           const detectedAgent = detectAgent(headers);
           
+          // Fetch enteredAt from Lead collection if message is claimed
+          let enteredAt = null;
+          if (dbRecord && dbRecord.status !== "active") {
+            try {
+              const leadRecord = await Lead.findOne({ messageId: msg.id }).lean();
+              if (leadRecord?.enteredAt) {
+                enteredAt = leadRecord.enteredAt;
+              }
+            } catch (err) {
+              // Ignore errors, enteredAt will remain null
+            }
+          }
+          
           // Build message object
           const messageObj = {
             messageId: msg.id,
@@ -461,11 +607,13 @@ export async function listMessagesHandler(req, res, next) {
               status: dbRecord.status,
               claimedBy: dbRecord.claimedBy,
               claimedAt: dbRecord.claimedAt,
+              enteredAt: enteredAt || (fullMessage.data.internalDate ? new Date(Number(fullMessage.data.internalDate)) : null), // Use enteredAt from Lead, or fallback to internalDate
               labels: dbRecord.labels || [],
             } : {
               _id: msg.id, // Use messageId as temporary _id for unclaimed messages
               status: "active",
               labels: [],
+              enteredAt: fullMessage.data.internalDate ? new Date(Number(fullMessage.data.internalDate)) : null, // For unclaimed messages, use internalDate as enteredAt
             }),
           };
           
@@ -494,7 +642,7 @@ export async function listMessagesHandler(req, res, next) {
     
     let combinedMessages = Array.from(messageMap.values());
     
-    // For sales agents: filter out messages claimed by other agents
+    // For sales agents: filter out messages claimed by other agents (Admin can see all)
     if (user?.role === "Sales" && userFirstName) {
       combinedMessages = combinedMessages.filter(msg => {
         // Allow unclaimed messages (status === "active" or no claimedBy)
@@ -514,6 +662,7 @@ export async function listMessagesHandler(req, res, next) {
         return false;
       });
     }
+    // Admin users can see all messages, no filtering needed
     
     console.log(`[listMessages] Returning ${combinedMessages.length} messages (${allMessages.filter(m => m.status === 'claimed').length} claimed from Gmail, ${userLeads.filter(l => l.status === 'claimed').length} claimed from DB, ${userLeads.filter(l => l.status === 'closed').length} closed)`);
     return res.json({ messages: combinedMessages });
@@ -540,8 +689,11 @@ export async function oauth2UrlHandler(req, res, next) {
     
     const host = req.get('host') || req.headers.host || 'localhost:5000';
     
-    // Force HTTPS for production domains (unless localhost)
-    if (!host.includes('localhost') && !host.includes('127.0.0.1')) {
+    // For localhost, always use HTTP (not HTTPS)
+    if (host.includes('localhost') || host.includes('127.0.0.1')) {
+      protocol = 'http';
+    } else if (!host.includes('localhost') && !host.includes('127.0.0.1')) {
+      // Force HTTPS for production domains
       protocol = 'https';
     }
     
@@ -557,6 +709,12 @@ export async function oauth2UrlHandler(req, res, next) {
     }
     
     console.log(`[oauth2UrlHandler] Detected origin: ${origin}, using redirect URI: ${redirectUri}`);
+    console.log(`[oauth2UrlHandler] Request headers:`, {
+      'x-forwarded-proto': req.headers['x-forwarded-proto'],
+      host: req.headers.host,
+      protocol: req.protocol,
+      secure: req.secure
+    });
     
     const url = getAuthUrl(redirectUri);
     
@@ -680,8 +838,11 @@ export async function oauth2CallbackHandler(req, res, next) {
     
     const host = req.get('host') || req.headers.host || 'localhost:5000';
     
-    // Force HTTPS for production domains (unless localhost)
-    if (!host.includes('localhost') && !host.includes('127.0.0.1')) {
+    // For localhost, always use HTTP (not HTTPS)
+    if (host.includes('localhost') || host.includes('127.0.0.1')) {
+      protocol = 'http';
+    } else if (!host.includes('localhost') && !host.includes('127.0.0.1')) {
+      // Force HTTPS for production domains
       protocol = 'https';
     }
     
@@ -697,6 +858,13 @@ export async function oauth2CallbackHandler(req, res, next) {
     }
     
     console.log(`[oauth2CallbackHandler] Using redirect URI: ${redirectUri}`);
+    console.log(`[oauth2CallbackHandler] Request details:`, {
+      query: req.query,
+      'x-forwarded-proto': req.headers['x-forwarded-proto'],
+      host: req.headers.host,
+      protocol: req.protocol,
+      secure: req.secure
+    });
     
     await setTokensFromCode(code, redirectUri);
     const userEmail = getUserEmail();
@@ -949,6 +1117,11 @@ export async function claimAndViewHandler(req, res, next) {
       { upsert: true, new: true }
     );
     
+    // Get the original email received time (internalDate from Gmail)
+    const enteredAt = fullMessage.data.internalDate 
+      ? new Date(Number(fullMessage.data.internalDate))
+      : new Date();
+    
     // Also save to Lead collection - only save the specified fields
     const leadData = {
       messageId: messageId,
@@ -967,6 +1140,7 @@ export async function claimAndViewHandler(req, res, next) {
       salesAgent: ownerName, // Sales agent's firstName from localStorage
       claimedBy: user.id,
       claimedAt: dallasNow, // Use Dallas timezone
+      enteredAt: enteredAt, // When the email originally arrived
       // Labels and status
       labels: finalLabels,
       status: "claimed",
@@ -1127,10 +1301,46 @@ export async function getMessageHandler(req, res, next) {
     }
 
     const messageObj = message.toObject();
+    
+    // Fetch lead data from Lead collection if available (includes enteredAt and structured fields)
+    let leadData = null;
+    try {
+      // Try finding by messageId first (most common case)
+      let lead = await Lead.findOne({ messageId: messageObj.messageId }).lean();
+      // If not found, try finding by gmailMessageId
+      if (!lead && messageObj._id) {
+        lead = await Lead.findOne({ gmailMessageId: messageObj._id }).lean();
+      }
+      if (lead) {
+        leadData = {
+          enteredAt: lead.enteredAt || (messageObj.internalDate ? new Date(Number(messageObj.internalDate)) : null),
+          name: lead.name || "",
+          email: lead.email || "",
+          phone: lead.phone || "",
+          year: lead.year || "",
+          make: lead.make || "",
+          model: lead.model || "",
+        };
+      }
+    } catch (err) {
+      console.error("[getMessage] Failed to fetch lead data:", err?.message || err);
+    }
+    
+    // Fallback to internalDate if enteredAt not available
+    const enteredAt = leadData?.enteredAt || (messageObj.internalDate ? new Date(Number(messageObj.internalDate)) : null);
+    
     return res.json({
       _id: String(messageObj._id),
       ...messageObj,
       bodyHtml: bodyHtml || messageObj.bodyHtml || "",
+      enteredAt: enteredAt,
+      // Include structured lead fields from Lead collection
+      name: leadData?.name || "",
+      email: leadData?.email || "",
+      phone: leadData?.phone || "",
+      year: leadData?.year || "",
+      make: leadData?.make || "",
+      model: leadData?.model || "",
     });
   } catch (err) {
     return next(err);
@@ -1161,6 +1371,186 @@ function extractHtmlFromPayload(payload) {
   return findHtmlPart(payload) || "";
 }
 
+// Re-parse existing leads to fix incorrectly extracted fields
+export async function reparseLeadsHandler(req, res, next) {
+  try {
+    const user = req.user;
+    if (!user || user.role !== "Admin") {
+      return res.status(403).json({ message: "Only Admin users can re-parse leads" });
+    }
+
+    const { dryRun = false, limit = 100, all = false } = req.query;
+    const isDryRun = dryRun === "true" || dryRun === true;
+    const parseLimit = Number(limit) || 100;
+    const parseAll = all === "true" || all === true;
+
+    console.log(`[reparseLeads] Starting re-parse (dryRun: ${isDryRun}, limit: ${parseLimit}, all: ${parseAll})`);
+
+    // Get Gmail client to fetch bodyHtml for leads
+    const gmail = await getGmailClient();
+    
+    // Find leads that need re-parsing
+    let leads;
+    if (parseAll) {
+      // Re-parse ALL leads (useful for initial migration)
+      leads = await Lead.find({})
+        .sort({ claimedAt: -1 })
+        .limit(parseLimit)
+        .lean();
+      console.log(`[reparseLeads] Re-parsing ALL leads (limit: ${parseLimit})`);
+    } else {
+      // Only re-parse leads with incorrectly formatted fields
+      leads = await Lead.find({
+        $or: [
+          { name: { $regex: /Email|Phone|Year|Make|Model|Part Required/i } },
+          { partRequired: { $regex: /Offer|Good Luck|©|50 Stars|@media|Email|Phone|Year|Make|Model/i } },
+          { email: { $exists: true, $regex: /Phone|Year|Make|Model|Part/i } },
+          // Also include leads that might not have email field yet (for schema update)
+          { email: { $exists: false }, name: { $exists: true, $ne: "" } },
+        ]
+      })
+      .limit(parseLimit)
+      .lean();
+      console.log(`[reparseLeads] Found ${leads.length} leads with incorrectly formatted fields`);
+    }
+
+    console.log(`[reparseLeads] Found ${leads.length} leads to re-parse`);
+
+    const results = {
+      total: leads.length,
+      updated: 0,
+      skipped: 0,
+      errors: 0,
+      details: [],
+    };
+
+    for (const lead of leads) {
+      try {
+        // Get bodyHtml from GmailMessage
+        const gmailMsg = await GmailMessage.findOne({ messageId: lead.messageId }).lean();
+        if (!gmailMsg?.bodyHtml) {
+          // Try to fetch from Gmail API
+          try {
+            const fullMessage = await gmail.users.messages.get({
+              userId: "me",
+              id: lead.messageId,
+              format: "full",
+            });
+            const bodyHtml = extractHtmlFromPayload(fullMessage.data.payload);
+            if (!bodyHtml) {
+              results.skipped++;
+              results.details.push({
+                messageId: lead.messageId,
+                status: "skipped",
+                reason: "No bodyHtml found",
+              });
+              continue;
+            }
+            
+            // Re-parse the fields
+            const parsedFields = extractStructuredFields(bodyHtml);
+            
+            // Update the lead
+            const updateData = {
+              name: parsedFields.name || lead.name || "",
+              email: parsedFields.email || lead.email || "",
+              phone: parsedFields.phone || lead.phone || "",
+              year: parsedFields.year || lead.year || "",
+              make: parsedFields.make || lead.make || "",
+              model: parsedFields.model || lead.model || "",
+              partRequired: parsedFields.partRequired || lead.partRequired || "",
+            };
+
+            if (!isDryRun) {
+              await Lead.findOneAndUpdate(
+                { _id: lead._id },
+                { $set: updateData },
+                { new: true }
+              );
+            }
+
+            results.updated++;
+            results.details.push({
+              messageId: lead.messageId,
+              status: isDryRun ? "would_update" : "updated",
+              old: {
+                name: lead.name,
+                partRequired: lead.partRequired,
+              },
+              new: {
+                name: updateData.name,
+                partRequired: updateData.partRequired,
+              },
+            });
+          } catch (gmailErr) {
+            console.error(`[reparseLeads] Failed to fetch message ${lead.messageId}:`, gmailErr.message);
+            results.errors++;
+            results.details.push({
+              messageId: lead.messageId,
+              status: "error",
+              reason: gmailErr.message,
+            });
+          }
+        } else {
+          // Re-parse using existing bodyHtml
+          const parsedFields = extractStructuredFields(gmailMsg.bodyHtml);
+          
+          const updateData = {
+            name: parsedFields.name || lead.name || "",
+            email: parsedFields.email || lead.email || "",
+            phone: parsedFields.phone || lead.phone || "",
+            year: parsedFields.year || lead.year || "",
+            make: parsedFields.make || lead.make || "",
+            model: parsedFields.model || lead.model || "",
+            partRequired: parsedFields.partRequired || lead.partRequired || "",
+          };
+
+          if (!isDryRun) {
+            await Lead.findOneAndUpdate(
+              { _id: lead._id },
+              { $set: updateData },
+              { new: true }
+            );
+          }
+
+          results.updated++;
+          results.details.push({
+            messageId: lead.messageId,
+            status: isDryRun ? "would_update" : "updated",
+            old: {
+              name: lead.name,
+              partRequired: lead.partRequired,
+            },
+            new: {
+              name: updateData.name,
+              partRequired: updateData.partRequired,
+            },
+          });
+        }
+      } catch (err) {
+        console.error(`[reparseLeads] Error processing lead ${lead.messageId}:`, err);
+        results.errors++;
+        results.details.push({
+          messageId: lead.messageId,
+          status: "error",
+          reason: err.message,
+        });
+      }
+    }
+
+    return res.json({
+      message: isDryRun 
+        ? `Dry run complete. Would update ${results.updated} leads.` 
+        : `Re-parse complete. Updated ${results.updated} leads.`,
+      dryRun: isDryRun,
+      results,
+    });
+  } catch (err) {
+    console.error("[reparseLeads] Error:", err);
+    return next(err);
+  }
+}
+
 export async function getDailyStatisticsHandler(req, res, next) {
   try {
     const { startDate, endDate, agentEmail } = req.query;
@@ -1187,9 +1577,13 @@ export async function getDailyStatisticsHandler(req, res, next) {
     
     // Build query - Query directly from Lead collection
     // Include both "claimed" and "closed" leads
+    // Filter by enteredAt (when lead came in) if available, otherwise use claimedAt
     const query = {
       status: { $in: ["claimed", "closed"] },
-      claimedAt: { $gte: start, $lte: end },
+      $or: [
+        { enteredAt: { $gte: start, $lte: end } },
+        { enteredAt: { $exists: false }, claimedAt: { $gte: start, $lte: end } }, // Fallback for old leads without enteredAt
+      ],
     };
     
     if (agentEmail) {
@@ -1235,13 +1629,43 @@ export async function getDailyStatisticsHandler(req, res, next) {
     const agentMap = new Map();
     
     leads.forEach((lead) => {
-      const claimDate = new Date(lead.claimedAt);
-      const dateKey = claimDate.toISOString().split("T")[0]; // YYYY-MM-DD
+      // Use enteredAt (when lead came in) if available, otherwise fallback to claimedAt
+      const leadDate = lead.enteredAt || lead.claimedAt || lead.createdAt;
+      const dateKey = moment(leadDate).tz("America/Chicago").format("YYYY-MM-DD"); // Use Dallas timezone
       
       const user = userMap.get(String(lead.claimedBy));
       const agentId = lead.claimedBy || "unknown";
       const agentName = user?.firstName || lead.salesAgent || user?.email || "Unknown";
       const agentEmail = user?.email || "unknown";
+      
+      // Calculate time to claim (response time) in minutes
+      let timeToClaimMinutes = null;
+      let timeToClaimFormatted = null;
+      if (lead.enteredAt && lead.claimedAt) {
+        const entered = moment(lead.enteredAt);
+        const claimed = moment(lead.claimedAt);
+        const diffSeconds = claimed.diff(entered, 'seconds', true); // Get seconds with decimals
+        timeToClaimMinutes = diffSeconds / 60; // Convert to minutes for calculations
+        
+        // Format the time difference nicely (include seconds when less than 1 minute)
+        if (diffSeconds < 60) {
+          // Show seconds with up to 1 decimal place
+          timeToClaimFormatted = `${diffSeconds.toFixed(1)} sec`;
+        } else if (timeToClaimMinutes < 60) {
+          // Show minutes and seconds if less than 60 minutes
+          const mins = Math.floor(timeToClaimMinutes);
+          const secs = Math.round((timeToClaimMinutes - mins) * 60);
+          timeToClaimFormatted = secs > 0 ? `${mins} min ${secs} sec` : `${mins} min`;
+        } else if (timeToClaimMinutes < 1440) {
+          const hours = Math.floor(timeToClaimMinutes / 60);
+          const mins = Math.round(timeToClaimMinutes % 60);
+          timeToClaimFormatted = `${hours}h ${mins}m`;
+        } else {
+          const days = Math.floor(timeToClaimMinutes / 1440);
+          const hours = Math.floor((timeToClaimMinutes % 1440) / 60);
+          timeToClaimFormatted = `${days}d ${hours}h`;
+        }
+      }
       
       // Daily stats
       if (!dailyMap.has(dateKey)) {
@@ -1257,10 +1681,18 @@ export async function getDailyStatisticsHandler(req, res, next) {
           agentEmail,
           count: 0,
           leads: [],
+          totalTimeToClaim: 0, // Sum of all response times in minutes
+          leadsWithResponseTime: 0, // Count of leads with response time data
         });
       }
       const agentData = dayData.agents.get(agentId);
       agentData.count++;
+      
+      // Track response time for average calculation
+      if (timeToClaimMinutes !== null) {
+        agentData.totalTimeToClaim += timeToClaimMinutes;
+        agentData.leadsWithResponseTime++;
+      }
       
       // Use lead data directly from Lead collection
       agentData.leads.push({
@@ -1268,9 +1700,13 @@ export async function getDailyStatisticsHandler(req, res, next) {
         messageId: lead.messageId,
         subject: lead.subject || "",
         from: lead.from || "",
-        claimedAt: lead.claimedAt,
+        enteredAt: lead.enteredAt, // When lead came in
+        claimedAt: lead.claimedAt, // When lead was claimed
+        timeToClaimMinutes: timeToClaimMinutes, // Response time in minutes
+        timeToClaimFormatted: timeToClaimFormatted, // Formatted response time (e.g., "5 min", "2h 30m")
         // Include all saved lead details from Lead collection
         name: lead.name || "",
+        email: lead.email || "", // Customer email
         phone: lead.phone || "",
         year: lead.year || "",
         make: lead.make || "",
@@ -1289,10 +1725,18 @@ export async function getDailyStatisticsHandler(req, res, next) {
           agentEmail,
           totalLeads: 0,
           leads: [],
+          totalTimeToClaim: 0, // Sum of all response times in minutes
+          leadsWithResponseTime: 0, // Count of leads with response time data
         });
       }
       const agentStat = agentMap.get(agentId);
       agentStat.totalLeads++;
+      
+      // Track response time for average calculation
+      if (timeToClaimMinutes !== null) {
+        agentStat.totalTimeToClaim += timeToClaimMinutes;
+        agentStat.leadsWithResponseTime++;
+      }
       
       // Use lead data directly from Lead collection
       agentStat.leads.push({
@@ -1300,10 +1744,14 @@ export async function getDailyStatisticsHandler(req, res, next) {
         messageId: lead.messageId,
         subject: lead.subject || "",
         from: lead.from || "",
-        claimedAt: lead.claimedAt,
+        enteredAt: lead.enteredAt, // When lead came in
+        claimedAt: lead.claimedAt, // When lead was claimed
+        timeToClaimMinutes: timeToClaimMinutes, // Response time in minutes
+        timeToClaimFormatted: timeToClaimFormatted, // Formatted response time (e.g., "5 min", "2h 30m")
         date: dateKey,
         // Include all saved lead details from Lead collection
         name: lead.name || "",
+        email: lead.email || "", // Customer email
         phone: lead.phone || "",
         year: lead.year || "",
         make: lead.make || "",
@@ -1320,24 +1768,92 @@ export async function getDailyStatisticsHandler(req, res, next) {
       .map((day) => ({
         date: day.date,
         total: day.total,
-        agents: Array.from(day.agents.values()).map((a) => ({
-          agentId: a.agentId,
-          agentName: a.agentName,
-          agentEmail: a.agentEmail,
-          count: a.count,
-          leads: a.leads,
-        })),
+        agents: Array.from(day.agents.values()).map((a) => {
+          // Calculate average response time for this agent on this day
+          let avgResponseTimeMinutes = null;
+          let avgResponseTimeFormatted = null;
+          if (a.leadsWithResponseTime > 0 && a.totalTimeToClaim > 0) {
+            avgResponseTimeMinutes = a.totalTimeToClaim / a.leadsWithResponseTime;
+            
+            // Format average response time nicely (include seconds when less than 1 minute)
+            const avgResponseTimeSeconds = avgResponseTimeMinutes * 60;
+            if (avgResponseTimeSeconds < 60) {
+              avgResponseTimeFormatted = `${avgResponseTimeSeconds.toFixed(1)} sec`;
+            } else if (avgResponseTimeMinutes < 60) {
+              const mins = Math.floor(avgResponseTimeMinutes);
+              const secs = Math.round((avgResponseTimeMinutes - mins) * 60);
+              avgResponseTimeFormatted = secs > 0 ? `${mins} min ${secs} sec` : `${mins} min`;
+            } else if (avgResponseTimeMinutes < 1440) {
+              const hours = Math.floor(avgResponseTimeMinutes / 60);
+              const mins = Math.round(avgResponseTimeMinutes % 60);
+              avgResponseTimeFormatted = `${hours}h ${mins}m`;
+            } else {
+              const days = Math.floor(avgResponseTimeMinutes / 1440);
+              const hours = Math.floor((avgResponseTimeMinutes % 1440) / 60);
+              avgResponseTimeFormatted = `${days}d ${hours}h`;
+            }
+          }
+          
+          return {
+            agentId: a.agentId,
+            agentName: a.agentName,
+            agentEmail: a.agentEmail,
+            count: a.count,
+            avgResponseTimeMinutes: avgResponseTimeMinutes,
+            avgResponseTimeFormatted: avgResponseTimeFormatted,
+            leads: a.leads,
+          };
+        }),
       }))
       .sort((a, b) => b.date.localeCompare(a.date));
     
     const agentStats = Array.from(agentMap.values())
-      .map((a) => ({
-        agentId: a.agentId,
-        agentName: a.agentName,
-        agentEmail: a.agentEmail,
-        totalLeads: a.totalLeads,
-        leads: a.leads.sort((x, y) => new Date(y.claimedAt) - new Date(x.claimedAt)),
-      }))
+      .map((a) => {
+        // Calculate average response time
+        let avgResponseTimeMinutes = null;
+        let avgResponseTimeFormatted = null;
+        if (a.leadsWithResponseTime > 0 && a.totalTimeToClaim > 0) {
+          avgResponseTimeMinutes = a.totalTimeToClaim / a.leadsWithResponseTime;
+          
+          // Format average response time nicely (include seconds when less than 1 minute)
+          const avgResponseTimeSeconds = avgResponseTimeMinutes * 60;
+          if (avgResponseTimeSeconds < 60) {
+            avgResponseTimeFormatted = `${avgResponseTimeSeconds.toFixed(1)} sec`;
+          } else if (avgResponseTimeMinutes < 60) {
+            const mins = Math.floor(avgResponseTimeMinutes);
+            const secs = Math.round((avgResponseTimeMinutes - mins) * 60);
+            avgResponseTimeFormatted = secs > 0 ? `${mins} min ${secs} sec` : `${mins} min`;
+          } else if (avgResponseTimeMinutes < 1440) {
+            const hours = Math.floor(avgResponseTimeMinutes / 60);
+            const mins = Math.round(avgResponseTimeMinutes % 60);
+            avgResponseTimeFormatted = `${hours}h ${mins}m`;
+          } else {
+            const days = Math.floor(avgResponseTimeMinutes / 1440);
+            const hours = Math.floor((avgResponseTimeMinutes % 1440) / 60);
+            avgResponseTimeFormatted = `${days}d ${hours}h`;
+          }
+        }
+        
+        return {
+          agentId: a.agentId,
+          agentName: a.agentName,
+          agentEmail: a.agentEmail,
+          totalLeads: a.totalLeads,
+          avgResponseTimeMinutes: avgResponseTimeMinutes,
+          avgResponseTimeFormatted: avgResponseTimeFormatted,
+          leads: a.leads.sort((x, y) => {
+            // Sort by claimedAt, but if same, sort by enteredAt
+            const xClaimed = new Date(x.claimedAt || 0);
+            const yClaimed = new Date(y.claimedAt || 0);
+            if (xClaimed.getTime() !== yClaimed.getTime()) {
+              return yClaimed - xClaimed;
+            }
+            const xEntered = new Date(x.enteredAt || 0);
+            const yEntered = new Date(y.enteredAt || 0);
+            return yEntered - xEntered;
+          }),
+        };
+      })
       .sort((a, b) => b.totalLeads - a.totalLeads);
     
     return res.json({

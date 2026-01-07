@@ -15,6 +15,7 @@ import {
   oauth2CallbackHandler,
   addCommentHandler,
   checkTokenHandler,
+  reparseLeadsHandler,
 } from "../controllers/gmailController.js";
 import { requireAuth } from "../middleware/auth.js";
 
@@ -39,6 +40,7 @@ router.patch("/messages/:id/close", requireAuth, closeLeadHandler);
 router.patch("/messages/:id/reopen", requireAuth, reopenLeadHandler);
 router.post("/messages/:id/comments", requireAuth, addCommentHandler);
 router.get("/statistics/daily", requireAuth, getDailyStatisticsHandler);
+router.post("/reparse-leads", requireAuth, reparseLeadsHandler); // Admin only - re-parse existing leads
 
 export default router;
 

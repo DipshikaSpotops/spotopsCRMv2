@@ -8,6 +8,7 @@ const leadSchema = new mongoose.Schema(
     
     // Lead information extracted from email (only these fields are saved)
     name: { type: String },
+    email: { type: String }, // Customer's email address from the lead form
     phone: { type: String },
     year: { type: String },
     make: { type: String },
@@ -22,6 +23,9 @@ const leadSchema = new mongoose.Schema(
     salesAgent: { type: String, index: true }, // Sales agent's first name (from localStorage)
     claimedBy: { type: String, required: true, index: true }, // User ID
     claimedAt: { type: Date, default: Date.now, index: true },
+    
+    // When the lead email first arrived (from Gmail internalDate)
+    enteredAt: { type: Date, index: true }, // Original email timestamp
     
     // Labels
     labels: { type: [String], default: [] },
