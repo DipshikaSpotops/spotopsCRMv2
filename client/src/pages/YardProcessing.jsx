@@ -5,6 +5,7 @@ import useOrdersRealtime from "../hooks/useOrdersRealtime";
 const columns = [
   { key: "orderDate",    label: "Order Date" },
   { key: "orderNo",      label: "Order No" },
+  { key: "salesAgent",   label: "SalesAgent" },
   { key: "pReq",         label: "Part Info" },
   { key: "customerName", label: "Customer Info" },
   { key: "yardName",     label: "Yard Details" },
@@ -48,6 +49,8 @@ export default function YardProcessingOrders() {
             </button>
           </div>
         );
+      case "salesAgent":
+        return row.salesAgent || "—";
       case "pReq":
         return (
           <div>

@@ -322,50 +322,64 @@ const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
 
 // Background job: Proactively refresh Gmail OAuth tokens before they expire
-// This runs every hour to check and refresh tokens if needed
-import { getGmailClient } from "./services/googleAuth.js";
+// This runs every 20 minutes to check and refresh tokens if needed
 import { startWatch } from "./services/gmailPubSubService.js";
 import GmailSyncState from "./models/GmailSyncState.js";
+
+// Import refresh function
+import { getGmailClient, refreshAccessTokenIfNeeded } from "./services/googleAuth.js";
 
 // Refresh token on startup (with graceful error handling)
 setTimeout(async () => {
   try {
-    await getGmailClient();
-    console.log("[Token Refresh] Initial token check completed");
+    console.log("[Token Refresh] Starting initial token check...");
+    await refreshAccessTokenIfNeeded();
+    console.log("[Token Refresh] Initial token check completed successfully");
   } catch (err) {
     // Don't log errors for missing token.json (expected if not configured)
     if (err.message?.includes("Missing token.json")) {
+      console.log("[Token Refresh] No token.json found - Gmail not configured yet");
       return;
     }
     // For invalid_grant, just warn - email will still work from id_token
-    if (err.message?.includes("invalid_grant") || err.message?.includes("refresh token")) {
-      console.warn("[Token Refresh] Refresh token invalid - email will still be available from id_token");
-      console.warn("[Token Refresh] To fix Gmail API access, visit /api/gmail/oauth2/url to re-authorize");
+    if (err.message?.includes("invalid_grant") || err.message?.includes("refresh token") || err.message?.includes("re-authorize")) {
+      console.error("[Token Refresh] ⚠️  Refresh token invalid - Gmail API will not work");
+      console.error("[Token Refresh] ⚠️  Please re-authorize at /api/gmail/oauth2/url");
+      console.error("[Token Refresh] ⚠️  This is likely because:");
+      console.error("[Token Refresh] ⚠️  1. App is in 'Testing' mode (refresh tokens expire after 7 days)");
+      console.error("[Token Refresh] ⚠️  2. Refresh token was revoked");
+      console.error("[Token Refresh] ⚠️  3. OAuth credentials changed");
       return;
     }
     console.error("[Token Refresh] Initial check error:", err.message);
   }
 }, 5000); // Wait 5 seconds after server starts
 
-// Periodic refresh job - runs every hour
+// Periodic refresh job - runs every 20 minutes to proactively refresh tokens
+// Google access tokens expire after 1 hour, but refresh tokens can expire if not used
+// Checking every 20 minutes ensures we actively use the refresh token, keeping it alive
 setInterval(async () => {
   try {
-    // This will automatically refresh the token if it's expired or expiring soon
-    await getGmailClient();
-    console.log("[Token Refresh Job] Token check completed");
+    const timestamp = new Date().toISOString();
+    console.log(`[Token Refresh Job] [${timestamp}] Running scheduled token refresh...`);
+    await refreshAccessTokenIfNeeded();
+    console.log(`[Token Refresh Job] [${timestamp}] Token refresh check completed successfully`);
   } catch (err) {
+    const timestamp = new Date().toISOString();
     // Don't log errors for missing token.json (expected if not configured)
     if (err.message?.includes("Missing token.json")) {
       return;
     }
-    // For invalid_grant, just warn - email will still work from id_token
-    if (err.message?.includes("invalid_grant") || err.message?.includes("refresh token")) {
-      console.warn("[Token Refresh Job] Refresh token invalid - email still available from id_token");
+    // For invalid_grant, log as error so it's visible
+    if (err.message?.includes("invalid_grant") || err.message?.includes("refresh token") || err.message?.includes("re-authorize")) {
+      console.error(`[Token Refresh Job] [${timestamp}] ⚠️  Refresh token invalid - Gmail API will not work`);
+      console.error(`[Token Refresh Job] [${timestamp}] ⚠️  Please re-authorize at /api/gmail/oauth2/url`);
+      console.error(`[Token Refresh Job] [${timestamp}] ⚠️  Error: ${err.message}`);
       return;
     }
-    console.error("[Token Refresh Job] Error:", err.message);
+    console.error(`[Token Refresh Job] [${timestamp}] Error:`, err.message);
   }
-}, 60 * 60 * 1000); // Run every hour
+}, 20 * 60 * 1000); // Run every 20 minutes (more frequent to keep refresh token alive)
 
 // Gmail Watch Management: Auto-start and auto-renew watch
 async function initializeGmailWatch() {

@@ -208,8 +208,116 @@ export async function setTokensFromCode(code, redirectUriOverride = null) {
   return tokens;
 }
 
+// Function to force refresh the access token (used by background jobs)
+export async function refreshAccessTokenIfNeeded() {
+  if (!fs.existsSync(TOKEN_PATH)) {
+    throw new Error("Missing token.json. Authorize via /api/gmail/oauth2/url first.");
+  }
+
+  const tokens = JSON.parse(fs.readFileSync(TOKEN_PATH, "utf-8"));
+  
+  if (!tokens.refresh_token) {
+    throw new Error("No refresh token available. Please re-authorize via /api/gmail/oauth2/url");
+  }
+
+  const oAuth2Client = createOAuthClient();
+  
+  // Force refresh if token expires within 45 minutes (aggressive to keep refresh token active)
+  // This ensures we're actively using the refresh token regularly, which keeps it alive
+  const fortyFiveMinutesFromNow = Date.now() + (45 * 60 * 1000);
+  const shouldRefresh = !tokens.expiry_date || tokens.expiry_date <= fortyFiveMinutesFromNow;
+  
+  if (shouldRefresh) {
+    const minutesUntilExpiry = tokens.expiry_date ? Math.round((tokens.expiry_date - Date.now()) / 60000) : 'unknown';
+    console.log(`[refreshAccessTokenIfNeeded] Token expires in ${minutesUntilExpiry} minutes, refreshing...`);
+    console.log(`[refreshAccessTokenIfNeeded] Refresh token preview: ${tokens.refresh_token.substring(0, 20)}...`);
+    
+    try {
+      oAuth2Client.setCredentials({
+        refresh_token: tokens.refresh_token,
+        access_token: tokens.access_token,
+        expiry_date: tokens.expiry_date,
+        token_type: tokens.token_type || "Bearer",
+      });
+      
+      const { credentials } = await oAuth2Client.refreshAccessToken();
+      const newTokens = { ...tokens, ...credentials };
+      
+      // CRITICAL: Preserve refresh_token - Google doesn't always return it on refresh
+      // Verify refresh_token is preserved
+      if (!newTokens.refresh_token && tokens.refresh_token) {
+        console.log("[refreshAccessTokenIfNeeded] ⚠️ Refresh token not in response, preserving existing one");
+        newTokens.refresh_token = tokens.refresh_token;
+      } else if (newTokens.refresh_token && newTokens.refresh_token !== tokens.refresh_token) {
+        console.log("[refreshAccessTokenIfNeeded] ✓ New refresh token received from Google");
+      } else {
+        console.log("[refreshAccessTokenIfNeeded] ✓ Refresh token preserved successfully");
+      }
+      
+      // Verify refresh token was saved
+      if (!newTokens.refresh_token) {
+        throw new Error("CRITICAL: Refresh token was lost during refresh! This should not happen.");
+      }
+      
+      fs.writeFileSync(TOKEN_PATH, JSON.stringify(newTokens, null, 2));
+      
+      // Verify it was saved correctly
+      const verifyTokens = JSON.parse(fs.readFileSync(TOKEN_PATH, "utf-8"));
+      if (!verifyTokens.refresh_token) {
+        throw new Error("CRITICAL: Refresh token was not saved to token.json!");
+      }
+      
+      console.log(`[refreshAccessTokenIfNeeded] ✓ Token refreshed successfully. New expiry: ${newTokens.expiry_date ? new Date(newTokens.expiry_date).toISOString() : 'unknown'}`);
+      console.log(`[refreshAccessTokenIfNeeded] ✓ Refresh token preserved: ${verifyTokens.refresh_token.substring(0, 20)}...`);
+      
+      // Clear cache to force new client creation with fresh token
+      clearTokenCache();
+      
+      return newTokens;
+    } catch (err) {
+      console.error("[refreshAccessTokenIfNeeded] ❌ Failed to refresh token:", err.message);
+      console.error("[refreshAccessTokenIfNeeded] ❌ Error details:", JSON.stringify(err.response?.data || err.message, null, 2));
+      
+      // Check if refresh token is still in file
+      try {
+        const currentTokens = JSON.parse(fs.readFileSync(TOKEN_PATH, "utf-8"));
+        if (currentTokens.refresh_token) {
+          console.log("[refreshAccessTokenIfNeeded] ✓ Refresh token still exists in token.json after error");
+        } else {
+          console.error("[refreshAccessTokenIfNeeded] ❌ CRITICAL: Refresh token missing from token.json after error!");
+        }
+      } catch (readErr) {
+        console.error("[refreshAccessTokenIfNeeded] ❌ Failed to verify refresh token after error:", readErr.message);
+      }
+      
+      throw err;
+    }
+  } else {
+    const minutesRemaining = Math.round((tokens.expiry_date - Date.now()) / 60000);
+    console.log(`[refreshAccessTokenIfNeeded] Token still valid for ${minutesRemaining} more minutes, skipping refresh`);
+    console.log(`[refreshAccessTokenIfNeeded] Refresh token present: ${tokens.refresh_token ? 'YES' : 'NO'}`);
+  }
+  
+  return tokens;
+}
+
 export async function getGmailClient() {
-  if (cachedGmail) return cachedGmail;
+  // Check if we need to refresh before using cached client
+  if (cachedGmail) {
+    // If cached, still check if token needs refresh (but don't block)
+    // The cached client will auto-refresh on API calls, but we want to be proactive
+    try {
+      await refreshAccessTokenIfNeeded().catch(() => {
+        // If refresh fails, clear cache to force re-creation
+        clearTokenCache();
+      });
+    } catch (err) {
+      // Refresh failed, clear cache
+      clearTokenCache();
+      throw err;
+    }
+    return cachedGmail;
+  }
 
   const oAuth2Client = createOAuthClient();
   
@@ -292,36 +400,25 @@ export async function getGmailClient() {
     }
   }
   
-  // Set up automatic token refresh handler
-  // This will be called automatically by the OAuth2 client when tokens are refreshed
-  oAuth2Client.on('tokens', (newTokens) => {
-    console.log("[googleAuth] Tokens automatically refreshed by OAuth2 client");
-    // Merge new tokens with existing ones (preserve refresh_token)
-    const updatedTokens = { ...tokens, ...newTokens };
-    if (!updatedTokens.refresh_token && tokens.refresh_token) {
-      updatedTokens.refresh_token = tokens.refresh_token;
-    }
-    // Save updated tokens to disk
-    try {
-      fs.writeFileSync(TOKEN_PATH, JSON.stringify(updatedTokens, null, 2));
-      console.log("[googleAuth] Updated tokens saved to token.json");
-      // Update cached tokens
-      Object.assign(tokens, updatedTokens);
-    } catch (err) {
-      console.error("[googleAuth] Failed to save refreshed tokens:", err.message);
-    }
-  });
-
   oAuth2Client.setCredentials(tokens);
 
-  // Refresh token if expired or expiring soon (within 5 minutes)
-  const fiveMinutesFromNow = Date.now() + (5 * 60 * 1000);
-  if (tokens.expiry_date && tokens.expiry_date <= fiveMinutesFromNow) {
-    console.log("[googleAuth] Token expired or expiring soon, refreshing automatically...");
+  // Refresh token if expired or expiring soon (within 15 minutes)
+  // More proactive check to prevent token expiration during API calls
+  const fifteenMinutesFromNow = Date.now() + (15 * 60 * 1000);
+  if (!tokens.expiry_date || tokens.expiry_date <= fifteenMinutesFromNow) {
+    const reason = !tokens.expiry_date 
+      ? "no expiry date found" 
+      : tokens.expiry_date <= Date.now() 
+        ? "expired" 
+        : `expiring in ${Math.round((tokens.expiry_date - Date.now()) / 60000)} minutes`;
+    console.log(`[googleAuth] Token ${reason}, refreshing proactively...`);
     try {
       // Set credentials with refresh_token first, then refresh
       oAuth2Client.setCredentials({
         refresh_token: tokens.refresh_token,
+        access_token: tokens.access_token, // Include existing access token if present
+        expiry_date: tokens.expiry_date,
+        token_type: tokens.token_type || "Bearer",
       });
       
       const { credentials } = await oAuth2Client.refreshAccessToken();
@@ -342,18 +439,18 @@ export async function getGmailClient() {
       }
     } catch (err) {
       console.error("[googleAuth] Failed to refresh token:", err.message);
+      console.error("[googleAuth] Error details:", JSON.stringify(err.response?.data || err.message, null, 2));
       
       // If refresh fails with invalid_grant, the refresh token is likely invalid
       // This can happen if:
       // 1. Token was revoked by user
       // 2. Token was issued for different OAuth client
-      // 3. Token expired (rare for refresh tokens)
+      // 3. Token expired (rare for refresh tokens, but can happen if not used for 6+ months)
       if (err.message?.includes("invalid_grant") || err.code === "invalid_grant") {
-        console.warn("[googleAuth] Refresh token is invalid. Email will still be available from id_token, but Gmail API calls will fail.");
-        console.warn("[googleAuth] To fix: Visit /api/gmail/oauth2/url to get a new authorization URL and re-authorize.");
-        // Don't throw - allow the code to continue with expired token
-        // The email can still be extracted from id_token
-        // Gmail API calls will fail, but at least the email will show
+        console.error("[googleAuth] Refresh token is invalid - invalid_grant error");
+        console.error("[googleAuth] To fix: Visit /api/gmail/oauth2/url to get a new authorization URL and re-authorize.");
+        // Throw an error so callers can handle it properly
+        throw new Error("Refresh token is invalid (invalid_grant). Please re-authorize via /api/gmail/oauth2/url");
       } else {
         // For other errors, still throw but with helpful message
         if (!tokens.refresh_token) {

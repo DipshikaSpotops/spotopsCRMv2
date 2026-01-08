@@ -4,11 +4,25 @@ import { STATES } from "../data/states";
 const SALES_AGENTS = ["David", "Dipshika", "John", "Mark", "Michael", "Richard", "Tristan"];
 import API from "../api";
 
+const getStoredFirstName = () => {
+  if (typeof window === "undefined") return "";
+  const stored = localStorage.getItem("firstName");
+  return stored ? stored.trim() : "";
+};
+
 export default function AddOrder() {
+  // Get initial salesAgent from localStorage firstName
+  const initialSalesAgent = getStoredFirstName();
+  
+  // Ensure initialSalesAgent is in the options if it exists
+  const salesAgentOptions = initialSalesAgent && !SALES_AGENTS.includes(initialSalesAgent)
+    ? [initialSalesAgent, ...SALES_AGENTS]
+    : SALES_AGENTS;
+  
   const [formData, setFormData] = useState({
     // Order basics
     orderNo: "",
-    salesAgent: "",
+    salesAgent: initialSalesAgent,
     orderDateDisplay: "",
     orderDateISO: "",
     orderStatus: "Placed",
@@ -269,7 +283,7 @@ export default function AddOrder() {
           <Section title="Sales Agent">
             <Dropdown
               placeholder="Select Sales Agent"
-              options={SALES_AGENTS}
+              options={salesAgentOptions}
               value={formData.salesAgent}
               onChange={(e) =>
                 setFormData((prev) => ({ ...prev, salesAgent: e.target.value }))

@@ -399,20 +399,38 @@ export async function listMessagesHandler(req, res, next) {
       gmailUserEmail = getUserEmail() || process.env.GMAIL_IMPERSONATED_USER;
     } catch (fetchErr) {
       console.error("[listMessages] Failed to create Gmail client:", fetchErr);
-      // Mirror the friendlier error handling from manualSyncHandler so the UI
-      // can show a clear message instead of a generic 500.
-      if (
+      console.error("[listMessages] Error details:", {
+        message: fetchErr.message,
+        code: fetchErr.code,
+        stack: fetchErr.stack
+      });
+      
+      // Check for any token-related errors that require re-authorization
+      const isTokenError = 
         fetchErr.message?.includes("invalid_grant") ||
-        fetchErr.code === "invalid_grant"
-      ) {
+        fetchErr.message?.includes("re-authorize") ||
+        fetchErr.message?.includes("re-authorization") ||
+        fetchErr.message?.includes("Missing token.json") ||
+        fetchErr.message?.includes("No refresh token") ||
+        fetchErr.message?.includes("Refresh token is invalid") ||
+        fetchErr.message?.includes("Token refresh failed") ||
+        fetchErr.message?.includes("RAPT") ||
+        fetchErr.code === "invalid_grant";
+      
+      if (isTokenError) {
+        const helpUrl = process.env.NODE_ENV === "production" 
+          ? "https://www.spotops360.com/api/gmail/oauth2/url"
+          : "http://localhost:5000/api/gmail/oauth2/url";
+        
         return res.status(400).json({
           message: "Gmail token is invalid. Please re-authorize via /api/gmail/oauth2/url",
           error: "Invalid token. Re-authorization required.",
           errorCode: "GMAIL_TOKEN_INVALID",
-          help: "http://localhost:5000/api/gmail/oauth2/url",
+          help: helpUrl,
         });
       }
 
+      // For other errors (like missing credentials.json), return 500
       return res.status(500).json({
         message: "Failed to connect to Gmail. Make sure Gmail API credentials are configured.",
         error: fetchErr.message,
@@ -420,11 +438,14 @@ export async function listMessagesHandler(req, res, next) {
     }
     
     // Build Gmail query
+    // For Sales users: always fetch all unread messages (they can see all unclaimed leads)
+    // For Admin: allow filtering by agentEmail if specified (from dropdown selection)
     let gmailQuery = "is:unread in:inbox";
-    if (agentEmail && SALES_AGENT_EMAILS.includes(agentEmail.toLowerCase())) {
-      // If filtering by agent email, search for messages to that email
+    if (userRole === "Admin" && agentEmail && SALES_AGENT_EMAILS.includes(agentEmail.toLowerCase())) {
+      // Admin can filter by specific agent email
       gmailQuery = `is:unread in:inbox to:${agentEmail}`;
     }
+    // Sales users always get all unread messages (no filtering by agentEmail)
     
     let gmailMessagesData;
     try {
@@ -460,7 +481,16 @@ export async function listMessagesHandler(req, res, next) {
       });
     }
     
-    const { data } = { data: gmailMessagesData };
+    // Validate that we got valid data from Gmail API
+    if (!gmailMessagesData) {
+      console.error("[listMessages] Gmail API returned no data");
+      return res.status(500).json({
+        message: "Gmail API returned invalid response",
+        error: "No data received from Gmail API",
+      });
+    }
+    
+    const data = gmailMessagesData;
     
     // Also fetch closed and claimed leads from Lead collection
     const userLeads = [];
@@ -642,24 +672,33 @@ export async function listMessagesHandler(req, res, next) {
     
     let combinedMessages = Array.from(messageMap.values());
     
-    // For sales agents: filter out messages claimed by other agents (Admin can see all)
+    // For sales agents: Show ALL unclaimed leads, but only their own claimed/closed leads
+    // Admin can see all leads (no filtering needed)
     if (user?.role === "Sales" && userFirstName) {
       combinedMessages = combinedMessages.filter(msg => {
-        // Allow unclaimed messages (status === "active" or no claimedBy)
-        if (!msg.claimedBy || msg.status === "active") {
+        const status = msg.status || "active";
+        
+        // Allow ALL unclaimed/active leads - all sales agents can see all unclaimed leads
+        if (status === "active" || !msg.claimedBy) {
           return true;
         }
-        // Allow messages claimed by current user
-        if (msg.claimedBy === user.id) {
-          return true;
+        
+        // For claimed/closed leads: only show if claimed by current user
+        if (status === "claimed" || status === "closed") {
+          // Check if claimed by current user (by userId)
+          if (msg.claimedBy === user.id) {
+            return true;
+          }
+          // Also check salesAgent field for backward compatibility
+          if (msg.salesAgent && msg.salesAgent.toLowerCase() === userFirstName.toLowerCase()) {
+            return true;
+          }
+          // Hide claimed/closed leads claimed by other agents
+          return false;
         }
-        // Check Lead collection for salesAgent field
-        // If message has agentEmail that matches, allow it (it's assigned to this agent)
-        if (msg.agentEmail && msg.agentEmail.toLowerCase() === normalizedEmail?.toLowerCase()) {
-          return true;
-        }
-        // Otherwise, filter it out (claimed by another agent)
-        return false;
+        
+        // Default: show the message
+        return true;
       });
     }
     // Admin users can see all messages, no filtering needed
@@ -716,7 +755,10 @@ export async function oauth2UrlHandler(req, res, next) {
       secure: req.secure
     });
     
-    const url = getAuthUrl(redirectUri);
+    // Always force consent when user manually visits OAuth URL to ensure we get a fresh refresh token
+    // This prevents refresh token expiration issues
+    const forceConsent = req.query.force !== 'false'; // Default to true, unless explicitly false
+    const url = getAuthUrl(redirectUri, forceConsent);
     
     // If request wants HTML (browser), show a nice page with the link
     if (req.headers.accept?.includes("text/html")) {
@@ -874,8 +916,8 @@ export async function oauth2CallbackHandler(req, res, next) {
         <body style="font-family: Arial, sans-serif; padding: 40px; text-align: center;">
           <h1 style="color: #4CAF50;">✅ Gmail Connected Successfully!</h1>
           <p>Email: <strong>${userEmail || "N/A"}</strong></p>
-          <p style="color: #666; margin-top: 20px;">⚠️ <strong>Important:</strong> Please restart your backend server for the new token to take effect.</p>
-          <p>You can close this window now.</p>
+          <p style="color: #4CAF50; margin-top: 20px;">✅ Token saved and active. You can now use Gmail features.</p>
+          <p>You can close this window and return to the Leads page.</p>
         </body>
       </html>
     `);
@@ -901,16 +943,38 @@ export async function checkTokenHandler(req, res, next) {
       hasAccessToken: false,
       hasRefreshToken: false,
       expiryDate: null,
+      minutesUntilExpiry: null,
+      isExpired: false,
+      refreshTokenPreview: null,
+      lastModified: null,
       error: null,
+      warning: null,
     };
 
     if (fs.existsSync(TOKEN_PATH)) {
       tokenInfo.exists = true;
       try {
+        const stats = fs.statSync(TOKEN_PATH);
+        tokenInfo.lastModified = stats.mtime.toISOString();
+        
         const tokens = JSON.parse(fs.readFileSync(TOKEN_PATH, "utf-8"));
         tokenInfo.hasAccessToken = !!tokens.access_token;
         tokenInfo.hasRefreshToken = !!tokens.refresh_token;
-        tokenInfo.expiryDate = tokens.expiry_date ? new Date(tokens.expiry_date).toISOString() : null;
+        tokenInfo.refreshTokenPreview = tokens.refresh_token ? `${tokens.refresh_token.substring(0, 20)}...` : null;
+        
+        if (tokens.expiry_date) {
+          tokenInfo.expiryDate = new Date(tokens.expiry_date).toISOString();
+          const now = Date.now();
+          const minutesUntilExpiry = Math.round((tokens.expiry_date - now) / 60000);
+          tokenInfo.minutesUntilExpiry = minutesUntilExpiry;
+          tokenInfo.isExpired = tokens.expiry_date <= now;
+          
+          if (tokenInfo.isExpired) {
+            tokenInfo.warning = "Access token is expired. Refresh should happen automatically.";
+          } else if (minutesUntilExpiry < 15) {
+            tokenInfo.warning = `Access token expires in ${minutesUntilExpiry} minutes. Refresh should happen soon.`;
+          }
+        }
         
         // Try to extract email from id_token
         if (tokens.id_token) {
@@ -929,9 +993,16 @@ export async function checkTokenHandler(req, res, next) {
         if (!tokenInfo.email) {
           tokenInfo.email = getUserEmail();
         }
+        
+        // Add warning if no refresh token
+        if (!tokenInfo.hasRefreshToken) {
+          tokenInfo.warning = "⚠️ NO REFRESH TOKEN - This token will not work once it expires. Please re-authorize.";
+        }
       } catch (err) {
         tokenInfo.error = `Failed to read token.json: ${err.message}`;
       }
+    } else {
+      tokenInfo.error = "token.json file does not exist";
     }
 
     return res.json(tokenInfo);

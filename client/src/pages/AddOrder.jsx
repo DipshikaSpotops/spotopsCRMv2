@@ -171,10 +171,20 @@ export default function AddOrder() {
   const [toast, setToast] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [formData, setFormData] = useState(() =>
-    buildInitialFormData(defaultSalesAgent)
+    buildInitialFormData("")
   );
   const [partNames, setPartNames] = useState([]);
   const [fieldErrors, setFieldErrors] = useState(new Set());
+
+  // Update salesAgent when defaultSalesAgent becomes available (after salesAgents are fetched)
+  useEffect(() => {
+    if (defaultSalesAgent && !formData.salesAgent) {
+      setFormData((prev) => ({
+        ...prev,
+        salesAgent: defaultSalesAgent,
+      }));
+    }
+  }, [defaultSalesAgent, formData.salesAgent]);
 
   // Helper to clear error when field is updated
   const handleFieldChange = (fieldKey, value) => {

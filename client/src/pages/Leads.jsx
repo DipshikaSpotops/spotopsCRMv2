@@ -411,9 +411,9 @@ export default function Leads() {
     }
     try {
       const params = { limit };
-      if (isSales && normalizedEmail) {
-        params.agentEmail = normalizedEmail;
-      }
+      // Don't filter by agentEmail for Sales users - they should see all unclaimed leads
+      // Only Admin uses agentEmail filter (when selecting a specific agent from dropdown)
+      // Sales users will see all unclaimed leads, but only their own claimed/closed leads
       const { data } = await API.get("/gmail/messages", { params });
       let newMessages = data?.messages || [];
       
@@ -424,8 +424,7 @@ export default function Leads() {
         console.log(`[Leads] Admin view - Total claimed/closed leads: ${claimedLeads.length}, claimedBy IDs: ${uniqueClaimedBy.length}`);
       }
       
-      // Frontend filter: Remove read emails that aren't claimed/closed by current user
-      // This is a safety measure in case any read emails slip through from the backend
+      // Frontend filter: Safety check to ensure consistency
       // Admin users can see ALL leads, so skip this filtering for Admin
       if (!isAdmin) {
         newMessages = newMessages.filter((msg) => {
@@ -433,21 +432,22 @@ export default function Leads() {
           const isUnread = labelIds.includes("UNREAD");
           const status = msg.status || "active";
           
-          // Always show unread messages
-          if (isUnread) {
+          // Always show unclaimed/active leads - all sales agents can see all unclaimed leads
+          if (status === "active" || !msg.claimedBy) {
             return true;
           }
           
-          // If message is read, only show if it's claimed/closed by current user
-          if (!isUnread) {
-            // Show if claimed/closed by current user
-            if ((status === "claimed" || status === "closed") && msg.claimedBy && userId && msg.claimedBy === userId) {
+          // For claimed/closed leads: only show if claimed by current user
+          if (status === "claimed" || status === "closed") {
+            // Show if claimed by current user
+            if (msg.claimedBy && userId && msg.claimedBy === userId) {
               return true;
             }
-            // Hide read emails that aren't claimed/closed by current user
+            // Hide claimed/closed leads claimed by other agents
             return false;
           }
           
+          // Default: show the message
           return true;
         });
       }
@@ -493,25 +493,28 @@ export default function Leads() {
               return updated || m;
             })
             .filter(m => {
-              // Filter out read emails that aren't claimed/closed by current user
-              const labelIds = m.labelIds || [];
-              const isUnread = labelIds.includes("UNREAD");
-              const status = m.status || "active";
-              
-              // Always keep unread messages
-              if (isUnread) {
+              // Admin users see all messages
+              if (isAdmin) {
                 return true;
               }
               
-              // If read, only keep if claimed/closed by current user
+              // For Sales users: show all unclaimed leads, but only their own claimed/closed leads
+              const status = m.status || "active";
+              
+              // Allow ALL unclaimed/active leads
+              if (status === "active" || !m.claimedBy) {
+                return true;
+              }
+              
+              // For claimed/closed leads: only keep if claimed by current user
               if (status === "claimed" || status === "closed") {
                 if (m.claimedBy && userId && m.claimedBy === userId) {
                   return true;
                 }
+                return false;
               }
               
-              // Remove read emails that aren't claimed by current user
-              return false;
+              return true;
             });
         });
       } else {
@@ -1108,55 +1111,19 @@ export default function Leads() {
     return messages.filter((msg) => {
       // Admin users can see ALL leads (claimed by anyone), so skip all claimedBy filtering for Admin
       if (!isAdmin) {
-        // Filter out read emails that aren't claimed/closed by current user (Sales users only)
-        const labelIds = msg.labelIds || [];
-        const isUnread = labelIds.includes("UNREAD");
         const status = msg.status || "active";
         
-        // If labelIds is missing or empty, treat as potentially read and check status
-        // If message is read (no UNREAD label), only show if claimed/closed by current user
-        if (!isUnread) {
-          // Show read emails only if they're claimed/closed by current user
-          if (status === "claimed" || status === "closed") {
-            if (msg.claimedBy && userId && msg.claimedBy === userId) {
-              // Continue with other filters - this is a claimed/closed lead by current user
-            } else {
-              return false; // Hide read emails that aren't claimed by current user
-            }
-          } else {
-            // Hide read emails that are active/unclaimed
-            // Also hide if labelIds is missing and status is active (likely read)
-            if (status === "active" && (!labelIds || labelIds.length === 0)) {
-              // If no labelIds and status is active, assume it might be read - hide it to be safe
-              return false;
-            }
-            return false;
-          }
-        }
-        
-        // Filter out leads claimed by other users (Sales users only)
-        // Show:
-        // 1. Active (unclaimed) leads (must be unread)
-        // 2. Leads claimed by the current logged-in user
-        // 3. Leads closed by the current logged-in user
-        // Hide:
-        // - Leads claimed by other users
-        
-        // Always show active leads (they should be unread at this point)
-        if (status === "active") {
-          // Continue with other filters below
+        // Allow ALL unclaimed/active leads - all sales agents can see all unclaimed leads
+        if (status === "active" || !msg.claimedBy) {
+          // Continue with other filters (agent filter, search) below
         } else if (status === "claimed" || status === "closed") {
-          // Only show if claimed by current user
+          // For claimed/closed leads: only show if claimed by current user
           if (msg.claimedBy && userId && msg.claimedBy !== userId) {
-            return false; // Hide leads claimed by other users
+            return false; // Hide leads claimed by other agents
           }
-        }
-        
-        // For sales agents: only show unclaimed leads or leads claimed by them
-        if (isSales && normalizedEmail) {
-          // If lead is claimed by another agent, don't show it
-          if (msg.agentEmail && msg.agentEmail.toLowerCase() !== normalizedEmail) {
-            return false;
+          // Also check salesAgent field for backward compatibility
+          if (msg.salesAgent && firstName && msg.salesAgent.toLowerCase() !== firstName.toLowerCase()) {
+            return false; // Hide if salesAgent doesn't match
           }
         }
       }
