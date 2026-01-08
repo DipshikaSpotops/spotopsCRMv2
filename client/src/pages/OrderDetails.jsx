@@ -387,35 +387,39 @@ export default function OrderDetails() {
       prevYardsRef.current = yards;
     } else if (yardsReferenceChanged) {
       // Yards array reference changed (refresh happened)
+      // IMPORTANT: Always prioritize the ref value - it's set before refresh to preserve the active yard
       const currentIdx = activeYardIndexRef.current;
-      console.log(`[OrderDetails] Yards refreshed, restoring from ref: index ${currentIdx}, yards length: ${currentLength}`);
+      const currentStateIdx = activeYardIndex;
       
-      // Always restore from ref if it exists and is valid
+      console.log(`[OrderDetails] Yards refreshed, restoring from ref: index ${currentIdx}, state index: ${currentStateIdx}, yards length: ${currentLength}`);
+      
+      // Priority 1: Use ref value if it exists and is valid (this is the preserved index from before refresh)
       if (currentIdx !== null && currentIdx !== undefined && currentIdx < currentLength) {
-        // Restore from ref - this is the key: always restore to what was preserved
-        console.log(`[OrderDetails] Restoring to Yard ${currentIdx + 1} (index ${currentIdx})`);
+        // Restore from ref - this is the key: always restore to what was preserved BEFORE refresh
+        console.log(`[OrderDetails] ✓ Restoring to Yard ${currentIdx + 1} (index ${currentIdx}) from ref`);
         setActiveYardIndex(currentIdx);
         // Ensure ref stays in sync
         activeYardIndexRef.current = currentIdx;
-      } else if (currentIdx !== null && currentIdx !== undefined && currentIdx >= currentLength) {
-        // Index out of bounds (yard was deleted), reset to last yard
-        console.log(`[OrderDetails] Index ${currentIdx} out of bounds, resetting to last yard`);
+      } 
+      // Priority 2: Check current state if ref is not set (fallback)
+      else if (currentStateIdx !== null && currentStateIdx !== undefined && currentStateIdx < currentLength) {
+        console.log(`[OrderDetails] ✓ Using current state index ${currentStateIdx} (Yard ${currentStateIdx + 1})`);
+        // Current state is valid, preserve it in ref
+        activeYardIndexRef.current = currentStateIdx;
+        // Don't change state - it's already correct
+      }
+      // Priority 3: Only fall back to last yard if both ref and state are invalid/missing
+      else {
         const lastIdx = currentLength - 1;
+        if (currentIdx !== null && currentIdx !== undefined && currentIdx >= currentLength) {
+          // Index out of bounds (yard was deleted), reset to last yard
+          console.log(`[OrderDetails] ⚠️ Index ${currentIdx} out of bounds, resetting to last yard: ${lastIdx}`);
+        } else {
+          // No valid ref or state - default to last yard (only on first load)
+          console.log(`[OrderDetails] ⚠️ No valid ref or state, defaulting to last yard: ${lastIdx}`);
+        }
         setActiveYardIndex(lastIdx);
         activeYardIndexRef.current = lastIdx;
-      } else {
-        // No ref value or invalid - check current state, otherwise use last yard
-        console.log(`[OrderDetails] No valid ref, checking current state: ${activeYardIndex}`);
-        if (activeYardIndex === null || activeYardIndex === undefined || activeYardIndex >= currentLength) {
-          const lastIdx = currentLength - 1;
-          console.log(`[OrderDetails] Current state invalid, using last yard: ${lastIdx}`);
-          setActiveYardIndex(lastIdx);
-          activeYardIndexRef.current = lastIdx;
-        } else {
-          // Current state is valid, preserve it in ref
-          console.log(`[OrderDetails] Current state valid, preserving: ${activeYardIndex}`);
-          activeYardIndexRef.current = activeYardIndex;
-        }
       }
       prevYardsRef.current = yards;
     }
@@ -1525,39 +1529,54 @@ export default function OrderDetails() {
         order={order}
         orderNo={order?.orderNo}
         onClose={() => {
-          // Preserve active yard index when closing modal
+          // Preserve active yard index when closing modal without saving
           if (editDetailsIdx !== null && editDetailsIdx !== undefined) {
-            activeYardIndexRef.current = editDetailsIdx;
-            setActiveYardIndex(editDetailsIdx);
+            const idxToPreserve = editDetailsIdx;
+            activeYardIndexRef.current = idxToPreserve;
+            setActiveYardIndex(idxToPreserve);
           }
           setEditDetailsIdx(null);
         }}
         onSubmit={async (updatedOrder) => {
           // CRITICAL: Preserve the active yard index BEFORE any refresh happens
-          // This ensures websocket-triggered refreshes also use the correct index
+          // Capture the index to preserve BEFORE closing modal
           const yardIndexToPreserve = editDetailsIdx;
           console.log(`[OrderDetails] Saving Yard ${yardIndexToPreserve + 1} (index ${yardIndexToPreserve}), preserving index in ref`);
           
-          // Set ref IMMEDIATELY so websocket refreshes can use it
+          // CRITICAL: Set ref and state IMMEDIATELY before refresh
+          // This ensures the useEffect that runs when yards changes will use the correct index
           if (yardIndexToPreserve !== null && yardIndexToPreserve !== undefined) {
             activeYardIndexRef.current = yardIndexToPreserve;
-            setActiveYardIndex(yardIndexToPreserve); // Also set state to be safe
+            setActiveYardIndex(yardIndexToPreserve);
+            console.log(`[OrderDetails] Set activeYardIndex to ${yardIndexToPreserve} BEFORE refresh`);
           }
+          
+          // Close modal AFTER setting the ref
+          setEditDetailsIdx(null);
           
           if (updatedOrder) {
             mutateOrder(updatedOrder);
           }
           
+          // Refresh - this will trigger the useEffect that checks activeYardIndexRef.current
           await refresh();
           
-          // Restore the active yard index after refresh (in case it was reset)
+          // Ensure the index is still set after refresh completes
+          // The useEffect should handle this, but we ensure it here as well
           if (yardIndexToPreserve !== null && yardIndexToPreserve !== undefined) {
-            console.log(`[OrderDetails] Restoring to Yard ${yardIndexToPreserve + 1} (index ${yardIndexToPreserve}) after refresh`);
-            // Use setTimeout to ensure this runs after any websocket refresh
+            console.log(`[OrderDetails] Ensuring Yard ${yardIndexToPreserve + 1} (index ${yardIndexToPreserve}) is still active after refresh`);
+            // Immediate restore
+            activeYardIndexRef.current = yardIndexToPreserve;
+            setActiveYardIndex(yardIndexToPreserve);
+            
+            // Additional restore with slight delay to catch any async refreshes
             setTimeout(() => {
-              activeYardIndexRef.current = yardIndexToPreserve;
-              setActiveYardIndex(yardIndexToPreserve);
-            }, 100);
+              if (yards && yardIndexToPreserve < yards.length) {
+                activeYardIndexRef.current = yardIndexToPreserve;
+                setActiveYardIndex(yardIndexToPreserve);
+                console.log(`[OrderDetails] Restored to Yard ${yardIndexToPreserve + 1} after timeout`);
+              }
+            }, 50);
           }
           
           await recomputeAndPersistActualGP({ useServer: true });
@@ -1589,10 +1608,16 @@ export default function OrderDetails() {
           await refresh();
           // Restore after refresh (in case websocket also refreshed)
           if (yardIndexToPreserve !== null && yardIndexToPreserve !== undefined) {
+            // Immediate restore
+            activeYardIndexRef.current = yardIndexToPreserve;
+            setActiveYardIndex(yardIndexToPreserve);
+            // Also restore after delay for async refreshes
             setTimeout(() => {
-              activeYardIndexRef.current = yardIndexToPreserve;
-              setActiveYardIndex(yardIndexToPreserve);
-            }, 100);
+              if (yards && yardIndexToPreserve < yards.length) {
+                activeYardIndexRef.current = yardIndexToPreserve;
+                setActiveYardIndex(yardIndexToPreserve);
+              }
+            }, 50);
           }
         }}
         onEmailSending={(isSending, status) => {
@@ -1647,10 +1672,16 @@ export default function OrderDetails() {
           await refresh();
           // Restore after refresh (in case websocket also refreshed)
           if (yardIndexToPreserve !== null && yardIndexToPreserve !== undefined) {
+            // Immediate restore
+            activeYardIndexRef.current = yardIndexToPreserve;
+            setActiveYardIndex(yardIndexToPreserve);
+            // Also restore after delay for async refreshes
             setTimeout(() => {
-              activeYardIndexRef.current = yardIndexToPreserve;
-              setActiveYardIndex(yardIndexToPreserve);
-            }, 100);
+              if (yards && yardIndexToPreserve < yards.length) {
+                activeYardIndexRef.current = yardIndexToPreserve;
+                setActiveYardIndex(yardIndexToPreserve);
+              }
+            }, 50);
           }
         }}
         orderNo={orderNo}
@@ -1678,10 +1709,16 @@ export default function OrderDetails() {
           await refresh();
           // Restore after refresh (in case websocket also refreshed)
           if (yardIndexToPreserve !== null && yardIndexToPreserve !== undefined) {
+            // Immediate restore
+            activeYardIndexRef.current = yardIndexToPreserve;
+            setActiveYardIndex(yardIndexToPreserve);
+            // Also restore after delay for async refreshes
             setTimeout(() => {
-              activeYardIndexRef.current = yardIndexToPreserve;
-              setActiveYardIndex(yardIndexToPreserve);
-            }, 100);
+              if (yards && yardIndexToPreserve < yards.length) {
+                activeYardIndexRef.current = yardIndexToPreserve;
+                setActiveYardIndex(yardIndexToPreserve);
+              }
+            }, 50);
           }
         }}
         orderNo={orderNo}
@@ -1716,10 +1753,16 @@ export default function OrderDetails() {
           await refresh();
           // Restore after refresh (in case websocket also refreshed)
           if (yardIndexToPreserve !== null && yardIndexToPreserve !== undefined) {
+            // Immediate restore
+            activeYardIndexRef.current = yardIndexToPreserve;
+            setActiveYardIndex(yardIndexToPreserve);
+            // Also restore after delay for async refreshes
             setTimeout(() => {
-              activeYardIndexRef.current = yardIndexToPreserve;
-              setActiveYardIndex(yardIndexToPreserve);
-            }, 100);
+              if (yards && yardIndexToPreserve < yards.length) {
+                activeYardIndexRef.current = yardIndexToPreserve;
+                setActiveYardIndex(yardIndexToPreserve);
+              }
+            }, 50);
           }
           await recomputeAndPersistActualGP({ useServer: true });
         }}
