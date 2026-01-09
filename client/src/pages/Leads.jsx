@@ -418,40 +418,12 @@ export default function Leads() {
       let newMessages = data?.messages || [];
       
       console.log(`[Leads] Fetched ${newMessages.length} messages from API. isAdmin: ${isAdmin}, role: ${role}`);
-      if (isAdmin) {
-        const claimedLeads = newMessages.filter(m => m.status === "claimed" || m.status === "closed");
-        const uniqueClaimedBy = [...new Set(claimedLeads.map(m => m.claimedBy).filter(Boolean))];
-        console.log(`[Leads] Admin view - Total claimed/closed leads: ${claimedLeads.length}, claimedBy IDs: ${uniqueClaimedBy.length}`);
-      }
+      const claimedLeads = newMessages.filter(m => m.status === "claimed" || m.status === "closed");
+      const uniqueClaimedBy = [...new Set(claimedLeads.map(m => m.claimedBy).filter(Boolean))];
+      console.log(`[Leads] Total claimed/closed leads: ${claimedLeads.length}, claimedBy IDs: ${uniqueClaimedBy.length}`);
       
-      // Frontend filter: Safety check to ensure consistency
-      // Admin users can see ALL leads, so skip this filtering for Admin
-      if (!isAdmin) {
-        newMessages = newMessages.filter((msg) => {
-          const labelIds = msg.labelIds || [];
-          const isUnread = labelIds.includes("UNREAD");
-          const status = msg.status || "active";
-          
-          // Always show unclaimed/active leads - all sales agents can see all unclaimed leads
-          if (status === "active" || !msg.claimedBy) {
-            return true;
-          }
-          
-          // For claimed/closed leads: only show if claimed by current user
-          if (status === "claimed" || status === "closed") {
-            // Show if claimed by current user
-            if (msg.claimedBy && userId && msg.claimedBy === userId) {
-              return true;
-            }
-            // Hide claimed/closed leads claimed by other agents
-            return false;
-          }
-          
-          // Default: show the message
-          return true;
-        });
-      }
-      // Admin users see all messages (no filtering by claimedBy)
+      // NO frontend filtering - ALL users (both Admin and Sales) see ALL leads
+      // This ensures Sales agents see exactly the same leads as Admin in the "All Leads" view
       
       if (silent) {
         // Silent update: only append new messages without showing loading
@@ -491,31 +463,9 @@ export default function Leads() {
               // If message was updated, use the updated version
               // Otherwise keep the original
               return updated || m;
-            })
-            .filter(m => {
-              // Admin users see all messages
-              if (isAdmin) {
-                return true;
-              }
-              
-              // For Sales users: show all unclaimed leads, but only their own claimed/closed leads
-              const status = m.status || "active";
-              
-              // Allow ALL unclaimed/active leads
-              if (status === "active" || !m.claimedBy) {
-                return true;
-              }
-              
-              // For claimed/closed leads: only keep if claimed by current user
-              if (status === "claimed" || status === "closed") {
-                if (m.claimedBy && userId && m.claimedBy === userId) {
-                  return true;
-                }
-                return false;
-              }
-              
-              return true;
             });
+            // NO filtering - ALL users (both Admin and Sales) see ALL messages
+            // This ensures Sales agents see exactly the same leads as Admin
         });
       } else {
         setMessages(newMessages);
@@ -672,12 +622,12 @@ export default function Leads() {
         params.endDate = endDateStr;
         console.log("[Leads] Extracted endDate:", endDateStr);
       }
-      // Use selectedAgentForStats if set, otherwise use sales user's email
-      if (selectedAgentForStats && selectedAgentForStats !== "All") {
+      // For Admin: use selectedAgentForStats if set (from dropdown filter)
+      // For Sales: don't send agentEmail - backend will automatically filter to their own stats
+      if (isAdmin && selectedAgentForStats && selectedAgentForStats !== "All") {
         params.agentEmail = selectedAgentForStats;
-      } else if (isSales && normalizedEmail) {
-        params.agentEmail = normalizedEmail;
       }
+      // Sales users: don't send agentEmail - backend automatically filters to their own statistics
       console.log("[Leads] Fetching statistics with params:", params);
       console.log("[Leads] Selected agent for stats:", selectedAgentForStats);
       console.log("[Leads] Is Admin:", isAdmin, "Is Sales:", isSales);
@@ -1103,32 +1053,12 @@ export default function Leads() {
 
   const filteredMessages = useMemo(() => {
     console.log(`[Leads] filteredMessages - isAdmin: ${isAdmin}, total messages: ${messages.length}`);
-    if (isAdmin) {
-      const claimedLeads = messages.filter(m => m.status === "claimed" || m.status === "closed");
-      console.log(`[Leads] Admin view - Claimed/closed leads in messages: ${claimedLeads.length}`);
-    }
+    const claimedLeads = messages.filter(m => m.status === "claimed" || m.status === "closed");
+    console.log(`[Leads] Claimed/closed leads in messages: ${claimedLeads.length}`);
     
+    // NO filtering by status or claimedBy - ALL users (Admin and Sales) see ALL leads
+    // This ensures Sales agents see exactly the same leads as Admin in "All Leads" section
     return messages.filter((msg) => {
-      // Admin users can see ALL leads (claimed by anyone), so skip all claimedBy filtering for Admin
-      if (!isAdmin) {
-        const status = msg.status || "active";
-        
-        // Allow ALL unclaimed/active leads - all sales agents can see all unclaimed leads
-        if (status === "active" || !msg.claimedBy) {
-          // Continue with other filters (agent filter, search) below
-        } else if (status === "claimed" || status === "closed") {
-          // For claimed/closed leads: only show if claimed by current user
-          if (msg.claimedBy && userId && msg.claimedBy !== userId) {
-            return false; // Hide leads claimed by other agents
-          }
-          // Also check salesAgent field for backward compatibility
-          if (msg.salesAgent && firstName && msg.salesAgent.toLowerCase() !== firstName.toLowerCase()) {
-            return false; // Hide if salesAgent doesn't match
-          }
-        }
-      }
-      // Admin users: no filtering by claimedBy - they see all leads
-      
       const matchesAgent =
         isSales ||
         agentFilter === "Select" ||
@@ -1144,7 +1074,7 @@ export default function Leads() {
       }`.toLowerCase();
       return haystack.includes(search.toLowerCase());
     });
-  }, [messages, agentFilter, search, isSales, isAdmin, normalizedEmail, userId]);
+  }, [messages, agentFilter, search, isSales, normalizedEmail]);
 
   const parsedFields = useMemo(() => {
     if (!selectedMessage?.bodyHtml) return [];
@@ -2121,7 +2051,13 @@ export default function Leads() {
                       </span>
                     </div>
                   )}
-                  {(!selectedMessage.name && !selectedMessage.email && !selectedMessage.phone && !selectedMessage.year && !selectedMessage.make && !selectedMessage.model) && (
+                  {selectedMessage.partRequired && (
+                    <div>
+                      <span className="font-medium text-white/90">Part Required:</span>{" "}
+                      <span className="text-white/70">{selectedMessage.partRequired}</span>
+                    </div>
+                  )}
+                  {(!selectedMessage.name && !selectedMessage.email && !selectedMessage.phone && !selectedMessage.year && !selectedMessage.make && !selectedMessage.model && !selectedMessage.partRequired) && (
                     <div className="text-white/60 italic">No lead information available</div>
                   )}
                 </div>

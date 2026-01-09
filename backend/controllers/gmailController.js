@@ -387,9 +387,6 @@ export async function listMessagesHandler(req, res, next) {
     const userRole = user?.role || "Unknown";
     
     console.log(`[listMessages] Fetching messages: agentEmail=${agentEmail}, limit=${parsedLimit}, userFirstName=${userFirstName}, userEmail=${userEmail}, userRole=${userRole}`);
-    if (userRole === "Admin") {
-      console.log(`[listMessages] ⚠️ ADMIN USER DETECTED - Should see ALL claimed/closed leads (no filtering)`);
-    }
     
     // Fetch messages directly from Gmail API (unread/unclaimed)
     let gmail;
@@ -437,15 +434,12 @@ export async function listMessagesHandler(req, res, next) {
       });
     }
     
-    // Build Gmail query
-    // For Sales users: always fetch all unread messages (they can see all unclaimed leads)
-    // For Admin: allow filtering by agentEmail if specified (from dropdown selection)
-    let gmailQuery = "is:unread in:inbox";
-    if (userRole === "Admin" && agentEmail && SALES_AGENT_EMAILS.includes(agentEmail.toLowerCase())) {
-      // Admin can filter by specific agent email
-      gmailQuery = `is:unread in:inbox to:${agentEmail}`;
-    }
-    // Sales users always get all unread messages (no filtering by agentEmail)
+    // Build Gmail query - SAME for both Admin and Sales
+    // Fetch unread messages from Gmail (same query for all users in All Leads section)
+    // Then fetch claimed/closed and unclaimed read messages from database
+    // This prevents timeout issues from fetching ALL messages from Gmail
+    const gmailQuery = "is:unread in:inbox";
+    console.log(`[listMessages] Gmail query: ${gmailQuery}`);
     
     let gmailMessagesData;
     try {
@@ -492,60 +486,138 @@ export async function listMessagesHandler(req, res, next) {
     
     const data = gmailMessagesData;
     
-    // Also fetch closed and claimed leads from Lead collection
+    // Fetch leads from database - EXACT SAME logic for both Admin and Sales
+    // NO role-based conditionals - both see exactly the same data
     const userLeads = [];
-    // For Admin: fetch ALL claimed/closed leads (irrespective of salesAgent/firstName/claimedBy)
-    // For Sales: only their own leads (filtered by salesAgent/firstName)
-    let leadQuery;
-    if (user?.role === "Admin") {
-      // Admin sees ALL claimed/closed leads - NO filtering by salesAgent, firstName, or claimedBy
-      leadQuery = { status: { $in: ["closed", "claimed"] } };
-      console.log(`[listMessages] Admin user detected - fetching ALL claimed/closed leads (no salesAgent/firstName filter)`);
-    } else if (userFirstName) {
-      // Sales users only see their own leads
-      leadQuery = { salesAgent: userFirstName, status: { $in: ["closed", "claimed"] } };
-      console.log(`[listMessages] Sales user detected - fetching leads for ${userFirstName}`);
-    } else {
-      leadQuery = null;
+    
+    // Fetch ALL claimed and closed leads from BOTH Lead and GmailMessage collections
+    // NO limit on claimed/closed leads - fetch ALL of them (same as Admin sees)
+    // Unclaimed leads are limited by parsedLimit to avoid performance issues
+    const [claimedClosedLeads, claimedClosedGmailMessages] = await Promise.all([
+      Lead.find({ status: { $in: ["closed", "claimed"] } })
+        .sort({ claimedAt: -1 })
+        .lean(), // NO limit - fetch ALL claimed/closed leads
+      GmailMessage.find({ status: { $in: ["closed", "claimed"] } })
+        .sort({ claimedAt: -1 })
+        .lean() // NO limit - fetch ALL claimed/closed messages
+    ]);
+    
+    console.log(`[listMessages] Found ${claimedClosedLeads.length} claimed/closed leads from Lead collection`);
+    console.log(`[listMessages] Found ${claimedClosedGmailMessages.length} claimed/closed messages from GmailMessage collection`);
+    
+    // Fetch unclaimed active messages from GmailMessage (limit to avoid timeout)
+    // Only unclaimed messages are limited - claimed/closed are fetched in full above
+    const unclaimedGmailMessages = await GmailMessage.find({ 
+      status: "active",
+      $or: [
+        { claimedBy: { $exists: false } },
+        { claimedBy: null }
+      ]
+    })
+      .sort({ internalDate: -1 })
+      .limit(parsedLimit) // Limit only unclaimed to avoid timeout
+      .lean();
+    
+    console.log(`[listMessages] Found ${unclaimedGmailMessages.length} unclaimed active messages from database`);
+    
+    // Build lookup maps for efficient data access
+    const allMessageIds = [...new Set([
+      ...claimedClosedLeads.map(l => l.messageId),
+      ...claimedClosedGmailMessages.map(m => m.messageId),
+      ...unclaimedGmailMessages.map(m => m.messageId)
+    ])];
+    
+    // Fetch all Lead records in one query
+    const leadRecordsMap = new Map();
+    if (allMessageIds.length > 0) {
+      const leadRecords = await Lead.find({ messageId: { $in: allMessageIds } }).lean();
+      leadRecords.forEach(lr => {
+        if (lr.messageId) {
+          leadRecordsMap.set(lr.messageId, lr);
+        }
+      });
     }
     
-    if (leadQuery) {
-      // Fetch both closed and claimed leads
-      const leads = await Lead.find(leadQuery)
-        .sort({ claimedAt: -1 })
-        .limit(parsedLimit)
-        .lean();
+    // Build a map of messageIds to GmailMessage records for faster lookup
+    const gmailMsgMap = new Map();
+    if (allMessageIds.length > 0) {
+      const gmailMsgs = await GmailMessage.find({ messageId: { $in: allMessageIds } }).lean();
+      gmailMsgs.forEach(gm => {
+        if (gm.messageId) {
+          gmailMsgMap.set(gm.messageId, gm);
+        }
+      });
+    }
+    
+    // Convert claimed/closed leads from Lead collection to message format
+    for (const lead of claimedClosedLeads) {
+      const gmailMsg = gmailMsgMap.get(lead.messageId);
       
-      const userType = user?.role === "Admin" ? "Admin (all leads)" : userFirstName;
-      console.log(`[listMessages] Found ${leads.length} leads (closed + claimed) for ${userType}`);
-      if (user?.role === "Admin" && leads.length > 0) {
-        // Log sample of salesAgents to verify we're getting all leads
-        const uniqueSalesAgents = [...new Set(leads.map(l => l.salesAgent).filter(Boolean))];
-        console.log(`[listMessages] Admin view - Leads from salesAgents: ${uniqueSalesAgents.join(", ")}`);
-      }
-      
-      // Convert leads to message format
-      for (const lead of leads) {
-        // Get GmailMessage record for additional details
-        const gmailMsg = await GmailMessage.findOne({ messageId: lead.messageId }).lean();
+      userLeads.push({
+        _id: gmailMsg?._id || lead.gmailMessageId || lead.messageId,
+        messageId: lead.messageId,
+        subject: lead.subject || gmailMsg?.subject || "",
+        from: lead.from || gmailMsg?.from || "",
+        snippet: lead.snippet || gmailMsg?.snippet || "",
+        status: lead.status,
+        claimedBy: lead.claimedBy,
+        claimedAt: lead.claimedAt,
+        enteredAt: lead.enteredAt || lead.claimedAt || new Date(),
+        labels: lead.labels || gmailMsg?.labels || [],
+        internalDate: lead.enteredAt || lead.claimedAt || new Date(),
+        isFromDatabase: true,
+      });
+    }
+    
+    // Convert claimed/closed messages from GmailMessage collection to message format
+    // This ensures we get all claimed leads even if they're only in GmailMessage collection
+    for (const gmailMsg of claimedClosedGmailMessages) {
+      // Skip if already added from Lead collection
+      if (!userLeads.find(l => l.messageId === gmailMsg.messageId)) {
+        const leadRecord = leadRecordsMap.get(gmailMsg.messageId);
         
         userLeads.push({
-          _id: gmailMsg?._id || lead.gmailMessageId || lead.messageId,
-          messageId: lead.messageId,
-          subject: lead.subject || "",
-          from: lead.from || "",
-          snippet: lead.snippet || "",
-          status: lead.status, // Keep the actual status (closed or claimed)
-          claimedBy: lead.claimedBy,
-          claimedAt: lead.claimedAt,
-          enteredAt: lead.enteredAt || lead.claimedAt || new Date(), // When lead entered system
-          labels: lead.labels || [],
-          internalDate: lead.enteredAt || lead.claimedAt || new Date(), // Use enteredAt if available, fallback to claimedAt
-          // Mark as lead from database
+          _id: gmailMsg._id,
+          messageId: gmailMsg.messageId,
+          subject: gmailMsg.subject || leadRecord?.subject || "",
+          from: gmailMsg.from || leadRecord?.from || "",
+          snippet: gmailMsg.snippet || leadRecord?.snippet || "",
+          status: gmailMsg.status, // Keep the status from GmailMessage (claimed/closed)
+          claimedBy: gmailMsg.claimedBy,
+          claimedAt: gmailMsg.claimedAt,
+          enteredAt: leadRecord?.enteredAt || gmailMsg.internalDate || new Date(),
+          labels: gmailMsg.labels || leadRecord?.labels || [],
+          internalDate: gmailMsg.internalDate || new Date(),
           isFromDatabase: true,
         });
       }
     }
+    
+    // Convert unclaimed messages to message format
+    for (const gmailMsg of unclaimedGmailMessages) {
+      // Skip if already added as claimed/closed
+      if (!userLeads.find(l => l.messageId === gmailMsg.messageId)) {
+        const leadRecord = leadRecordsMap.get(gmailMsg.messageId);
+        
+        userLeads.push({
+          _id: gmailMsg._id,
+          messageId: gmailMsg.messageId,
+          subject: gmailMsg.subject || "",
+          from: gmailMsg.from || "",
+          snippet: gmailMsg.snippet || "",
+          status: "active",
+          claimedBy: null,
+          claimedAt: null,
+          enteredAt: leadRecord?.enteredAt || gmailMsg.internalDate || new Date(),
+          labels: gmailMsg.labels || [],
+          internalDate: gmailMsg.internalDate || new Date(),
+          labelIds: gmailMsg.labelIds || [],
+          isFromDatabase: true,
+        });
+      }
+    }
+    
+    console.log(`[listMessages] Total leads from database: ${userLeads.length} (claimed/closed: ${claimedClosedLeads.length}, unclaimed active: ${unclaimedGmailMessages.length})`);
     
     const allMessages = [];
     
@@ -564,38 +636,21 @@ export async function listMessagesHandler(req, res, next) {
           // Check if this message is claimed in database
           const dbRecord = await GmailMessage.findOne({ messageId: msg.id }).lean();
           
-          // For sales agents: skip messages claimed by other agents (Admin can see all)
-          if (user?.role === "Sales" && dbRecord?.claimedBy && dbRecord.claimedBy !== user.id) {
-            // Also check Lead collection to be sure
-            const leadRecord = await Lead.findOne({ messageId: msg.id }).lean();
-            if (leadRecord && leadRecord.salesAgent && leadRecord.salesAgent !== userFirstName) {
-              console.log(`[listMessages] Skipping message ${msg.id} - claimed by another agent (${leadRecord.salesAgent})`);
-              continue; // Skip this message
-            }
-          }
-          // Admin users can see all messages, including those claimed by others
-          
           // Check if message is actually unread (has UNREAD label)
-          // If message was read in Gmail, it won't have UNREAD in labelIds
           const labelIds = fullMessage.data.labelIds || [];
           const isUnread = labelIds.includes("UNREAD");
           
-          // STRICT FILTER: Only show unread messages OR messages already claimed/closed in our database
-          // If message is read in Gmail and not in our database, skip it completely
+          // SAME logic for ALL users - show unread messages OR messages already in database
+          // Unclaimed read messages are fetched separately from database to avoid timeout
           if (!isUnread) {
             if (!dbRecord) {
               // Message is read in Gmail and not in our database - skip it
-              console.log(`[listMessages] ⏭️ Skipping message ${msg.id} - already read in Gmail (no UNREAD label) and not in database`);
+              // (Unclaimed read messages are fetched separately from database)
               continue;
-            } else {
-              // Message is read in Gmail but exists in our database (was previously claimed/closed)
-              // Include it so users can see their claimed/closed leads
-              console.log(`[listMessages] ✅ Including read message ${msg.id} - exists in database with status: ${dbRecord.status}`);
             }
-          } else {
-            // Message is unread - always include it
-            console.log(`[listMessages] ✅ Including unread message ${msg.id}`);
+            // Message is read but exists in database - include it (it's claimed/closed)
           }
+          // Message is unread - always include it
           
           // Extract message data
           const headers = fullMessage.data.payload?.headers || [];
@@ -654,56 +709,30 @@ export async function listMessagesHandler(req, res, next) {
       }
     }
     
-    // Combine Gmail messages and user's leads (claimed + closed)
-    // Remove duplicates (if a lead is in both Gmail messages and user leads, prefer the Gmail version)
+    // Combine Gmail messages and database leads
+    // IMPORTANT: Prioritize database records over Gmail messages
+    // Database has the correct status (claimed/closed), while Gmail messages might show as "active" even if claimed
     const messageMap = new Map();
     
-    // Add Gmail messages first
-    allMessages.forEach(msg => {
-      messageMap.set(msg.messageId, msg);
+    // Add database leads FIRST (they have the correct claimed/closed status)
+    userLeads.forEach(lead => {
+      messageMap.set(lead.messageId, lead);
     });
     
-    // Add user leads, but don't overwrite if already exists (Gmail version is more up-to-date)
-    userLeads.forEach(lead => {
-      if (!messageMap.has(lead.messageId)) {
-        messageMap.set(lead.messageId, lead);
+    // Add Gmail messages, but don't overwrite if database record already exists
+    // This ensures claimed/closed leads from database are not overwritten by Gmail's "active" status
+    allMessages.forEach(msg => {
+      if (!messageMap.has(msg.messageId)) {
+        // Only add Gmail message if it's not already in database (as claimed/closed)
+        messageMap.set(msg.messageId, msg);
       }
     });
     
-    let combinedMessages = Array.from(messageMap.values());
+    // Final combined messages - NO filtering, same for ALL users
+    // Both Admin and Sales see EXACTLY the same leads in "All Leads" section
+    const combinedMessages = Array.from(messageMap.values());
     
-    // For sales agents: Show ALL unclaimed leads, but only their own claimed/closed leads
-    // Admin can see all leads (no filtering needed)
-    if (user?.role === "Sales" && userFirstName) {
-      combinedMessages = combinedMessages.filter(msg => {
-        const status = msg.status || "active";
-        
-        // Allow ALL unclaimed/active leads - all sales agents can see all unclaimed leads
-        if (status === "active" || !msg.claimedBy) {
-          return true;
-        }
-        
-        // For claimed/closed leads: only show if claimed by current user
-        if (status === "claimed" || status === "closed") {
-          // Check if claimed by current user (by userId)
-          if (msg.claimedBy === user.id) {
-            return true;
-          }
-          // Also check salesAgent field for backward compatibility
-          if (msg.salesAgent && msg.salesAgent.toLowerCase() === userFirstName.toLowerCase()) {
-            return true;
-          }
-          // Hide claimed/closed leads claimed by other agents
-          return false;
-        }
-        
-        // Default: show the message
-        return true;
-      });
-    }
-    // Admin users can see all messages, no filtering needed
-    
-    console.log(`[listMessages] Returning ${combinedMessages.length} messages (${allMessages.filter(m => m.status === 'claimed').length} claimed from Gmail, ${userLeads.filter(l => l.status === 'claimed').length} claimed from DB, ${userLeads.filter(l => l.status === 'closed').length} closed)`);
+    console.log(`[listMessages] Returning ${combinedMessages.length} total messages (${allMessages.filter(m => m.status === 'claimed').length} claimed from Gmail, ${userLeads.filter(l => l.status === 'claimed').length} claimed from DB, ${userLeads.filter(l => l.status === 'closed').length} closed)`);
     return res.json({ messages: combinedMessages });
   } catch (err) {
     console.error("[listMessages] Error:", err);
@@ -1391,6 +1420,7 @@ export async function getMessageHandler(req, res, next) {
           year: lead.year || "",
           make: lead.make || "",
           model: lead.model || "",
+          partRequired: lead.partRequired || "",
         };
       }
     } catch (err) {
@@ -1412,6 +1442,7 @@ export async function getMessageHandler(req, res, next) {
       year: leadData?.year || "",
       make: leadData?.make || "",
       model: leadData?.model || "",
+      partRequired: leadData?.partRequired || "",
     });
   } catch (err) {
     return next(err);
@@ -1625,8 +1656,11 @@ export async function reparseLeadsHandler(req, res, next) {
 export async function getDailyStatisticsHandler(req, res, next) {
   try {
     const { startDate, endDate, agentEmail } = req.query;
+    const user = req.user;
+    const userRole = user?.role || "Unknown";
+    const userEmail = user?.email || "";
     
-    console.log("[getDailyStatistics] Query params:", { startDate, endDate, agentEmail });
+    console.log("[getDailyStatistics] Query params:", { startDate, endDate, agentEmail, userRole, userEmail });
     
     // Parse dates in Dallas timezone (America/Chicago)
     let start, end;
@@ -1657,24 +1691,39 @@ export async function getDailyStatisticsHandler(req, res, next) {
       ],
     };
     
-    if (agentEmail) {
-      console.log("[getDailyStatistics] Looking up user with email:", agentEmail.toLowerCase());
+    // For Sales users: ALWAYS filter to their own statistics (even if no agentEmail provided)
+    // For Admin: only filter if agentEmail is explicitly provided (from dropdown)
+    let emailToFilter = null;
+    if (userRole === "Sales") {
+      // Sales users see only their own statistics
+      emailToFilter = userEmail;
+      console.log(`[getDailyStatistics] Sales user detected - filtering to own statistics: ${emailToFilter}`);
+    } else if (agentEmail) {
+      // Admin can filter by specific agent email (from dropdown)
+      emailToFilter = agentEmail;
+      console.log(`[getDailyStatistics] Admin filtering by agent email: ${emailToFilter}`);
+    }
+    
+    if (emailToFilter) {
+      console.log("[getDailyStatistics] Looking up user with email:", emailToFilter.toLowerCase());
       // Find user by email to get their ID
-      const user = await User.findOne({ email: agentEmail.toLowerCase() });
-      if (user) {
-        console.log("[getDailyStatistics] Found user:", { id: user._id, email: user.email, firstName: user.firstName });
+      const targetUser = await User.findOne({ email: emailToFilter.toLowerCase() });
+      if (targetUser) {
+        console.log("[getDailyStatistics] Found user:", { id: targetUser._id, email: targetUser.email, firstName: targetUser.firstName });
         // claimedBy is stored as String (user.id), not ObjectId
-        query.claimedBy = user._id.toString();
+        query.claimedBy = targetUser._id.toString();
       } else {
-        console.log("[getDailyStatistics] User not found for email:", agentEmail);
+        console.log("[getDailyStatistics] User not found for email:", emailToFilter);
         // If user not found, return empty results
         return res.json({
           dailyStats: [],
           totalLeads: 0,
           agentStats: [],
-          debug: { message: `No user found with email: ${agentEmail}` },
+          debug: { message: `No user found with email: ${emailToFilter}` },
         });
       }
+    } else {
+      console.log("[getDailyStatistics] No email filter - Admin viewing all statistics");
     }
     
     console.log("[getDailyStatistics] Final query:", JSON.stringify(query, null, 2));
