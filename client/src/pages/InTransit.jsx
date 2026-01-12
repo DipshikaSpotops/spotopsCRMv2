@@ -7,8 +7,8 @@ import useOrdersRealtime from "../hooks/useOrdersRealtime";
 const columns = [
   { key: "orderDate",     label: "Order Date" },
   { key: "orderNo",       label: "Order No" },
+  { key: "salesAgent",    label: "Sales Agent" },
   { key: "pReq",          label: "Part Name" },
-  // { key: "salesAgent",    label: "Sales Agent" },
   { key: "customerName",  label: "Customer Info" },
   { key: "yardName",      label: "Yard Details" },
   // { key: "lastComment",   label: "Last Comment" }, // <- custom render below
@@ -98,15 +98,15 @@ export default function InTransitOrders() {
           </div>
         );
 
+      case "salesAgent":
+        return row.salesAgent || "—";
+
       case "pReq":
         return (
           <div className="text-base">
             {row.pReq || row.partName || "—"}
           </div>
         );
-
-      // case "salesAgent":
-      //   return row.salesAgent || "—";
 
       case "customerName":
         const customerName = row.fName && row.lName 
@@ -225,10 +225,10 @@ export default function InTransitOrders() {
           font-size: 0.9rem !important; /* Slightly smaller font size */
         }
         /* Yard Details - wider */
-        .in-transit-table-wrapper table th:nth-child(5),
-        .in-transit-table-wrapper table td:nth-child(5) {
-          width: 28% !important;
-          min-width: 28% !important;
+        .in-transit-table-wrapper table th:nth-child(6),
+        .in-transit-table-wrapper table td:nth-child(6) {
+          width: 26% !important;
+          min-width: 26% !important;
         }
         /* Order Date column - narrower */
         .in-transit-table-wrapper table th:nth-child(1),
@@ -240,15 +240,20 @@ export default function InTransitOrders() {
         .in-transit-table-wrapper table td:nth-child(2) {
           width: 10% !important;
         }
-        /* Part Name column - wider to use the space */
+        /* Sales Agent column */
         .in-transit-table-wrapper table th:nth-child(3),
         .in-transit-table-wrapper table td:nth-child(3) {
-          width: 20% !important;
+          width: 10% !important;
         }
-        /* Customer Info column - wider for header */
+        /* Part Name column - wider to use the space */
         .in-transit-table-wrapper table th:nth-child(4),
         .in-transit-table-wrapper table td:nth-child(4) {
-          width: 24% !important;
+          width: 18% !important;
+        }
+        /* Customer Info column - wider for header */
+        .in-transit-table-wrapper table th:nth-child(5),
+        .in-transit-table-wrapper table td:nth-child(5) {
+          width: 22% !important;
         }
         /* Actions column - narrower */
         .in-transit-table-wrapper table th:last-child,

@@ -33,12 +33,6 @@ export default function RefundModal({ open, onClose, onSubmit, orderNo, yardInde
         // When checking collect refund, uncheck others (mutually exclusive)
         setUpsClaim(false);
         setStoreCredit(false);
-        setRefundStatus("Refund not collected");
-      } else {
-        // When unchecking, only update status if no other refund action is selected
-        if (!upsClaim && !storeCredit) {
-          setRefundStatus("Refund collected");
-        }
       }
     } else if (option === "ups") {
       setUpsClaim(isChecked);
@@ -46,12 +40,6 @@ export default function RefundModal({ open, onClose, onSubmit, orderNo, yardInde
         // When checking UPS claim, uncheck others (mutually exclusive)
         setCollectRefund(false);
         setStoreCredit(false);
-        setRefundStatus("Refund not collected");
-      } else {
-        // When unchecking, only update status if no other refund action is selected
-        if (!collectRefund && !storeCredit) {
-          setRefundStatus("Refund collected");
-        }
       }
     } else if (option === "store") {
       setStoreCredit(isChecked);
@@ -64,12 +52,13 @@ export default function RefundModal({ open, onClose, onSubmit, orderNo, yardInde
     }
   };
 
+  // Auto-uncheck Collect Refund and UPS Claim when Refund Collected is "Yes"
   useEffect(() => {
-    if (refundStatus === "Refund collected") {
-      if (collectRefund) setCollectRefund(false);
-      if (upsClaim) setUpsClaim(false);
+    if (refundStatus === "Refund collected" || refundStatus === "Yes") {
+      setCollectRefund(false);
+      setUpsClaim(false);
     }
-  }, [refundStatus, collectRefund, upsClaim]);
+  }, [refundStatus]);
 
   useEffect(() => {
     if (refundStatus === "Refund not collected") {
@@ -103,30 +92,34 @@ export default function RefundModal({ open, onClose, onSubmit, orderNo, yardInde
     const trimmedCollect = String(refundToCollect ?? "").trim();
     const trimmedRefundedAmount = String(refundedAmount ?? "").trim();
 
-    if ((collectRefund || upsClaim || storeCredit) && !trimmedCollect) {
-      setToast("Refund To Be Collected is required when you select a refund action.");
-      return false;
-    }
-
-    if ((collectRefund || upsClaim || storeCredit) && !refundReason) {
-      setToast("Refund Reason is required when you select a refund action.");
-      return false;
-    }
-
-    if (!collectRefund && !upsClaim && !storeCredit) {
-      if (!refundStatus) {
-        setToast("Please choose a value for Refund Collected.");
-        return false;
-      }
+    // If "Refund collected" (Yes) is selected, checkboxes should be unchecked and we validate refund amount/date
+    if (refundStatus === "Refund collected") {
       if (!trimmedRefundedAmount) {
-        setToast("Refunded Amount is required when no refund is pending.");
+        setToast("Refunded Amount is required when refund is collected.");
         return false;
       }
       if (!refundedDate) {
-        setToast("Refunded Date is required when no refund is pending.");
+        setToast("Refunded Date is required when refund is collected.");
         return false;
       }
+      // If refund is collected, checkboxes should not be checked - validation passes
+      return true;
     }
+
+    // If any checkbox is checked, validate the required fields
+    if (collectRefund || upsClaim || storeCredit) {
+      if (!trimmedCollect) {
+        setToast("Refund To Be Collected is required when you select a refund action.");
+        return false;
+      }
+      if (!refundReason) {
+        setToast("Refund Reason is required when you select a refund action.");
+        return false;
+      }
+      return true;
+    }
+
+    // Refund Collected dropdown is optional - no validation required
     return true;
   };
 
@@ -351,7 +344,15 @@ export default function RefundModal({ open, onClose, onSubmit, orderNo, yardInde
               <label className="block mb-1">Refund Collected:</label>
               <select
                 value={refundStatus}
-                onChange={(e) => setRefundStatus(e.target.value)}
+                onChange={(e) => {
+                  const newStatus = e.target.value;
+                  setRefundStatus(newStatus);
+                  // Auto-uncheck Collect Refund and UPS Claim when "Yes" is selected
+                  if (newStatus === "Refund collected") {
+                    setCollectRefund(false);
+                    setUpsClaim(false);
+                  }
+                }}
                 className="w-full rounded-lg px-3 py-2 bg-[#2b2d68] text-white border border-white/30 outline-none focus:ring-2 focus:ring-white/60 text-center hover:bg-[#1f2760] transition-colors dark:bg-[#2b2d68] dark:hover:bg-[#1f2760] dark:text-white"
               >
                 <option value="">Select</option>

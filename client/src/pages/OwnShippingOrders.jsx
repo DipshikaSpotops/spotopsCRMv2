@@ -5,6 +5,7 @@ import useOrdersRealtime from "../hooks/useOrdersRealtime";
 const columns = [
   { key: "orderDate",    label: "Order Date" },
   { key: "orderNo",      label: "Order No" },
+  { key: "salesAgent",   label: "Sales Agent" },
   { key: "pReq",         label: "Part Info" },
   { key: "customerName", label: "Customer Info" },
   { key: "yardName",     label: "Yard Details" },
@@ -46,6 +47,8 @@ export default function OwnShippingOrders() {
             </button> */}
           </div>
         );
+      case "salesAgent":
+        return row.salesAgent || "—";
       case "pReq":
         return (
           <div>
@@ -211,8 +214,8 @@ export default function OwnShippingOrders() {
           white-space: normal !important;
         }
         /* Yard Details - wider */
-        .own-shipping-table-wrapper table th:nth-child(5),
-        .own-shipping-table-wrapper table td:nth-child(5) {
+        .own-shipping-table-wrapper table th:nth-child(6),
+        .own-shipping-table-wrapper table td:nth-child(6) {
           width: 25% !important;
           min-width: 25% !important;
         }
@@ -221,16 +224,18 @@ export default function OwnShippingOrders() {
         .own-shipping-table-wrapper table td:nth-child(2) {
           width: 12% !important;
         }
-        /* Order Date and Part Name columns */
+        /* Order Date, Sales Agent, and Part Name columns */
         .own-shipping-table-wrapper table th:nth-child(1),
         .own-shipping-table-wrapper table td:nth-child(1),
         .own-shipping-table-wrapper table th:nth-child(3),
-        .own-shipping-table-wrapper table td:nth-child(3) {
+        .own-shipping-table-wrapper table td:nth-child(3),
+        .own-shipping-table-wrapper table th:nth-child(4),
+        .own-shipping-table-wrapper table td:nth-child(4) {
           width: 10% !important;
         }
         /* Customer Name column - wider for header */
-        .own-shipping-table-wrapper table th:nth-child(4),
-        .own-shipping-table-wrapper table td:nth-child(4) {
+        .own-shipping-table-wrapper table th:nth-child(5),
+        .own-shipping-table-wrapper table td:nth-child(5) {
           width: 18% !important;
         }
         /* Actions column - narrower */
