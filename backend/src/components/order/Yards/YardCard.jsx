@@ -14,8 +14,25 @@ export default function YardCard({
 }) {
   const y = yard || {};
 
-  const ownVal = y.ownShipping ?? extractOwn(y.shippingDetails);
-  const yardVal = y.yardShipping ?? extractYard(y.shippingDetails);
+  // Prioritize shippingDetails - if it specifies a shipping type, use only that
+  const shippingDetailsStr = y.shippingDetails || "";
+  const hasOwnInDetails = /own shipping:/i.test(shippingDetailsStr);
+  const hasYardInDetails = /yard shipping:/i.test(shippingDetailsStr);
+  
+  let ownVal, yardVal;
+  if (hasOwnInDetails) {
+    // shippingDetails says "Own shipping", so only use own shipping
+    ownVal = extractOwn(y.shippingDetails) ?? y.ownShipping;
+    yardVal = undefined;
+  } else if (hasYardInDetails) {
+    // shippingDetails says "Yard shipping", so only use yard shipping
+    yardVal = extractYard(y.shippingDetails) ?? y.yardShipping;
+    ownVal = undefined;
+  } else {
+    // shippingDetails doesn't specify, fall back to individual fields
+    ownVal = y.ownShipping ?? extractOwn(y.shippingDetails);
+    yardVal = y.yardShipping ?? extractYard(y.shippingDetails);
+  }
 
   // Collect all non-empty fields dynamically
   const fields = [

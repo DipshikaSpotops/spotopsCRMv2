@@ -105,14 +105,21 @@ router.post("/sendPOEmailYard/:orderNo", upload.any(), async (req, res) => {
     let shipping = 0;
     let shippingValue = "Included";
     if (yard.shippingDetails) {
-      const match = yard.shippingDetails.match(/(?:Own shipping|Yard shipping):\s*([\d.]+)/i);
-      if (match) {
+      const shippingDetailsStr = yard.shippingDetails;
+      const isOwnShipping = /own shipping:/i.test(shippingDetailsStr);
+      const isYardShipping = /yard shipping:/i.test(shippingDetailsStr);
+      const match = shippingDetailsStr.match(/(?:Own shipping|Yard shipping):\s*([\d.]+)/i);
+      
+      if (isOwnShipping) {
+        // If it's "Own shipping", always show the label regardless of value
+        shippingValue = "Own Shipping (Auto Parts Group Corp)";
+        if (match) {
+          shipping = parseFloat(match[1]) || 0;
+        }
+      } else if (isYardShipping && match) {
+        // If it's "Yard shipping", extract the value
         shipping = parseFloat(match[1]) || 0;
         shippingValue = shipping === 0 ? "Included" : `$${shipping.toFixed(2)}`;
-      }
-      // If it's "Own shipping", show that label
-      if (yard.shippingDetails.includes("Own shipping") && !match) {
-        shippingValue = "Own Shipping (Auto Parts Group Corp)";
       }
     } else {
       shippingValue = "Own Shipping (Auto Parts Group Corp)";

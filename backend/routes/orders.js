@@ -1435,31 +1435,44 @@ router.patch("/:orderNo/additionalInfo/:index", async (req, res) => {
 
     // 5.5️ Ensure mutual exclusivity - only one shipping type should exist
     // This is a safety check to prevent both ownShipping and yardShipping from being set
-    if (yard.ownShipping && yard.yardShipping) {
-      // If both are set, prioritize based on shippingDetails
-      if (yard.shippingDetails?.includes("Yard shipping")) {
-        yard.ownShipping = "";
-      } else if (yard.shippingDetails?.includes("Own shipping")) {
-        yard.yardShipping = "";
-      } else {
-        // If shippingDetails doesn't indicate which, clear both
+    // Priority: shippingDetails is the source of truth
+    const shippingDetailsStr = yard.shippingDetails || "";
+    const hasOwnInDetails = /own shipping:/i.test(shippingDetailsStr);
+    const hasYardInDetails = /yard shipping:/i.test(shippingDetailsStr);
+    
+    if (hasOwnInDetails) {
+      // shippingDetails says "Own shipping", so clear yardShipping and ensure ownShipping matches
+      yard.yardShipping = "";
+      if (!yard.ownShipping) {
+        // Extract value from shippingDetails if ownShipping is not set
+        const match = shippingDetailsStr.match(/own shipping:\s*([^\|]+)/i);
+        if (match) yard.ownShipping = match[1].trim();
+      }
+    } else if (hasYardInDetails) {
+      // shippingDetails says "Yard shipping", so clear ownShipping and ensure yardShipping matches
+      yard.ownShipping = "";
+      if (!yard.yardShipping) {
+        // Extract value from shippingDetails if yardShipping is not set
+        const match = shippingDetailsStr.match(/yard shipping:\s*([^\|]+)/i);
+        if (match) yard.yardShipping = match[1].trim();
+      }
+    } else {
+      // shippingDetails doesn't specify type, sync based on which field is set
+      if (yard.ownShipping && yard.yardShipping) {
+        // Both set but shippingDetails doesn't indicate - clear both
         yard.ownShipping = "";
         yard.yardShipping = "";
         yard.shippingDetails = "";
-      }
-    } else if (yard.ownShipping && !yard.yardShipping) {
-      // Ensure shippingDetails matches ownShipping
-      if (!yard.shippingDetails?.includes("Own shipping")) {
+      } else if (yard.ownShipping && !yard.yardShipping) {
+        // Only ownShipping is set, ensure shippingDetails matches
         yard.shippingDetails = `Own shipping: ${yard.ownShipping}`;
-      }
-    } else if (yard.yardShipping && !yard.ownShipping) {
-      // Ensure shippingDetails matches yardShipping
-      if (!yard.shippingDetails?.includes("Yard shipping")) {
+      } else if (yard.yardShipping && !yard.ownShipping) {
+        // Only yardShipping is set, ensure shippingDetails matches
         yard.shippingDetails = `Yard shipping: ${yard.yardShipping}`;
+      } else {
+        // Both cleared, ensure shippingDetails is also cleared
+        yard.shippingDetails = "";
       }
-    } else if (!yard.ownShipping && !yard.yardShipping) {
-      // Both cleared, ensure shippingDetails is also cleared
-      yard.shippingDetails = "";
     }
 
     // 6️ Log note only if something changed
