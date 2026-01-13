@@ -543,7 +543,7 @@ router.put("/:orderNo", async (req, res) => {
     if (oldStatus !== order.orderStatus) {
       order.orderHistory = order.orderHistory || [];
       order.orderHistory.push(
-        `Order status updated to ${order.orderStatus} by ${firstName} on ${formattedDateTime}`
+        `Order status changed: ${oldStatus || "—"} → ${order.orderStatus} by ${firstName} on ${formattedDateTime}`
       );
     }
 
