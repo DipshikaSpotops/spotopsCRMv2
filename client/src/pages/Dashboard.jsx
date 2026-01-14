@@ -146,7 +146,11 @@ export default function Dashboard() {
   const defaultMonth = dallasNow.getMonth() + 1;
   const defaultYear = dallasNow.getFullYear();
 
-  // Filters
+  // Filters - pending values for selection before loading
+  const [pendingMonth, setPendingMonth] = useState(defaultMonth);
+  const [pendingYear, setPendingYear] = useState(defaultYear);
+  
+  // Actual filters that trigger data loading
   const [selectedMonth, setSelectedMonth] = useState(defaultMonth);
   const [selectedYear, setSelectedYear] = useState(defaultYear);
 
@@ -373,8 +377,15 @@ export default function Dashboard() {
     [defaultYear]
   );
   const resetToCurrent = () => {
+    setPendingMonth(defaultMonth);
+    setPendingYear(defaultYear);
     setSelectedMonth(defaultMonth);
     setSelectedYear(defaultYear);
+  };
+
+  const handleLoad = () => {
+    setSelectedMonth(pendingMonth);
+    setSelectedYear(pendingYear);
   };
 
   return (
@@ -387,15 +398,15 @@ export default function Dashboard() {
             {
               key: "month",
               label: "Month",
-              value: selectedMonth,
-              onChange: (v) => setSelectedMonth(Number(v)),
+              value: pendingMonth,
+              onChange: (v) => setPendingMonth(Number(v)),
               options: monthOptions, // [{value,label}]
             },
             {
               key: "year",
               label: "Year",
-              value: selectedYear,
-              onChange: (v) => setSelectedYear(Number(v)),
+              value: pendingYear,
+              onChange: (v) => setPendingYear(Number(v)),
               options: yearOptions.map((yr) => ({ value: yr, label: yr })),
             },
           ].map((ctl) => (
@@ -435,6 +446,16 @@ export default function Dashboard() {
               </div>
             </div>
           ))}
+
+          {/* Load button */}
+          <button
+            onClick={handleLoad}
+            className="backdrop-blur-md bg-white/20 hover:bg-white/30
+                       shadow-lg rounded-xl px-4 py-2 text-sm sm:text-base font-semibold
+                       transition border border-white/30"
+          >
+            Load
+          </button>
 
           {/* Current Month button styled as a pill too */}
           <button

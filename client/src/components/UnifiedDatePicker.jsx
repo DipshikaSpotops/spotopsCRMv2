@@ -206,10 +206,16 @@ const UnifiedDatePicker = ({ onFilterChange }) => {
 
     setRange([{ startDate, endDate, key: "selection" }]);
     
-    // For backend, pass the Date objects we created for the calendar
-    // toDallasDayUTCBounds will extract date components and treat them as Dallas dates
-    // This ensures the correct date range is sent to the backend
-    emitRangeToBackend(startDate, endDate);
+    // DON'T emit to backend immediately - wait for Load button click
+    // This allows users to navigate month/year without triggering data loads
+  };
+
+  const handleLoadMonthYear = () => {
+    // Load the currently selected month/year range
+    const currentRange = range?.[0];
+    if (currentRange?.startDate && currentRange?.endDate) {
+      emitRangeToBackend(currentRange.startDate, currentRange.endDate);
+    }
   };
 
   const handleShortcut = (type) => {
@@ -311,10 +317,17 @@ const UnifiedDatePicker = ({ onFilterChange }) => {
             months={1}
           />
 
-          <div className="flex justify-end mt-2">
+          <div className="flex justify-between items-center mt-2 gap-2">
+            <button
+              onClick={handleLoadMonthYear}
+              className="px-3 py-1.5 text-xs bg-[#4f46e5] text-white rounded hover:bg-[#4338ca] font-medium"
+              type="button"
+            >
+              Load
+            </button>
             <button
               onClick={() => setShowCalendar(false)}
-              className="px-2 py-1 text-xs bg-[#3b89bf] rounded hover:bg-[#04356d]"
+              className="px-2 py-1 text-xs bg-[#3b89bf] rounded hover:bg-[#04356d] text-white"
               type="button"
             >
               Close
