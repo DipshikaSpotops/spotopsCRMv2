@@ -265,7 +265,7 @@ router.post("/sendPOEmailYard/:orderNo", upload.any(), async (req, res) => {
       <div class="header">
         AUTO PARTS GROUP CORP
         <div>5306 Blaney Way, Dallas, Texas, 75227</div>
-        <div>+1 (888) 732-8680 | purchase@auto-partsgroup.com</div>
+        <div>+1 8662075533 | purchase@auto-partsgroup.com</div>
       </div>
 
       <div class="title-row">
@@ -291,7 +291,7 @@ router.post("/sendPOEmailYard/:orderNo", upload.any(), async (req, res) => {
         </div>
         <div class="column">
           <h4>Bill To</h4>
-          <p>Auto Parts Group Corp<br>5306 Blaney Way<br>Dallas, Texas, 75227<br>purchase@auto-partsgroup.com<br>+1 (888) 732-8680</p>
+          <p>Auto Parts Group Corp<br>5306 Blaney Way<br>Dallas, Texas, 75227<br>purchase@auto-partsgroup.com<br>+1 8662075533</p>
         </div>
       </div>
 
