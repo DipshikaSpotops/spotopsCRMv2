@@ -74,9 +74,13 @@ const CustomerApproved = () => {
   const navigate = useNavigate();
 
   // Fetch helper
-  const fetchOrders = async (filter = {}) => {
+  const fetchOrders = async (filter = {}, options = {}) => {
+    const { background = false } = options;
+    
     try {
-      setLoading(true);
+      if (!background) {
+        setLoading(true);
+      }
       let url = "";
       const q = filter.q ? `&q=${encodeURIComponent(filter.q)}` : "";
 
@@ -98,9 +102,13 @@ const CustomerApproved = () => {
       setOrders(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error("Error fetching customer approved orders:", err);
-      setError("Failed to load customer approved orders.");
+      if (!background) {
+        setError("Failed to load customer approved orders.");
+      }
     } finally {
-      setLoading(false);
+      if (!background) {
+        setLoading(false);
+      }
     }
   };
 
@@ -122,19 +130,19 @@ const CustomerApproved = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [appliedQuery]);
 
-  // 🔄 Realtime: when any order is created or updated, refetch with current filter + applied query
+  // 🔄 Realtime: when any order is created or updated, refetch with current filter + applied query in the background
   useOrdersRealtime({
     enabled: true,
     onOrderCreated: () => {
       if (!currentFilter) return;
-      fetchOrders({ ...currentFilter, q: appliedQuery || undefined });
+      fetchOrders({ ...currentFilter, q: appliedQuery || undefined }, { background: true });
     },
     onOrderUpdated: (order) => {
       // Only refetch if this order is Customer Approved or could have moved into/out of this view
       if (!currentFilter) return;
       const status = (order?.orderStatus || "").toLowerCase();
       if (status.includes("approved") || status.includes("placed") || status.includes("refunded") || status.includes("cancel")) {
-        fetchOrders({ ...currentFilter, q: appliedQuery || undefined });
+        fetchOrders({ ...currentFilter, q: appliedQuery || undefined }, { background: true });
       }
     },
   });

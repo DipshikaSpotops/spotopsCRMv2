@@ -52,10 +52,19 @@ const AllOrders = () => {
   };
 
   // -----------------------------------------------------------------------
-  const fetchOrders = async (page = 1, q = appliedQuery, sBy = sortBy, sDir = sortOrder, opts = { silent: false }) => {
+  const fetchOrders = async (page = 1, q = appliedQuery, sBy = sortBy, sDir = sortOrder, opts = { silent: false, background: false }) => {
+    // Preserve scroll position and highlighted state for background refresh
+    let preservedScrollTop = 0;
+    let preservedHighlight = highlightedOrderNo;
+    const tableEl = document.querySelector('.max-h-\\[76vh\\]');
+    
+    if (opts.background && tableEl) {
+      preservedScrollTop = tableEl.scrollTop || 0;
+    }
+    
     try {
-      if (!opts.silent && loading === false) setLoading(true);
-      if (opts.silent) setIsFetching(true);
+      if (!opts.silent && !opts.background && loading === false) setLoading(true);
+      if (opts.silent && !opts.background) setIsFetching(true);
 
       const params = new URLSearchParams();
       params.set("page", String(page));
@@ -79,12 +88,32 @@ const AllOrders = () => {
       setTotalOrders(data.totalCount || 0);
       setCurrentPage(data.currentPage || page);
       localStorage.setItem("viewAllOrdersPage", String(data.currentPage || page));
+      
+      // Restore scroll position and highlight after background refresh
+      if (opts.background && tableEl) {
+        requestAnimationFrame(() => {
+          if (tableEl) {
+            tableEl.scrollTop = preservedScrollTop;
+          }
+          // Restore highlight if it still exists in the new data
+          if (preservedHighlight && data.orders) {
+            const stillExists = data.orders.some(o => String(o.orderNo) === String(preservedHighlight));
+            if (stillExists) {
+              setHighlightedOrderNo(preservedHighlight);
+            }
+          }
+        });
+      }
     } catch (err) {
       console.error("Error fetching orders:", err);
-      setError("Failed to load orders.");
+      if (!opts.background) {
+        setError("Failed to load orders.");
+      }
     } finally {
-      setLoading(false);
-      setIsFetching(false);
+      if (!opts.background) {
+        setLoading(false);
+        setIsFetching(false);
+      }
     }
   };
 
@@ -237,14 +266,14 @@ const AllOrders = () => {
   const tableScrollRef = useRef(null);
 
   // Realtime updates: whenever an order is created or updated anywhere,
-  // silently refetch the current page with the active sort/search.
+  // silently refetch the current page with the active sort/search in the background.
   useOrdersRealtime({
     enabled: true,
     onOrderCreated: () => {
-      fetchOrders(currentPage, appliedQuery, sortBy, sortOrder, { silent: true });
+      fetchOrders(currentPage, appliedQuery, sortBy, sortOrder, { silent: true, background: true });
     },
     onOrderUpdated: () => {
-      fetchOrders(currentPage, appliedQuery, sortBy, sortOrder, { silent: true });
+      fetchOrders(currentPage, appliedQuery, sortBy, sortOrder, { silent: true, background: true });
     },
   });
 

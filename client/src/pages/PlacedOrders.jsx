@@ -151,9 +151,13 @@ const PlacedOrders = () => {
   const firstName = localStorage.getItem("firstName") || "";
 
   // Fetch Orders (date or month/year) + optional q
-  const fetchOrders = async (filter = {}) => {
+  const fetchOrders = async (filter = {}, options = {}) => {
+    const { background = false } = options;
+    
     try {
-      setLoading(true);
+      if (!background) {
+        setLoading(true);
+      }
       let url;
       if (filter.start && filter.end) {
         const qPart = filter.q ? `&q=${encodeURIComponent(filter.q)}` : "";
@@ -176,9 +180,13 @@ const PlacedOrders = () => {
       setOrders(Array.isArray(response.data) ? response.data : []);
     } catch (err) {
       console.error(err);
-      setError("Failed to load orders.");
+      if (!background) {
+        setError("Failed to load orders.");
+      }
     } finally {
-      setLoading(false);
+      if (!background) {
+        setLoading(false);
+      }
     }
   };
 
@@ -207,16 +215,16 @@ const PlacedOrders = () => {
   };
 
   // Realtime updates: when any order is created/updated anywhere,
-  // refetch this list with the current filter + search.
+  // refetch this list with the current filter + search in the background.
   useOrdersRealtime({
     enabled: true,
     onOrderCreated: () => {
       const base = currentFilter || {};
-      fetchOrders({ ...base, q: searchTerm.trim() || undefined });
+      fetchOrders({ ...base, q: searchTerm.trim() || undefined }, { background: true });
     },
     onOrderUpdated: () => {
       const base = currentFilter || {};
-      fetchOrders({ ...base, q: searchTerm.trim() || undefined });
+      fetchOrders({ ...base, q: searchTerm.trim() || undefined }, { background: true });
     },
   });
 

@@ -426,8 +426,20 @@ export default function OrdersTable({
 
   // fetch data
   const fetchOrders = useCallback(
-    async (filter) => {
-      setLoading(true);
+    async (filter, options = {}) => {
+      const { background = false } = options;
+      
+      // Preserve scroll position and highlighted state for background refresh
+      let preservedScrollTop = 0;
+      let preservedHighlight = highlightedOrderNo;
+      
+      if (background && tableScrollRef.current) {
+        preservedScrollTop = tableScrollRef.current.scrollTop || 0;
+      }
+      
+      if (!background) {
+        setLoading(true);
+      }
       setError("");
       try {
         const baseFilter = filter || activeFilter || buildDefaultFilter();
@@ -465,6 +477,23 @@ export default function OrdersTable({
               : [];
         }
         setOrders(data);
+        
+        // Restore scroll position and highlight after background refresh
+        if (background && tableScrollRef.current) {
+          // Use requestAnimationFrame to ensure DOM has updated
+          requestAnimationFrame(() => {
+            if (tableScrollRef.current) {
+              tableScrollRef.current.scrollTop = preservedScrollTop;
+            }
+            // Restore highlight if it still exists in the new data
+            if (preservedHighlight) {
+              const stillExists = data.some(o => String(o.orderNo) === String(preservedHighlight));
+              if (stillExists) {
+                setHighlightedOrderNo(preservedHighlight);
+              }
+            }
+          });
+        }
       } catch (e) {
         if (e?.response) {
           console.error("Error fetching orders:", {
@@ -475,13 +504,19 @@ export default function OrdersTable({
         } else {
           console.error("Error fetching orders:", e);
         }
-        setError("Failed to load orders.");
-        setOrders([]);
+        if (!background) {
+          setError("Failed to load orders.");
+        }
+        if (!background) {
+          setOrders([]);
+        }
       } finally {
-        setLoading(false);
+        if (!background) {
+          setLoading(false);
+        }
       }
     },
-    [activeFilter, endpointURL, appliedQuery, sortBy, sortOrder, selectedAgent, userRole, firstName, fetchOverride, paramsBuilder]
+    [activeFilter, endpointURL, appliedQuery, sortBy, sortOrder, selectedAgent, userRole, firstName, fetchOverride, paramsBuilder, highlightedOrderNo]
   );
 
   // Optional: expose a simple global refetch handle for realtime integrations
@@ -491,7 +526,7 @@ export default function OrdersTable({
       window.__ordersTableRefs = {};
     }
     window.__ordersTableRefs[tableId] = {
-      refetch: () => fetchOrders(activeFilter),
+      refetch: () => fetchOrders(activeFilter, { background: true }),
     };
     return () => {
       if (window.__ordersTableRefs) {
