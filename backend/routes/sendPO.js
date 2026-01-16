@@ -19,7 +19,7 @@ dotenv.config();
 
 const cardNumber = process.env.NEW_CARD_NUMBER || "**** **** **** 7195";
 const cardExpiry = process.env.NEW_CARD_EXPIRY || "**/**";
-const cardCvv = process.env.NEW_CARD_CVV || "***";
+const cardCvv = process.env.NEW_CVV || "***";
 
 const router = express.Router();
 const upload = multer();
