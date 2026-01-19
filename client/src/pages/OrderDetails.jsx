@@ -1482,23 +1482,26 @@ export default function OrderDetails() {
         className="relative h-full xl:max-h-full flex flex-col xl:overflow-hidden z-20 dark:border-white/20 dark:bg-white/10 dark:text-white"
                 title="Support Comments"
                 actions={
-                  <div className="flex gap-2 rounded-lg p-1 bg-white border border-gray-200 shadow-sm dark:bg-white/10 dark:border-white/20">
-                    {yards?.map((_, i) => (
-                      <button
-                        key={i}
-                        onClick={() => setActiveSection(i)}
-                        className={`px-3 py-1.5 rounded-md text-sm font-semibold transition ${
-                          activeSection === i
-                            ? "bg-[#04356d] text-white shadow-inner"
-                            : "bg-blue-100 text-blue-700 hover:bg-blue-200 hover:text-blue-800 dark:bg-white/10 dark:text-white/70 dark:hover:text-white dark:hover:bg-white/20"
-                        }`}
-                      >
-                        Yard {i + 1}
-                      </button>
-                    ))}
+                  <div className={`flex flex-wrap gap-2 rounded-lg p-1 bg-white border border-gray-200 shadow-sm dark:bg-white/10 dark:border-white/20 ${yards?.length > 6 ? 'max-h-32 overflow-y-auto' : ''}`}>
+                    {yards?.map((_, i) => {
+                      const hasManyYards = yards?.length > 6;
+                      return (
+                        <button
+                          key={i}
+                          onClick={() => setActiveSection(i)}
+                          className={`${hasManyYards ? 'px-2 py-1 text-xs' : 'px-3 py-1.5 text-sm'} rounded-md font-semibold transition ${
+                            activeSection === i
+                              ? "bg-[#04356d] text-white shadow-inner"
+                              : "bg-blue-100 text-blue-700 hover:bg-blue-200 hover:text-blue-800 dark:bg-white/10 dark:text-white/70 dark:hover:text-white dark:hover:bg-white/20"
+                          }`}
+                        >
+                          Yard {i + 1}
+                        </button>
+                      );
+                    })}
                     <button
                       onClick={() => setActiveSection("support")}
-                      className={`px-3 py-1.5 rounded-md text-sm font-semibold transition ${
+                      className={`${yards?.length > 6 ? 'px-2 py-1 text-xs' : 'px-3 py-1.5 text-sm'} rounded-md font-semibold transition ${
                         activeSection === "support"
                           ? "bg-blue-600 text-white shadow-inner dark:bg-[#04356d]"
                           : "bg-gray-50 text-gray-700 hover:bg-gray-100 hover:text-gray-900 dark:bg-white/10 dark:text-white/70 dark:hover:text-white dark:hover:bg-white/20"

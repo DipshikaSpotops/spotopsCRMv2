@@ -163,7 +163,7 @@ export default function YardList({
       className="h-full flex flex-col"
       title="Yards"
       actions={
-        <div className="flex gap-2 rounded-lg p-1 bg-blue-50 border border-gray-200 dark:bg-white/10 dark:border-white/20">
+        <div className={`flex flex-wrap gap-2 rounded-lg p-1 bg-blue-50 border border-gray-200 dark:bg-white/10 dark:border-white/20 ${yards?.length > 6 ? 'max-h-32 overflow-y-auto' : ''}`}>
           {yards?.map((y, idx) => {
             const isActive = effectiveActiveIdx === idx;
             const paymentStatus = String(y?.paymentStatus || "").trim().toLowerCase();
@@ -219,11 +219,12 @@ export default function YardList({
               buttonProps[dataAttr] = "";
             }
 
+            const hasManyYards = yards?.length > 6;
             return (
               <button
                 key={idx}
                 onClick={() => handleSetActiveIdx(idx)}
-                className={`px-3 py-1.5 rounded-md text-sm transition ${bgClasses}`}
+                className={`${hasManyYards ? 'px-2 py-1 text-xs' : 'px-3 py-1.5 text-sm'} rounded-md transition ${bgClasses}`}
                 {...buttonProps}
               >
                 Yard {idx + 1}
@@ -238,7 +239,7 @@ export default function YardList({
                 }
               }}
               disabled={!canAddNewYard}
-              className={`px-3 py-1.5 rounded-md text-sm border transition ${
+              className={`${yards?.length > 6 ? 'px-2 py-1 text-xs' : 'px-3 py-1.5 text-sm'} rounded-md border transition ${
                 canAddNewYard
                   ? "bg-blue-200 text-blue-800 border-blue-300 hover:bg-blue-300 shadow-sm hover:shadow-md transition-all dark:bg-white dark:border-white/40 dark:hover:bg-white/90"
                   : "bg-gray-100 text-gray-400 border-gray-300 cursor-not-allowed dark:bg-white/10 dark:text-white/60 dark:border-white/20"
