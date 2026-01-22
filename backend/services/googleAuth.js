@@ -246,12 +246,12 @@ export async function refreshAccessTokenIfNeeded() {
       // CRITICAL: Preserve refresh_token - Google doesn't always return it on refresh
       // Verify refresh_token is preserved
       if (!newTokens.refresh_token && tokens.refresh_token) {
-        console.log("[refreshAccessTokenIfNeeded] ⚠️ Refresh token not in response, preserving existing one");
+        console.log("[refreshAccessTokenIfNeeded] Refresh token not in response, preserving existing one");
         newTokens.refresh_token = tokens.refresh_token;
       } else if (newTokens.refresh_token && newTokens.refresh_token !== tokens.refresh_token) {
-        console.log("[refreshAccessTokenIfNeeded] ✓ New refresh token received from Google");
+        console.log("[refreshAccessTokenIfNeeded] New refresh token received from Google");
       } else {
-        console.log("[refreshAccessTokenIfNeeded] ✓ Refresh token preserved successfully");
+        console.log("[refreshAccessTokenIfNeeded] Refresh token preserved successfully");
       }
       
       // Verify refresh token was saved
@@ -267,15 +267,15 @@ export async function refreshAccessTokenIfNeeded() {
         throw new Error("CRITICAL: Refresh token was not saved to token.json!");
       }
       
-      console.log(`[refreshAccessTokenIfNeeded] ✓ Token refreshed successfully. New expiry: ${newTokens.expiry_date ? new Date(newTokens.expiry_date).toISOString() : 'unknown'}`);
-      console.log(`[refreshAccessTokenIfNeeded] ✓ Refresh token preserved: ${verifyTokens.refresh_token.substring(0, 20)}...`);
+      console.log(`[refreshAccessTokenIfNeeded] Token refreshed successfully. New expiry: ${newTokens.expiry_date ? new Date(newTokens.expiry_date).toISOString() : 'unknown'}`);
+      console.log(`[refreshAccessTokenIfNeeded] Refresh token preserved: ${verifyTokens.refresh_token.substring(0, 20)}...`);
       
       // Clear cache to force new client creation with fresh token
       clearTokenCache();
       
       return newTokens;
     } catch (err) {
-      console.error("[refreshAccessTokenIfNeeded] ❌ Failed to refresh token:", err.message);
+      console.error("[refreshAccessTokenIfNeeded] Failed to refresh token:", err.message);
       
       // Parse error data - could be in response.data or as JSON string in message
       let errorData = err.response?.data || {};
@@ -286,7 +286,7 @@ export async function refreshAccessTokenIfNeeded() {
           // Not JSON, use message as-is
         }
       }
-      console.error("[refreshAccessTokenIfNeeded] ❌ Error details:", JSON.stringify(errorData, null, 2));
+      console.error("[refreshAccessTokenIfNeeded] Error details:", JSON.stringify(errorData, null, 2));
       
       // Check for RAPT (Risk-Aware Protection Token) error - Google security feature
       if (errorData.error_subtype === "invalid_rapt" || 
@@ -295,9 +295,9 @@ export async function refreshAccessTokenIfNeeded() {
           errorData.error_description?.includes("reauth related error") ||
           err.message?.includes("invalid_rapt") ||
           err.message?.includes("rapt_required")) {
-        console.error("[refreshAccessTokenIfNeeded] 🔒 RAPT (Risk-Aware Protection Token) required by Google");
-        console.error("[refreshAccessTokenIfNeeded] 🔒 This is a Google security feature that requires re-authorization");
-        console.error("[refreshAccessTokenIfNeeded] 🔒 Solution: Delete token.json and reauthorize via /api/gmail/oauth2/url");
+        console.error("[refreshAccessTokenIfNeeded] RAPT (Risk-Aware Protection Token) required by Google");
+        console.error("[refreshAccessTokenIfNeeded] This is a Google security feature that requires re-authorization");
+        console.error("[refreshAccessTokenIfNeeded] Solution: Delete token.json and reauthorize via /api/gmail/oauth2/url");
         throw new Error("RAPT required - Google security policy requires re-authorization. Please delete token.json and visit /api/gmail/oauth2/url to re-authorize.");
       }
       
@@ -305,12 +305,12 @@ export async function refreshAccessTokenIfNeeded() {
       try {
         const currentTokens = JSON.parse(fs.readFileSync(TOKEN_PATH, "utf-8"));
         if (currentTokens.refresh_token) {
-          console.log("[refreshAccessTokenIfNeeded] ✓ Refresh token still exists in token.json after error");
+          console.log("[refreshAccessTokenIfNeeded] Refresh token still exists in token.json after error");
         } else {
-          console.error("[refreshAccessTokenIfNeeded] ❌ CRITICAL: Refresh token missing from token.json after error!");
+          console.error("[refreshAccessTokenIfNeeded] CRITICAL: Refresh token missing from token.json after error!");
         }
       } catch (readErr) {
-        console.error("[refreshAccessTokenIfNeeded] ❌ Failed to verify refresh token after error:", readErr.message);
+        console.error("[refreshAccessTokenIfNeeded] Failed to verify refresh token after error:", readErr.message);
       }
       
       throw err;
@@ -411,9 +411,9 @@ export async function getGmailClient() {
           errorData.error_subtype === "invalid_rapt" ||
           errorData.error_description?.includes("invalid_rapt") ||
           errorData.error_description?.includes("reauth related error")) {
-        console.warn("[googleAuth] 🔒 RAPT (Risk-Aware Protection Token) required by Google security policy.");
-        console.warn("[googleAuth] 🔒 This is a Google security feature that requires re-authorization.");
-        console.warn("[googleAuth] 🔒 The refresh_token may also be blocked until re-authorization.");
+        console.warn("[googleAuth] RAPT (Risk-Aware Protection Token) required by Google security policy.");
+        console.warn("[googleAuth] This is a Google security feature that requires re-authorization.");
+        console.warn("[googleAuth] The refresh_token may also be blocked until re-authorization.");
         throw new Error("RAPT required - Google security policy requires re-authorization. Please visit /api/gmail/oauth2/url to re-authorize.");
       }
       
@@ -469,18 +469,55 @@ export async function getGmailClient() {
       }
     } catch (err) {
       console.error("[googleAuth] Failed to refresh token:", err.message);
-      console.error("[googleAuth] Error details:", JSON.stringify(err.response?.data || err.message, null, 2));
+      
+      // Parse error data - could be in response.data or as JSON string in message
+      let errorData = err.response?.data || {};
+      let errorMessageStr = err.message || '';
+      
+      // Try to parse error message if it's a JSON string
+      if (typeof errorMessageStr === 'string') {
+        // Check if it looks like JSON
+        const trimmed = errorMessageStr.trim();
+        if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+          try {
+            const parsed = JSON.parse(trimmed);
+            errorData = { ...errorData, ...parsed }; // Merge with response.data if exists
+          } catch (e) {
+            // Not valid JSON, use as-is
+          }
+        }
+      }
+      
+      console.error("[googleAuth] Error details:", JSON.stringify(errorData, null, 2));
+      
+      // Check for RAPT error first (before generic invalid_grant)
+      // RAPT errors have error_subtype: "invalid_rapt" or error_description contains "invalid_rapt"
+      const isRaptError = 
+        errorData.error_subtype === "invalid_rapt" || 
+        errorData.error_subtype === "rapt_required" ||
+        errorData.error_description?.includes("invalid_rapt") ||
+        errorData.error_description?.includes("reauth related error") ||
+        errorMessageStr.includes("invalid_rapt") ||
+        errorMessageStr.includes("rapt_required");
+      
+      if (isRaptError) {
+        console.error("[googleAuth] RAPT (Risk-Aware Protection Token) required by Google");
+        console.error("[googleAuth] This is a Google security feature that requires re-authorization");
+        console.error("[googleAuth] Solution: Delete token.json and reauthorize via /api/gmail/oauth2/url");
+        throw new Error("RAPT required - Google security policy requires re-authorization. Please delete token.json and visit /api/gmail/oauth2/url to re-authorize.");
+      }
       
       // If refresh fails with invalid_grant, the refresh token is likely invalid
       // This can happen if:
       // 1. Token was revoked by user
       // 2. Token was issued for different OAuth client
       // 3. Token expired (rare for refresh tokens, but can happen if not used for 6+ months)
-      if (err.message?.includes("invalid_grant") || err.code === "invalid_grant") {
+      if (err.message?.includes("invalid_grant") || err.code === "invalid_grant" || errorData.error === "invalid_grant") {
         console.error("[googleAuth] Refresh token is invalid - invalid_grant error");
-        console.error("[googleAuth] To fix: Visit /api/gmail/oauth2/url to get a new authorization URL and re-authorize.");
+        console.error("[googleAuth] Error details:", JSON.stringify(errorData, null, 2));
+        console.error("[googleAuth] To fix: Delete token.json and visit /api/gmail/oauth2/url to re-authorize.");
         // Throw an error so callers can handle it properly
-        throw new Error("Refresh token is invalid (invalid_grant). Please re-authorize via /api/gmail/oauth2/url");
+        throw new Error("Refresh token is invalid (invalid_grant). Please delete token.json and re-authorize via /api/gmail/oauth2/url");
       } else {
         // For other errors, still throw but with helpful message
         if (!tokens.refresh_token) {

@@ -402,8 +402,16 @@ export async function listMessagesHandler(req, res, next) {
         stack: fetchErr.stack
       });
       
+      // Check for RAPT error first (most specific)
+      const isRaptError = 
+        fetchErr.message?.includes("RAPT required") ||
+        fetchErr.message?.includes("invalid_rapt") ||
+        fetchErr.message?.includes("rapt_required") ||
+        fetchErr.message?.includes("reauth related error");
+      
       // Check for any token-related errors that require re-authorization
       const isTokenError = 
+        isRaptError ||
         fetchErr.message?.includes("invalid_grant") ||
         fetchErr.message?.includes("re-authorize") ||
         fetchErr.message?.includes("re-authorization") ||
@@ -411,7 +419,6 @@ export async function listMessagesHandler(req, res, next) {
         fetchErr.message?.includes("No refresh token") ||
         fetchErr.message?.includes("Refresh token is invalid") ||
         fetchErr.message?.includes("Token refresh failed") ||
-        fetchErr.message?.includes("RAPT") ||
         fetchErr.code === "invalid_grant";
       
       if (isTokenError) {
@@ -419,11 +426,17 @@ export async function listMessagesHandler(req, res, next) {
           ? "https://www.spotops360.com/api/gmail/oauth2/url"
           : "http://localhost:5000/api/gmail/oauth2/url";
         
+        // Provide more specific message for RAPT errors
+        const message = isRaptError
+          ? "Google security policy (RAPT) requires re-authorization. Please delete token.json and re-authorize via /api/gmail/oauth2/url"
+          : "Gmail token is invalid. Please re-authorize via /api/gmail/oauth2/url";
+        
         return res.status(400).json({
-          message: "Gmail token is invalid. Please re-authorize via /api/gmail/oauth2/url",
-          error: "Invalid token. Re-authorization required.",
-          errorCode: "GMAIL_TOKEN_INVALID",
+          message,
+          error: isRaptError ? "RAPT required - Re-authorization required" : "Invalid token. Re-authorization required.",
+          errorCode: isRaptError ? "GMAIL_RAPT_REQUIRED" : "GMAIL_TOKEN_INVALID",
           help: helpUrl,
+          requiresTokenDeletion: isRaptError, // Hint to frontend that token.json should be deleted
         });
       }
 

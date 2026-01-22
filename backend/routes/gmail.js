@@ -18,6 +18,7 @@ import {
   reparseLeadsHandler,
 } from "../controllers/gmailController.js";
 import { requireAuth } from "../middleware/auth.js";
+import gmailHealthRouter from "./gmailHealth.js";
 
 const router = express.Router();
 
@@ -41,6 +42,9 @@ router.patch("/messages/:id/reopen", requireAuth, reopenLeadHandler);
 router.post("/messages/:id/comments", requireAuth, addCommentHandler);
 router.get("/statistics/daily", requireAuth, getDailyStatisticsHandler);
 router.post("/reparse-leads", requireAuth, reparseLeadsHandler); // Admin only - re-parse existing leads
+
+// Health check route
+router.use("/", gmailHealthRouter);
 
 export default router;
 
