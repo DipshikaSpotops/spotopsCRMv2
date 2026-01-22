@@ -203,4 +203,42 @@ programmingCostQuoted: String,
 images: [imageSchema],
 });
 
+// Database synchronization hooks
+// Sync to backup database after save
+orderSchema.post('save', async function(doc) {
+  try {
+    // Dynamic import to avoid circular dependencies
+    const { syncOrderToBackup } = await import('../services/dbSync.js');
+    await syncOrderToBackup(doc, 'save');
+  } catch (error) {
+    // Silently fail - don't break main operations
+    // Error is already logged in syncOrderToBackup
+  }
+});
+
+// Sync to backup database after findOneAndUpdate
+// Note: findOneAndUpdate hook receives the result document, not the query
+orderSchema.post('findOneAndUpdate', async function(result) {
+  if (result) {
+    try {
+      const { syncOrderToBackup } = await import('../services/dbSync.js');
+      await syncOrderToBackup(result, 'save');
+    } catch (error) {
+      // Silently fail - don't break main operations
+    }
+  }
+});
+
+// Sync to backup database after findOneAndDelete
+orderSchema.post('findOneAndDelete', async function(doc) {
+  if (doc) {
+    try {
+      const { syncOrderToBackup } = await import('../services/dbSync.js');
+      await syncOrderToBackup(doc, 'delete');
+    } catch (error) {
+      // Silently fail - don't break main operations
+    }
+  }
+});
+
 export default mongoose.model("Order", orderSchema);

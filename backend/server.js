@@ -315,7 +315,15 @@ io.on("connection", (socket) => {
 // MongoDB connection
 mongoose
   .connect(process.env.MONGODB_URI)
-  .then(() => console.log("MongoDB connected"))
+  .then(() => {
+    console.log("MongoDB connected");
+    // Initialize backup database connection
+    import("./services/dbSync.js").then(({ initializeBackupDB }) => {
+      initializeBackupDB().catch((err) => {
+        console.error("[DB Sync] Failed to initialize backup database:", err.message);
+      });
+    });
+  })
   .catch((err) => console.error("MongoDB connection error:", err));
 
 const PORT = process.env.PORT || 5000;
