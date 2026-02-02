@@ -802,6 +802,21 @@ export async function oauth2UrlHandler(req, res, next) {
     const forceConsent = req.query.force !== 'false'; // Default to true, unless explicitly false
     const url = getAuthUrl(redirectUri, forceConsent);
     
+    // Store popup and redirect params in session/cookie for callback to use
+    // (We can't modify the redirect URI as it must match Google's registered URI exactly)
+    const popup = req.query.popup;
+    const redirect = req.query.redirect;
+    if (popup || redirect) {
+      // Store in response cookie so callback can read it
+      if (popup) res.cookie('oauth_popup', 'true', { maxAge: 600000, httpOnly: true, sameSite: 'lax' }); // 10 min
+      if (redirect) res.cookie('oauth_redirect', redirect, { maxAge: 600000, httpOnly: true, sameSite: 'lax' }); // 10 min
+    }
+    
+    // If popup=true, redirect directly to Google OAuth (no intermediate page)
+    if (popup === 'true' && req.headers.accept?.includes("text/html")) {
+      return res.redirect(url);
+    }
+    
     // If request wants HTML (browser), show a nice page with the link
     if (req.headers.accept?.includes("text/html")) {
       return res.send(`
@@ -953,16 +968,63 @@ export async function oauth2CallbackHandler(req, res, next) {
     await setTokensFromCode(code, redirectUri);
     const userEmail = getUserEmail();
     
-    res.send(`
-      <html>
-        <body style="font-family: Arial, sans-serif; padding: 40px; text-align: center;">
-          <h1 style="color: #4CAF50;">✅ Gmail Connected Successfully!</h1>
-          <p>Email: <strong>${userEmail || "N/A"}</strong></p>
-          <p style="color: #4CAF50; margin-top: 20px;">✅ Token saved and active. You can now use Gmail features.</p>
-          <p>You can close this window and return to the Leads page.</p>
-        </body>
-      </html>
-    `);
+    // Check if this was opened in a popup (has opener) or if there's a redirect param from cookie
+    const redirectUrl = req.cookies?.oauth_redirect || req.query.redirect || '/leads';
+    const isPopup = req.cookies?.oauth_popup === 'true' || req.query.popup === 'true';
+    
+    // Clear cookies after reading
+    if (req.cookies?.oauth_popup) res.clearCookie('oauth_popup');
+    if (req.cookies?.oauth_redirect) res.clearCookie('oauth_redirect');
+    
+    if (isPopup) {
+      // If opened in popup, close it and refresh the parent window
+      res.send(`
+        <html>
+          <head>
+            <title>Gmail Connected Successfully</title>
+          </head>
+          <body style="font-family: Arial, sans-serif; padding: 40px; text-align: center;">
+            <h1 style="color: #4CAF50;">✅ Gmail Connected Successfully!</h1>
+            <p>Email: <strong>${userEmail || "N/A"}</strong></p>
+            <p style="color: #4CAF50; margin-top: 20px;">✅ Token saved and active. You can now use Gmail features.</p>
+            <p>Closing window and refreshing...</p>
+            <script>
+              if (window.opener) {
+                // Refresh the parent window (Leads page)
+                window.opener.location.reload();
+                window.close();
+              } else {
+                // Fallback: redirect to Leads page
+                setTimeout(() => {
+                  window.location.href = '${redirectUrl}';
+                }, 2000);
+              }
+            </script>
+          </body>
+        </html>
+      `);
+    } else {
+      // Regular redirect
+      res.send(`
+        <html>
+          <head>
+            <title>Gmail Connected Successfully</title>
+          </head>
+          <body style="font-family: Arial, sans-serif; padding: 40px; text-align: center;">
+            <h1 style="color: #4CAF50;">✅ Gmail Connected Successfully!</h1>
+            <p>Email: <strong>${userEmail || "N/A"}</strong></p>
+            <p style="color: #4CAF50; margin-top: 20px;">✅ Token saved and active. You can now use Gmail features.</p>
+            <p>Redirecting to Leads page...</p>
+            <script>
+              setTimeout(() => {
+                window.location.href = '${redirectUrl}';
+              }, 2000);
+            </script>
+            <p><a href="${redirectUrl}">Click here if you are not redirected</a></p>
+          </body>
+        </html>
+      `);
+    }
   } catch (err) {
     console.error("[gmail] OAuth2 callback error:", err);
     res.status(500).send(`
@@ -1050,6 +1112,32 @@ export async function checkTokenHandler(req, res, next) {
     return res.json(tokenInfo);
   } catch (err) {
     return next(err);
+  }
+}
+
+export async function deleteTokenHandler(req, res, next) {
+  try {
+    if (fs.existsSync(TOKEN_PATH)) {
+      fs.unlinkSync(TOKEN_PATH);
+      clearTokenCache(); // Clear cached tokens
+      console.log("[gmail] token.json deleted successfully");
+      return res.json({ 
+        success: true, 
+        message: "token.json deleted successfully. You can now re-authorize." 
+      });
+    } else {
+      return res.json({ 
+        success: true, 
+        message: "token.json does not exist. You can proceed with authorization." 
+      });
+    }
+  } catch (err) {
+    console.error("[gmail] Failed to delete token.json:", err);
+    return res.status(500).json({ 
+      success: false, 
+      error: "Failed to delete token.json", 
+      message: err.message 
+    });
   }
 }
 

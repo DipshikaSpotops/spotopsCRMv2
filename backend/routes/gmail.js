@@ -16,6 +16,7 @@ import {
   addCommentHandler,
   checkTokenHandler,
   reparseLeadsHandler,
+  deleteTokenHandler,
 } from "../controllers/gmailController.js";
 import { requireAuth } from "../middleware/auth.js";
 import gmailHealthRouter from "./gmailHealth.js";
@@ -31,6 +32,7 @@ router.post("/sync", manualSyncHandler);
 router.get("/messages", requireAuth, listMessagesHandler);
 router.get("/state", syncStateHandler);
 router.get("/check-token", checkTokenHandler); // Debug endpoint to check token.json
+router.delete("/token", requireAuth, deleteTokenHandler); // Delete token.json for re-authorization
 router.post("/pubsub", pubsubWebhook);
 
 // Protected routes (require auth)

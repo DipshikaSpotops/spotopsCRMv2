@@ -194,6 +194,8 @@ export default function Leads() {
   const [loading, setLoading] = useState(true);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [error, setError] = useState("");
+  const [isReauthorizing, setIsReauthorizing] = useState(false);
+  const [errorType, setErrorType] = useState(null); // Track if error is RAPT/token related
   const [search, setSearch] = useState("");
   const [agentFilter, setAgentFilter] = useState("All");
   const [limit, setLimit] = useState(50);
@@ -480,14 +482,17 @@ export default function Leads() {
         
         // Check if it's a Gmail token issue (Gmail OAuth token, not user auth)
         if (errorData?.errorCode === "GMAIL_TOKEN_INVALID" ||
+            errorData?.errorCode === "GMAIL_RAPT_REQUIRED" ||
             errorData?.error === "Invalid token. Re-authorization required." || 
             errorData?.message?.includes("re-authorize") ||
+            errorData?.message?.includes("RAPT") ||
             errorData?.message?.includes("invalid_grant") ||
             (err?.response?.status === 400 && errorData?.message?.includes("Gmail token"))) {
           const message = errorData?.message || "Gmail token is invalid. Please re-authorize.";
           const helpUrl = errorData?.help || (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1" 
             ? "http://localhost:5000/api/gmail/oauth2/url" 
             : "https://www.spotops360.com/api/gmail/oauth2/url");
+          setErrorType("token"); // Mark as token error for button display
           setError(
             <div>
               <p className="font-semibold mb-2">{message}</p>
@@ -513,6 +518,7 @@ export default function Leads() {
         err?.message ||
         "Failed to load leads.";
         }
+      setErrorType(null); // Not a token error
       setError(message);
         }
       }
@@ -540,12 +546,15 @@ export default function Leads() {
       
       // Check if it's a token issue (Gmail OAuth token, not user auth)
       if (errorData?.errorCode === "GMAIL_TOKEN_INVALID" ||
+          errorData?.errorCode === "GMAIL_RAPT_REQUIRED" ||
           errorData?.error === "Invalid token. Re-authorization required." || 
           errorData?.message?.includes("re-authorize") ||
+          errorData?.message?.includes("RAPT") ||
           errorData?.message?.includes("invalid_grant") ||
           (err?.response?.status === 400 && errorData?.message?.includes("Gmail token"))) {
         const message = errorData?.message || "Gmail token is invalid. Please re-authorize.";
         const helpUrl = errorData?.help || "http://localhost:5000/api/gmail/oauth2/url";
+        setErrorType("token"); // Mark as token error
         setError(
           <div>
             <p className="font-semibold mb-2">{message}</p>
@@ -563,6 +572,7 @@ export default function Leads() {
           errorData?.message ||
           err?.message ||
           "Failed to sync Gmail.";
+        setErrorType(null); // Not a token error
         setError(message);
       }
     } finally {
@@ -1171,8 +1181,63 @@ export default function Leads() {
       </div>
 
       {error && (
-        <div className="mb-4 rounded-lg border border-red-500/30 bg-red-900/40 px-4 py-2 text-sm text-red-200">
-          {error}
+        <div className="mb-4 rounded-lg border border-red-500/30 bg-red-900/40 px-4 py-3 text-sm text-red-200">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex-1">{error}</div>
+            {errorType === "token" && (
+              <button
+                onClick={async () => {
+                  if (isReauthorizing) return;
+                  setIsReauthorizing(true);
+                  try {
+                    // 1. Delete token.json
+                    await API.delete("/gmail/token");
+                    
+                    // 2. Get OAuth URL with popup and redirect params
+                    const baseUrl = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
+                      ? "http://localhost:5000"
+                      : window.location.origin;
+                    const oauthUrl = `${baseUrl}/api/gmail/oauth2/url?popup=true&redirect=${encodeURIComponent(window.location.pathname)}`;
+                    
+                    // 3. Open OAuth in popup
+                    const popup = window.open(
+                      oauthUrl,
+                      "Gmail Authorization",
+                      "width=600,height=700,scrollbars=yes,resizable=yes"
+                    );
+                    
+                    // 4. Poll for popup to close (OAuth complete)
+                    const checkClosed = setInterval(() => {
+                      if (popup.closed) {
+                        clearInterval(checkClosed);
+                        setIsReauthorizing(false);
+                        // Refresh the page to reload leads
+                        window.location.reload();
+                      }
+                    }, 500);
+                    
+                    // Timeout after 5 minutes
+                    setTimeout(() => {
+                      if (!popup.closed) {
+                        popup.close();
+                        clearInterval(checkClosed);
+                        setIsReauthorizing(false);
+                        alert("Authorization timed out. Please try again.");
+                      }
+                    }, 300000);
+                  } catch (err) {
+                    console.error("[Leads] Re-authorization error:", err);
+                    setIsReauthorizing(false);
+                    setError("Failed to start re-authorization. Please try the manual steps above.");
+                  }
+                }}
+                disabled={isReauthorizing}
+                className="px-4 py-2 rounded-md bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+              >
+                {isReauthorizing ? "Authorizing..." : "Re-authorize Now"}
+              </button>
+            )}
+          </div>
         </div>
       )}
 
