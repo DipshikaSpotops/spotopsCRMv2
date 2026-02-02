@@ -843,7 +843,15 @@ export default function OrderDetails() {
     }
   };
 
+  const handleAddYardRef = useRef(false);
   const handleAddYard = async (formData) => {
+    // Prevent duplicate submissions
+    if (handleAddYardRef.current) {
+      console.warn("Yard submission already in progress, ignoring duplicate request");
+      return;
+    }
+
+    handleAddYardRef.current = true;
     try {
       const firstName = localStorage.getItem("firstName") || "Unknown";
 
@@ -886,6 +894,9 @@ export default function OrderDetails() {
     } catch (err) {
       console.error("Error adding yard:", err);
       setToast("Error adding yard. Please try again.");
+      throw err; // Re-throw to let modal handle it
+    } finally {
+      handleAddYardRef.current = false;
     }
   };
 

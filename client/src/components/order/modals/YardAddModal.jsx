@@ -44,11 +44,13 @@ export default function YardAddModal({ open, onClose, onSubmit, order }) {
   const [errors, setErrors] = useState({});
   const [filterText, setFilterText] = useState("");
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Load yards from backend and sort A→Z
   useEffect(() => {
     if (open) {
       setErrors({});
+      setIsSubmitting(false); // Reset submitting state when modal opens
       fetch("/api/yards")
         .then((res) => res.json())
         .then((data) => {
@@ -58,6 +60,8 @@ export default function YardAddModal({ open, onClose, onSubmit, order }) {
           setYards(sorted);
         })
         .catch((err) => console.error("Failed to load yards", err));
+    } else {
+      setIsSubmitting(false); // Reset when modal closes
     }
   }, [open]);
 
@@ -170,6 +174,24 @@ export default function YardAddModal({ open, onClose, onSubmit, order }) {
       e.yardShipping = "Enter a valid number";
     }
     setErrors(e);
+    
+    // Show alert if validation fails
+    if (Object.keys(e).length > 0) {
+      const missingFields = Object.keys(e).filter(k => e[k] === "Required");
+      if (missingFields.length > 0) {
+        alert(`Please fill in all required fields:\n${missingFields.map(f => `- ${f}`).join('\n')}`);
+      } else {
+        alert(`Please fix the following errors:\n${Object.entries(e).map(([k, v]) => `- ${k}: ${v}`).join('\n')}`);
+      }
+      // Scroll to first error field
+      const firstErrorField = document.querySelector(`[name="${Object.keys(e)[0]}"]`) || 
+                              document.querySelector(`input[value="${form[Object.keys(e)[0]]}"]`);
+      if (firstErrorField) {
+        firstErrorField.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        firstErrorField.focus();
+      }
+    }
+    
     return Object.keys(e).length === 0;
   };
 
@@ -692,34 +714,44 @@ export default function YardAddModal({ open, onClose, onSubmit, order }) {
 
         <footer className="flex items-center justify-end gap-2 px-5 py-3 border-t border-white/20 rounded-b-2xl dark:border-white/20">
           <button 
-            onClick={onClose} 
-            className="px-3 py-1.5 rounded-md bg-white/10 border border-white/20 hover:bg-white/20 yard-add-modal-close-footer-btn dark:bg-white/10 dark:hover:bg-white/20 dark:border-white/20 dark:text-white"
+            onClick={onClose}
+            disabled={isSubmitting}
+            className="px-3 py-1.5 rounded-md bg-white/10 border border-white/20 hover:bg-white/20 yard-add-modal-close-footer-btn dark:bg-white/10 dark:hover:bg-white/20 dark:border-white/20 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Close
           </button>
           <button
-            onClick={() => {
+            onClick={async () => {
+              if (isSubmitting) return; // Prevent multiple clicks
               if (!validate()) return;
-              const ownTrim = String(form.ownShipping || "").trim();
-              const yardTrim = String(form.yardShipping || "").trim();
-              const normalizedCountry = normalizeCountry(form.country);
-              onSubmit({
-                ...form,
-                country: normalizedCountry,
-                ownShipping: ownTrim,
-                yardShipping: yardTrim,
-                address: `${form.street} ${form.city} ${form.state} ${form.zipcode}`.trim(),
-                shippingDetails: [
-                  ownTrim ? `Own shipping: ${ownTrim}` : "",
-                  yardTrim ? `Yard shipping: ${yardTrim}` : "",
-                ]
-                  .filter(Boolean)
-                  .join(" | "),
-              });
+              
+              setIsSubmitting(true);
+              try {
+                const ownTrim = String(form.ownShipping || "").trim();
+                const yardTrim = String(form.yardShipping || "").trim();
+                const normalizedCountry = normalizeCountry(form.country);
+                await onSubmit({
+                  ...form,
+                  country: normalizedCountry,
+                  ownShipping: ownTrim,
+                  yardShipping: yardTrim,
+                  address: `${form.street} ${form.city} ${form.state} ${form.zipcode}`.trim(),
+                  shippingDetails: [
+                    ownTrim ? `Own shipping: ${ownTrim}` : "",
+                    yardTrim ? `Yard shipping: ${yardTrim}` : "",
+                  ]
+                    .filter(Boolean)
+                    .join(" | "),
+                });
+              } catch (error) {
+                console.error("Error submitting yard:", error);
+                setIsSubmitting(false);
+              }
             }}
-            className="px-3 py-1.5 rounded-md bg-white text-[#04356d] border border-white/20 hover:bg-white/90 yard-add-modal-submit-btn dark:bg-white dark:text-[#04356d] dark:hover:bg-white/90"
+            disabled={isSubmitting}
+            className="px-3 py-1.5 rounded-md bg-white text-[#04356d] border border-white/20 hover:bg-white/90 yard-add-modal-submit-btn dark:bg-white dark:text-[#04356d] dark:hover:bg-white/90 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Submit
+            {isSubmitting ? "Submitting..." : "Submit"}
           </button>
         </footer>
       </div>
