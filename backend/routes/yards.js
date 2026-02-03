@@ -115,15 +115,30 @@ router.get("/list", async (req, res) => {
     const page = parseInt(req.query.page || "1", 10);
     const limit = parseInt(req.query.limit || "25", 10);
     const searchTerm = req.query.searchTerm || "";
+    const todayOnly = req.query.today === "true";
     const sortBy = req.query.sortBy || "updatedAt";
     const sortOrder = req.query.sortOrder === "desc" ? -1 : 1;
     const skip = (page - 1) * limit;
 
-    // Build search query
+    // Build base query
     let query = {};
+
+    // Add today filter if requested
+    if (todayOnly) {
+      const ZONE = "America/Chicago";
+      const todayDallas = moment.tz(ZONE);
+      const startOfDay = todayDallas.clone().startOf("day").utc().toDate();
+      const endOfDay = todayDallas.clone().endOf("day").utc().toDate();
+      query.createdAt = {
+        $gte: startOfDay,
+        $lte: endOfDay,
+      };
+    }
+
+    // Add search filter
     if (searchTerm) {
       const searchRegex = new RegExp(searchTerm, "i");
-      query = {
+      const searchQuery = {
         $or: [
           { yardName: searchRegex },
           { street: searchRegex },
@@ -137,6 +152,12 @@ router.get("/list", async (req, res) => {
           { yardRating: searchRegex },
         ],
       };
+      // Combine with existing query
+      if (todayOnly) {
+        query = { $and: [query, searchQuery] };
+      } else {
+        query = searchQuery;
+      }
     }
 
     // Build sort object

@@ -81,11 +81,9 @@ const Yards = () => {
   });
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
-  const [showTodayYards, setShowTodayYards] = useState(false);
-  const [todayYards, setTodayYards] = useState([]);
-  const [loadingToday, setLoadingToday] = useState(false);
+  const [showTodayOnly, setShowTodayOnly] = useState(false);
 
-  const fetchYards = async (page = 1, q = appliedQuery, sBy = sortBy, sDir = sortOrder, opts = { silent: false }) => {
+  const fetchYards = async (page = 1, q = appliedQuery, sBy = sortBy, sDir = sortOrder, todayFilter = showTodayOnly, opts = { silent: false }) => {
     try {
       if (!opts.silent && loading === false) setLoading(true);
       if (opts.silent) setIsFetching(true);
@@ -94,6 +92,7 @@ const Yards = () => {
       params.set("page", String(page));
       params.set("limit", String(rowsPerPage));
       if (q) params.set("searchTerm", q);
+      if (todayFilter) params.set("today", "true");
       if (sBy) params.set("sortBy", sBy);
       if (sDir) params.set("sortOrder", sDir);
 
@@ -115,9 +114,9 @@ const Yards = () => {
   };
 
   useEffect(() => {
-    fetchYards(currentPage, appliedQuery, sortBy, sortOrder, { silent: currentPage !== 1 || !!appliedQuery || !!sortBy });
+    fetchYards(currentPage, appliedQuery, sortBy, sortOrder, showTodayOnly, { silent: currentPage !== 1 || !!appliedQuery || !!sortBy || showTodayOnly });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentPage, appliedQuery, sortBy, sortOrder]);
+  }, [currentPage, appliedQuery, sortBy, sortOrder, showTodayOnly]);
 
   const handleSort = (field) => {
     if (field === "action") return;
@@ -126,7 +125,7 @@ const Yards = () => {
     setSortBy(nextSortBy);
     setSortOrder(nextSortOrder);
     setCurrentPage(1);
-    fetchYards(1, appliedQuery, nextSortBy, nextSortOrder, { silent: true });
+    fetchYards(1, appliedQuery, nextSortBy, nextSortOrder, showTodayOnly, { silent: true });
   };
 
   const onSearchChange = (e) => {
@@ -136,7 +135,7 @@ const Yards = () => {
       setAppliedQuery("");
       localStorage.removeItem("yardsSearch");
       setCurrentPage(1);
-      fetchYards(1, "", sortBy, sortOrder, { silent: true });
+      fetchYards(1, "", sortBy, sortOrder, showTodayOnly, { silent: true });
     }
   };
 
@@ -147,14 +146,14 @@ const Yards = () => {
       if (q) localStorage.setItem("yardsSearch", q);
       else localStorage.removeItem("yardsSearch");
       setCurrentPage(1);
-      fetchYards(1, q, sortBy, sortOrder, { silent: true });
+      fetchYards(1, q, sortBy, sortOrder, showTodayOnly, { silent: true });
     }
     if (e.key === "Escape") {
       setSearchInput("");
       setAppliedQuery("");
       localStorage.removeItem("yardsSearch");
       setCurrentPage(1);
-      fetchYards(1, "", sortBy, sortOrder, { silent: true });
+      fetchYards(1, "", sortBy, sortOrder, showTodayOnly, { silent: true });
     }
   };
 
@@ -163,7 +162,7 @@ const Yards = () => {
     setAppliedQuery("");
     localStorage.removeItem("yardsSearch");
     setCurrentPage(1);
-    fetchYards(1, "", sortBy, sortOrder, { silent: true });
+    fetchYards(1, "", sortBy, sortOrder, showTodayOnly, { silent: true });
   };
 
   const formatDate = (dateStr) => {
@@ -220,19 +219,11 @@ const Yards = () => {
     }
   };
 
-  const handleShowTodayYards = async () => {
-    setLoadingToday(true);
-    setShowTodayYards(true);
-    try {
-      const { data } = await API.get("/yards/today");
-      setTodayYards(data.yards || []);
-    } catch (err) {
-      console.error("Error fetching today's yards:", err);
-      setTodayYards([]);
-      alert("Failed to load today's yards. Please try again.");
-    } finally {
-      setLoadingToday(false);
-    }
+  const handleToggleTodayYards = () => {
+    const newValue = !showTodayOnly;
+    setShowTodayOnly(newValue);
+    setCurrentPage(1);
+    fetchYards(1, appliedQuery, sortBy, sortOrder, newValue, { silent: false });
   };
 
   if (loading) return <div className="p-6 text-center text-white">⏳ Loading Yards...</div>;
@@ -247,7 +238,11 @@ const Yards = () => {
 
           <div className="mt-1 flex items-center gap-4">
             <p className="text-sm text-white/70">
-              {appliedQuery ? (
+              {showTodayOnly ? (
+                <>
+                  Today's Yards: <strong>{totalYards}</strong>
+                </>
+              ) : appliedQuery ? (
                 <>
                   Showing: <strong>{totalYards}</strong> of <strong>{totalYardsAll}</strong> yards
                 </>
@@ -291,10 +286,14 @@ const Yards = () => {
         {/* Search and Today's Yards Button */}
         <div className="flex items-center gap-3">
           <button
-            onClick={handleShowTodayYards}
-            className="px-4 py-2 rounded-lg bg-green-600 hover:bg-green-700 text-white font-medium transition whitespace-nowrap"
+            onClick={handleToggleTodayYards}
+            className={`px-4 py-2 rounded-lg font-medium transition whitespace-nowrap ${
+              showTodayOnly
+                ? "bg-green-700 hover:bg-green-800 text-white"
+                : "bg-green-600 hover:bg-green-700 text-white"
+            }`}
           >
-            Today's Yards
+            {showTodayOnly ? "Show All Yards" : "Today's Yards"}
           </button>
           <div className="w-full lg:w-[260px] relative">
             <input
@@ -584,55 +583,6 @@ const Yards = () => {
                 className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 transition"
               >
                 Delete
-              </button>
-            </footer>
-          </div>
-        </div>
-      )}
-
-      {/* Today's Yards Modal */}
-      {showTodayYards && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowTodayYards(false)} />
-          <div className="relative w-full max-w-2xl rounded-2xl border border-white/20 bg-white/10 text-white backdrop-blur-xl shadow-2xl">
-            <header className="flex items-center justify-between px-5 py-3 border-b border-white/20">
-              <h3 className="text-lg font-semibold">Yards Added Today (Dallas Time)</h3>
-              <button
-                onClick={() => setShowTodayYards(false)}
-                className="px-2 py-1 rounded-md bg-white/10 border border-white/20 hover:bg-white/20"
-              >
-                ✕
-              </button>
-            </header>
-            <div className="p-5 max-h-[70vh] overflow-y-auto">
-              {loadingToday ? (
-                <div className="text-center py-8 text-white/80">⏳ Loading today's yards...</div>
-              ) : todayYards.length === 0 ? (
-                <div className="text-center py-8 text-white/80">No yards were added today.</div>
-              ) : (
-                <div>
-                  <p className="text-sm text-white/70 mb-4">
-                    Total: <strong>{todayYards.length}</strong> yard{todayYards.length !== 1 ? "s" : ""} added today
-                  </p>
-                  <ul className="space-y-2">
-                    {todayYards.map((yardName, index) => (
-                      <li
-                        key={index}
-                        className="px-4 py-2 bg-white/5 rounded-lg border border-white/10 hover:bg-white/10 transition"
-                      >
-                        {yardName}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-            </div>
-            <footer className="flex items-center justify-end gap-2 px-5 py-3 border-t border-white/20">
-              <button
-                onClick={() => setShowTodayYards(false)}
-                className="px-4 py-2 rounded-lg bg-white/10 border border-white/20 hover:bg-white/20 transition"
-              >
-                Close
               </button>
             </footer>
           </div>
