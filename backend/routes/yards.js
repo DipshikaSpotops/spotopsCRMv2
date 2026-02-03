@@ -1,6 +1,7 @@
 // routes/yards.js
 import express from "express";
 import Yard from "../models/Yards.js"; // your Yard model
+import moment from "moment-timezone";
 
 const router = express.Router();
 
@@ -17,6 +18,36 @@ router.get("/", async (req, res) => {
     res.status(500).json({ error: "Failed to fetch yards" });
   }
 });
+// GET /api/yards/today - Get yards added today (Dallas time)
+router.get("/today", async (req, res) => {
+  try {
+    const ZONE = "America/Chicago";
+    
+    // Get today's date range in Dallas timezone
+    const todayDallas = moment.tz(ZONE);
+    const startOfDay = todayDallas.clone().startOf("day").utc().toDate();
+    const endOfDay = todayDallas.clone().endOf("day").utc().toDate();
+
+    // Find yards created today (using createdAt field from timestamps)
+    const yards = await Yard.find({
+      createdAt: {
+        $gte: startOfDay,
+        $lte: endOfDay,
+      },
+    })
+      .select("yardName")
+      .sort({ createdAt: -1 });
+
+    res.json({
+      yards: yards.map((y) => y.yardName),
+      count: yards.length,
+    });
+  } catch (err) {
+    console.error("GET /api/yards/today failed:", err);
+    res.status(500).json({ message: "Server error", error: err.message });
+  }
+});
+
 //Checking if yard exists by name (used in frontend)
 router.get("/search", async (req, res) => {
   try {
@@ -43,6 +74,37 @@ router.get("/search", async (req, res) => {
     res.json(results);
   } catch (err) {
     console.error("GET /api/yards/search failed:", err);
+    res.status(500).json({ message: "Server error", error: err.message });
+  }
+});
+
+// GET /api/yards/today - Get yards added today (Dallas time)
+router.get("/today", async (req, res) => {
+  try {
+    const moment = (await import("moment-timezone")).default;
+    const ZONE = "America/Chicago";
+    
+    // Get today's date range in Dallas timezone
+    const todayDallas = moment.tz(ZONE);
+    const startOfDay = todayDallas.clone().startOf("day").utc().toDate();
+    const endOfDay = todayDallas.clone().endOf("day").utc().toDate();
+
+    // Find yards created today (using createdAt field)
+    const yards = await Yard.find({
+      createdAt: {
+        $gte: startOfDay,
+        $lte: endOfDay,
+      },
+    })
+      .select("yardName")
+      .sort({ createdAt: -1 });
+
+    res.json({
+      yards: yards.map((y) => y.yardName),
+      count: yards.length,
+    });
+  } catch (err) {
+    console.error("GET /api/yards/today failed:", err);
     res.status(500).json({ message: "Server error", error: err.message });
   }
 });

@@ -81,6 +81,9 @@ const Yards = () => {
   });
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
+  const [showTodayYards, setShowTodayYards] = useState(false);
+  const [todayYards, setTodayYards] = useState([]);
+  const [loadingToday, setLoadingToday] = useState(false);
 
   const fetchYards = async (page = 1, q = appliedQuery, sBy = sortBy, sDir = sortOrder, opts = { silent: false }) => {
     try {
@@ -217,6 +220,21 @@ const Yards = () => {
     }
   };
 
+  const handleShowTodayYards = async () => {
+    setLoadingToday(true);
+    setShowTodayYards(true);
+    try {
+      const { data } = await API.get("/yards/today");
+      setTodayYards(data.yards || []);
+    } catch (err) {
+      console.error("Error fetching today's yards:", err);
+      setTodayYards([]);
+      alert("Failed to load today's yards. Please try again.");
+    } finally {
+      setLoadingToday(false);
+    }
+  };
+
   if (loading) return <div className="p-6 text-center text-white">⏳ Loading Yards...</div>;
   if (error) return <div className="p-6 text-center text-red-300">{error}</div>;
 
@@ -270,27 +288,35 @@ const Yards = () => {
           </div>
         </div>
 
-        {/* Search */}
-        <div className="w-full lg:w-[260px] relative">
-          <input
-            type="text"
-            value={searchInput}
-            onChange={onSearchChange}
-            onKeyDown={onSearchKeyDown}
-            placeholder="Search… (press Enter)"
-            className="px-3 py-2 pr-9 rounded-lg bg-white/10 border border-white/20 text-white placeholder-white/60 outline-none focus:ring-2 focus:ring-white/30 w-full"
-            aria-label="Search yards"
-          />
-          {searchInput && (
-            <button
-              type="button"
-              onClick={clearSearch}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-600 hover:text-black"
-              aria-label="Clear search"
-            >
-              ✕
-            </button>
-          )}
+        {/* Search and Today's Yards Button */}
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleShowTodayYards}
+            className="px-4 py-2 rounded-lg bg-green-600 hover:bg-green-700 text-white font-medium transition whitespace-nowrap"
+          >
+            Today's Yards
+          </button>
+          <div className="w-full lg:w-[260px] relative">
+            <input
+              type="text"
+              value={searchInput}
+              onChange={onSearchChange}
+              onKeyDown={onSearchKeyDown}
+              placeholder="Search… (press Enter)"
+              className="px-3 py-2 pr-9 rounded-lg bg-white/10 border border-white/20 text-white placeholder-white/60 outline-none focus:ring-2 focus:ring-white/30 w-full"
+              aria-label="Search yards"
+            />
+            {searchInput && (
+              <button
+                type="button"
+                onClick={clearSearch}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-600 hover:text-black"
+                aria-label="Clear search"
+              >
+                ✕
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -558,6 +584,55 @@ const Yards = () => {
                 className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 transition"
               >
                 Delete
+              </button>
+            </footer>
+          </div>
+        </div>
+      )}
+
+      {/* Today's Yards Modal */}
+      {showTodayYards && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowTodayYards(false)} />
+          <div className="relative w-full max-w-2xl rounded-2xl border border-white/20 bg-white/10 text-white backdrop-blur-xl shadow-2xl">
+            <header className="flex items-center justify-between px-5 py-3 border-b border-white/20">
+              <h3 className="text-lg font-semibold">Yards Added Today (Dallas Time)</h3>
+              <button
+                onClick={() => setShowTodayYards(false)}
+                className="px-2 py-1 rounded-md bg-white/10 border border-white/20 hover:bg-white/20"
+              >
+                ✕
+              </button>
+            </header>
+            <div className="p-5 max-h-[70vh] overflow-y-auto">
+              {loadingToday ? (
+                <div className="text-center py-8 text-white/80">⏳ Loading today's yards...</div>
+              ) : todayYards.length === 0 ? (
+                <div className="text-center py-8 text-white/80">No yards were added today.</div>
+              ) : (
+                <div>
+                  <p className="text-sm text-white/70 mb-4">
+                    Total: <strong>{todayYards.length}</strong> yard{todayYards.length !== 1 ? "s" : ""} added today
+                  </p>
+                  <ul className="space-y-2">
+                    {todayYards.map((yardName, index) => (
+                      <li
+                        key={index}
+                        className="px-4 py-2 bg-white/5 rounded-lg border border-white/10 hover:bg-white/10 transition"
+                      >
+                        {yardName}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+            <footer className="flex items-center justify-end gap-2 px-5 py-3 border-t border-white/20">
+              <button
+                onClick={() => setShowTodayYards(false)}
+                className="px-4 py-2 rounded-lg bg-white/10 border border-white/20 hover:bg-white/20 transition"
+              >
+                Close
               </button>
             </footer>
           </div>
