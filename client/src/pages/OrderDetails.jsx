@@ -875,7 +875,6 @@ export default function OrderDetails() {
           zipcode: formData.zipcode,
           country: formData.country,
           warranty: formData.warranty,
-          yardWarrantyField: formData.yardWarrantyField,
         });
       }
 

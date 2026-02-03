@@ -13,12 +13,6 @@ const yardsSchema = new mongoose.Schema(
     zipcode: { type: String, trim: true },
     country: { type: String, trim: true, default: "US" },
     warranty: { type: Number },
-    yardWarrantyField: {
-      type: String,
-      trim: true,
-      enum: ["days", "months", "years"],
-      default: "days",
-    },
   },
   { timestamps: true }
 );

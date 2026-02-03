@@ -19,6 +19,16 @@ export default function Sidebar() {
       return localStorage.getItem("role") || undefined; // legacy key
     })();
 
+  // Email from Redux with robust fallback to localStorage
+  const email =
+    (function () {
+      try {
+        const raw = localStorage.getItem("auth");
+        if (raw) return JSON.parse(raw)?.user?.email || undefined;
+      } catch {}
+      return localStorage.getItem("email") || undefined;
+    })()?.toLowerCase();
+
   // all menus open by default
   const [openMenu, setOpenMenu] = useState({
     dashboards: true,
@@ -50,6 +60,7 @@ export default function Sidebar() {
     { text: "Overall Escalation", to: "/overall-escalation" },
     { text: "Ongoing Escalation", to: "/ongoing-escalation" },
     { text: "Leads", to: "/leads", roles: ["Admin", "Sales"] },
+    { text: "Yards", to: "/yards", adminOnly: true, emailAccess: "50starsauto110@gmail.com" },
   ];
 
   const usersLinksBase = [
@@ -124,9 +135,15 @@ export default function Sidebar() {
     // Admin: see everything (no filtering, but keep adminOnly links)
     showUsersSection = true;
     // Filter to only show links that Admin has access to (roles array includes Admin or no roles array)
+    // Also check for email-based access for specific links
     dashboardLinks = dashboardLinksBase.filter((l) => {
       // If link has roles array, check if Admin is included
       if (l.roles && !l.roles.includes("Admin")) return false;
+      // Check for email-based access (for Yards page)
+      if (l.emailAccess) {
+        const isAuthorizedEmail = email === l.emailAccess.toLowerCase();
+        if (role !== "Admin" && !isAuthorizedEmail) return false;
+      }
       return true;
     });
   }

@@ -42,6 +42,7 @@ const SalesData = lazy(() => import("./pages/SalesData"));
 const SalesReport = lazy(() => import("./pages/SalesReport"));
 const EmailLeads = lazy(() => import("./pages/EmailLeads"));
 const Leads = lazy(() => import("./pages/Leads"));
+const Yards = lazy(() => import("./pages/Yards"));
 const ReimbursementReport = lazy(() => import("./pages/ReimbursementReport"));
 
 // Loading fallback component
@@ -358,6 +359,14 @@ function App() {
           element={withLayout(
             <Suspense fallback={<PageLoader />}>
               <Leads />
+            </Suspense>
+          )}
+        />
+        <Route
+          path="/yards"
+          element={withLayout(
+            <Suspense fallback={<PageLoader />}>
+              <Yards />
             </Suspense>
           )}
         />

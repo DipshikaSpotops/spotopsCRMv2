@@ -4,19 +4,12 @@ import Yard from "../models/Yards.js"; // your Yard model
 
 const router = express.Router();
 
-function normaliseWarrantyUnit(unit) {
-  const clean = String(unit || "").toLowerCase().trim();
-  if (clean === "months" || clean === "month") return "months";
-  if (clean === "years" || clean === "year") return "years";
-  return "days";
-}
-
 // Get all yards (for dropdown)
 router.get("/", async (req, res) => {
   try {
     const yards = await Yard.find(
       {},
-      "yardName yardRating phone altNo email street city state zipcode country warranty yardWarrantyField"
+      "yardName yardRating phone altNo email street city state zipcode country warranty"
     );
     res.json(yards);
   } catch (err) {
@@ -53,7 +46,69 @@ router.get("/search", async (req, res) => {
     res.status(500).json({ message: "Server error", error: err.message });
   }
 });
-// Get a single yard by id (optional)
+
+// GET /api/yards/list - Get yards with pagination and search (must be before /:id route)
+router.get("/list", async (req, res) => {
+  try {
+    const page = parseInt(req.query.page || "1", 10);
+    const limit = parseInt(req.query.limit || "25", 10);
+    const searchTerm = req.query.searchTerm || "";
+    const sortBy = req.query.sortBy || "updatedAt";
+    const sortOrder = req.query.sortOrder === "desc" ? -1 : 1;
+    const skip = (page - 1) * limit;
+
+    // Build search query
+    let query = {};
+    if (searchTerm) {
+      const searchRegex = new RegExp(searchTerm, "i");
+      query = {
+        $or: [
+          { yardName: searchRegex },
+          { street: searchRegex },
+          { city: searchRegex },
+          { state: searchRegex },
+          { zipcode: searchRegex },
+          { country: searchRegex },
+          { email: searchRegex },
+          { phone: searchRegex },
+          { altNo: searchRegex },
+          { yardRating: searchRegex },
+        ],
+      };
+    }
+
+    // Build sort object
+    const sortObj = {};
+    sortObj[sortBy] = sortOrder;
+
+    // Get total count of all yards (unfiltered)
+    const totalCountAll = await Yard.countDocuments({});
+    
+    // Get filtered count (matching search if any)
+    const filteredCount = await Yard.countDocuments(query);
+    
+    const yards = await Yard.find(query)
+      .sort(sortObj)
+      .skip(skip)
+      .limit(limit)
+      .select("yardName yardRating phone altNo email street city state zipcode country updatedAt");
+
+    const totalPages = Math.ceil(filteredCount / limit);
+
+    res.json({
+      yards,
+      currentPage: page,
+      totalPages,
+      totalCount: filteredCount, // Count matching current search/filter
+      totalCountAll, // Total count of all yards regardless of search
+    });
+  } catch (err) {
+    console.error("GET /api/yards/list failed:", err);
+    res.status(500).json({ message: "Server error", error: err.message });
+  }
+});
+
+// Get a single yard by id (optional) - must be after specific routes like /list
 router.get("/:id", async (req, res) => {
   try {
     const yard = await Yard.findById(req.params.id);
@@ -77,7 +132,6 @@ router.post("/", async (req, res) => {
       state,
       zipcode,
       country = "US",
-      yardWarrantyField,
       warranty,
     } = req.body;
 
@@ -127,8 +181,7 @@ router.post("/", async (req, res) => {
             state,
             zipcode,
             country,
-          yardWarrantyField: normaliseWarrantyUnit(yardWarrantyField),
-          warranty,
+            warranty,
           },
         },
         { new: true }
@@ -148,7 +201,6 @@ router.post("/", async (req, res) => {
       state,
       zipcode,
       country,
-      yardWarrantyField: normaliseWarrantyUnit(yardWarrantyField),
       warranty,
     });
 
@@ -160,6 +212,75 @@ router.post("/", async (req, res) => {
       return res.status(200).json({ message: "Yard already exists" });
     }
     console.error("POST /api/yards failed:", err);
+    res.status(500).json({ message: "Server error", error: err.message });
+  }
+});
+
+// PUT /api/yards/:id - Update a yard
+router.put("/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const {
+      yardName,
+      yardRating,
+      phone,
+      altNo,
+      email,
+      street,
+      city,
+      state,
+      zipcode,
+      country,
+      warranty,
+    } = req.body;
+
+    const yard = await Yard.findByIdAndUpdate(
+      id,
+      {
+        $set: {
+          yardName: yardName?.trim(),
+          yardRating,
+          phone,
+          altNo,
+          email,
+          street,
+          city,
+          state,
+          zipcode,
+          country,
+          warranty,
+        },
+      },
+      { new: true, runValidators: true }
+    );
+
+    if (!yard) {
+      return res.status(404).json({ message: "Yard not found" });
+    }
+
+    res.json({ message: "Yard updated successfully", yard });
+  } catch (err) {
+    console.error("PUT /api/yards/:id failed:", err);
+    if (err.name === "ValidationError") {
+      return res.status(400).json({ message: "Validation error", error: err.message });
+    }
+    res.status(500).json({ message: "Server error", error: err.message });
+  }
+});
+
+// DELETE /api/yards/:id - Delete a yard
+router.delete("/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const yard = await Yard.findByIdAndDelete(id);
+
+    if (!yard) {
+      return res.status(404).json({ message: "Yard not found" });
+    }
+
+    res.json({ message: "Yard deleted successfully" });
+  } catch (err) {
+    console.error("DELETE /api/yards/:id failed:", err);
     res.status(500).json({ message: "Server error", error: err.message });
   }
 });
