@@ -60,7 +60,7 @@ export default function Sidebar() {
     { text: "Overall Escalation", to: "/overall-escalation" },
     { text: "Ongoing Escalation", to: "/ongoing-escalation" },
     { text: "Leads", to: "/leads", roles: ["Admin", "Sales"] },
-    { text: "Yards", to: "/yards", emailAccess: "50starsauto110@gmail.com" },
+    { text: "Yards", to: "/yards", adminOnly: true, emailAccess: "50starsauto110@gmail.com" },
   ];
 
   const usersLinksBase = [
@@ -85,7 +85,18 @@ export default function Sidebar() {
 
   // Helper function to check if a link should be shown based on role, email, and link properties
   const shouldShowLink = (link, userRole, userEmail) => {
-    // Check email-based access first (overrides other restrictions - works for ANY role)
+    // Special case: If link has both adminOnly and emailAccess, show only for Admin OR authorized email
+    if (link.adminOnly && link.emailAccess) {
+      // Admin can always see
+      if (userRole === "Admin") return true;
+      // Check if email matches (works for ANY role)
+      const isAuthorizedEmail = userEmail === link.emailAccess.toLowerCase();
+      if (isAuthorizedEmail) return true;
+      // Otherwise, deny access
+      return false;
+    }
+
+    // Check email-based access (overrides other restrictions - works for ANY role)
     if (link.emailAccess) {
       const isAuthorizedEmail = userEmail === link.emailAccess.toLowerCase();
       if (isAuthorizedEmail) return true; // Email access grants permission regardless of role
