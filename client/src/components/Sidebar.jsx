@@ -60,7 +60,7 @@ export default function Sidebar() {
     { text: "Overall Escalation", to: "/overall-escalation" },
     { text: "Ongoing Escalation", to: "/ongoing-escalation" },
     { text: "Leads", to: "/leads", roles: ["Admin", "Sales"] },
-    { text: "Yards", to: "/yards", adminOnly: true, emailAccess: "50starsauto110@gmail.com" },
+    { text: "Yards", to: "/yards", emailAccess: "50starsauto110@gmail.com" },
   ];
 
   const usersLinksBase = [
@@ -83,6 +83,30 @@ export default function Sidebar() {
     { text: "Refunds/Reimbursements", to: "/reimbursement-report" },
   ];
 
+  // Helper function to check if a link should be shown based on role, email, and link properties
+  const shouldShowLink = (link, userRole, userEmail) => {
+    // Check email-based access first (overrides other restrictions - works for ANY role)
+    if (link.emailAccess) {
+      const isAuthorizedEmail = userEmail === link.emailAccess.toLowerCase();
+      if (isAuthorizedEmail) return true; // Email access grants permission regardless of role
+    }
+
+    // Check adminOnly restriction
+    if (link.adminOnly) {
+      // Admin can always see adminOnly links
+      if (userRole === "Admin") return true;
+      // Non-admin users can only see if they have email access (checked above)
+      return false;
+    }
+
+    // Check roles array
+    if (link.roles && !link.roles.includes(userRole)) {
+      return false;
+    }
+
+    return true;
+  };
+
   // ====== Role-based filtering ======
   let dashboardLinks = dashboardLinksBase;
   let showUsersSection = true;
@@ -101,11 +125,10 @@ export default function Sidebar() {
       "Ongoing Escalation",
     ]);
     dashboardLinks = dashboardLinksBase.filter((l) => {
-      // Filter out hidden items and adminOnly items
-      if (hiddenForSales.has(l.text) || l.adminOnly) return false;
-      // If link has roles array, check if Sales is included
-      if (l.roles && !l.roles.includes("Sales")) return false;
-      return true;
+      // Filter out hidden items
+      if (hiddenForSales.has(l.text)) return false;
+      // Use helper function to check access
+      return shouldShowLink(l, role, email);
     });
 
     // Hide Users block entirely
@@ -118,11 +141,10 @@ export default function Sidebar() {
     // Hide "Sales Data" and "Add New Order" from Dashboards
     const hiddenForSupport = new Set(["Sales Data", "Add New Order"]);
     dashboardLinks = dashboardLinksBase.filter((l) => {
-      // Filter out hidden items and adminOnly items
-      if (hiddenForSupport.has(l.text) || l.adminOnly) return false;
-      // If link has roles array, check if Support is included
-      if (l.roles && !l.roles.includes("Support")) return false;
-      return true;
+      // Filter out hidden items
+      if (hiddenForSupport.has(l.text)) return false;
+      // Use helper function to check access
+      return shouldShowLink(l, role, email);
     });
 
     // Hide Users block entirely
@@ -137,14 +159,8 @@ export default function Sidebar() {
     // Filter to only show links that Admin has access to (roles array includes Admin or no roles array)
     // Also check for email-based access for specific links
     dashboardLinks = dashboardLinksBase.filter((l) => {
-      // If link has roles array, check if Admin is included
-      if (l.roles && !l.roles.includes("Admin")) return false;
-      // Check for email-based access (for Yards page)
-      if (l.emailAccess) {
-        const isAuthorizedEmail = email === l.emailAccess.toLowerCase();
-        if (role !== "Admin" && !isAuthorizedEmail) return false;
-      }
-      return true;
+      // Use helper function to check access
+      return shouldShowLink(l, role, email);
     });
   }
 
