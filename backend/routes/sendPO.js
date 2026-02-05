@@ -127,6 +127,29 @@ router.post("/sendPOEmailYard/:orderNo", upload.any(), async (req, res) => {
     const subtotal = partPrice;
     const grandTotal = subtotal + shipping;
 
+    // Warranty display helper (uses yardWarrantyField: days/months/years)
+    const warrantyValue = yard.warranty;
+    const warrantyUnitRaw = (yard.yardWarrantyField)
+      .toString()
+      .toLowerCase();
+
+    const getWarrantyUnitLabel = () => {
+      const n = Number(warrantyValue) || 0;
+      if (warrantyUnitRaw === "months") {
+        return n === 1 ? "Month" : "Months";
+      }
+      if (warrantyUnitRaw === "years") {
+        return n === 1 ? "Year" : "Years";
+      }
+      // default days
+      return n === 1 ? "Day" : "Days";
+    };
+
+    const warrantyDisplay =
+      warrantyValue === undefined || warrantyValue === null || warrantyValue === ""
+        ? "NA"
+        : `${warrantyValue} ${getWarrantyUnitLabel()}`;
+
     // Full PO HTML template
     const html = `
 <html>
@@ -315,7 +338,7 @@ router.post("/sendPOEmailYard/:orderNo", upload.any(), async (req, res) => {
       VIN: ${order.vin || "NA"}<br>
       Part No: ${order.partNo || "NA"}<br>
       Stock No: ${yard.stockNo || "NA"}<br>
-      Warranty: ${yard.warranty} days
+      Warranty: ${warrantyDisplay}
     </td>
     <td>01</td>
     <td>$${partPrice.toFixed(2)}</td>
@@ -429,7 +452,6 @@ router.post("/sendPOEmailYard/:orderNo", upload.any(), async (req, res) => {
     } = order;
 
     const stockNo = yard.stockNo || "NA";
-    const warranty = yard.warranty || "NA";
     // Clean firstName - remove duplicates if comma-separated, take first part only
     const cleanFirstName = (name) => {
       if (!name) return "Auto Parts Group";
@@ -454,7 +476,7 @@ router.post("/sendPOEmailYard/:orderNo", upload.any(), async (req, res) => {
           <li><strong>VIN:</strong> ${vin || "NA"}</li>
           <li><strong>Part No:</strong> ${partNo || "NA"}</li>
           <li><strong>Stock No:</strong> ${stockNo}</li>
-          <li><strong>Warranty:</strong> ${warranty} days</li>
+          <li><strong>Warranty:</strong> ${warrantyDisplay}</li>
         </ul>
         <p><strong>Purchase Order To:</strong> ${yard.yardName}<br>
         <strong>Part Price:</strong> $${partPrice.toFixed(2)}<br>
