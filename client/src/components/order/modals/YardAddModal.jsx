@@ -667,7 +667,7 @@ export default function YardAddModal({ open, onClose, onSubmit, order }) {
                         ${storeCreditsByYard[form.yardName].totalUsed.toFixed(2)}
                       </div>
                       <div>
-                        <span className="font-semibold">Total Remaining:</span>{" "}
+                        <span className="font-semibold">Store Credit Balance:</span>{" "}
                         ${storeCreditsByYard[form.yardName].totalRemaining.toFixed(2)}
                       </div>
                     </div>
