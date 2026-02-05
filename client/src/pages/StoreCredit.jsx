@@ -16,6 +16,7 @@ const columns = [
   { key: "yardDetails", label: "Yard Details" },
   { key: "chargedAmount", label: "Charged Amount ($)" },
   { key: "storeCredit", label: "Store Credit ($)" },
+  { key: "usedAmount", label: "Used Amount ($)" },
   { key: "actions", label: "Actions" },
 ];
 
@@ -53,24 +54,38 @@ async function fetchAllStoreCredits(headers) {
     // Only include yards that have a store credit value > 0
     const yardsWithCredit = addl
       .map((ai, idx) => {
-        const storeCredit = hasNumeric(ai.storeCredit) ? Number(ai.storeCredit) : null;
+        const storeCredit = hasNumeric(ai.storeCredit)
+          ? Number(ai.storeCredit)
+          : null;
         // Only include yards with store credit > 0
         if (!storeCredit || storeCredit <= 0) return null;
+
+        // Sum how much store credit from this yard has been used
+        const usedFromYard = Array.isArray(ai.storeCreditUsedFor)
+          ? ai.storeCreditUsedFor.reduce(
+              (sum, entry) => sum + (Number(entry.amount) || 0),
+              0
+            )
+          : 0;
+
         const partPrice = parseFloat(ai.partPrice || 0) || 0;
         const others = parseFloat(ai.others || 0) || 0;
         let yardShipping = 0;
         const details = ai.shippingDetails || "";
-        if (/yard\s*shipping/i.test(details)) yardShipping = parseAmountAfterColon(details);
+        if (/yard\s*shipping/i.test(details))
+          yardShipping = parseAmountAfterColon(details);
         return {
           idx: idx + 1,
           yardName: ai.yardName || `Yard ${idx + 1}`,
           storeCredit,
+          usedAmount: usedFromYard,
           partPrice,
           others,
           yardShipping,
           status: ai.status || "",
           expShipDate: ai.expShipDate || "",
-          expediteShipping: ai.expediteShipping === true || ai.expediteShipping === "true",
+          expediteShipping:
+            ai.expediteShipping === true || ai.expediteShipping === "true",
           storeCreditUsedFor: ai.storeCreditUsedFor || [],
         };
       })
@@ -78,7 +93,14 @@ async function fetchAllStoreCredits(headers) {
 
     if (yardsWithCredit.length === 0) return;
 
-    const totalStoreCredit = yardsWithCredit.reduce((s, y) => s + y.storeCredit, 0);
+    const totalStoreCredit = yardsWithCredit.reduce(
+      (s, y) => s + y.storeCredit,
+      0
+    );
+    const totalUsedAmount = yardsWithCredit.reduce(
+      (s, y) => s + (y.usedAmount || 0),
+      0
+    );
     const totalCharged = yardsWithCredit.reduce(
       (s, y) => s + y.partPrice + y.others + y.yardShipping,
       0
@@ -88,6 +110,7 @@ async function fetchAllStoreCredits(headers) {
       ...order,
       yardDetails: yardsWithCredit,
       storeCredit: Number(totalStoreCredit.toFixed(2)),
+      usedAmount: Number(totalUsedAmount.toFixed(2)),
       chargedAmount: Number(totalCharged.toFixed(2)),
     });
   });
@@ -97,11 +120,22 @@ async function fetchAllStoreCredits(headers) {
 
 /* ---------- Extra totals for modal ---------- */
 const extraTotals = (rows) => {
-  const totalCredit = rows.reduce((s, o) => s + (parseFloat(o.storeCredit) || 0), 0);
-  const totalCharged = rows.reduce((s, o) => s + (parseFloat(o.chargedAmount) || 0), 0);
+  const totalCredit = rows.reduce(
+    (s, o) => s + (parseFloat(o.storeCredit) || 0),
+    0
+  );
+  const totalUsed = rows.reduce(
+    (s, o) => s + (parseFloat(o.usedAmount) || 0),
+    0
+  );
+  const totalCharged = rows.reduce(
+    (s, o) => s + (parseFloat(o.chargedAmount) || 0),
+    0
+  );
   return [
     { name: "Total Orders (with Store Credit)", value: rows.length },
     { name: "Total Store Credit", value: `$${totalCredit.toFixed(2)}` },
+    { name: "Total Used Amount", value: `$${totalUsed.toFixed(2)}` },
     { name: "Total Charged Amount", value: `$${totalCharged.toFixed(2)}` },
   ];
 };
@@ -164,6 +198,9 @@ export default function StoreCredits() {
                     <div key={i} className="pb-1 border-b border-white/10 last:border-0">
                       <div><b>Yard:</b> {y.yardName}</div>
                       <div><b>Store Credit:</b> ${y.storeCredit.toFixed(2)}</div>
+                      {Number(y.usedAmount || 0) > 0 && (
+                        <div><b>Used Amount:</b> ${Number(y.usedAmount || 0).toFixed(2)}</div>
+                      )}
                       <div>
                         <b>Part:</b> ${y.partPrice.toFixed(2)} | <b>Others:</b> ${y.others.toFixed(2)} |{" "}
                         <b>Yard Shipping:</b> ${y.yardShipping.toFixed(2)}
@@ -183,6 +220,9 @@ export default function StoreCredits() {
 
         case "storeCredit":
           return `$${Number(row.storeCredit || 0).toFixed(2)}`;
+
+      case "usedAmount":
+        return `$${Number(row.usedAmount || 0).toFixed(2)}`;
 
         case "actions":
           return (

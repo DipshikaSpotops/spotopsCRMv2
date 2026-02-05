@@ -17,6 +17,7 @@ const normalizeCountry = (value) => {
 
 export default function YardAddModal({ open, onClose, onSubmit, order }) {
   const [yards, setYards] = useState([]);
+  const [storeCreditsByYard, setStoreCreditsByYard] = useState({});
   const [form, setForm] = useState({
     yardName: "",
     agentName: "",
@@ -46,20 +47,93 @@ export default function YardAddModal({ open, onClose, onSubmit, order }) {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Load yards from backend and sort A→Z
+  // Load yards from backend and sort A→Z, and prefetch store credit history per yard
   useEffect(() => {
     if (open) {
       setErrors({});
       setIsSubmitting(false); // Reset submitting state when modal opens
+
+      // Fetch yards list
       fetch("/api/yards")
         .then((res) => res.json())
         .then((data) => {
           const sorted = data.sort((a, b) =>
-            a.yardName.localeCompare(b.yardName, undefined, { sensitivity: "base" })
+            a.yardName.localeCompare(b.yardName, undefined, {
+              sensitivity: "base",
+            })
           );
           setYards(sorted);
         })
         .catch((err) => console.error("Failed to load yards", err));
+
+      // Fetch store credits and build a history map keyed by yardName
+      (async () => {
+        try {
+          const token = localStorage.getItem("token");
+          const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
+          const res = await API.get("/orders/storeCredits", { headers });
+          const orders = Array.isArray(res.data) ? res.data : [];
+
+          const map = {};
+          orders.forEach((ord) => {
+            const addl = Array.isArray(ord.additionalInfo)
+              ? ord.additionalInfo
+              : [];
+
+            addl.forEach((ai) => {
+              const name = (ai.yardName || "").trim();
+              const creditNum =
+                ai.storeCredit !== undefined && ai.storeCredit !== null
+                  ? Number(ai.storeCredit)
+                  : 0;
+              const refundedRaw =
+                ai.refundedAmount !== undefined && ai.refundedAmount !== null
+                  ? Number(ai.refundedAmount)
+                  : 0;
+              if (!name || !Number.isFinite(creditNum) || creditNum <= 0) return;
+
+              const used = Array.isArray(ai.storeCreditUsedFor)
+                ? ai.storeCreditUsedFor.reduce(
+                    (sum, entry) => sum + (Number(entry.amount) || 0),
+                    0
+                  )
+                : 0;
+
+              const entry = {
+                sourceOrderNo: ord.orderNo,
+                remaining: creditNum,
+                used,
+                refunded: Number.isFinite(refundedRaw) ? refundedRaw : 0,
+                usedBreakdown: Array.isArray(ai.storeCreditUsedFor)
+                  ? ai.storeCreditUsedFor.map((u) => ({
+                      orderNo: u.orderNo,
+                      amount: Number(u.amount) || 0,
+                    }))
+                  : [],
+              };
+
+              if (!map[name]) {
+                map[name] = {
+                  totalRemaining: 0,
+                  totalUsed: 0,
+                  totalRefunded: 0,
+                  entries: [],
+                };
+              }
+
+              map[name].entries.push(entry);
+              map[name].totalRemaining += creditNum;
+              map[name].totalUsed += used;
+              map[name].totalRefunded += entry.refunded;
+            });
+          });
+
+          setStoreCreditsByYard(map);
+        } catch (err) {
+          console.error("Failed to load store credit history for yards", err);
+          setStoreCreditsByYard({});
+        }
+      })();
     } else {
       setIsSubmitting(false); // Reset when modal closes
     }
@@ -568,6 +642,78 @@ export default function YardAddModal({ open, onClose, onSubmit, order }) {
     <p className="text-xs text-red-200 mt-1 dark:text-red-200">{errors.yardName}</p>
   )}
 </Field>
+
+            {/* Store credit history for selected yard, if any */}
+            {form.yardName &&
+              storeCreditsByYard[form.yardName] &&
+              storeCreditsByYard[form.yardName].entries.length > 0 && (
+                <div className="md:col-span-3 text-xs rounded-lg border border-blue-200 bg-blue-50 text-[#09325d] shadow-sm space-y-1 dark:border-white/20 dark:bg-white/10 dark:text-white">
+                  <div className="px-3 py-2 border-b border-blue-100/70 dark:border-white/15 flex items-center justify-between">
+                    <span className="font-semibold">
+                      Store Credit History for {form.yardName}
+                    </span>
+                    <span className="text-[11px] font-medium uppercase tracking-wide text-blue-700 dark:text-blue-100">
+                      Summary
+                    </span>
+                  </div>
+                  <div className="px-3 pb-2 pt-1 space-y-1">
+                    <div className="grid grid-cols-3 gap-3 text-[11px] font-medium">
+                      <div>
+                        <span className="font-semibold">Total Refunded:</span>{" "}
+                        ${storeCreditsByYard[form.yardName].totalRefunded.toFixed(2)}
+                      </div>
+                      <div>
+                        <span className="font-semibold">Total Used:</span>{" "}
+                        ${storeCreditsByYard[form.yardName].totalUsed.toFixed(2)}
+                      </div>
+                      <div>
+                        <span className="font-semibold">Total Remaining:</span>{" "}
+                        ${storeCreditsByYard[form.yardName].totalRemaining.toFixed(2)}
+                      </div>
+                    </div>
+
+                    <div className="max-h-40 overflow-y-auto mt-1 space-y-1">
+                      {storeCreditsByYard[form.yardName].entries.map((sc, idx) => (
+                        <div
+                          key={idx}
+                          className="rounded-md bg-white/60 border border-blue-100 px-3 py-1.5 text-[11px] dark:bg-white/5 dark:border-white/15"
+                        >
+                          <div className="mb-1">
+                            <span className="font-semibold">From Order:</span>{" "}
+                            {sc.sourceOrderNo}
+                          </div>
+                          <div className="grid grid-cols-3 gap-3">
+                            <div>
+                              <span className="font-semibold">Refunded:</span>{" "}
+                              ${sc.refunded.toFixed(2)}
+                            </div>
+                            <div>
+                              {sc.usedBreakdown.length > 0 ? (
+                                <div className="space-y-0.5">
+                                  {sc.usedBreakdown.map((u, i) => (
+                                    <div key={i}>
+                                      <span className="font-semibold">Used For:</span>{" "}
+                                      {u.orderNo} — ${u.amount.toFixed(2)}
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <div>
+                                  <span className="font-semibold">Used For:</span>{" —"}
+                                </div>
+                              )}
+                            </div>
+                            <div>
+                              <span className="font-semibold">Remaining:</span>{" "}
+                              ${sc.remaining.toFixed(2)}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
 
 
             <Field label="Agent Name">
