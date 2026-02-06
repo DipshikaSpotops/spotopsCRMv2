@@ -115,6 +115,16 @@ export default function OrderStatistics() {
   const [expandedIds, setExpandedIds] = useState(new Set());
   const [totalLabel, setTotalLabel] = useState("Total Rows: 0");
   
+  // Initialize default sort for Order Statistics (total descending) - run immediately
+  const LS_SORT_BY_KEY = "orderStatisticsPage_sortBy";
+  const LS_SORT_ORDER_KEY = "orderStatisticsPage_sortOrder";
+  const savedSortBy = localStorage.getItem(LS_SORT_BY_KEY);
+  // If no sort saved, or if saved sort is "orderDate" or "state", default to total descending
+  if (!savedSortBy || savedSortBy === "orderDate" || savedSortBy === "state") {
+    localStorage.setItem(LS_SORT_BY_KEY, "total");
+    localStorage.setItem(LS_SORT_ORDER_KEY, "desc");
+  }
+  
   // State filter - restore from localStorage
   const LS_STATE_FILTER_KEY = "orderStatisticsStateFilter";
   const getLS = (k, def = "") => {
@@ -214,28 +224,25 @@ export default function OrderStatistics() {
       });
     }
     
-    // Sort
-    if (sortBy) {
-      filtered.sort((a, b) => {
-        const aVal = a[sortBy];
-        const bVal = b[sortBy];
-        const dir = sortOrder === "desc" ? -1 : 1;
-        
-        if (typeof aVal === "number" && typeof bVal === "number") {
+    // ALWAYS sort by total descending for Order Statistics page
+    // This ensures data is pre-sorted correctly regardless of what OrdersTable's sortBy is
+    filtered.sort((a, b) => {
+      const aTotal = Number(a.total || 0);
+      const bTotal = Number(b.total || 0);
+      return bTotal - aTotal; // Always descending by total
+    });
+    
+    // If user wants to sort by other numeric columns (cancelled, disputed, etc.), allow it
+    // But only if sortBy is explicitly set to one of those columns (not "state" or "orderDate")
+    if (sortBy && sortBy !== "state" && sortBy !== "orderDate" && sortBy !== "total") {
+      if (sortBy === "cancelled" || sortBy === "disputed" || sortBy === "fulfilled" || sortBy === "sameDayCancellation") {
+        filtered.sort((a, b) => {
+          const aVal = Number(a[sortBy] || 0);
+          const bVal = Number(b[sortBy] || 0);
+          const dir = sortOrder === "desc" ? -1 : 1;
           return (aVal - bVal) * dir;
-        }
-        
-        // For state column, sort by full name instead of code
-        if (sortBy === "state") {
-          const aName = getStateName(aVal || "").toLowerCase();
-          const bName = getStateName(bVal || "").toLowerCase();
-          return aName.localeCompare(bName) * dir;
-        }
-        
-        const aStr = String(aVal || "").toLowerCase();
-        const bStr = String(bVal || "").toLowerCase();
-        return aStr.localeCompare(bStr) * dir;
-      });
+        });
+      }
     }
     
     return filtered;
@@ -297,6 +304,7 @@ export default function OrderStatistics() {
       }
     }, 0);
   }, []);
+
 
   return (
     <OrdersTable

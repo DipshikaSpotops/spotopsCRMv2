@@ -782,7 +782,7 @@ export default function OrdersTable({
   };
 
   const numericCols = new Set(
-    ["soldP", "grossProfit", "_currentGP", "_actualGP"] // extend if needed
+["soldP", "grossProfit", "_currentGP", "_actualGP", "total", "cancelled", "disputed", "fulfilled", "sameDayCancellation", "absModule", "transmission", "engine", "others", "count"] // extend if needed
   );
 
   const sortedRows = useMemo(() => {
