@@ -68,8 +68,9 @@ async function fetchCancelledAndRefunded(params, headers) {
       _id: o._id || id,
       orderNo: o.orderNo || id,
       orderDate: o.orderDate ?? curr?.orderDate ?? null,
+      // Use only cancelledDate from database, no inference
       cancelledDate: o.cancelledDate ?? curr?.cancelledDate ?? null,
-      // keep present value, else new, else infer later
+      // Use only custRefundDate from database, no inference
       custRefundDate: curr?.custRefundDate ?? o.custRefundDate ?? null,
       // IMPORTANT: avoid double counting; take the max non-NaN amount
       custRefAmount: Math.max(
@@ -92,14 +93,6 @@ async function fetchCancelledAndRefunded(params, headers) {
     };
 
     map.set(id, next);
-  }
-
-  // second pass: infer missing refunded dates from history
-  for (const [id, v] of map) {
-    const inferred = maybeInferRefundDate(v);
-    if (inferred && !v.custRefundDate) {
-      map.set(id, { ...v, custRefundDate: inferred });
-    }
   }
 
   return Array.from(map.values());

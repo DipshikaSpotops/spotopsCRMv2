@@ -636,6 +636,149 @@ router.get("/statistics", requireAuth, async (req, res) => {
   }
 });
 
+/* GET /orders/makeStatistics - Get statistics grouped by make, part, and state */
+/* IMPORTANT: This route must be defined BEFORE /:orderNo to avoid route conflicts */
+router.get("/makeStatistics", requireAuth, async (req, res) => {
+  try {
+    // Check if user is Admin or has the authorized email
+    if (!req.user) {
+      return res.status(403).json({ message: "User not authenticated" });
+    }
+
+    const isAdmin = req.user.role === "Admin";
+    const isAuthorizedEmail = req.user.email?.toLowerCase() === "50starsauto110@gmail.com";
+    
+    if (!isAdmin && !isAuthorizedEmail) {
+      return res.status(403).json({ message: "Access denied. Admin or 50starsauto110@gmail.com only." });
+    }
+
+    // Build date range filter (same logic as statistics route)
+    const { start, end, month, year } = req.query;
+    let dateQuery = {};
+    
+    if (start && end) {
+      const startMoment = moment.tz(start, TZ).startOf("day");
+      const endExclusiveMoment = moment.tz(end, TZ).endOf("day").add(1, "millisecond");
+      dateQuery = {
+        orderDate: {
+          $gte: startMoment.toDate(),
+          $lt: endExclusiveMoment.toDate(),
+        },
+      };
+    } else if (month && year) {
+      const monthIndex = isNaN(month)
+        ? { Jan:0, Feb:1, Mar:2, Apr:3, May:4, Jun:5, Jul:6, Aug:7, Sep:8, Oct:9, Nov:10, Dec:11 }[month]
+        : parseInt(month, 10) - 1;
+      const y = parseInt(year, 10);
+      if (!isNaN(monthIndex) && !isNaN(y)) {
+        const startDateMoment = moment.tz({ year: y, month: monthIndex }, TZ).startOf("month");
+        const endExclusiveMoment = startDateMoment.clone().add(1, "month");
+        dateQuery = {
+          orderDate: {
+            $gte: startDateMoment.toDate(),
+            $lt: endExclusiveMoment.toDate(),
+          },
+        };
+      }
+    }
+
+    // Fetch orders with date filter
+    const orders = await Order.find(dateQuery).lean();
+
+    // Helper to extract state from sAddress or use sAddressState
+    const extractState = (order) => {
+      if (order.sAddressState && order.sAddressState.trim()) {
+        return order.sAddressState.trim().toUpperCase();
+      }
+      if (order.sAddress) {
+        const parts = order.sAddress.split(",");
+        if (parts.length >= 3) {
+          const statePart = parts[2].trim();
+          return statePart.toUpperCase();
+        }
+      }
+      return "UNKNOWN";
+    };
+
+    // Helper to normalize part names into categories
+    const normalizePart = (partName) => {
+      if (!partName) return "Others";
+      const part = partName.trim().toLowerCase();
+      
+      // ABS Module category - includes "ABS Module" and "Anti Lock Braking Module (With Pump)"
+      if (part.includes("abs module") || 
+          part.includes("anti lock braking module") ||
+          part.includes("anti-lock braking module") ||
+          (part.includes("anti lock") && part.includes("braking") && part.includes("module")) ||
+          (part.includes("anti lock") && part.includes("pump"))) {
+        return "ABS Module";
+      }
+      
+      // Transmission category - includes "Transmission" and "Transmission Assembly"
+      if (part === "transmission" ||
+          part.includes("transmission assembly") ||
+          (part.includes("transmission") && part.includes("assembly"))) {
+        return "Transmission";
+      }
+      
+      // Engine category - includes "Engine" and "Engine Assembly"
+      if (part === "engine" ||
+          part.includes("engine assembly") ||
+          (part.includes("engine") && part.includes("assembly"))) {
+        return "Engine";
+      }
+      
+      // Everything else goes to "Others"
+      return "Others";
+    };
+
+    // Group statistics by make -> part -> state
+    const stats = {};
+
+    orders.forEach((order) => {
+      const make = (order.make || "UNKNOWN").trim();
+      const rawPart = (order.pReq || "UNKNOWN").trim();
+      const part = normalizePart(rawPart);
+      const state = extractState(order);
+
+      if (!stats[make]) stats[make] = {};
+      if (!stats[make][part]) stats[make][part] = {};
+      if (!stats[make][part][state]) {
+        stats[make][part][state] = 0;
+      }
+
+      stats[make][part][state]++;
+    });
+
+    // Transform to array format for easier frontend consumption
+    const result = [];
+    Object.keys(stats).forEach((make) => {
+      Object.keys(stats[make]).forEach((part) => {
+        Object.keys(stats[make][part]).forEach((state) => {
+          result.push({
+            make,
+            part,
+            state,
+            count: stats[make][part][state],
+          });
+        });
+      });
+    });
+
+    // Sort by make, then part, then count (descending)
+    result.sort((a, b) => {
+      if (a.make !== b.make) return a.make.localeCompare(b.make);
+      if (a.part !== b.part) return a.part.localeCompare(b.part);
+      return b.count - a.count; // Descending by count
+    });
+
+    res.json(result);
+  } catch (err) {
+    console.error("Error fetching make statistics:", err);
+    res.status(500).json({ message: "Server error", error: err.message });
+  }
+});
+
 // Update order status (and other fields)
 router.put("/:orderNo", async (req, res) => {
   const central = moment().tz("America/Chicago");
