@@ -41,6 +41,7 @@ const columns = [
   { key: "others", label: "Others" },
   { key: "total", label: "Total" },
   { key: "top3States", label: "Top 3 States" },
+  { key: "top3Models", label: "Top 3 Models" },
 ];
 
 /* ---------- Extra totals for modal ---------- */
@@ -146,6 +147,11 @@ export default function MakeStatistics() {
             return `${stateName} (${count})`;
           });
           return <span className="text-sm">{formatted}</span>;
+        
+        case "top3Models":
+          // Display top 3 models as-is (already formatted from backend)
+          if (!row.top3Models || row.top3Models === "—") return "—";
+          return <span className="text-sm">{row.top3Models}</span>;
         
         default:
           return row[key] ?? "—";
@@ -278,7 +284,7 @@ export default function MakeStatistics() {
 
   return (
     <OrdersTable
-      title="Make Statistics"
+      title="Make/Model Statistics"
       endpoint="/orders/makeStatistics"
       storageKeys={{
         page: "makeStatisticsPage",

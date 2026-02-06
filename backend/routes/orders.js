@@ -732,7 +732,7 @@ router.get("/makeStatistics", requireAuth, async (req, res) => {
       return "Others";
     };
 
-    // Group statistics by make -> part -> state
+    // Group statistics by make -> part -> state -> model
     const stats = {};
 
     orders.forEach((order) => {
@@ -740,6 +740,9 @@ router.get("/makeStatistics", requireAuth, async (req, res) => {
       const rawPart = (order.pReq || "UNKNOWN").trim();
       const part = normalizePart(rawPart);
       const state = extractState(order);
+      // Only track model if it exists and is not empty
+      const modelRaw = order.model ? String(order.model).trim() : "";
+      const model = modelRaw && modelRaw !== "" ? modelRaw : null;
 
       if (!stats[make]) {
         stats[make] = {
@@ -750,6 +753,7 @@ router.get("/makeStatistics", requireAuth, async (req, res) => {
             "Others": 0,
           },
           states: {},
+          models: {},
         };
       }
 
@@ -765,6 +769,14 @@ router.get("/makeStatistics", requireAuth, async (req, res) => {
         stats[make].states[state] = 0;
       }
       stats[make].states[state]++;
+
+      // Count by model (only if model exists)
+      if (model) {
+        if (!stats[make].models[model]) {
+          stats[make].models[model] = 0;
+        }
+        stats[make].models[model]++;
+      }
     });
 
     // Transform to array format - one row per make
@@ -783,6 +795,18 @@ router.get("/makeStatistics", requireAuth, async (req, res) => {
         .map(({ state, count }) => `${state} (${count})`)
         .join(", ") || "—";
 
+      // Get top 3 models (sorted by count descending), excluding "UNKNOWN"
+      const modelEntries = Object.entries(makeStats.models)
+        .filter(([model]) => model && model.toUpperCase() !== "UNKNOWN" && model.trim() !== "")
+        .map(([model, count]) => ({ model, count }))
+        .sort((a, b) => b.count - a.count) // Sort descending by count
+        .slice(0, 3); // Top 3
+      
+      // Format as "Model1 (count), Model2 (count), Model3 (count)"
+      const top3Models = modelEntries.length > 0
+        ? modelEntries.map(({ model, count }) => `${model} (${count})`).join(", ")
+        : "—";
+
       result.push({
         make,
         absModule: makeStats.parts["ABS Module"],
@@ -790,6 +814,7 @@ router.get("/makeStatistics", requireAuth, async (req, res) => {
         engine: makeStats.parts["Engine"],
         others: makeStats.parts["Others"],
         top3States: top3States || "—",
+        top3Models: top3Models || "—",
         total: makeStats.parts["ABS Module"] + 
                makeStats.parts["Transmission"] + 
                makeStats.parts["Engine"] + 
