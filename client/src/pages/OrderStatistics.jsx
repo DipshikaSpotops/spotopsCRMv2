@@ -116,14 +116,11 @@ export default function OrderStatistics() {
   const [totalLabel, setTotalLabel] = useState("Total Rows: 0");
   
   // Initialize default sort for Order Statistics (total descending) - run immediately
+  // Always set to total descending on page load, regardless of saved value
   const LS_SORT_BY_KEY = "orderStatisticsPage_sortBy";
   const LS_SORT_ORDER_KEY = "orderStatisticsPage_sortOrder";
-  const savedSortBy = localStorage.getItem(LS_SORT_BY_KEY);
-  // If no sort saved, or if saved sort is "orderDate" or "state", default to total descending
-  if (!savedSortBy || savedSortBy === "orderDate" || savedSortBy === "state") {
-    localStorage.setItem(LS_SORT_BY_KEY, "total");
-    localStorage.setItem(LS_SORT_ORDER_KEY, "desc");
-  }
+  localStorage.setItem(LS_SORT_BY_KEY, "total");
+  localStorage.setItem(LS_SORT_ORDER_KEY, "desc");
   
   // State filter - restore from localStorage
   const LS_STATE_FILTER_KEY = "orderStatisticsStateFilter";
