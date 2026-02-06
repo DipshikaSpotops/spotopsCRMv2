@@ -35,23 +35,30 @@ function readAuthFromStorage() {
 /* ---------- Columns ---------- */
 const columns = [
   { key: "make", label: "Make" },
-  { key: "part", label: "Part" },
-  { key: "state", label: "State" },
-  { key: "count", label: "Orders Count" },
+  { key: "absModule", label: "ABS Module" },
+  { key: "transmission", label: "Transmission" },
+  { key: "engine", label: "Engine" },
+  { key: "others", label: "Others" },
+  { key: "total", label: "Total" },
+  { key: "top3States", label: "Top 3 States" },
 ];
 
 /* ---------- Extra totals for modal ---------- */
 const extraTotals = (rows) => {
-  const totalOrders = rows.reduce((sum, row) => sum + (Number(row.count) || 0), 0);
+  const totalOrders = rows.reduce((sum, row) => sum + (Number(row.total) || 0), 0);
+  const totalABS = rows.reduce((sum, row) => sum + (Number(row.absModule) || 0), 0);
+  const totalTransmission = rows.reduce((sum, row) => sum + (Number(row.transmission) || 0), 0);
+  const totalEngine = rows.reduce((sum, row) => sum + (Number(row.engine) || 0), 0);
+  const totalOthers = rows.reduce((sum, row) => sum + (Number(row.others) || 0), 0);
   const uniqueMakes = new Set(rows.map((r) => r.make)).size;
-  const uniqueParts = new Set(rows.map((r) => r.part)).size;
-  const uniqueStates = new Set(rows.map((r) => r.state)).size;
 
   return [
     { name: "Total Orders", value: totalOrders.toLocaleString() },
+    { name: "Total ABS Module", value: totalABS.toLocaleString() },
+    { name: "Total Transmission", value: totalTransmission.toLocaleString() },
+    { name: "Total Engine", value: totalEngine.toLocaleString() },
+    { name: "Total Others", value: totalOthers.toLocaleString() },
     { name: "Unique Makes", value: uniqueMakes },
-    { name: "Unique Parts", value: uniqueParts },
-    { name: "Unique States", value: uniqueStates },
   ];
 };
 
@@ -114,16 +121,31 @@ export default function MakeStatistics() {
         case "make":
           return <span className="font-semibold">{row.make || "—"}</span>;
         
-        case "part":
-          return row.part || "—";
+        case "absModule":
+          return Number(row.absModule || 0).toLocaleString();
         
-        case "state":
-          const stateCode = row.state || "";
-          const stateName = getStateName(stateCode);
-          return stateName || "—";
+        case "transmission":
+          return Number(row.transmission || 0).toLocaleString();
         
-        case "count":
-          return Number(row.count || 0).toLocaleString();
+        case "engine":
+          return Number(row.engine || 0).toLocaleString();
+        
+        case "others":
+          return Number(row.others || 0).toLocaleString();
+        
+        case "total":
+          return <span className="font-semibold">{Number(row.total || 0).toLocaleString()}</span>;
+        
+        case "top3States":
+          // Format top3States string to show state names instead of codes
+          if (!row.top3States || row.top3States === "—") return "—";
+          const statesStr = row.top3States;
+          // Replace state codes with state names
+          const formatted = statesStr.replace(/([A-Z]{2,})\s*\((\d+)\)/g, (match, code, count) => {
+            const stateName = getStateName(code);
+            return `${stateName} (${count})`;
+          });
+          return <span className="text-sm">{formatted}</span>;
         
         default:
           return row[key] ?? "—";
@@ -171,15 +193,9 @@ export default function MakeStatistics() {
       const q = query.toLowerCase().trim();
       filtered = filtered.filter((stat) => {
         const make = (stat.make || "").toLowerCase();
-        const part = (stat.part || "").toLowerCase();
-        const stateCode = (stat.state || "").toLowerCase();
-        const stateName = getStateName(stat.state || "").toLowerCase();
-        return (
-          make.includes(q) ||
-          part.includes(q) ||
-          stateCode.includes(q) ||
-          stateName.includes(q)
-        );
+        const top3States = (stat.top3States || "").toLowerCase();
+        // Check if query matches make or any state in top3States
+        return make.includes(q) || top3States.includes(q);
       });
     }
     
@@ -194,12 +210,6 @@ export default function MakeStatistics() {
           return (aVal - bVal) * dir;
         }
         
-        // For state column, sort by full name instead of code
-        if (sortBy === "state") {
-          const aName = getStateName(aVal || "").toLowerCase();
-          const bName = getStateName(bVal || "").toLowerCase();
-          return aName.localeCompare(bName) * dir;
-        }
         
         const aStr = String(aVal || "").toLowerCase();
         const bStr = String(bVal || "").toLowerCase();
@@ -258,9 +268,9 @@ export default function MakeStatistics() {
   }, []);
 
   const onRowsChange = useCallback((rows) => {
-    // Sum the count column
+    // Sum the total column
     const totalOrders = rows.reduce(
-      (sum, row) => sum + (Number(row.count) || 0),
+      (sum, row) => sum + (Number(row.total) || 0),
       0
     );
     setTotalLabel(`Total Orders: ${totalOrders.toLocaleString()}`);

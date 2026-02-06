@@ -626,8 +626,8 @@ router.get("/statistics", requireAuth, async (req, res) => {
       });
     });
 
-    // Sort by state
-    result.sort((a, b) => a.state.localeCompare(b.state));
+    // Sort by total orders (descending - highest first)
+    result.sort((a, b) => b.total - a.total);
 
     res.json(result);
   } catch (err) {
@@ -741,36 +741,64 @@ router.get("/makeStatistics", requireAuth, async (req, res) => {
       const part = normalizePart(rawPart);
       const state = extractState(order);
 
-      if (!stats[make]) stats[make] = {};
-      if (!stats[make][part]) stats[make][part] = {};
-      if (!stats[make][part][state]) {
-        stats[make][part][state] = 0;
+      if (!stats[make]) {
+        stats[make] = {
+          parts: {
+            "ABS Module": 0,
+            "Transmission": 0,
+            "Engine": 0,
+            "Others": 0,
+          },
+          states: {},
+        };
       }
 
-      stats[make][part][state]++;
+      // Count by part category
+      if (stats[make].parts[part] !== undefined) {
+        stats[make].parts[part]++;
+      } else {
+        stats[make].parts["Others"]++;
+      }
+
+      // Count by state
+      if (!stats[make].states[state]) {
+        stats[make].states[state] = 0;
+      }
+      stats[make].states[state]++;
     });
 
-    // Transform to array format for easier frontend consumption
+    // Transform to array format - one row per make
     const result = [];
     Object.keys(stats).forEach((make) => {
-      Object.keys(stats[make]).forEach((part) => {
-        Object.keys(stats[make][part]).forEach((state) => {
-          result.push({
-            make,
-            part,
-            state,
-            count: stats[make][part][state],
-          });
-        });
+      const makeStats = stats[make];
+      
+      // Get top 3 states (sorted by count descending)
+      const stateEntries = Object.entries(makeStats.states)
+        .map(([state, count]) => ({ state, count }))
+        .sort((a, b) => b.count - a.count) // Sort descending by count
+        .slice(0, 3); // Top 3
+      
+      // Format as "State1 (count), State2 (count), State3 (count)"
+      const top3States = stateEntries
+        .map(({ state, count }) => `${state} (${count})`)
+        .join(", ") || "—";
+
+      result.push({
+        make,
+        absModule: makeStats.parts["ABS Module"],
+        transmission: makeStats.parts["Transmission"],
+        engine: makeStats.parts["Engine"],
+        others: makeStats.parts["Others"],
+        top3States: top3States || "—",
+        total: makeStats.parts["ABS Module"] + 
+               makeStats.parts["Transmission"] + 
+               makeStats.parts["Engine"] + 
+               makeStats.parts["Others"],
       });
     });
 
-    // Sort by make, then part, then count (descending)
-    result.sort((a, b) => {
-      if (a.make !== b.make) return a.make.localeCompare(b.make);
-      if (a.part !== b.part) return a.part.localeCompare(b.part);
-      return b.count - a.count; // Descending by count
-    });
+    // Sort by total orders (descending - highest first)
+    result.sort((a, b) => b.total - a.total);
 
     res.json(result);
   } catch (err) {
