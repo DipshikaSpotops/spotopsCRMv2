@@ -309,6 +309,7 @@ export default function OrdersTable({
   hideDefaultActions = false, // New prop to hide default Actions column
   rowsPerPage = ROWS_PER_PAGE, // allow per-page override
   tableId, // optional: identifier so realtime hooks can trigger refetch
+  customFilters, // optional: custom filter components to render next to agent filter
 }) {
   const navigate = useNavigate();
 
@@ -925,6 +926,8 @@ export default function OrdersTable({
         )}
         {/* RIGHT cluster: pager -> search (same width) -> eye */}
         <div className="ml-auto flex items-center gap-3">
+          {/* Custom Filters (e.g., State Filter) */}
+          {customFilters}
           {/* Pager */}
           {showAgentFilter && userRole === "Admin" && (
             <AgentDropdown

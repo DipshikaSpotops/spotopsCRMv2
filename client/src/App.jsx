@@ -44,6 +44,7 @@ const EmailLeads = lazy(() => import("./pages/EmailLeads"));
 const Leads = lazy(() => import("./pages/Leads"));
 const Yards = lazy(() => import("./pages/Yards"));
 const ReimbursementReport = lazy(() => import("./pages/ReimbursementReport"));
+const OrderStatistics = lazy(() => import("./pages/OrderStatistics"));
 
 // Loading fallback component
 const PageLoader = () => (
@@ -375,6 +376,14 @@ function App() {
           element={withLayout(
             <Suspense fallback={<PageLoader />}>
               <ReimbursementReport />
+            </Suspense>
+          )}
+        />
+        <Route
+          path="/order-statistics"
+          element={withLayout(
+            <Suspense fallback={<PageLoader />}>
+              <OrderStatistics />
             </Suspense>
           )}
         />

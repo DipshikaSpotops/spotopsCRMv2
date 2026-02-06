@@ -16,7 +16,6 @@ const columns = [
   { key: "yardDetails", label: "Yard Details" },
   { key: "chargedAmount", label: "Charged Amount ($)" },
   { key: "storeCredit", label: "Store Credit ($)" },
-  { key: "usedAmount", label: "Used Amount ($)" },
   { key: "actions", label: "Actions" },
 ];
 
@@ -97,10 +96,6 @@ async function fetchAllStoreCredits(headers) {
       (s, y) => s + y.storeCredit,
       0
     );
-    const totalUsedAmount = yardsWithCredit.reduce(
-      (s, y) => s + (y.usedAmount || 0),
-      0
-    );
     const totalCharged = yardsWithCredit.reduce(
       (s, y) => s + y.partPrice + y.others + y.yardShipping,
       0
@@ -110,7 +105,6 @@ async function fetchAllStoreCredits(headers) {
       ...order,
       yardDetails: yardsWithCredit,
       storeCredit: Number(totalStoreCredit.toFixed(2)),
-      usedAmount: Number(totalUsedAmount.toFixed(2)),
       chargedAmount: Number(totalCharged.toFixed(2)),
     });
   });
@@ -124,10 +118,6 @@ const extraTotals = (rows) => {
     (s, o) => s + (parseFloat(o.storeCredit) || 0),
     0
   );
-  const totalUsed = rows.reduce(
-    (s, o) => s + (parseFloat(o.usedAmount) || 0),
-    0
-  );
   const totalCharged = rows.reduce(
     (s, o) => s + (parseFloat(o.chargedAmount) || 0),
     0
@@ -135,7 +125,6 @@ const extraTotals = (rows) => {
   return [
     { name: "Total Orders (with Store Credit)", value: rows.length },
     { name: "Total Store Credit", value: `$${totalCredit.toFixed(2)}` },
-    { name: "Total Used Amount", value: `$${totalUsed.toFixed(2)}` },
     { name: "Total Charged Amount", value: `$${totalCharged.toFixed(2)}` },
   ];
 };
@@ -220,9 +209,6 @@ export default function StoreCredits() {
 
         case "storeCredit":
           return `$${Number(row.storeCredit || 0).toFixed(2)}`;
-
-      case "usedAmount":
-        return `$${Number(row.usedAmount || 0).toFixed(2)}`;
 
         case "actions":
           return (

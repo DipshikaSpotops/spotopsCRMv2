@@ -1,11 +1,15 @@
 // routes/orders.js
 import express from "express";
 import moment from "moment-timezone";
+import jwt from "jsonwebtoken";
 import Order from "../models/Order.js";
+import User from "../models/User.js";
+import { requireAuth } from "../middleware/auth.js";
 import { getDateRange } from "../utils/dateRange.js";
 import { getWhen } from "../../shared/utils/timeUtils.js";
 
 const router = express.Router();
+const TZ = "America/Chicago";
 
 /* helper functions*/
 // publish to all clients watching this order
@@ -496,6 +500,139 @@ router.post("/orders", async (req, res) => {
       return res.status(409).json({ message: "Order No already exists" });
     }
     res.status(500).json({ message: "Error creating order", error: error?.message || String(error) });
+  }
+});
+
+/* GET /orders/statistics - Get order statistics by state, part required, and month */
+/* IMPORTANT: This route must be defined BEFORE /:orderNo to avoid route conflicts */
+router.get("/statistics", requireAuth, async (req, res) => {
+  try {
+    // Check if user is Admin or has the authorized email
+    // req.user is set by requireAuth middleware
+    if (!req.user) {
+      return res.status(403).json({ message: "User not authenticated" });
+    }
+
+    const isAdmin = req.user.role === "Admin";
+    const isAuthorizedEmail = req.user.email?.toLowerCase() === "50starsauto110@gmail.com";
+    
+    if (!isAdmin && !isAuthorizedEmail) {
+      return res.status(403).json({ message: "Access denied. Admin or 50starsauto110@gmail.com only." });
+    }
+
+    // Build date range filter (same logic as monthlyOrders)
+    const { start, end, month, year } = req.query;
+    let dateQuery = {};
+    
+    if (start && end) {
+      // Manual date range (calendar picker)
+      const startMoment = moment.tz(start, TZ).startOf("day");
+      const endExclusiveMoment = moment.tz(end, TZ).endOf("day").add(1, "millisecond");
+      dateQuery = {
+        orderDate: {
+          $gte: startMoment.toDate(),
+          $lt: endExclusiveMoment.toDate(),
+        },
+      };
+    } else if (month && year) {
+      // Month + year path
+      const monthIndex = isNaN(month)
+        ? { Jan:0, Feb:1, Mar:2, Apr:3, May:4, Jun:5, Jul:6, Aug:7, Sep:8, Oct:9, Nov:10, Dec:11 }[month]
+        : parseInt(month, 10) - 1;
+      const y = parseInt(year, 10);
+      if (!isNaN(monthIndex) && !isNaN(y)) {
+        const startDateMoment = moment.tz({ year: y, month: monthIndex }, TZ).startOf("month");
+        const endExclusiveMoment = startDateMoment.clone().add(1, "month");
+        dateQuery = {
+          orderDate: {
+            $gte: startDateMoment.toDate(),
+            $lt: endExclusiveMoment.toDate(),
+          },
+        };
+      }
+    }
+
+    // Fetch orders with date filter
+    const orders = await Order.find(dateQuery).lean();
+
+    // Helper to extract state from sAddress or use sAddressState
+    const extractState = (order) => {
+      // First try sAddressState field
+      if (order.sAddressState && order.sAddressState.trim()) {
+        return order.sAddressState.trim().toUpperCase();
+      }
+      
+      // Fallback: parse from sAddress string
+      if (order.sAddress) {
+        // Format: "476 Young James Cir,Stockbridge,GA,30281,US"
+        const parts = order.sAddress.split(",");
+        if (parts.length >= 3) {
+          const statePart = parts[2].trim();
+          return statePart.toUpperCase();
+        }
+      }
+      
+      return "UNKNOWN";
+    };
+
+    // Group statistics by STATE only (aggregate across all parts and months)
+    const stats = {};
+
+    orders.forEach((order) => {
+      const state = extractState(order);
+      const orderStatus = order.orderStatus || "";
+      const cancellationReason = order.cancellationReason || "";
+
+      // Initialize if needed
+      if (!stats[state]) {
+        stats[state] = {
+          total: 0,
+          cancelled: 0,
+          disputed: 0,
+          fulfilled: 0,
+          sameDayCancellation: 0,
+        };
+      }
+
+      const stateStats = stats[state];
+
+      // Count total
+      stateStats.total++;
+
+      // Count by status
+      const statusLower = orderStatus.toLowerCase();
+      if (statusLower.includes("cancelled") || statusLower === "order cancelled") {
+        stateStats.cancelled++;
+      }
+      if (statusLower.includes("dispute") || statusLower === "dispute") {
+        stateStats.disputed++;
+      }
+      if (statusLower.includes("fulfilled") || statusLower === "order fulfilled") {
+        stateStats.fulfilled++;
+      }
+
+      // Check for same day cancellation
+      if (cancellationReason && cancellationReason.toLowerCase().includes("same day")) {
+        stateStats.sameDayCancellation++;
+      }
+    });
+
+    // Transform to array format - one row per state
+    const result = [];
+    Object.keys(stats).forEach((state) => {
+      result.push({
+        state,
+        ...stats[state],
+      });
+    });
+
+    // Sort by state
+    result.sort((a, b) => a.state.localeCompare(b.state));
+
+    res.json(result);
+  } catch (err) {
+    console.error("Error fetching order statistics:", err);
+    res.status(500).json({ message: "Server error", error: err.message });
   }
 });
 
