@@ -951,7 +951,8 @@ router.put("/:orderNo/custRefund", async (req, res) => {
     if (amount !== null) updateFields.custRefAmount = amount;
 
     if (cancelledDate) updateFields.cancelledDate = cancelledDate;
-    if (cancellationReason) updateFields.cancellationReason = cancellationReason;
+    // Always update cancellationReason if provided (even if empty string, to allow clearing)
+    if (cancellationReason !== undefined) updateFields.cancellationReason = cancellationReason;
 
     let nextStatus = orderStatus;
     if (!nextStatus && cancelledDate) nextStatus = "Order Cancelled";
@@ -961,6 +962,38 @@ router.put("/:orderNo/custRefund", async (req, res) => {
 
     order.orderHistory = order.orderHistory || [];
 
+    // Track if status changed
+    const oldStatus = order.orderStatus;
+    const statusChanged = nextStatus && oldStatus !== nextStatus;
+
+    // Add history for status change with dates if applicable
+    if (statusChanged) {
+      let historyEntry = `Order status changed: ${oldStatus || "—"} → ${nextStatus} by ${firstName} on ${formattedDateTime}`;
+      
+      // Add cancelledDate if status is "Order Cancelled" and date is provided or exists
+      if (nextStatus === "Order Cancelled") {
+        const finalCancelledDate = cancelledDate || order.cancelledDate;
+        if (finalCancelledDate) {
+          // Format for display in history: "9 Feb, 2026 10:06"
+          const cancelledDateFormatted = moment(finalCancelledDate).tz("America/Chicago").format("D MMM, YYYY HH:mm");
+          historyEntry += ` (Cancelled Date: ${cancelledDateFormatted})`;
+        }
+      }
+      
+      // Add custRefundDate if status is "Refunded" and date is provided or exists
+      if (nextStatus === "Refunded") {
+        const finalRefundDate = custRefundDate || order.custRefundDate;
+        if (finalRefundDate) {
+          // Format for display in history: "9 Feb, 2026 10:06"
+          const refundDateFormatted = moment(finalRefundDate).tz("America/Chicago").format("D MMM, YYYY HH:mm");
+          historyEntry += ` (Refunded Date: ${refundDateFormatted})`;
+        }
+      }
+      
+      order.orderHistory.push(historyEntry);
+    }
+
+    // Add specific history entries for refunded/cancelled with details
     if (custRefundDate && amount !== null) {
       order.orderHistory.push(`Order status changed to Refunded by ${firstName} on ${formattedDateTime}`);
     }
