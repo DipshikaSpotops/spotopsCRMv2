@@ -21,9 +21,9 @@ export default function OrderSummaryStats({ order, actualGPOverride }) {
           order.custRefAmount ??
           0
       )
-    : 0;
-  const hasCustRefund =
-    hasCustRefundRaw && Number.isFinite(custRefundNum) && Math.abs(custRefundNum) > 0.0001;
+    : null;
+  // Show refund amount if it exists in database (including 0)
+  const hasCustRefund = hasCustRefundRaw && custRefundNum !== null && Number.isFinite(custRefundNum);
 
   // prefer the live override; fall back to server value; default 0
   const actualGpNum =
@@ -36,10 +36,10 @@ export default function OrderSummaryStats({ order, actualGPOverride }) {
   const tax      = `$${taxNum.toFixed(2)}`;
   const actualGP = `$${actualGpNum.toFixed(2)}`;
 
-  // For customer refund, only show decimal places if they exist (e.g. $100 vs $100.50)
+  // For customer refund, always show 2 decimal places (e.g. $0.00, $100.00, $100.50)
   const formatCustRefund = (num) => {
-    if (!Number.isFinite(num)) return "$0";
-    return Number.isInteger(num) ? `$${num}` : `$${num.toFixed(2)}`;
+    if (!Number.isFinite(num)) return "$0.00";
+    return `$${num.toFixed(2)}`;
   };
   const custRefund = hasCustRefund ? formatCustRefund(custRefundNum) : "";
 

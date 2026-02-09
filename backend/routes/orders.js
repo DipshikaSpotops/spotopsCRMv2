@@ -942,13 +942,18 @@ router.put("/:orderNo/custRefund", async (req, res) => {
     const order = await Order.findOne({ orderNo });
     if (!order) return res.status(404).json({ message: "Order not found" });
 
-    // Normalize amounts
-    const amount = cancelledRefAmount ?? custRefAmount ?? custRefundedAmount ?? null;
+    // Normalize amounts - check for 0 explicitly as it's a valid value (including string "0")
+    const amount = cancelledRefAmount !== undefined ? cancelledRefAmount : 
+                   (custRefAmount !== undefined ? custRefAmount : 
+                   (custRefundedAmount !== undefined ? custRefundedAmount : null));
 
     const updateFields = {};
 
     if (custRefundDate) updateFields.custRefundDate = custRefundDate;
-    if (amount !== null) updateFields.custRefAmount = amount;
+    // Always update custRefAmount if provided, even if 0 or "0"
+    if (amount !== null && amount !== undefined) {
+      updateFields.custRefAmount = amount;
+    }
 
     if (cancelledDate) updateFields.cancelledDate = cancelledDate;
     // Always update cancellationReason if provided (even if empty string, to allow clearing)
@@ -968,18 +973,42 @@ router.put("/:orderNo/custRefund", async (req, res) => {
 
     // Add history for status change
     if (statusChanged) {
-      order.orderHistory.push(
-        `Order status changed: ${oldStatus || "—"} → ${nextStatus} by ${firstName} on ${formattedDateTime}`
-      );
+      let historyEntry = `Order status changed: ${oldStatus || "—"} → ${nextStatus} by ${firstName} on ${formattedDateTime}`;
+      
+      // Add custRefAmount if status is "Order Cancelled" or "Refunded" and amount is provided (including 0 or "0")
+      // Check both the request body amount and the order's existing custRefAmount
+      const finalAmount = amount !== null && amount !== undefined ? amount : 
+                         (order.custRefAmount !== null && order.custRefAmount !== undefined ? order.custRefAmount : null);
+      
+      if ((nextStatus === "Order Cancelled" || nextStatus === "Refunded") && finalAmount !== null && finalAmount !== undefined) {
+        const amountValue = parseFloat(finalAmount) || 0;
+        historyEntry += ` (Refund Amount: $${amountValue.toFixed(2)})`;
+      }
+      
+      order.orderHistory.push(historyEntry);
     }
 
     // Add specific history entries for refunded/cancelled with details
-    if (custRefundDate && amount !== null) {
-      order.orderHistory.push(`Order status changed to Refunded by ${firstName} on ${formattedDateTime}`);
+    if (custRefundDate) {
+      const finalAmount = amount !== null && amount !== undefined ? amount : 
+                         (order.custRefAmount !== null && order.custRefAmount !== undefined ? order.custRefAmount : null);
+      if (finalAmount !== null && finalAmount !== undefined) {
+        const amountValue = parseFloat(finalAmount) || 0;
+        order.orderHistory.push(`Order status changed to Refunded by ${firstName} on ${formattedDateTime} (Refund Amount: $${amountValue.toFixed(2)})`);
+      } else {
+        order.orderHistory.push(`Order status changed to Refunded by ${firstName} on ${formattedDateTime}`);
+      }
     }
 
     if (cancelledDate && cancellationReason) {
-      order.orderHistory.push(`Order Cancelled by ${firstName} on ${formattedDateTime}`);
+      const finalAmount = amount !== null && amount !== undefined ? amount : 
+                         (order.custRefAmount !== null && order.custRefAmount !== undefined ? order.custRefAmount : null);
+      if (finalAmount !== null && finalAmount !== undefined) {
+        const amountValue = parseFloat(finalAmount) || 0;
+        order.orderHistory.push(`Order Cancelled by ${firstName} on ${formattedDateTime} (Refund Amount: $${amountValue.toFixed(2)})`);
+      } else {
+        order.orderHistory.push(`Order Cancelled by ${firstName} on ${formattedDateTime}`);
+      }
     }
 
     Object.assign(order, updateFields);
