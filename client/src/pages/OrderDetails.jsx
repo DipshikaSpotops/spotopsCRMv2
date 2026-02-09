@@ -163,12 +163,9 @@ const calcActualGP = (orderLike) => {
     });
     if (isDispute) {
       return 0 - tax;
-    } else if (isRefunded) {
-      // For refunded orders with no yards - include custRefundedAmount
+    } else if (isRefunded || isCancelled) {
+      // For refunded/cancelled orders with no yards - include custRefundedAmount
       return sp - custRefundedAmount - tax;
-    } else if (isCancelled) {
-      // For cancelled orders with no yards - don't include custRefundedAmount
-      return sp - tax;
     } else {
       return 0;
     }
@@ -262,12 +259,9 @@ const calcActualGP = (orderLike) => {
     console.log("[ActualGP] Case 3a: All yards not charged", { status });
     if (isDispute) {
       actualGP = 0 - tax;
-    } else if (isRefunded) {
-      // Refunded orders with all yards not charged - include custRefundedAmount
+    } else if (isRefunded || isCancelled) {
+      // Refunded/cancelled orders with all yards not charged - include custRefundedAmount
       actualGP = sp - custRefundedAmount - tax;
-    } else if (isCancelled) {
-      // Cancelled orders with all yards not charged - don't include custRefundedAmount
-      actualGP = sp - tax;
     } else {
       // Normal order with all yards not charged
       actualGP = 0;
@@ -280,13 +274,10 @@ const calcActualGP = (orderLike) => {
     });
     if (isDispute) {
       actualGP = 0 - (totalSum + tax);
-    } else if (isRefunded) {
-      // Refunded with at least one "Card charged" yard - include custRefundedAmount
+    } else if (isRefunded || isCancelled) {
+      // Refunded/cancelled with at least one "Card charged" yard - include custRefundedAmount
       const subtractRefund = spMinusTax - custRefundedAmount;
       actualGP = subtractRefund - totalSum;
-    } else if (isCancelled) {
-      // Cancelled with at least one "Card charged" yard - don't include custRefundedAmount
-      actualGP = spMinusTax - totalSum;
     } else {
       // Normal order with at least one "Card charged" yard
       const subtractRefund = spMinusTax - custRefundedAmount;
@@ -300,12 +291,9 @@ const calcActualGP = (orderLike) => {
     });
     if (isDispute) {
       actualGP = 0 - tax;
-    } else if (isRefunded) {
-      // Refunded with mixed statuses (none charged) - include custRefundedAmount
+    } else if (isRefunded || isCancelled) {
+      // Refunded/cancelled with mixed statuses (none charged) - include custRefundedAmount
       actualGP = sp - custRefundedAmount - tax;
-    } else if (isCancelled) {
-      // Cancelled with mixed statuses (none charged) - don't include custRefundedAmount
-      actualGP = sp - tax;
     } else {
       // Normal order with mixed statuses (none charged)
       actualGP = 0;
