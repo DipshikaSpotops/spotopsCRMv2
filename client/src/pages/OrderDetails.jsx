@@ -136,12 +136,11 @@ const calcActualGP = (orderLike) => {
   const sp = parseFloat(orderLike.soldP) || 0;
   const tax = parseFloat(orderLike.salestax) || 0;
   const spMinusTax = parseFloat(orderLike.spMinusTax) || sp - tax;
-  const custRefundedAmount = parseFloat(
-    orderLike.custRefundedAmount ||
-    orderLike.cancelledRefAmount ||
-    orderLike.custRefAmount ||
-    0
-  );
+  // Sum all refund-related amounts if they exist
+  const custRefundedAmount = 
+    (parseFloat(orderLike.custRefundedAmount) || 0) +
+    (parseFloat(orderLike.cancelledRefAmount) || 0) +
+    (parseFloat(orderLike.custRefAmount) || 0);
 
   const additionalInfo = Array.isArray(orderLike.additionalInfo)
     ? orderLike.additionalInfo
