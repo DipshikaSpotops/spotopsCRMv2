@@ -320,8 +320,10 @@ export default function EditYardStatusModal({
               params: poCancelParams,
             }
           );
+          setToast(`Email for PO cancelled sent to Yard ${yardIndex + 1}.`);
         } catch (poErr) {
           console.error("[EditYardStatusModal] Failed to send PO cancelled email to yard", poErr);
+          setToast("Failed to send PO cancelled email to yard. Please check logs.");
         }
       }
     } catch (err) {

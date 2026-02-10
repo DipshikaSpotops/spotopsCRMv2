@@ -713,6 +713,10 @@ router.post("/orders/po-cancelled/:orderNo", async (req, res) => {
     const yardAgent = yard.agentName || yardName;
     const stockNo = yard.stockNo || "N/A";
 
+    const logoUrl =
+      process.env.LOGO_URL ||
+      "https://assets-autoparts.s3.ap-south-1.amazonaws.com/images/logo.png";
+
     const vehicleDesc = [
       order.year,
       order.make,
@@ -744,11 +748,21 @@ router.post("/orders/po-cancelled/:orderNo", async (req, res) => {
           Please confirm once the PO has been cancelled and the refund has been initiated.
         </p>
         <p>Thank you for your assistance.</p>
+        <p><img src="cid:logo" alt="logo" style="width: 180px; height: 100px;"></p>
         <p>Best regards,</p>
         <p>${firstName}<br/>
            Auto Parts Group Corp
         </p>
+        <p>+1 (866) 207-5533 |purchase-auto-partsgroup@50starsautoparts.com<br/><a href="https://www.50starsautoparts.com">www.50starsautoparts.com</a></p>
+        
       </div>`,
+      attachments: [
+        {
+          filename: "logo.png",
+          path: logoUrl,
+          cid: "logo",
+        },
+      ],
     };
 
     await transporter.sendMail(mailOptions);
