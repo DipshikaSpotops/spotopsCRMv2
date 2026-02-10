@@ -15,6 +15,8 @@ const REQUIRED_FIELD_LABELS = {
   bAddressState: "Billing State",
   bAddressZip: "Billing Zip",
   bAddressAcountry: "Billing Country",
+  paymentSource: "Payment Source",
+  authorizationId: "Authorization ID",
   sAddressStreet: "Shipping Street",
   sAddressCity: "Shipping City",
   sAddressState: "Shipping State",
@@ -57,6 +59,8 @@ const buildInitialFormData = () => ({
   bAddressState: "",
   bAddressZip: "",
   bAddressAcountry: "",
+  paymentSource: "",
+  authorizationId: "",
   businessName: "",
 
   // Shipping Info
@@ -378,6 +382,8 @@ export default function EditOrder() {
         bAddressState: order.bAddressState || "",
         bAddressZip: order.bAddressZip || "",
         bAddressAcountry: order.bAddressAcountry || "",
+      paymentSource: order.paymentSource || "",
+      authorizationId: order.authorizationId || "",
 
         // Shipping Info
         attention: order.attention || order.sAttention || "",
@@ -814,6 +820,24 @@ export default function EditOrder() {
                 value={formData.bAddressZip}
                 onChange={(e) => handleFieldChange("bAddressZip", e.target.value)}
                 error={fieldErrors.has("bAddressZip")}
+              />
+              <Dropdown
+                placeholder="Payment Source"
+                options={[
+                  "Paypal",
+                  "Zelle",
+                  "VPS Authorized and VPS Payment Link",
+                  "SA Authorized and SA Payment Link",
+                ]}
+                value={formData.paymentSource}
+                onChange={(e) => handleFieldChange("paymentSource", e.target.value)}
+                error={fieldErrors.has("paymentSource")}
+              />
+              <Input
+                placeholder="Authorization ID"
+                value={formData.authorizationId}
+                onChange={(e) => handleFieldChange("authorizationId", e.target.value)}
+                error={fieldErrors.has("authorizationId")}
               />
             </Section>
 

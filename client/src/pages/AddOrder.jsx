@@ -13,6 +13,8 @@ const REQUIRED_FIELD_LABELS = {
   bAddressState: "Billing State",
   bAddressZip: "Billing Zip",
   bAddressAcountry: "Billing Country",
+  paymentSource: "Payment Source",
+  authorizationId: "Authorization ID",
   sAddressStreet: "Shipping Street",
   sAddressCity: "Shipping City",
   sAddressState: "Shipping State",
@@ -61,6 +63,8 @@ const buildInitialFormData = (defaultSalesAgent = "") => ({
   bAddressState: "",
   bAddressZip: "",
   bAddressAcountry: "",
+  paymentSource: "",
+  authorizationId: "",
 
   // Shipping Info
   sAttention: "",
@@ -575,6 +579,27 @@ export default function AddOrder() {
                 value={formData.bAddressZip}
                 onChange={(e) => handleFieldChange("bAddressZip", e.target.value)}
                 error={fieldErrors.has("bAddressZip")}
+              />
+              <Dropdown
+                placeholder="Payment Source"
+                options={[
+                  "Bank/Wire Transfer",
+                  "Paypal",
+                  "SA Authorized",
+                  "SA Payment Link",
+                  "VPS Authorized",
+                  "VPS Payment Link",
+                  "Zelle",
+                ]}
+                value={formData.paymentSource}
+                onChange={(e) => handleFieldChange("paymentSource", e.target.value)}
+                error={fieldErrors.has("paymentSource")}
+              />
+              <Input
+                placeholder="Authorization ID"
+                value={formData.authorizationId}
+                onChange={(e) => handleFieldChange("authorizationId", e.target.value)}
+                error={fieldErrors.has("authorizationId")}
               />
             </Section>
 

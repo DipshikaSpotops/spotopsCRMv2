@@ -15,25 +15,31 @@ export default function ShippingTab({ order }) {
     });
   })();
 
-  const sameAsBilling =
-    order?.sameAsBilling === true || order?.sameAsBilling === "true";
+  const paymentSource = order?.paymentSource || "";
+  const authorizationId = order?.authorizationId || "";
+  const orderNotes = Array.isArray(order?.notes)
+    ? order.notes.join(", ")
+    : order?.notes || "";
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[260px] overflow-y-auto pr-1">
-      <Field label="Attention">
-        <Input readOnly value={order?.attention || ""} />
-      </Field>
-      <Field label="Billing Name">
-        <Input readOnly value={order?.bName || ""} />
+      <Field label="Attention | Billing Name">
+        <Input
+          readOnly
+          value={`${order?.attention || ""}${order?.attention || order?.bName ? " | " : ""}${order?.bName || ""}`}
+        />
       </Field>
       <Field label="Business Name">
         <Input readOnly value={order?.businessName || ""} />
       </Field>
-      <Field label="Same as Billing?">
-        <Input readOnly value={sameAsBilling ? "Yes" : "No"} />
+      <Field label="Payment Source">
+        <Input readOnly value={paymentSource} />
+      </Field>
+      <Field label="Authorization ID">
+        <Input readOnly value={authorizationId} />
       </Field>
       <Field label="Order Notes">
-        <Input readOnly value={order?.notes || ""} />
+        <Input readOnly value={orderNotes} />
       </Field>
       <Field label="Escalation">
         <div className="flex items-center gap-2">
