@@ -119,7 +119,8 @@ router.post("/order-cancel/:orderNo", async (req, res) => {
 });
 
 // POST /emails/sendReimburseEmail/:orderNo
-router.post("/sendReimburseEmail/:orderNo", async (req, res) => {
+// Optionally accepts a single attachment (PDF/image) under "attachment"
+router.post("/sendReimburseEmail/:orderNo", upload.single("attachment"), async (req, res) => {
   console.log("[emails] sendReimburseEmail hit", req.method, req.originalUrl);
   try {
     const { orderNo } = req.params;
@@ -152,6 +153,35 @@ router.post("/sendReimburseEmail/:orderNo", async (req, res) => {
       process.env.LOGO_URL ||
       "https://assets-autoparts.s3.ap-south-1.amazonaws.com/images/logo.png";
 
+    // Base attachments (always include logo)
+    const attachments = [
+      {
+        filename: "logo.png",
+        path: logoUrl,
+        cid: "logo",
+      },
+    ];
+
+    // Optional reimbursement attachment (PDF or image)
+    const attachmentFile = req.file;
+    if (attachmentFile) {
+      const mime = attachmentFile.mimetype || "";
+      const isPdf = mime === "application/pdf";
+      const isImage = mime.startsWith("image/");
+
+      if (!isPdf && !isImage) {
+        return res
+          .status(400)
+          .json({ message: "Only PDF or image attachments are allowed." });
+      }
+
+      attachments.push({
+        filename: attachmentFile.originalname || "attachment",
+        content: attachmentFile.buffer,
+        contentType: mime,
+      });
+    }
+
     await transporter.sendMail({
       from: `"50 Stars Auto Parts" <${process.env.SERVICE_EMAIL}>`,
       to: toEmail,
@@ -171,13 +201,7 @@ router.post("/sendReimburseEmail/:orderNo", async (req, res) => {
   <p><img src="cid:logo" alt="logo" style="width: 180px; height: 100px;"></p>
   <p>${firstName}<br/>Customer Service Team<br/>50 STARS AUTO PARTS<br/>+1 (866) 207-5533<br/>service@50starsautoparts.com<br/>www.50starsautoparts.com</p>
 </div>`,
-      attachments: [
-        {
-          filename: "logo.png",
-          path: logoUrl,
-          cid: "logo",
-        },
-      ],
+      attachments,
     });
 
     res.json({ message: "Reimbursement email sent successfully" });

@@ -355,6 +355,7 @@ export default function OrderDetails() {
   const [reimbursementAmount, setReimbursementAmount] = useState("");
   const [reimbursementDate, setReimbursementDate] = useState("");
   const [savingReimbursement, setSavingReimbursement] = useState(false);
+  const [reimbursementFile, setReimbursementFile] = useState(null);
 
   // Initialize activeYardIndex to last yard on first load, but preserve it across refreshes
   const isInitialYardIndexSet = useRef(false);
@@ -737,20 +738,38 @@ export default function OrderDetails() {
   };
 
   // Send reimbursement confirmation email; let caller decide what toast to show
-  const sendReimbursementEmail = async ({ amount }) => {
+  const sendReimbursementEmail = async ({ amount, file }) => {
     if (!orderNo) return;
     try {
       const firstName = localStorage.getItem("firstName") || "";
-      await API.post(
-        `/emails/sendReimburseEmail/${orderNo}`,
-        null,
-        {
-          params: {
-            reimburesementValue: amount ?? 0,
-            firstName,
-          },
-        }
-      );
+      const params = {
+        reimburesementValue: amount ?? 0,
+        firstName,
+      };
+
+      // If a file is provided, send as multipart/form-data
+      if (file) {
+        const formData = new FormData();
+        formData.append("attachment", file);
+        await API.post(
+          `/emails/sendReimburseEmail/${orderNo}`,
+          formData,
+          {
+            params,
+            headers: {
+              "Content-Type": "multipart/form-data",
+            },
+          }
+        );
+      } else {
+        await API.post(
+          `/emails/sendReimburseEmail/${orderNo}`,
+          null,
+          {
+            params,
+          }
+        );
+      }
       return true;
     } catch (err) {
       console.error("Error sending reimbursement email:", err);
@@ -809,10 +828,13 @@ export default function OrderDetails() {
         try {
           await sendReimbursementEmail({
             amount: numericAmount,
+            file: reimbursementFile || null,
           });
           setSendingReimbursementEmail(false);
           setReimbursementEmailToast({ message: "Reimbursement saved and email sent successfully!", variant: "success" });
           setToast("Reimbursement saved and email sent.");
+          // Clear attachment after successful send
+          setReimbursementFile(null);
         } catch (emailErr) {
           setSendingReimbursementEmail(false);
           const errorMsg = emailErr?.response?.data?.message || emailErr?.message || "Failed to send reimbursement email.";
@@ -1391,6 +1413,18 @@ export default function OrderDetails() {
                       type="date"
                       value={reimbursementDate}
                       onChange={(e) => setReimbursementDate(e.target.value)}
+                      className="w-full rounded-md bg-gray-50 border border-gray-300 px-3 py-2 text-[#09325d] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-white/10 dark:border-white/30 dark:text-white dark:focus:ring-white/60 dark:focus:border-white/60"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1 md:col-span-2">
+                    <span className="text-[#09325d] dark:text-white/80">Attachment (optional)</span>
+                    <input
+                      type="file"
+                      accept="application/pdf,image/*"
+                      onChange={(e) => {
+                        const file = e.target.files && e.target.files[0];
+                        setReimbursementFile(file || null);
+                      }}
                       className="w-full rounded-md bg-gray-50 border border-gray-300 px-3 py-2 text-[#09325d] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-white/10 dark:border-white/30 dark:text-white dark:focus:ring-white/60 dark:focus:border-white/60"
                     />
                   </div>
