@@ -671,6 +671,96 @@ router.post("/orders/sendRefundEmail/:orderNo", upload.single("pdfFile"), async 
   }
 });
 
+// Notify yard when PO is cancelled for a specific yard on an order
+router.post("/orders/po-cancelled/:orderNo", async (req, res) => {
+  console.log("[emails] po-cancelled hit", req.method, req.originalUrl);
+  try {
+    const { orderNo } = req.params;
+    let { firstName: rawFirstName, yardIndex } = req.query;
+    const firstName = cleanFirstName(rawFirstName);
+
+    const order = await Order.findOne({ orderNo });
+    if (!order) return res.status(404).json({ message: "Order not found" });
+
+    const idx0 = parseInt(yardIndex ?? 1, 10) - 1;
+    const yard = order.additionalInfo?.[idx0];
+    if (!yard) return res.status(400).json({ message: `Yard ${yardIndex} not found` });
+
+    const yardEmail = (yard.email || "").trim();
+    if (!yardEmail) {
+      return res
+        .status(200)
+        .json({ message: "No yard email found for this yard entry. PO cancelled email not sent." });
+    }
+
+    const purchaseEmail = process.env.PURCHASE_EMAIL?.trim();
+    const purchasePass = process.env.PURCHASE_PASS?.trim();
+
+    if (!purchaseEmail || !purchasePass) {
+      console.error("[emails] PURCHASE_EMAIL or PURCHASE_PASS not set in environment");
+      return res.status(500).json({ message: "Email configuration missing" });
+    }
+
+    const transporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: {
+        user: purchaseEmail,
+        pass: purchasePass,
+      },
+    });
+
+    const yardName = yard.yardName || "Partner Yard";
+    const yardAgent = yard.agentName || yardName;
+    const stockNo = yard.stockNo || "N/A";
+
+    const vehicleDesc = [
+      order.year,
+      order.make,
+      order.model,
+      order.pReq,
+    ]
+      .filter(Boolean)
+      .join(" ");
+
+    const mailOptions = {
+      from: `"Auto Parts Group Corp" <${purchaseEmail}>`,
+      to: yardEmail,
+      bcc: process.env.PURCHASE_BCC || "purchase@auto-partsgroup.com,dipsikha.spotopsdigital@gmail.com",
+      subject: `PO Cancellation Request | Order ${orderNo} | Stock ${stockNo}`,
+      html: `<div style="font-size:16px;line-height:1.7;">
+        <p>Hello ${yardAgent},</p>
+        <p>I hope you are doing well.</p>
+        <p>We would like to request the cancellation of the Purchase Order for the following vehicle:</p>
+        <p>
+          Purchase Order No: <b>${order.orderNo}</b><br/>
+          Year: <b>${order.year || "-"}</b><br/>
+          Make: <b>${order.make || "-"}</b><br/>
+          Model: <b>${order.model || "-"}</b>
+        </p>
+        <p>
+          If the card has already been charged for this PO, kindly proceed with processing the refund at your earliest convenience.
+        </p>
+        <p>
+          Please confirm once the PO has been cancelled and the refund has been initiated.
+        </p>
+        <p>Thank you for your assistance.</p>
+        <p>Best regards,</p>
+        <p>${firstName}<br/>
+           Auto Parts Group Corp
+        </p>
+      </div>`,
+    };
+
+    await transporter.sendMail(mailOptions);
+    console.log("[emails] PO cancelled email sent to yard:", { orderNo, yardIndex, yardEmail });
+
+    res.json({ message: "PO cancelled email sent successfully" });
+  } catch (error) {
+    console.error("[emails] po-cancelled error:", error);
+    res.status(500).json({ message: "Server error", error: error?.message || String(error) });
+  }
+});
+
 /* ---------------- Replacement Emails ---------------- */
 router.post("/orders/sendReplaceEmailCustomerShipping/:orderNo", async (req, res) => {
   try {

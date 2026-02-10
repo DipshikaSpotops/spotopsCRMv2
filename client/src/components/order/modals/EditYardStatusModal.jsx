@@ -300,6 +300,30 @@ export default function EditYardStatusModal({
             console.error("[EditYardStatusModal] Email error details:", errorMessage);
           });
       }
+
+      // When status is changed to "PO cancelled", send automated email to yard from PURCHASE_EMAIL
+      if (status === "PO cancelled") {
+        try {
+          const poCancelParams = {
+            firstName,
+            yardIndex: yardIndex + 1,
+          };
+          console.log("[EditYardStatusModal] Sending PO cancelled email to yard", {
+            orderNo,
+            yardIndex: yardIndex + 1,
+          });
+          await API.post(
+            `/emails/orders/po-cancelled/${encodeURIComponent(orderNo)}`,
+            null,
+            {
+              baseURL: rootApiBase || undefined,
+              params: poCancelParams,
+            }
+          );
+        } catch (poErr) {
+          console.error("[EditYardStatusModal] Failed to send PO cancelled email to yard", poErr);
+        }
+      }
     } catch (err) {
       console.error("Error updating yard:", err);
       const message = err?.response?.data?.message || "Error updating yard. Please try again.";
