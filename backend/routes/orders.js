@@ -7,9 +7,12 @@ import User from "../models/User.js";
 import { requireAuth } from "../middleware/auth.js";
 import { getDateRange } from "../utils/dateRange.js";
 import { getWhen } from "../../shared/utils/timeUtils.js";
+import multer from "multer";
+import { uploadVoidLabelScreenshotToS3 } from "../services/s3Upload.js";
 
 const router = express.Router();
 const TZ = "America/Chicago";
+const upload = multer();
 
 /* helper functions*/
 // publish to all clients watching this order
@@ -438,6 +441,97 @@ router.get("/refunded-by-date", async (req, res) => {
     res.json(orders);
   } catch (error) {
     console.error("Error fetching refunded-by-date orders:", error);
+    res.status(500).json({ message: "Server error", error: error?.message || String(error) });
+  }
+});
+
+// Card Charged - shows orders with card charged yards and refund details
+router.get("/card-charged", async (req, res) => {
+  try {
+    const { start, end, month, year } = req.query;
+    const { startDate, endDate } = getDateRange({ start, end, month, year });
+
+    // Find all orders with card charged yards
+    const orders = await Order.find({
+      "additionalInfo.paymentStatus": "Card charged",
+      orderDate: { $gte: startDate, $lt: endDate },
+    }).select("orderNo orderDate orderStatus custRefAmount custRefundDate cancelledDate cancellationReason additionalInfo");
+
+    // Group yards by order
+    const orderMap = new Map();
+
+    orders.forEach((order) => {
+      const yards = [];
+      let totalOrderCharged = 0;
+
+      order.additionalInfo.forEach((yard, yardIndex) => {
+        if (yard.paymentStatus === "Card charged") {
+          // Calculate total charged amount
+          const partPrice = parseFloat(yard.partPrice) || 0;
+          let shippingCost = 0;
+          if (yard.shippingDetails) {
+            const match = yard.shippingDetails.match(/(?:Own shipping|Yard shipping):\s*([\d.]+)/i);
+            if (match) {
+              shippingCost = parseFloat(match[1]) || 0;
+            }
+          }
+          const others = parseFloat(yard.others) || 0;
+          const totalCharged = partPrice + shippingCost + others;
+          totalOrderCharged += totalCharged;
+
+          // Check if order is cancelled
+          const isCancelled = order.orderStatus === "Order Cancelled";
+          
+          // Check refund conditions (only for cancelled orders)
+          const isRefunded = isCancelled && order.orderStatus === "Refunded" && order.custRefAmount;
+          const isPOCancelled = isCancelled && (yard.status === "PO cancelled" || yard.status === "PO canceled");
+          const isCollectRefundChecked = isCancelled && (yard.collectRefundCheckbox === "true" || yard.collectRefundCheckbox === true || yard.collectRefundCheckbox === "checked");
+          
+          // Refund details
+          const refundInfo = {
+            isRefunded: isRefunded,
+            hasCustRefAmount: !!order.custRefAmount,
+            isPOCancelled: isPOCancelled,
+            isCollectRefundChecked: isCollectRefundChecked,
+            refundedAmount: parseFloat(yard.refundedAmount) || 0,
+            refundStatus: yard.refundStatus || "",
+          };
+
+          yards.push({
+            yardIndex: yardIndex + 1,
+            yardName: yard.yardName || "",
+            partPrice: partPrice,
+            shippingCost: shippingCost,
+            others: others,
+            totalCharged: totalCharged,
+            cardChargedDate: yard.cardChargedDate || null,
+            yardStatus: yard.status || "",
+            refundInfo: refundInfo,
+          });
+        }
+      });
+
+      if (yards.length > 0) {
+        const isCancelled = order.orderStatus === "Order Cancelled";
+        orderMap.set(order.orderNo, {
+          orderNo: order.orderNo,
+          orderDate: order.orderDate,
+          orderStatus: order.orderStatus,
+          isCancelled: isCancelled,
+          custRefAmount: order.custRefAmount || null,
+          custRefundDate: order.custRefundDate || null,
+          cancelledDate: order.cancelledDate || null,
+          cancellationReason: order.cancellationReason || null,
+          yards: yards,
+          totalCharged: totalOrderCharged,
+        });
+      }
+    });
+
+    const results = Array.from(orderMap.values());
+    res.json(results);
+  } catch (error) {
+    console.error("Error fetching card-charged orders:", error);
     res.status(500).json({ message: "Server error", error: error?.message || String(error) });
   }
 });
@@ -1149,7 +1243,10 @@ const ORDER_STATUS_MAP = {
 /* ---------------- PUT /orders/:orderNo/additionalInfo/:index ----------------
    (index is 1-based)
 ----------------------------------------------------------------------------- */
-router.put("/:orderNo/additionalInfo/:index", async (req, res) => {
+router.put(
+  "/:orderNo/additionalInfo/:index",
+  upload.single("voidLabelScreenshot"),
+  async (req, res) => {
   console.log("REQ BODY:", JSON.stringify(req.body, null, 2));
   try {
     // Decode and trim the order number to handle URL encoding and whitespace
@@ -1263,6 +1360,36 @@ router.put("/:orderNo/additionalInfo/:index", async (req, res) => {
 
     /* ---------------------- VOID LABEL ---------------------- */
     if (req.body.voidLabel) {
+      // Screenshot is mandatory for voiding
+      if (!req.file) {
+        return res
+          .status(400)
+          .json({ message: "Screenshot is required to void the label." });
+      }
+
+      // Upload screenshot to Drive first; only proceed to void if this succeeds
+      try {
+        const mimeType = req.file.mimetype || "image/png";
+        const safeOrderNo = orderNo.replace(/[^\w\-]/g, "_");
+
+        const s3Url = await uploadVoidLabelScreenshotToS3(
+          req.file.buffer,
+          mimeType,
+          safeOrderNo
+        );
+
+        subdoc.voidLabelScreenshot = s3Url;
+      } catch (uploadErr) {
+        console.error(
+          "Error uploading void label screenshot to S3:",
+          uploadErr
+        );
+        return res.status(500).json({
+          message:
+            "Failed to upload screenshot. Label was not voided. Please try again.",
+        });
+      }
+
       const removed = [];
       const labelFields = [
         "trackingNo",

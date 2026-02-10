@@ -79,6 +79,12 @@ export default function EditYardStatusModal({
   const [loading, setLoading] = useState(false);
   const [savingAction, setSavingAction] = useState(null);
 
+  // Screenshot for voided label
+  const [voidLabelScreenshot, setVoidLabelScreenshot] = useState(
+    yard?.voidLabelScreenshot || ""
+  );
+  const [voidLabelFile, setVoidLabelFile] = useState(null);
+
   const fileInputRef = useRef(null);
   const rootApiBase = useMemo(() => {
     const base = API?.defaults?.baseURL || "";
@@ -110,6 +116,10 @@ export default function EditYardStatusModal({
     }
     
     setTrackingLink(yard?.trackingLink || "");
+
+    // Existing void-label screenshot (if any)
+    setVoidLabelScreenshot(yard?.voidLabelScreenshot || "");
+    setVoidLabelFile(null);
 
     const st = yard?.status || "";
     setShowPO(st === "Yard PO Sent");
@@ -309,15 +319,25 @@ export default function EditYardStatusModal({
   const voidLabel = async () => {
     if (savingAction) return;
 
+    // Require a screenshot when voiding the label
+    if (!voidLabelFile) {
+      setToast("Please attach a screenshot before voiding the label.");
+      return;
+    }
+
     try {
       setLoading(true);
       setSavingAction("void");
       const firstName = localStorage.getItem("firstName");
       const orderNo = order?.orderNo;
 
+      const formData = new FormData();
+      formData.append("voidLabel", "true");
+      formData.append("voidLabelScreenshot", voidLabelFile);
+
       await API.put(
         `/orders/${encodeURIComponent(orderNo)}/additionalInfo/${yardIndex + 1}`,
-        { voidLabel: true },
+        formData,
         { params: { firstName } }
       );
 
@@ -670,45 +690,112 @@ export default function EditYardStatusModal({
 
               {/* Void / Cancel */}
               {status === "Label created" && hasLabelFormData() && (
-                <div className="mt-2">
-                  <button
-                    type="button"
-                    onClick={voidLabel}
-                    disabled={savingAction === "void"}
-                    className={`px-3 py-1.5 rounded-md text-sm border transition ${
-                      savingAction === "void"
-                        ? "bg-white/70 text-[#04356d]/60 border-white/40 cursor-not-allowed"
-                        : "bg-white text-[#04356d] border-white/20 hover:bg-white/90"
-                    }`}
-                  >
-                    {savingAction === "void" ? (
-                      <span className="flex items-center gap-2">
-                        <svg
-                          className="animate-spin h-4 w-4 text-[#04356d]"
-                          xmlns="http://www.w3.org/2000/svg"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                        >
-                          <circle
-                            className="opacity-25"
-                            cx="12"
-                            cy="12"
-                            r="10"
-                            stroke="currentColor"
-                            strokeWidth="4"
-                          ></circle>
-                          <path
-                            className="opacity-75"
-                            fill="currentColor"
-                            d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 000 16v-4l-3 3 3 3v-4a8 8 0 01-8-8z"
-                          ></path>
-                        </svg>
-                        Voiding…
-                      </span>
-                    ) : (
-                      "Void Label"
+                <div className="mt-3 space-y-2">
+                  {/* Existing screenshot preview */}
+                  {yard?.voidLabelScreenshot && (
+                    <div className="text-xs">
+                      <div className="mb-1 font-semibold">
+                        Existing void label screenshot
+                      </div>
+                      <img
+                        src={yard.voidLabelScreenshot}
+                        alt={`Existing void label screenshot for Yard ${yardIndex + 1}`}
+                        className="max-h-40 rounded border border-white/20"
+                      />
+                    </div>
+                  )}
+
+                  {/* Upload new screenshot */}
+                  <div className="flex flex-col gap-2 text-xs">
+                    <label className="font-semibold">
+                      Attach screenshot (required to void label)
+                    </label>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) {
+                          setVoidLabelScreenshot("");
+                          setVoidLabelFile(null);
+                          return;
+                        }
+                        if (!file.type.startsWith("image/")) {
+                          setToast("Please upload a valid image file for the screenshot.");
+                          e.target.value = "";
+                          setVoidLabelScreenshot("");
+                          setVoidLabelFile(null);
+                          return;
+                        }
+                        setVoidLabelFile(file);
+                        const reader = new FileReader();
+                        reader.onloadend = () => {
+                          if (typeof reader.result === "string") {
+                            setVoidLabelScreenshot(reader.result);
+                          }
+                        };
+                        reader.readAsDataURL(file);
+                      }}
+                      className="text-xs"
+                    />
+                  </div>
+
+                  <div className="flex items-center gap-3 flex-wrap">
+                    {/* Void label action */}
+                    <button
+                      type="button"
+                      onClick={voidLabel}
+                      disabled={savingAction === "void" || !!yard?.voidLabelScreenshot}
+                      className={`px-3 py-1.5 rounded-md text-sm border transition ${
+                        savingAction === "void" || yard?.voidLabelScreenshot
+                          ? "bg-white/70 text-[#04356d]/60 border-white/40 cursor-not-allowed"
+                          : "bg-white text-[#04356d] border-white/20 hover:bg-white/90"
+                      }`}
+                    >
+                      {yard?.voidLabelScreenshot
+                        ? "Label Voided"
+                        : savingAction === "void" ? (
+                        <span className="flex items-center gap-2">
+                          <svg
+                            className="animate-spin h-4 w-4 text-[#04356d]"
+                            xmlns="http://www.w3.org/2000/svg"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                          >
+                            <circle
+                              className="opacity-25"
+                              cx="12"
+                              cy="12"
+                              r="10"
+                              stroke="currentColor"
+                              strokeWidth="4"
+                            ></circle>
+                            <path
+                              className="opacity-75"
+                              fill="currentColor"
+                              d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 000 16v-4l-3 3 3 3v-4a8 8 0 01-8-8z"
+                            ></path>
+                          </svg>
+                          Voiding…
+                        </span>
+                      ) : (
+                        "Void Label"
+                      )}
+                    </button>
+
+                    {/* Drive link beside button, if available */}
+                    {yard?.voidLabelScreenshot && (
+                      <a
+                        href={yard.voidLabelScreenshot}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-blue-700 underline dark:text-blue-300"
+                        title="Open void label screenshot in Drive"
+                      >
+                        Open screenshot in Drive
+                      </a>
                     )}
-                  </button>
+                  </div>
                 </div>
               )}
 

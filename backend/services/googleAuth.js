@@ -577,14 +577,13 @@ export function getUserEmail() {
   return process.env.GMAIL_IMPERSONATED_USER || null;
 }
 
-// Legacy JWT support (for backward compatibility)
+// Legacy JWT support  (still available for other Google APIs if needed)
 export function getGoogleJwtClient(scopes = DEFAULT_SCOPES) {
   if (cachedAuth && !cachedAuth.credentials) {
     // If we have OAuth2 client, use it
     return cachedAuth;
   }
   
-  // Fallback to JWT if OAuth2 not available
   const clientEmail = process.env.GCP_CLIENT_EMAIL;
   const privateKey = process.env.GCP_PRIVATE_KEY;
   const userToImpersonate = process.env.GMAIL_IMPERSONATED_USER;

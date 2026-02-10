@@ -83,6 +83,7 @@ export default function Sidebar() {
     { text: "Refunds/Reimbursements", to: "/reimbursement-report" },
     { text: "Order Statistics", to: "/order-statistics", adminOnly: true, emailAccess: "50starsauto110@gmail.com" },
     { text: "Make/Model Statistics", to: "/make-statistics", adminOnly: true, emailAccess: "50starsauto110@gmail.com" },
+    { text: "Card Charged", to: "/card-charged" },
   ];
 
   // Helper function to check if a link should be shown based on role, email, and link properties

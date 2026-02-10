@@ -94,6 +94,8 @@ trackingHistory: [String],
 etaHistory:  [String],
 shipperNameHistory: [String],
 trackingLinkHistory: [String],
+// screenshot for voided shipping label (stored as data URL or image URL)
+voidLabelScreenshot: String,
 // saving dates for bol in escalation
 escRetTrackingDate: String,
 escRepCustTrackingDate: String,
