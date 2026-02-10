@@ -742,7 +742,7 @@ router.post("/orders/po-cancelled/:orderNo", async (req, res) => {
           Model: <b>${order.model || "-"}</b>
         </p>
         <p>
-          If the card has already been charged for this PO, kindly proceed with processing the refund at your earliest convenience.
+          <b>If the card has already been charged for this PO, kindly proceed with processing the refund at your earliest convenience.</b>
         </p>
         <p>
           Please confirm once the PO has been cancelled and the refund has been initiated.
@@ -753,7 +753,7 @@ router.post("/orders/po-cancelled/:orderNo", async (req, res) => {
         <p>${firstName}<br/>
            Auto Parts Group Corp
         </p>
-        <p>+1 (866) 207-5533 |purchase-auto-partsgroup@50starsautoparts.com<br/><a href="https://www.50starsautoparts.com">www.50starsautoparts.com</a></p>
+        <p>+1 (866) 207-5533 |purchase@auto-partsgroup.com<br/><a href="https://www.50starsautoparts.com">www.50starsautoparts.com</a></p>
         
       </div>`,
       attachments: [

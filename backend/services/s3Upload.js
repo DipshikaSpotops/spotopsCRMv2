@@ -60,7 +60,6 @@ export async function uploadVoidLabelScreenshotToS3(buffer, mimeType, keyBase) {
     Key: key,
     Body: buffer,
     ContentType: mimeType || "image/png",
-    ACL: "public-read",
   });
 
   await s3Client.send(putCommand);
