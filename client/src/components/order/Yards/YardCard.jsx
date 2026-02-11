@@ -210,7 +210,7 @@ export default function YardCard({
         </div>
       )}
 
-      {/* Label void screenshot (if saved for this yard) */}
+      {/* Label void screenshot (link only; image opens in new tab when clicked) */}
       {y.voidLabelScreenshot && (
         <div className="mt-4">
           <div className="text-sm font-semibold mb-1">
@@ -220,17 +220,10 @@ export default function YardCard({
             href={y.voidLabelScreenshot}
             target="_blank"
             rel="noopener noreferrer"
-            className="block max-h-64 overflow-hidden rounded border border-gray-200 dark:border-white/20 bg-white/50 dark:bg-white/5 hover:ring-2 hover:ring-blue-400 dark:hover:ring-blue-300"
+            className="inline-flex items-center text-xs text-blue-700 underline dark:text-blue-300 hover:text-blue-900 dark:hover:text-blue-200"
           >
-            <img
-              src={y.voidLabelScreenshot}
-              alt={`Label void screenshot for Yard ${index + 1}`}
-              className="w-full h-auto object-contain"
-            />
+            View screenshot
           </a>
-          <div className="mt-1 text-xs text-blue-700 dark:text-blue-300 underline">
-            Click image to open in Drive
-          </div>
         </div>
       )}
 

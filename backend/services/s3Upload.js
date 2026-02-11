@@ -1,15 +1,10 @@
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import crypto from "crypto";
+import dotenv from "dotenv";
 
-/**
- * Upload a void-label screenshot image to S3 and return its public URL.
- *
- * Required env vars:
- * - AWS_REGION
- * - AWS_ACCESS_KEY_ID
- * - AWS_SECRET_ACCESS_KEY
- * - S3_LABEL_VOIDED_BUCKET   (bucket name)
- */
+// Ensure .env is loaded even if server.js hasn't called dotenv.config yet
+dotenv.config();
+
 const region = process.env.AWS_REGION;
 const bucket = process.env.S3_LABEL_VOIDED_BUCKET;
 
