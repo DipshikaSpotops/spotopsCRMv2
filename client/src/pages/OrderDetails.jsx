@@ -1360,7 +1360,7 @@ export default function OrderDetails() {
           </div>
 
           {/* 3 columns */}
-          <div className="grid grid-cols-12 gap-6 2xl:gap-8 items-start min-h-[calc(100vh-11rem)] xl:h-[calc(100vh-11rem)] xl:max-h-[calc(100vh-11rem)] xl:overflow-hidden pb-10">
+          <div className="grid grid-cols-12 gap-6 2xl:gap-8 items-start min-h-[calc(100vh-11rem)] pb-10">
             {/* LEFT: Order Details */}
             <aside className="col-span-12 xl:col-span-4 flex flex-col gap-4 h-full min-h-[600px]">
               <div className="flex-1 min-h-0">
