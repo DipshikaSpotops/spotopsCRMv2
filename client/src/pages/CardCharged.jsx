@@ -1,8 +1,10 @@
 // src/pages/CardCharged.jsx
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useMemo, useState, useEffect } from "react";
 import API from "../api";
 import OrdersTable from "../components/OrdersTable";
 import { formatInTimeZone } from "date-fns-tz";
+import useBrand from "../hooks/useBrand";
+import useOrdersRealtime from "../hooks/useOrdersRealtime";
 
 const TZ = "America/Chicago";
 
@@ -33,6 +35,7 @@ function formatDateTimeSafe(dateStr) {
 
 /* ---------- Page ---------- */
 export default function CardCharged() {
+  const brand = useBrand();
   const [totalLabel, setTotalLabel] = useState("Total Charged: $0.00");
 
   /* cell renderer */
@@ -167,7 +170,7 @@ export default function CardCharged() {
       params.year = filter?.year;
     }
     return params;
-  }, []);
+  }, [brand]);
 
   /* Update the inline label whenever the visible rows change */
   const onRowsChange = useCallback((sortedVisibleRows) => {
@@ -178,6 +181,28 @@ export default function CardCharged() {
     const totalOrders = sortedVisibleRows.length;
     setTotalLabel(`Total Orders: ${totalOrders} | Total Charged: $${totalCharged.toFixed(2)}`);
   }, []);
+
+  // Realtime: refetch card charged when orders change
+  useOrdersRealtime({
+    enabled: true,
+    onOrderCreated: () => {
+      if (window.__ordersTableRefs?.cardCharged?.refetch) {
+        window.__ordersTableRefs.cardCharged.refetch();
+      }
+    },
+    onOrderUpdated: () => {
+      if (window.__ordersTableRefs?.cardCharged?.refetch) {
+        window.__ordersTableRefs.cardCharged.refetch();
+      }
+    },
+  });
+
+  // Auto-refetch when brand changes
+  useEffect(() => {
+    if (window.__ordersTableRefs?.cardCharged?.refetch) {
+      window.__ordersTableRefs.cardCharged.refetch();
+    }
+  }, [brand]);
 
   return (
     <OrdersTable

@@ -1,7 +1,7 @@
 // routes/cancelledOrders.js
 import express from "express";
 import moment from "moment-timezone";
-import Order from "../models/Order.js";
+import { getOrderModelForBrand } from "../models/Order.js";
 import { requireAuth, allow } from "../middleware/auth.js";
 
 const router = express.Router();
@@ -101,6 +101,8 @@ router.get(
         cancelledBy: 1, cancelledDate: 1, cancellationReason: 1,
         orderHistory: 1,   // <-- this was missing
       };
+
+      const Order = getOrderModelForBrand(req.brand);
 
       const totalOrders = await Order.countDocuments(query);
 

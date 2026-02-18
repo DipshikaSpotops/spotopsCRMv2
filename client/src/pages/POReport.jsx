@@ -1,9 +1,10 @@
 // /src/pages/POReport.jsx
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import API from "../api";
 import OrdersTable from "../components/OrdersTable";
 import { formatInTimeZone } from "date-fns-tz";
 import useOrdersRealtime from "../hooks/useOrdersRealtime";
+import useBrand from "../hooks/useBrand";
 
 const TZ = "America/Chicago";
 
@@ -152,6 +153,7 @@ const extraTotals = (rows) => {
 
 /* ---------- Page ---------- */
 export default function POReport() {
+  const brand = useBrand(); // 50STARS / PROLANE
   const [expandedIds, setExpandedIds] = useState(new Set());
   const [totalLabel, setTotalLabel] = useState(
     "Total Orders: 0 | Card Charged: $0.00"
@@ -264,7 +266,7 @@ export default function POReport() {
       const rows = await fetchAllMonthlyOrders(params, headers);
       return rows;
     },
-    [paramsBuilder]
+    [paramsBuilder, brand]
   );
 
   /* update the running label when visible rows change (after sort/search/filter) */
@@ -289,6 +291,13 @@ export default function POReport() {
       }
     },
   });
+
+  // Refetch when brand changes
+  useEffect(() => {
+    if (window.__ordersTableRefs?.poReport?.refetch) {
+      window.__ordersTableRefs.poReport.refetch();
+    }
+  }, [brand]);
 
   return (
     <OrdersTable

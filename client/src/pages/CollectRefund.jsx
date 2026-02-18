@@ -1,9 +1,10 @@
 // src/pages/CollectRefund.jsx
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useState, useEffect } from "react";
 import API from "../api";
 import OrdersTable from "../components/OrdersTable";
 import { formatInTimeZone } from "date-fns-tz";
 import useOrdersRealtime from "../hooks/useOrdersRealtime";
+import useBrand from "../hooks/useBrand";
 
 const TZ = "America/Chicago";
 
@@ -91,6 +92,7 @@ const extraTotals = (rows) => {
 
 /* ---------- Page ---------- */
 export default function CollectRefund() {
+  const brand = useBrand();
   const [expandedIds, setExpandedIds] = useState(new Set());
   const [totalLabel, setTotalLabel] = useState(
     "Total Orders: 0 | To be Collected: $0.00"
@@ -174,8 +176,30 @@ export default function CollectRefund() {
       const merged = await fetchCollectRefund(params, headers);
       return merged;
     },
-    [paramsBuilder]
+    [paramsBuilder, brand]
   );
+
+  // Realtime: refetch collect refund when orders change
+  useOrdersRealtime({
+    enabled: true,
+    onOrderCreated: () => {
+      if (window.__ordersTableRefs?.collectRefund?.refetch) {
+        window.__ordersTableRefs.collectRefund.refetch();
+      }
+    },
+    onOrderUpdated: () => {
+      if (window.__ordersTableRefs?.collectRefund?.refetch) {
+        window.__ordersTableRefs.collectRefund.refetch();
+      }
+    },
+  });
+
+  // Auto-refetch when brand changes
+  useEffect(() => {
+    if (window.__ordersTableRefs?.collectRefund?.refetch) {
+      window.__ordersTableRefs.collectRefund.refetch();
+    }
+  }, [brand]);
 
   const onRowsChange = useCallback((rows) => {
     const totalCollect = rows.reduce(

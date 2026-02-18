@@ -1,10 +1,11 @@
 // src/pages/ReimbursementReport.jsx
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useState, useEffect } from "react";
 import API from "../api";
 import OrdersTable from "../components/OrdersTable";
 import { formatInTimeZone } from "date-fns-tz";
 import moment from "moment-timezone";
 import useOrdersRealtime from "../hooks/useOrdersRealtime";
+import useBrand from "../hooks/useBrand";
 
 const TZ = "America/Chicago";
 
@@ -28,6 +29,7 @@ function formatDateSafe(dateStr) {
 }
 
 export default function ReimbursementReport() {
+  const brand = useBrand();
   const [totalLabel, setTotalLabel] = useState("Total Reimbursements (0): $0.00 | Total Refunds (0): $0.00");
 
   // Custom fetch function that combines both endpoints and flattens data
@@ -104,7 +106,14 @@ export default function ReimbursementReport() {
 
     const combined = [...flatReimbursed, ...flatRefunded];
     return combined;
-  }, []);
+  }, [brand]);
+
+  // Auto-refetch when brand changes
+  useEffect(() => {
+    if (window.__ordersTableRefs?.reimbursementReport?.refetch) {
+      window.__ordersTableRefs.reimbursementReport.refetch();
+    }
+  }, [brand]);
 
   // Update total label when rows change (for filtering/searching)
   const onRowsChange = useCallback((rows) => {

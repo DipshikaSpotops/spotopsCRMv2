@@ -245,4 +245,22 @@ orderSchema.post('findOneAndDelete', async function(doc) {
   }
 });
 
-export default mongoose.model("Order", orderSchema);
+// Primary collection for 50STARS (existing behavior)
+export const OrderModel = mongoose.model("Order", orderSchema);
+
+// Secondary collection for PROLANE (same schema, different collection name)
+export const ProlaneOrderModel = mongoose.model(
+  "ProlaneOrder",
+  orderSchema,
+  "prolane_orders"
+);
+
+// Helper to get the correct model for a given brand
+export function getOrderModelForBrand(brand = "50STARS") {
+  const normalized = String(brand || "").toUpperCase();
+  if (normalized === "PROLANE") return ProlaneOrderModel;
+  return OrderModel;
+}
+
+// Default export kept for backwards compatibility (50STARS)
+export default OrderModel;

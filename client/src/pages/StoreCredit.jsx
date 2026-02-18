@@ -5,6 +5,7 @@ import OrdersTable from "../components/OrdersTable";
 import { formatInTimeZone } from "date-fns-tz";
 import { useNavigate } from "react-router-dom";
 import useOrdersRealtime from "../hooks/useOrdersRealtime";
+import useBrand from "../hooks/useBrand";
 
 const TZ = "America/Chicago";
 
@@ -131,6 +132,7 @@ const extraTotals = (rows) => {
 
 /* ---------- Page ---------- */
 export default function StoreCredits() {
+  const brand = useBrand(); // 50STARS / PROLANE
   const navigate = useNavigate();
   const [expandedIds, setExpandedIds] = useState(new Set());
   const [totalLabel, setTotalLabel] = useState("Total Orders: 0 | Store Credit: $0.00");
@@ -273,12 +275,15 @@ export default function StoreCredits() {
   }, []);
 
   // Fetch from storeCredits endpoint - no date filtering
-  const fetchOverride = useCallback(async ({ filter, query, sortBy, sortOrder, selectedAgent, userRole, firstName }) => {
-    const token = localStorage.getItem("token");
-    const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
-    const merged = await fetchAllStoreCredits(headers);
-    return merged;
-  }, []);
+  const fetchOverride = useCallback(
+    async ({ filter, query, sortBy, sortOrder, selectedAgent, userRole, firstName }) => {
+      const token = localStorage.getItem("token");
+      const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
+      const merged = await fetchAllStoreCredits(headers);
+      return merged;
+    },
+    [brand]
+  );
 
   const onRowsChange = useCallback((rows) => {
     const totalCredit = rows.reduce((s, o) => s + (parseFloat(o.storeCredit) || 0), 0);
@@ -350,6 +355,13 @@ export default function StoreCredits() {
       }
     },
   });
+
+  // Refetch when brand changes
+  useEffect(() => {
+    if (window.__ordersTableRefs?.storeCredits?.refetch) {
+      window.__ordersTableRefs.storeCredits.refetch();
+    }
+  }, [brand]);
 
   return (
     <>

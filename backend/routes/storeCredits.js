@@ -1,23 +1,23 @@
 import express from "express";
-import Order from '../models/Order.js';
-import { requireAuth, allow } from '../middleware/auth.js';
+import { getOrderModelForBrand } from "../models/Order.js";
+import { requireAuth, allow } from "../middleware/auth.js";
 
 const router = express.Router();
 
-router.get('/', requireAuth, allow('Admin', 'Sales', 'Support'), async (req, res) => {
+// GET /api/orders/storeCredits  (brand-aware)
+router.get("/", requireAuth, allow("Admin", "Sales", "Support"), async (req, res) => {
   try {
-    console.log("store credits");
+    const Order = getOrderModelForBrand(req.brand); // 50STARS / PROLANE
+
     const orders = await Order.find({
-      "additionalInfo.storeCredit": { $exists: true, $gt: 0 }
+      "additionalInfo.storeCredit": { $exists: true, $gt: 0 },
     });
 
     res.json(orders);
   } catch (error) {
     console.error("Error fetching store credits:", error);
-    res.status(500).json({ message: "Server error", error });
+    res.status(500).json({ message: "Server error", error: error?.message || String(error) });
   }
 });
-
-
 
 export default router;

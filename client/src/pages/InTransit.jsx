@@ -1,7 +1,8 @@
 // /src/pages/InTransitOrders.jsx
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import OrdersTable from "../components/OrdersTable";
 import useOrdersRealtime from "../hooks/useOrdersRealtime";
+import useBrand from "../hooks/useBrand";
 
 /* ---------- Columns (order matters) ---------- */
 const columns = [
@@ -64,6 +65,7 @@ function computeYardDerived(yard) {
 export default function InTransitOrders() {
   // one toggle per row; used by yard details + part/customer blocks
   const [expandedIds, setExpandedIds] = useState(() => new Set());
+  const brand = useBrand(); // 50STARS / PROLANE
   const toggleExpand = useCallback((row) => {
     const id = row._id || row.orderNo || `${row.orderDate || ""}-${Math.random()}`;
     setExpandedIds(prev => {
@@ -202,6 +204,13 @@ export default function InTransitOrders() {
       }
     },
   });
+
+  // When brand changes, force the table to refetch with the new brand
+  useEffect(() => {
+    if (window.__ordersTableRefs?.inTransit?.refetch) {
+      window.__ordersTableRefs.inTransit.refetch();
+    }
+  }, [brand]);
 
   return (
     <div className="in-transit-table-wrapper">

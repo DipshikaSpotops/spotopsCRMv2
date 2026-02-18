@@ -5,6 +5,7 @@ import { useDispatch } from "react-redux";
 import { logout as logoutAction } from "../store/authSlice";
 import { clearStoredAuth } from "../utils/authStorage";
 import API from "../api";
+import { getCurrentBrand, setCurrentBrand } from "../utils/brand";
 
 export default function Navbar() {
   const navigate = useNavigate();
@@ -14,6 +15,7 @@ export default function Navbar() {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [searchLoading, setSearchLoading] = useState(false);
+  const [brand, setBrand] = useState(() => getCurrentBrand());
   const dropdownRef = useRef(null);
 
   // --- Single read path for user name ---
@@ -57,6 +59,12 @@ export default function Navbar() {
     document.documentElement.classList.toggle("dark", newMode);
   };
 
+  const handleBrandChange = (nextBrand) => {
+    const normalized = (nextBrand || "50STARS").toUpperCase();
+    setBrand(normalized);
+    setCurrentBrand(normalized); // will also dispatch global brand-changed event
+  };
+
   // --- Single logout that clears ALL possible keys + Redux ---
   const handleLogout = () => {
     try {
@@ -78,8 +86,8 @@ export default function Navbar() {
         }`}
     >
       <div className="flex items-center justify-between">
-        {/* Left: Logo */}
-        <div className="flex items-center space-x-2">
+        {/* Left: Logo + Brand switcher */}
+        <div className="flex items-center space-x-4">
           <img
             id="logoImg"
             src="https://assets-autoparts.s3.ap-south-1.amazonaws.com/images/darkLogo.png"
@@ -92,6 +100,31 @@ export default function Navbar() {
               if (e.key === "Enter" || e.key === " ") navigate("/dashboard");
             }}
           />
+          {/* Brand toggle: 50STARS / PROLANE */}
+          <div className="flex items-center gap-1 rounded-full bg-black/10 px-1 py-0.5 text-xs sm:text-sm">
+            <button
+              type="button"
+              onClick={() => handleBrandChange("50STARS")}
+              className={`px-2 py-1 rounded-full font-semibold transition ${
+                brand === "50STARS"
+                  ? "bg-white text-[#04356d] shadow-sm"
+                  : "bg-transparent text-white/80 hover:bg-white/10"
+              }`}
+            >
+              50STARS
+            </button>
+            <button
+              type="button"
+              onClick={() => handleBrandChange("PROLANE")}
+              className={`px-2 py-1 rounded-full font-semibold transition ${
+                brand === "PROLANE"
+                  ? "bg-white text-[#04356d] shadow-sm"
+                  : "bg-transparent text-white/80 hover:bg-white/10"
+              }`}
+            >
+              PROLANE
+            </button>
+          </div>
         </div>
 
         {/* Right: Search + Dark Mode Toggle + User */}

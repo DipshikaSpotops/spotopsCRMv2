@@ -2,7 +2,7 @@
 import express from "express";
 import moment from "moment-timezone";
 import jwt from "jsonwebtoken";
-import Order from "../models/Order.js";
+import { getOrderModelForBrand } from "../models/Order.js";
 import User from "../models/User.js";
 import { requireAuth } from "../middleware/auth.js";
 import { getDateRange } from "../utils/dateRange.js";
@@ -46,6 +46,9 @@ const broadcastOrder = (req, order) => {
     console.warn("[ws] broadcastOrder failed", e);
   }
 };
+
+// Helper to get the correct Order model for this request
+const getOrderModel = (req) => getOrderModelForBrand(req.brand);
 const coerceDate = (value) => {
   if (value === null || value === undefined || value === "") return null;
   
@@ -276,6 +279,7 @@ router.get("/yearly", async (req, res) => {
     const start = new Date(Date.UTC(y, 0, 1));
     const end   = new Date(Date.UTC(y, 11, 31, 23, 59, 59, 999));
 
+    const Order = getOrderModel(req);
     const results = await Order.aggregate([
       { $match: { orderDate: { $gte: start, $lte: end } } },
       { $group: { _id: { $month: "$orderDate" }, totalActualGP: { $sum: { $toDouble: "$actualGP" } } } },
@@ -309,6 +313,8 @@ router.get("/dashboard", async (req, res) => {
     todayEnd.setUTCHours(23, 59, 59, 999);
 
     // Monthly breakdown (group by day + status)
+    const Order = getOrderModel(req);
+
     const monthlyData = await Order.aggregate([
       { $match: { orderDate: { $gte: startDate, $lt: endDate } } },
       {
@@ -394,6 +400,7 @@ router.get("/cancelled-by-date", async (req, res) => {
     const { start, end, month, year } = req.query;
     const { startDate, endDate } = getDateRange({ start, end, month, year });
 
+    const Order = getOrderModel(req);
     const orders = await Order.find({
       cancelledDate: { $gte: startDate, $lt: endDate },
     });
@@ -414,6 +421,7 @@ router.get("/reimbursed-by-date", async (req, res) => {
     // Find orders with:
     // 1. New order-level reimbursement (reimbursementDate)
     // 2. Old per-yard reimbursement (additionalInfo[].reimbursedDate)
+    const Order = getOrderModel(req);
     const orders = await Order.find({
       $or: [
         { reimbursementDate: { $gte: startDate, $lt: endDate } },
@@ -434,6 +442,7 @@ router.get("/refunded-by-date", async (req, res) => {
     const { start, end, month, year } = req.query;
     const { startDate, endDate } = getDateRange({ start, end, month, year });
 
+    const Order = getOrderModel(req);
     const orders = await Order.find({
       custRefundDate: { $gte: startDate, $lt: endDate },
     });
@@ -452,6 +461,7 @@ router.get("/card-charged", async (req, res) => {
     const { startDate, endDate } = getDateRange({ start, end, month, year });
 
     // Find all orders with card charged yards
+    const Order = getOrderModel(req);
     const orders = await Order.find({
       "additionalInfo.paymentStatus": "Card charged",
       orderDate: { $gte: startDate, $lt: endDate },
@@ -536,12 +546,13 @@ router.get("/card-charged", async (req, res) => {
   }
 });
 
-// Disputes-by-date
+// Disputes-by-date (brand-aware)
 router.get("/disputes-by-date", async (req, res) => {
   try {
     const { start, end, month, year } = req.query;
     const { startDate, endDate } = getDateRange({ start, end, month, year });
 
+    const Order = getOrderModel(req);
     const orders = await Order.find({
       disputedDate: { $gte: startDate, $lt: endDate },
     });
@@ -563,6 +574,9 @@ router.post("/orders", async (req, res) => {
   const formattedDateTime = central.format("D MMM, YYYY HH:mm");
 
   try {
+    // Get brand-specific Order model
+    const Order = getOrderModel(req);
+    
     // Determine orderStatus based on chargedAmount vs soldP if not explicitly provided
     let orderStatus = req.body.orderStatus;
     if (req.body.chargedAmount !== undefined && req.body.soldP !== undefined) {
@@ -644,9 +658,21 @@ router.get("/statistics", requireAuth, async (req, res) => {
           },
         };
       }
+    } else {
+      // Default to current month if no date parameters provided
+      const now = moment.tz(TZ);
+      const startDateMoment = now.clone().startOf("month");
+      const endExclusiveMoment = startDateMoment.clone().add(1, "month");
+      dateQuery = {
+        orderDate: {
+          $gte: startDateMoment.toDate(),
+          $lt: endExclusiveMoment.toDate(),
+        },
+      };
     }
 
-    // Fetch orders with date filter
+    // Fetch orders with date filter (brand-aware)
+    const Order = getOrderModel(req);
     const orders = await Order.find(dateQuery).lean();
 
     // Helper to extract state from sAddress or use sAddressState
@@ -774,9 +800,21 @@ router.get("/makeStatistics", requireAuth, async (req, res) => {
           },
         };
       }
+    } else {
+      // Default to current month if no date parameters provided
+      const now = moment.tz(TZ);
+      const startDateMoment = now.clone().startOf("month");
+      const endExclusiveMoment = startDateMoment.clone().add(1, "month");
+      dateQuery = {
+        orderDate: {
+          $gte: startDateMoment.toDate(),
+          $lt: endExclusiveMoment.toDate(),
+        },
+      };
     }
 
-    // Fetch orders with date filter
+    // Fetch orders with date filter (brand-aware)
+    const Order = getOrderModel(req);
     const orders = await Order.find(dateQuery).lean();
 
     // Helper to extract state from sAddress or use sAddressState
@@ -936,6 +974,7 @@ router.put("/:orderNo", async (req, res) => {
     const orderNoParam = decodeURIComponent(req.params.orderNo).trim();
     
     // Try exact match first (most common case)
+    const Order = getOrderModel(req);
     let order = await Order.findOne({ orderNo: orderNoParam });
     
     // If not found, try case-insensitive search as fallback
@@ -993,6 +1032,7 @@ router.get("/:orderNo", async (req, res) => {
     const orderNoParam = decodeURIComponent(req.params.orderNo).trim();
     
     // Try exact match first (most common case)
+    const Order = getOrderModel(req);
     let order = await Order.findOne({ orderNo: orderNoParam });
     
     // If not found, try case-insensitive search as fallback
@@ -1033,6 +1073,7 @@ router.put("/:orderNo/custRefund", async (req, res) => {
       return res.status(400).json({ message: "firstName is required" });
     }
 
+    const Order = getOrderModel(req);
     const order = await Order.findOne({ orderNo });
     if (!order) return res.status(404).json({ message: "Order not found" });
 
@@ -1176,6 +1217,7 @@ router.post("/:orderNo/additionalInfo", async (req, res) => {
       ].filter(Boolean).join(" | ");
     }
 
+    const Order = getOrderModel(req);
     const order = await Order.findOne({ orderNo });
     if (!order) return res.status(404).json({ message: "Order not found" });
 
@@ -1263,6 +1305,7 @@ router.put(
     const when = getWhen();     
     const isoNow = getWhen("iso");
 
+    const Order = getOrderModel(req);
     const order = await Order.findOne({ orderNo });
     if (!order) return res.status(404).json({ message: "Order not found" });
     if (!order.additionalInfo?.[idx0])
@@ -1678,6 +1721,7 @@ router.put("/:orderNo/cancelShipment", async (req, res) => {
     const when = getWhen();       // formatted date for display
     const isoNow = getWhen("iso");
 
+    const Order = getOrderModel(req);
     const order = await Order.findOne({ orderNo });
     if (!order) return res.status(404).json({ message: "Order not found" });
     if (!order.additionalInfo?.[idx0]) {
@@ -1765,12 +1809,14 @@ router.patch("/:orderNo/additionalInfo/:index", async (req, res) => {
   eta: "ETA",
   address: "Address",
   shippingDetails: "Shipping Details",
-};
+  };
   try {
     const { orderNo, index } = req.params;
     const { firstName } = req.query;
     const updates = req.body;
 
+    // Get brand-aware Order model
+    const Order = getOrderModel(req);
     const order = await Order.findOne({ orderNo });
     if (!order) return res.status(404).json({ message: "Order not found" });
 
@@ -1992,6 +2038,7 @@ router.patch("/:orderNo/additionalInfo/:index", async (req, res) => {
       }
     }
     await order.save();
+    // Use the same brand-aware Order model (already defined above)
     const updatedOrder = await Order.findOne({ orderNo }).lean();
     publish(req, orderNo, {
       type: "YARD_UPDATED",
@@ -2026,6 +2073,7 @@ router.patch("/:orderNo/additionalInfo/:yardIndex/paymentStatus", async (req, re
       return res.status(400).json({ message: "firstName is required" });
     }
     const when = getWhen();
+    const Order = getOrderModel(req);
     const order = await Order.findOne({ orderNo });
     if (!order) return res.status(404).json({ message: "Order not found" });
 
@@ -2101,6 +2149,7 @@ router.patch("/:orderNo/additionalInfo/:yardIndex/refundStatus", async (req, res
       return res.status(400).json({ message: "firstName is required" });
     }
     const when = getWhen();
+    const Order = getOrderModel(req);
     const order = await Order.findOne({ orderNo });
     if (!order) return res.status(404).json({ message: "Order not found" });
     if (!order.additionalInfo?.[idx0]) {
@@ -2177,6 +2226,7 @@ router.put("/:orderNo/reimbursement", async (req, res) => {
       dateValue = parsed;
     }
 
+    const Order = getOrderModel(req);
     const order = await Order.findOneAndUpdate(
       { orderNo: String(orderNo) },
       {
@@ -2228,6 +2278,7 @@ router.put('/:orderNo/updateActualGP', async (req, res) => {
   console.log("Updating actualGP:", nextGP, "for order:", orderNo);
 
   try {
+    const Order = getOrderModel(req);
     const order = await Order.findOne({ orderNo: String(orderNo) });
 
     if (!order) {
@@ -2277,6 +2328,7 @@ router.patch('/:orderNo/supportNotes', async (req, res) => {
   const supportNote = `${author}, ${when} : ${note}`;
 
   try {
+    const Order = getOrderModel(req);
     const order = await Order.findOne({ orderNo });
     if (!order) return res.status(404).json({ message: 'Order not found.' });
 
@@ -2304,6 +2356,7 @@ router.patch("/:orderNo/additionalInfo/:index/notes", async (req, res) => {
       return res.status(400).json({ message: "Missing note, author, or timestamp." });
     }
 
+    const Order = getOrderModel(req);
     const order = await Order.findOne({ orderNo });
     console.log("Found order:", order ? "Yes" : "No");
     if (!order) {
@@ -2348,6 +2401,7 @@ router.put("/:orderNo/cancelOnly", async (req, res) => {
       return res.status(400).json({ message: "firstName is required" });
     }
 
+    const Order = getOrderModel(req);
     const order = await Order.findOne({ orderNo });
     if (!order) return res.status(404).json({ message: "Order not found" });
 
@@ -2388,6 +2442,7 @@ router.put('/:orderNo/dispute', async (req, res) => {
   }
 
   try {
+    const Order = getOrderModel(req);
     const order = await Order.findOne({ orderNo });
     if (!order) return res.status(404).json({ message: "Order not found" });
 
@@ -2426,6 +2481,7 @@ router.put("/:orderNo/refundOnly", async (req, res) => {
       return res.status(400).json({ message: "firstName is required" });
     }
 
+    const Order = getOrderModel(req);
     const order = await Order.findOne({ orderNo });
     if (!order) return res.status(404).json({ message: "Order not found" });
 
@@ -2459,7 +2515,7 @@ router.put("/:orderNo/refundOnly", async (req, res) => {
   }
 });
 
-/* PATCH /orders/:orderNo/storeCredits - Use store credit */
+/* PATCH /orders/:orderNo/storeCredits - Use store credit (brand-aware) */
 router.patch("/:orderNo/storeCredits", async (req, res) => {
   try {
     const { orderNo } = req.params;
@@ -2479,6 +2535,7 @@ router.patch("/:orderNo/storeCredits", async (req, res) => {
       return res.status(400).json({ message: "Invalid amountUsed value" });
     }
 
+    const Order = getOrderModel(req);
     const order = await Order.findOne({ orderNo });
     if (!order) {
       return res.status(404).json({ message: "Order not found" });

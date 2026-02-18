@@ -2,14 +2,101 @@
 import express from "express";
 import { formatInTimeZone } from "date-fns-tz";
 
-
 import puppeteer from "puppeteer";
-import Order from "../models/Order.js";
+import { getOrderModelForBrand } from "../models/Order.js";
 import nodemailer from "nodemailer";
 import moment from "moment-timezone";
 import multer from "multer";
 import dotenv from "dotenv";
 dotenv.config();
+
+// --- Brand-aware email config helpers (50STARS / PROLANE) ---
+const DEFAULT_LOGO_URL =
+  "https://assets-autoparts.s3.ap-south-1.amazonaws.com/images/logo.png";
+
+function getBrand(req) {
+  return (req.brand === "PROLANE" ? "PROLANE" : "50STARS");
+}
+
+// Helper to get brand-aware Order model
+function getOrderModel(req) {
+  const brand = getBrand(req);
+  return getOrderModelForBrand(brand);
+}
+
+function pickEnv(baseKey, brand) {
+  if (!baseKey) return "";
+  const base = String(baseKey).trim();
+  if (!base) return "";
+
+  if (brand === "PROLANE") {
+    const brandKey = `${base}_PROLANE`;
+    if (process.env[brandKey]) return process.env[brandKey];
+  }
+  return process.env[base] || "";
+}
+
+function getEmailBrandConfig(req) {
+  const brand = getBrand(req);
+
+  const serviceEmail = pickEnv("SERVICE_EMAIL", brand);
+  const servicePass = pickEnv("SERVICE_PASS", brand);
+  const supportBcc = pickEnv("SUPPORT_BCC", brand);
+
+  // Logo: allow a dedicated PROLANE_LOGO env var to override LOGO_URL_PROLANE
+  let logoUrl = pickEnv("LOGO_URL", brand) || DEFAULT_LOGO_URL;
+  if (brand === "PROLANE" && process.env.PROLANE_LOGO) {
+    logoUrl = process.env.PROLANE_LOGO;
+  }
+
+  const purchaseEmail = pickEnv("PURCHASE_EMAIL", brand);
+  const purchasePass = pickEnv("PURCHASE_PASS", brand);
+
+  // Brand-specific display details
+  const companyName =
+    brand === "PROLANE" ? "American Auto Supply" : "50 STARS AUTO PARTS";
+
+  const websiteUrl =
+    brand === "PROLANE"
+      ? "www.prolaneautoparts.com"
+      : "www.50starsautoparts.com";
+
+  // Phone: 50STARS uses fixed number, PROLANE comes from PROLANE_SERVICE_NO (fallback to same)
+  let phoneNumber = "+1 (866) 207-5533";
+  if (brand === "PROLANE" && process.env.PROLANE_SERVICE_NO) {
+    phoneNumber = process.env.PROLANE_SERVICE_NO;
+  }
+
+  // Display name for purchase-side emails (yard refund, PO, etc.)
+  const purchaseDisplayName =
+    brand === "PROLANE" ? "American Auto Supply" : "Auto Parts Group Corp";
+
+  const serviceEmailAddress =
+    brand === "PROLANE"
+      ? "service@prolaneautoparts.com"
+      : "service@50starsautoparts.com";
+
+  const purchaseEmailAddress =
+    brand === "PROLANE"
+      ? "purchase@prolaneautoparts.com"
+      : "purchase@auto-partsgroup.com";
+
+  return {
+    brand,
+    serviceEmail,
+    servicePass,
+    supportBcc,
+    logoUrl,
+    purchaseEmail,
+    purchasePass,
+    companyName,
+    websiteUrl,
+    phoneNumber,
+    purchaseDisplayName,
+    serviceEmailAddress,
+    purchaseEmailAddress,
+  };
+}
 
 
 const cardNumber = process.env.CARD_NUMBER || "**** **** **** 7195";
@@ -61,6 +148,7 @@ router.post("/order-cancel/:orderNo", async (req, res) => {
     const firstName = cleanFirstName(req.query.firstName ?? "");
     console.log("[emails] params:", { orderNo, cancelledRefAmount, firstName });
 
+    const Order = getOrderModel(req);
     const order = await Order.findOne({ orderNo });
     if (!order) return res.status(404).json({ message: "Order not found" });
 
@@ -75,18 +163,20 @@ router.post("/order-cancel/:orderNo", async (req, res) => {
     if (!toEmail)
       return res.status(400).json({ message: "No customer email on file" });
 
+    const { serviceEmail, servicePass, supportBcc, logoUrl } = getEmailBrandConfig(req);
+
     const transporter = nodemailer.createTransport({
       service: "gmail",
       auth: {
-        user: process.env.SERVICE_EMAIL,
-        pass: process.env.SERVICE_PASS,
+        user: serviceEmail,
+        pass: servicePass,
       },
     });
 
     await transporter.sendMail({
-      from: `"50 Stars Auto Parts" <${process.env.SERVICE_EMAIL}>`,
+      from: `"50 Stars Auto Parts" <${serviceEmail}>`,
       to: toEmail,
-      bcc: process.env.SUPPORT_BCC,
+      bcc: supportBcc,
       subject: `Order Cancellation | ${order.orderNo}`,
       html: `<div style="font-size:16px;line-height:1.7;">
         <p>I hope this email finds you well. I am writing to inform you about the cancellation of your recent order# <b>${order.orderNo}</b>, dated <b>${formattedDate}</b>, for a <b>${order.year} ${order.make}
@@ -95,17 +185,15 @@ router.post("/order-cancel/:orderNo", async (req, res) => {
         <p><b>We have cancelled your order and will refund you $${cancelledRefAmount}  to the same source account.</b></p>
         <p>Please call us if you have any questions. Rest assured, any payment made for the cancelled order will be promptly refunded to your original payment method. You can expect to see the refund reflected in your account within 3-5 business days.</p>
         <p>We understand the importance of timely and efficient service, and we sincerely apologize for any inconvenience this cancellation may have caused. Our team is working diligently to prevent such occurrences in the future.</p>
-        <p>If you have any questions or require further assistance, please don't hesitate to contact our customer support team at <b>+1(888)-732-8680</b>. We are here to assist you in any way we can. Thank you for your understanding and continued support.</p>
+        <p>If you have any questions or require further assistance, please don't hesitate to contact our customer support team at <b>+1 (866) 207-5533</b>. We are here to assist you in any way we can. Thank you for your understanding and continued support.</p>
         <p><b>Please reply to this email with a quick confirmation to acknowledge and approve this cancellation request.</b></p>
         <p><img src="cid:logo" alt="logo" style="width: 180px; height: 100px;"></p>
-        <p>${firstName || "Team Member"}<br/>Customer Service Team<br/>50 STARS AUTO PARTS<br/>+1 (888) 732-8680<br/>service@50starsautoparts.com<br/>www.50starsautoparts.com</p>
+        <p>${firstName || "Team Member"}<br/>Customer Service Team<br/>50 STARS AUTO PARTS<br/>+1 (866) 207-5533<br/>service@50starsautoparts.com<br/>www.50starsautoparts.com</p>
       </div>`,
       attachments: [
         {
           filename: "logo.png",
-          path:
-            process.env.LOGO_URL ||
-            "https://assets-autoparts.s3.ap-south-1.amazonaws.com/images/logo.png",
+          path: logoUrl,
           cid: "logo",
         },
       ],
@@ -127,6 +215,7 @@ router.post("/sendReimburseEmail/:orderNo", upload.single("attachment"), async (
     const reimburesementValue = req.query.reimburesementValue ?? "0";
     const firstName = cleanFirstName(req.query.firstName ?? "");
 
+    const Order = getOrderModel(req);
     const order = await Order.findOne({ orderNo });
     if (!order) return res.status(404).json({ message: "Order not found" });
 
@@ -141,17 +230,15 @@ router.post("/sendReimburseEmail/:orderNo", upload.single("attachment"), async (
     if (!toEmail)
       return res.status(400).json({ message: "No customer email on file" });
 
+    const { serviceEmail, servicePass, supportBcc, logoUrl } = getEmailBrandConfig(req);
+
     const transporter = nodemailer.createTransport({
       service: "gmail",
       auth: {
-        user: process.env.SERVICE_EMAIL,
-        pass: process.env.SERVICE_PASS,
+        user: serviceEmail,
+        pass: servicePass,
       },
     });
-
-    const logoUrl =
-      process.env.LOGO_URL ||
-      "https://assets-autoparts.s3.ap-south-1.amazonaws.com/images/logo.png";
 
     // Base attachments (always include logo)
     const attachments = [
@@ -183,10 +270,10 @@ router.post("/sendReimburseEmail/:orderNo", upload.single("attachment"), async (
     }
 
     await transporter.sendMail({
-      from: `"50 Stars Auto Parts" <${process.env.SERVICE_EMAIL}>`,
+      from: `"50 Stars Auto Parts" <${serviceEmail}>`,
       to: toEmail,
       bcc:
-        process.env.SUPPORT_BCC ||
+        supportBcc ||
         "service@50starsautoparts.com,dipsikha.spotopsdigital@gmail.com",
       subject: `Goodwill Reimbursement Confirmation || Order No. ${orderNo}`,
       html: `<div style="font-size:16px;line-height:1.7;">
@@ -224,17 +311,20 @@ router.post("/orders/sendRefundConfirmation/:orderNo", upload.single("pdfFile"),
       return res.status(400).json({ message: "Refunded amount is missing." });
     }
 
+    const Order = getOrderModel(req);
     const order = await Order.findOne({ orderNo });
     if (!order) return res.status(404).json({ message: "Order not found" });
 
     const pdfFile = req.file;
     if (!pdfFile) return res.status(400).json({ message: "No PDF file uploaded" });
 
+    const { serviceEmail, servicePass, supportBcc, logoUrl } = getEmailBrandConfig(req);
+
     const transporter = nodemailer.createTransport({
       service: "gmail",
       auth: {
-        user: process.env.SERVICE_EMAIL,
-        pass: process.env.SERVICE_PASS,
+        user: serviceEmail,
+        pass: servicePass,
       },
     });
 
@@ -243,10 +333,6 @@ router.post("/orders/sendRefundConfirmation/:orderNo", upload.single("pdfFile"),
       [order.fName, order.lName].filter(Boolean).join(" ") ||
       "Customer"
     );
-
-    const logoUrl =
-      process.env.LOGO_URL ||
-      "https://assets-autoparts.s3.ap-south-1.amazonaws.com/images/logo.png";
 
     const toEmail = (order.email || "").trim();
     if (!toEmail)
@@ -264,10 +350,10 @@ router.post("/orders/sendRefundConfirmation/:orderNo", upload.single("pdfFile"),
       </div>`;
 
     const mailOptions = {
-      from: `"50 Stars Auto Parts" <${process.env.SERVICE_EMAIL}>`,
+      from: `"50 Stars Auto Parts" <${serviceEmail}>`,
       to: toEmail,
       replyTo: process.env.SERVICE_EMAIL,
-      bcc: process.env.SUPPORT_BCC || "service@50starsautoparts.com,dipsikha.spotopsdigital@gmail.com",
+      bcc: supportBcc || "service@50starsautoparts.com,dipsikha.spotopsdigital@gmail.com",
       subject: `Refund Processed for Your Order ${orderNo} | 50 Stars Auto Parts`,
       html: htmlContent,
       // Minimal headers to avoid spam triggers
@@ -313,6 +399,7 @@ router.post("/customer-delivered/:orderNo", async (req, res) => {
       return res.status(400).json({ message: "yardIndex (1-based) is required" });
     }
 
+    const Order = getOrderModel(req);
     const order = await Order.findOne({ orderNo });
     if (!order) return res.status(404).json({ message: "Order not found" });
 
@@ -334,29 +421,24 @@ router.post("/customer-delivered/:orderNo", async (req, res) => {
     const toEmail = (order.email || "").trim();
     if (!toEmail) return res.status(400).json({ message: "No customer email on file" });
 
+    const { serviceEmail, servicePass, supportBcc, logoUrl, companyName, phoneNumber, serviceEmailAddress, websiteUrl } = getEmailBrandConfig(req);
+
     // Create transporter from env (same style as your other routes)
     const transporter = nodemailer.createTransport({
-  service: "gmail",
-  auth: {
-    user: process.env.SERVICE_EMAIL, 
-    pass: process.env.SERVICE_PASS,  
-  },
-});
+      service: "gmail",
+      auth: {
+        user: serviceEmail, 
+        pass: servicePass,  
+      },
+    });
 
-
-    const fromEmail = process.env.SERVICE_EMAIL || process.env.SMTP_USER || "service@50starsautoparts.com";
-    const bccList =
-      process.env.SUPPORT_BCC ||
-      "service@50starsautoparts.com,dipsikha.spotopsdigital@gmail.com";
-
-    const logoUrl =
-      process.env.LOGO_URL ||
-      "https://assets-autoparts.s3.ap-south-1.amazonaws.com/images/logo.png";
+    const fromEmail = serviceEmail || process.env.SMTP_USER || serviceEmailAddress;
+    const bccList = supportBcc || `${serviceEmailAddress},dipsikha.spotopsdigital@gmail.com`;
 
     const htmlContent = `<div style="font-size:16px;line-height:1.7;">
         <p>Hi ${customerName},</p>
         <p>We're excited to let you know that your order has been successfully delivered today!</p>
-        <p>Thank you so much for choosing 50 Stars Auto Parts. We truly appreciate your trust in us and are grateful for the opportunity to serve you.</p>
+        <p>Thank you so much for choosing ${companyName}. We truly appreciate your trust in us and are grateful for the opportunity to serve you.</p>
         <p>Here's a quick summary of your order:<br>
           <strong>Order Number:</strong> ${orderNo}<br>
           <strong>Tracking No:</strong> ${cxTrackingNo || "—"}<br>
@@ -364,11 +446,11 @@ router.post("/customer-delivered/:orderNo", async (req, res) => {
         <p>If there's anything you need, or if you have any questions about your order, feel free to reach out — we're always happy to help.</p>
         <p>Thanks once again for shopping with us. We look forward to helping you with your auto parts needs in the future!</p>
         <p><img src="cid:logo" alt="logo" style="width: 180px; height: 100px;"></p>
-        <p>${firstName}<br/>Customer Service Team<br/>50 STARS AUTO PARTS<br/>+1 (888) 732-8680<br/>service@50starsautoparts.com<br/>www.50starsautoparts.com</p>
+        <p>${firstName}<br/>Customer Service Team<br/>${companyName}<br/>${phoneNumber}<br/>${serviceEmailAddress}<br/><a href="https://${websiteUrl}">${websiteUrl}</a></p>
       </div>`;
 
     await transporter.sendMail({
-      from: `"50 Stars Auto Parts" <${fromEmail}>`,
+      from: `"${companyName}" <${fromEmail}>`,
       to: toEmail,
       replyTo: fromEmail,
       bcc: bccList,
@@ -376,7 +458,7 @@ router.post("/customer-delivered/:orderNo", async (req, res) => {
       html: htmlContent,
       // Minimal headers to avoid spam triggers
       headers: {
-        "X-Mailer": "50 Stars Auto Parts CRM",
+        "X-Mailer": `${companyName} CRM`,
       },
       attachments: [
         { filename: "logo.png", path: logoUrl, cid: "logo" }
@@ -417,6 +499,7 @@ const cleanCustomerName = (name) => {
 router.post("/orders/sendTrackingInfo/:orderNo", async (req, res) => {
   console.log("[emails] sendTrackingInfo hit");
   try {
+    const Order = getOrderModel(req);
     const order = await Order.findOne({ orderNo: req.params.orderNo });
     if (!order) return res.status(400).send("Order not found");
 
@@ -424,17 +507,19 @@ router.post("/orders/sendTrackingInfo/:orderNo", async (req, res) => {
     const firstName = cleanFirstName(rawFirstName);
     const customerName = cleanCustomerName(order.customerName || order.fName || "Customer");
 
+    const { serviceEmail, servicePass, supportBcc, logoUrl, companyName, phoneNumber, serviceEmailAddress, websiteUrl } = getEmailBrandConfig(req);
+
     const transporter = nodemailer.createTransport({
       service: "gmail",
       auth: {
-        user: process.env.SERVICE_EMAIL,
-        pass: process.env.SERVICE_PASS,
+        user: serviceEmail,
+        pass: servicePass,
       },
     });
 
     const textLines = [
       `Hi ${customerName},`,
-      "Your order with 50 Stars Auto Parts has been shipped.",
+      `Your order with ${companyName} has been shipped.`,
     ];
     if (shipperName && trackingNo) {
       textLines.push(`Tracking: ${shipperName} - ${trackingNo}`);
@@ -450,13 +535,13 @@ router.post("/orders/sendTrackingInfo/:orderNo", async (req, res) => {
       textLines.push(`Link: ${link}`);
     }
     textLines.push(
-      "If you have any questions, contact us at +1 (888) 732-8680 or service@50starsautoparts.com."
+      `If you have any questions, contact us at ${phoneNumber} or ${serviceEmailAddress}.`
     );
     const textBody = textLines.join("\n");
 
     const htmlSections = [
       `<p>Hi ${customerName},</p>`,
-      `<p>This email is regarding the order you placed with <strong>50 Stars Auto Parts</strong>. Below are your tracking details:</p>`,
+      `<p>This email is regarding the order you placed with <strong>${companyName}</strong>. Below are your tracking details:</p>`,
     ];
     if (shipperName && trackingNo) {
       htmlSections.push(`<p><strong>${shipperName}</strong> – ${trackingNo}</p>`);
@@ -474,22 +559,22 @@ router.post("/orders/sendTrackingInfo/:orderNo", async (req, res) => {
       );
     }
     htmlSections.push(
-      "<p>Please note: If the ETA is not updated yet, it may take up to 24 hours to appear on the carrier’s site.</p>"
+      "<p>Please note: If the ETA is not updated yet, it may take up to 24 hours to appear on the carrier's site.</p>"
     );
     htmlSections.push("<p>Feel free to call us if you have any questions.</p>");
     htmlSections.push(
       `<p><img src="cid:logo" alt="logo" style="width: 180px; height: 100px;"></p>`
     );
     htmlSections.push(
-      `<p>${firstName}<br/>Customer Service Team<br/>50 STARS AUTO PARTS<br/>+1 (888) 732-8680<br/>service@50starsautoparts.com<br/><a href="https://www.50starsautoparts.com">www.50starsautoparts.com</a></p>`
+      `<p>${firstName}<br/>Customer Service Team<br/>${companyName}<br/>${phoneNumber}<br/>${serviceEmailAddress}<br/><a href="https://${websiteUrl}">${websiteUrl}</a></p>`
     );
     const htmlBody = `<div style="font-size:16px;line-height:1.7;">${htmlSections.join("\n")}</div>`;
 
     const mailOptions = {
-      from: `"50 Stars Auto Parts" <${process.env.SERVICE_EMAIL}>`,
+      from: `"${companyName}" <${serviceEmail}>`,
       to: order.email,
-      replyTo: process.env.SERVICE_EMAIL,
-      bcc: "dipsikha.spotopsdigital@gmail.com",
+      replyTo: serviceEmail,
+      bcc: supportBcc || "dipsikha.spotopsdigital@gmail.com",
       subject: `Tracking Details / Order No. ${req.params.orderNo}`,
 
       // Add plain-text version (boosts deliverability)
@@ -499,13 +584,13 @@ router.post("/orders/sendTrackingInfo/:orderNo", async (req, res) => {
       html: htmlBody,
       // Minimal headers to avoid spam triggers
       headers: {
-        "X-Mailer": "50 Stars Auto Parts CRM",
+        "X-Mailer": `${companyName} CRM`,
       },
 
       attachments: [
         {
           filename: "logo.png",
-          path: "https://assets-autoparts.s3.ap-south-1.amazonaws.com/images/logo.png",
+          path: logoUrl,
           cid: "logo",
         },
       ],
@@ -551,6 +636,7 @@ router.post("/orders/sendRefundEmail/:orderNo", upload.single("pdfFile"), async 
     const firstName = cleanFirstName(rawFirstName);
 
 
+    const Order = getOrderModel(req);
     const order = await Order.findOne({ orderNo });
     if (!order) return res.status(404).json({ message: "Order not found" });
 
@@ -561,8 +647,7 @@ router.post("/orders/sendRefundEmail/:orderNo", upload.single("pdfFile"), async 
     const pdfFile = req.file;
     if (!pdfFile) return res.status(400).send("No PDF file uploaded");
 
-    const purchaseEmail = process.env.PURCHASE_EMAIL?.trim();
-    const purchasePass = process.env.PURCHASE_PASS?.trim();
+    const { purchaseEmail, purchasePass, logoUrl } = getEmailBrandConfig(req);
 
     if (!purchaseEmail || !purchasePass) {
       console.error("[emails] PURCHASE_EMAIL or PURCHASE_PASS not set in environment");
@@ -596,15 +681,20 @@ router.post("/orders/sendRefundEmail/:orderNo", upload.single("pdfFile"), async 
 
     const stockNo = yard.stockNo || "N/A";
     const yardEmail = yard.email || "";
-    const logoUrl =
-      process.env.LOGO_URL ||
-      "https://assets-autoparts.s3.ap-south-1.amazonaws.com/images/logo.png";
 
     if (!yardEmail) {
       return res.status(400).json({ message: "No yard email found for this yard entry" });
     }
 
-    const fromAddress = `"Auto Parts Group Corp" <${purchaseEmail}>`;
+    const {
+      companyName,
+      websiteUrl,
+      phoneNumber,
+      purchaseDisplayName,
+      purchaseEmailAddress,
+    } = getEmailBrandConfig(req);
+
+    const fromAddress = `"${purchaseDisplayName}" <${purchaseEmail}>`;
     console.log("[emails] Sending refund email from:", fromAddress);
 
     const mailOptions = {
@@ -640,7 +730,7 @@ router.post("/orders/sendRefundEmail/:orderNo", upload.single("pdfFile"), async 
           has been attached below for your reference.
         </p>
         <p><img src="cid:logo" alt="logo" style="width: 180px; height: 100px;"></p>
-        <p>${firstName}<br/>Customer Service Team<br/>50 STARS AUTO PARTS<br/>+1 (866) 207-5533<br/>service@50starsautoparts.com<br/><a href="https://www.50starsautoparts.com">www.50starsautoparts.com</a></p>
+        <p>${firstName}<br/>Customer Service Team<br/>${companyName}<br/>${phoneNumber}<br/>${purchaseEmailAddress}<br/><a href="https://${websiteUrl}">${websiteUrl}</a></p>
       </div>`,
       attachments: [
         {
@@ -679,6 +769,7 @@ router.post("/orders/po-cancelled/:orderNo", async (req, res) => {
     let { firstName: rawFirstName, yardIndex } = req.query;
     const firstName = cleanFirstName(rawFirstName);
 
+    const Order = getOrderModel(req);
     const order = await Order.findOne({ orderNo });
     if (!order) return res.status(404).json({ message: "Order not found" });
 
@@ -693,8 +784,15 @@ router.post("/orders/po-cancelled/:orderNo", async (req, res) => {
         .json({ message: "No yard email found for this yard entry. PO cancelled email not sent." });
     }
 
-    const purchaseEmail = process.env.PURCHASE_EMAIL?.trim();
-    const purchasePass = process.env.PURCHASE_PASS?.trim();
+    const {
+      brand,
+      purchaseEmail,
+      purchasePass,
+      logoUrl,
+      companyName,
+      websiteUrl,
+      purchaseEmailAddress,
+    } = getEmailBrandConfig(req);
 
     if (!purchaseEmail || !purchasePass) {
       console.error("[emails] PURCHASE_EMAIL or PURCHASE_PASS not set in environment");
@@ -713,10 +811,6 @@ router.post("/orders/po-cancelled/:orderNo", async (req, res) => {
     const yardAgent = yard.agentName || yardName;
     const stockNo = yard.stockNo || "N/A";
 
-    const logoUrl =
-      process.env.LOGO_URL ||
-      "https://assets-autoparts.s3.ap-south-1.amazonaws.com/images/logo.png";
-
     const vehicleDesc = [
       order.year,
       order.make,
@@ -726,10 +820,28 @@ router.post("/orders/po-cancelled/:orderNo", async (req, res) => {
       .filter(Boolean)
       .join(" ");
 
+    // Brand-aware signature details
+    let signaturePhone;
+    let signatureEmail = purchaseEmailAddress || purchaseEmail;
+    let signatureWebsite = websiteUrl || "www.50starsautoparts.com";
+
+    if (brand === "PROLANE") {
+      // Prefer dedicated PROLANE_PURCHASE_NO, fallback to service, then default
+      signaturePhone =
+        process.env.PROLANE_PURCHASE_NO ||
+        process.env.PROLANE_SERVICE_NO ||
+        "+1 (866) 207-5533";
+    } else {
+      // 50STARS purchase phone
+      signaturePhone = "+1 (888) 732-8680";
+    }
+
     const mailOptions = {
-      from: `"Auto Parts Group Corp" <${purchaseEmail}>`,
+      from: `"${companyName}" <${purchaseEmail}>`,
       to: yardEmail,
-      bcc: process.env.PURCHASE_BCC || "purchase@auto-partsgroup.com,dipsikha.spotopsdigital@gmail.com",
+      bcc:
+        process.env.PURCHASE_BCC ||
+        "purchase@auto-partsgroup.com,dipsikha.spotopsdigital@gmail.com",
       subject: `PO Cancellation Request | Order ${orderNo} | Stock ${stockNo}`,
       html: `<div style="font-size:16px;line-height:1.7;">
         <p>Hello ${yardAgent},</p>
@@ -751,9 +863,13 @@ router.post("/orders/po-cancelled/:orderNo", async (req, res) => {
         <p><img src="cid:logo" alt="logo" style="width: 180px; height: 100px;"></p>
         <p>Best regards,</p>
         <p>${firstName}<br/>
-           Auto Parts Group Corp
+           ${companyName}
         </p>
-        <p>+1 (866) 207-5533 |purchase@auto-partsgroup.com<br/><a href="https://www.50starsautoparts.com">www.50starsautoparts.com</a></p>
+        <p>${signaturePhone} | ${signatureEmail}<br/><a href="https://${
+          signatureWebsite.startsWith("http")
+            ? signatureWebsite.replace(/^https?:\/\//, "")
+            : signatureWebsite
+        }">${signatureWebsite}</a></p>
         
       </div>`,
       attachments: [

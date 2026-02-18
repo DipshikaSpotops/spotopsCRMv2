@@ -12,6 +12,7 @@ import { formatDate, prettyFilterLabel, buildDefaultFilter } from "../utils/date
 import { buildParams } from "../utils/apiParams";
 import { baseHeadClass, baseCellClass } from "../utils/tableStyles";
 import useOrdersRealtime from "../hooks/useOrdersRealtime";
+import useBrand from "../hooks/useBrand";
 
 const TZ = "America/Chicago";
 const ROWS_PER_PAGE = 25;
@@ -63,6 +64,7 @@ const MonthlyDisputes = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const contentRef = useRef(null);
+  const brand = useBrand(); // 50STARS / PROLANE
 
   const getInitialPage = () => {
     const sp = new URLSearchParams(location.search);
@@ -153,7 +155,7 @@ const MonthlyDisputes = () => {
     if (!activeFilter) return;
     fetchDisputes(activeFilter);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeFilter, appliedQuery, sortBy, sortOrder]);
+  }, [activeFilter, appliedQuery, sortBy, sortOrder, brand]);
 
   // Sorting (client-side as well, to keep behavior consistent if server ignores sort)
   const sortedRows = useMemo(() => {

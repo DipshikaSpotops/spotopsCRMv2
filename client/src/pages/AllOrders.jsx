@@ -5,6 +5,7 @@ import { FaSort, FaSortUp, FaSortDown, FaChevronLeft, FaChevronRight } from "rea
 import { useNavigate, useSearchParams } from "react-router-dom";
 import StickyXScrollbar from "../components/StickyXScrollbar";
 import useOrdersRealtime from "../hooks/useOrdersRealtime";
+import useBrand from "../hooks/useBrand";
 
 const rowsPerPage = 25;
 
@@ -21,6 +22,7 @@ function formatOrderStatus(status) {
 
 const AllOrders = () => {
   const navigate = useNavigate();
+  const brand = useBrand(); // 50STARS / PROLANE
 
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);        // big loader (first 
@@ -117,11 +119,17 @@ const AllOrders = () => {
     }
   };
 
-  // initial load + whenever currentPage or appliedQuery changes
+  // initial load + whenever currentPage, filters, or brand changes
   useEffect(() => {
-    fetchOrders(currentPage, appliedQuery, sortBy, sortOrder, { silent: currentPage !== 1 || !!appliedQuery || !!sortBy });
+    fetchOrders(
+      currentPage,
+      appliedQuery,
+      sortBy,
+      sortOrder,
+      { silent: currentPage !== 1 || !!appliedQuery || !!sortBy }
+    );
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentPage, appliedQuery, sortBy, sortOrder]);
+  }, [currentPage, appliedQuery, sortBy, sortOrder, brand]);
 
   // auto-expand on applied search; collapse when cleared
   useEffect(() => {

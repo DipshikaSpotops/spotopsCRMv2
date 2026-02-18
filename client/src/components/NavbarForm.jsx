@@ -3,9 +3,11 @@ import "@fortawesome/fontawesome-free/css/all.min.css";
 import { useNavigate } from "react-router-dom";
 import { clearStoredAuth } from "../utils/authStorage";
 import API from "../api";
+import useBrand from "../hooks/useBrand";
 
 export default function NavbarForm() {
   const navigate = useNavigate();
+  const brand = useBrand(); // 50STARS / PROLANE
   const [userName, setUserName] = useState("");
   const [dropdownOpen, setDropdownOpen] = useState(null);
   const [isDarkMode, setIsDarkMode] = useState(false);
@@ -93,22 +95,31 @@ export default function NavbarForm() {
         }`}
     >
       <div className="flex flex-wrap items-center justify-between">
-        {/* Logo */}
-        <button
-          type="button"
-          className="flex items-center bg-transparent border-0 p-0"
-          onClick={() => navigate("/dashboard")}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" || e.key === " ") navigate("/dashboard");
-          }}
-        >
-          <img
-            id="logoImg"
-            src="https://assets-autoparts.s3.ap-south-1.amazonaws.com/images/darkLogo.png"
-            alt="Logo"
-            className="h-9 w-auto cursor-pointer"
-          />
-        </button>
+        {/* Logo + Brand */}
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            className="flex items-center bg-transparent border-0 p-0"
+            onClick={() => navigate("/dashboard")}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") navigate("/dashboard");
+            }}
+          >
+            <img
+              id="logoImg"
+              src="https://assets-autoparts.s3.ap-south-1.amazonaws.com/images/darkLogo.png"
+              alt="Logo"
+              className="h-9 w-auto cursor-pointer"
+            />
+          </button>
+
+          {/* Active brand for this session (50STARS / PROLANE) */}
+          <span
+            className="px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wide bg-white/15 text-white shadow-sm"
+          >
+            {brand}
+          </span>
+        </div>
 
         {/* Menus */}
         <div className="flex gap-6 text-sm font-medium items-center" ref={dropdownRef}>

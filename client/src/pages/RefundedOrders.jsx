@@ -1,7 +1,8 @@
 // src/pages/RefundedOrders.jsx
-import React, { useMemo, useState, useCallback } from "react";
+import React, { useMemo, useState, useCallback, useEffect } from "react";
 import OrdersTable from "../components/OrdersTable";
 import useOrdersRealtime from "../hooks/useOrdersRealtime";
+import useBrand from "../hooks/useBrand";
 
 /** Table columns (order matters) */
 const columns = [
@@ -98,6 +99,7 @@ const extraTotals = (rows) => {
 const RefundedOrders = () => {
   // one toggle per row (expands ALL yards for that row)
   const [expandedIds, setExpandedIds] = useState(() => new Set());
+  const brand = useBrand(); // 50STARS / PROLANE
   const toggleExpand = useCallback((id) => {
     setExpandedIds((prev) => {
       const next = new Set(prev);
@@ -231,6 +233,13 @@ const RefundedOrders = () => {
       }
     },
   });
+
+  // Refetch when brand changes
+  useEffect(() => {
+    if (window.__ordersTableRefs?.refundedOrders?.refetch) {
+      window.__ordersTableRefs.refundedOrders.refetch();
+    }
+  }, [brand]);
 
   return (
     <OrdersTable

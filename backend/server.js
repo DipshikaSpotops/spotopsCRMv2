@@ -33,11 +33,15 @@ import yardsRouter from "./routes/yards.js";
 import zipLookupRouter from "./routes/zipLookup.js";
 import debugRouter from "./routes/debug.js";
 import gmailRouter from "./routes/gmail.js";
+import { brandMiddleware } from "./middleware/brand.js";
 
 
 dotenv.config();
 
 const app = express();
+
+// Determine brand (50STARS / PROLANE) for each request before anything else
+app.use(brandMiddleware);
 app.use(
   cors({
     origin: true,            // Reflects request origin

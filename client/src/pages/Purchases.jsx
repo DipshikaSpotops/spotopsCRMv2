@@ -1,8 +1,9 @@
 // src/pages/Purchases.jsx
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import API from "../api";
 import OrdersTable from "../components/OrdersTable";
 import useOrdersRealtime from "../hooks/useOrdersRealtime";
+import useBrand from "../hooks/useBrand";
 
 /* ---------- Columns ---------- */
 const columns = [
@@ -90,6 +91,7 @@ const extraTotals = (rows) => {
 
 /* ---------- Page ---------- */
 export default function Purchases() {
+  const brand = useBrand(); // 50STARS / PROLANE
   const [expandedIds, setExpandedIds] = useState(new Set());
   const [totalLabel, setTotalLabel] = useState("Total Orders: 0 | Card Charged: $0.00");
 
@@ -207,7 +209,7 @@ export default function Purchases() {
       );
       return processOrders(yardOrders);
     },
-    [paramsBuilder]
+    [paramsBuilder, brand]
   );
 
   const onRowsChange = useCallback((rows) => {
@@ -234,6 +236,13 @@ export default function Purchases() {
       }
     },
   });
+
+  // Refetch when brand changes
+  useEffect(() => {
+    if (window.__ordersTableRefs?.purchases?.refetch) {
+      window.__ordersTableRefs.purchases.refetch();
+    }
+  }, [brand]);
 
   return (
     <OrdersTable

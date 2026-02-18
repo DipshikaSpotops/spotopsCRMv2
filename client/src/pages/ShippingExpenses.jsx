@@ -1,9 +1,10 @@
 // src/pages/ShippingExpenses.jsx
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import API from "../api";
 import OrdersTable from "../components/OrdersTable";
 import { formatInTimeZone } from "date-fns-tz";
 import useOrdersRealtime from "../hooks/useOrdersRealtime";
+import useBrand from "../hooks/useBrand";
 
 const TZ = "America/Chicago";
 
@@ -94,6 +95,7 @@ const extraTotals = (rows) => {
 
 /* ---------- Page ---------- */
 export default function ShippingExpenses() {
+  const brand = useBrand(); // 50STARS / PROLANE
   const [expandedIds, setExpandedIds] = useState(new Set());
   const [totalLabel, setTotalLabel] = useState(
     "Total Orders: 0 | Shipping (Card Charged): $0.00"
@@ -189,7 +191,7 @@ export default function ShippingExpenses() {
       const all = await fetchAllShippingExpenses(params, headers);
       return all;
     },
-    [paramsBuilder]
+    [paramsBuilder, brand]
   );
 
   const onRowsChange = useCallback((rows) => {
@@ -201,6 +203,28 @@ export default function ShippingExpenses() {
       `Total Orders: ${rows.length} | Shipping (Card Charged): $${totalShip.toFixed(2)}`
     );
   }, []);
+
+  // Realtime: refetch when orders change
+  useOrdersRealtime({
+    enabled: true,
+    onOrderCreated: () => {
+      if (window.__ordersTableRefs?.shippingExpenses?.refetch) {
+        window.__ordersTableRefs.shippingExpenses.refetch();
+      }
+    },
+    onOrderUpdated: () => {
+      if (window.__ordersTableRefs?.shippingExpenses?.refetch) {
+        window.__ordersTableRefs.shippingExpenses.refetch();
+      }
+    },
+  });
+
+  // Refetch when brand changes
+  useEffect(() => {
+    if (window.__ordersTableRefs?.shippingExpenses?.refetch) {
+      window.__ordersTableRefs.shippingExpenses.refetch();
+    }
+  }, [brand]);
 
   return (
     <OrdersTable

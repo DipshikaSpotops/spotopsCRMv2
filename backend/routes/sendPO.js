@@ -1,6 +1,6 @@
 import express from "express";
 import puppeteer from "puppeteer";
-import Order from "../models/Order.js";
+import { getOrderModelForBrand } from "../models/Order.js";
 import nodemailer from "nodemailer";
 import moment from "moment-timezone";
 import multer from "multer";
@@ -17,9 +17,97 @@ dotenv.config();
  */
 
 
-const cardNumber = process.env.NEW_CARD_NUMBER || "**** **** **** 7195";
-const cardExpiry = process.env.NEW_CARD_EXPIRY || "**/**";
-const cardCvv = process.env.NEW_CVV || "***";
+// --- Brand-aware email config helpers (50STARS / PROLANE) ---
+const DEFAULT_LOGO_URL =
+  "https://assets-autoparts.s3.ap-south-1.amazonaws.com/images/logo.png";
+
+function getBrand(req) {
+  return (req.brand === "PROLANE" ? "PROLANE" : "50STARS");
+}
+
+function pickEnv(baseKey, brand) {
+  if (!baseKey) return "";
+  const base = String(baseKey).trim();
+  if (!base) return "";
+
+  if (brand === "PROLANE") {
+    const brandKey = `${base}_PROLANE`;
+    if (process.env[brandKey]) return process.env[brandKey];
+  }
+  return process.env[base] || "";
+}
+
+// Card details used on the PO PDF:
+// - 50STARS: NEW_CARD_NUMBER / NEW_CARD_EXPIRY / NEW_CVV
+// - PROLANE: PROLANE_CARD_NUMBER / PROLANE_CARD_EXPIRY / PROLANE_CVV
+function getCardConfig(req) {
+  const brand = getBrand(req);
+
+  if (brand === "PROLANE") {
+    return {
+      cardNumber: process.env.PROLANE_CARD_NUMBER || "**** **** **** 0000",
+      cardExpiry: process.env.PROLANE_CARD_EXPIRY || "**/**",
+      cardCvv: process.env.PROLANE_CVV || "***",
+    };
+  }
+
+  // Default: 50STARS
+  return {
+    cardNumber: process.env.NEW_CARD_NUMBER || "**** **** **** 7195",
+    cardExpiry: process.env.NEW_CARD_EXPIRY || "**/**",
+    cardCvv: process.env.NEW_CVV || "***",
+  };
+}
+
+function getEmailBrandConfig(req) {
+  const brand = getBrand(req);
+
+  const purchaseEmail = pickEnv("PURCHASE_EMAIL", brand);
+  const purchasePass = pickEnv("PURCHASE_PASS", brand);
+
+  // Logo: allow a dedicated PROLANE_LOGO env var to override LOGO_URL_PROLANE
+  let logoUrl = pickEnv("LOGO_URL", brand) || DEFAULT_LOGO_URL;
+  if (brand === "PROLANE" && process.env.PROLANE_LOGO) {
+    logoUrl = process.env.PROLANE_LOGO;
+  }
+
+  // Brand-specific company details
+  const companyName =
+    brand === "PROLANE" ? "American Auto Supply" : "Auto Parts Group Corp";
+  const companyAddress =
+    brand === "PROLANE"
+      ? "1722 Routh St Suite 900, Dallas, Texas, 75201"
+      : "5306 Blaney Way, Dallas, Texas, 75227";
+
+  // Phone for PO (purchase-side):
+  // - PROLANE: use PROLANE_PURCHASE_NO if set, else PROLANE_SERVICE_NO, else default
+  // - 50STARS: use historical purchase phone
+  let companyPhone = "+1 (888) 732-8680";
+  if (brand === "PROLANE") {
+    companyPhone =
+      process.env.PROLANE_PURCHASE_NO ||
+      process.env.PROLANE_SERVICE_NO ||
+      "+1 (866) 207-5533";
+  }
+  const purchaseEmailAddress = brand === "PROLANE"
+    ? "purchase@prolaneautoparts.com"
+    : "purchase@auto-partsgroup.com";
+  const websiteUrl = brand === "PROLANE"
+    ? "www.prolaneautoparts.com"
+    : "www.50starsautoparts.com";
+
+  return {
+    brand,
+    purchaseEmail,
+    purchasePass,
+    logoUrl,
+    companyName,
+    companyAddress,
+    companyPhone,
+    purchaseEmailAddress,
+    websiteUrl,
+  };
+}
 
 const router = express.Router();
 const upload = multer();
@@ -74,16 +162,21 @@ router.post("/sendPOEmailYard/:orderNo", upload.any(), async (req, res) => {
     }
 
     const yardIndex = parseInt(req.body.yardIndex, 10);
-    console.log(`[sendPO] Sending PO for order ${orderNo}, yard index ${yardIndex}`);
+    console.log(`[sendPO] Sending PO for order ${orderNo}, yard index ${yardIndex}, brand: ${req.brand || "50STARS"}`);
     
     if (isNaN(yardIndex) || yardIndex < 0) {
       console.error("[sendPO] Invalid yardIndex:", req.body.yardIndex);
       return res.status(400).json({ message: "Invalid yard index" });
     }
 
+    // Get brand-aware config
+    const brandConfig = getEmailBrandConfig(req);
+
+    // Use brand-aware model
+    const Order = getOrderModelForBrand(req.brand || "50STARS");
     const order = await Order.findOne({ orderNo });
     if (!order) {
-      console.error("[sendPO] Order not found:", orderNo);
+      console.error("[sendPO] Order not found:", orderNo, "in brand:", req.brand || "50STARS");
       return res.status(404).json({ message: "Order not found" });
     }
 
@@ -112,7 +205,7 @@ router.post("/sendPOEmailYard/:orderNo", upload.any(), async (req, res) => {
       
       if (isOwnShipping) {
         // If it's "Own shipping", always show the label regardless of value
-        shippingValue = "Own Shipping (Auto Parts Group Corp)";
+        shippingValue = `Own Shipping (${brandConfig.companyName})`;
         if (match) {
           shipping = parseFloat(match[1]) || 0;
         }
@@ -122,7 +215,7 @@ router.post("/sendPOEmailYard/:orderNo", upload.any(), async (req, res) => {
         shippingValue = shipping === 0 ? "Included" : `$${shipping.toFixed(2)}`;
       }
     } else {
-      shippingValue = "Own Shipping (Auto Parts Group Corp)";
+      shippingValue = `Own Shipping (${brandConfig.companyName})`;
     }
     const subtotal = partPrice;
     const grandTotal = subtotal + shipping;
@@ -149,6 +242,9 @@ router.post("/sendPOEmailYard/:orderNo", upload.any(), async (req, res) => {
       warrantyValue === undefined || warrantyValue === null || warrantyValue === ""
         ? "NA"
         : `${warrantyValue} ${getWarrantyUnitLabel()}`;
+
+    // Brand-aware card details for the PDF
+    const card = getCardConfig(req);
 
     // Full PO HTML template
     const html = `
@@ -286,9 +382,9 @@ router.post("/sendPOEmailYard/:orderNo", upload.any(), async (req, res) => {
   <body>
     <div>
       <div class="header">
-        AUTO PARTS GROUP CORP
-        <div>5306 Blaney Way, Dallas, Texas, 75227</div>
-        <div>+1 8662075533 | purchase@auto-partsgroup.com</div>
+        ${brandConfig.companyName}
+        <div>${brandConfig.companyAddress}</div>
+        <div>${brandConfig.companyPhone} | ${brandConfig.purchaseEmailAddress}</div>
       </div>
 
       <div class="title-row">
@@ -314,7 +410,7 @@ router.post("/sendPOEmailYard/:orderNo", upload.any(), async (req, res) => {
         </div>
         <div class="column">
           <h4>Bill To</h4>
-          <p>Auto Parts Group Corp<br>5306 Blaney Way<br>Dallas, Texas, 75227<br>purchase@auto-partsgroup.com<br>+1 8662075533</p>
+          <p>${brandConfig.companyName}<br>${brandConfig.companyAddress}<br>${brandConfig.purchaseEmailAddress}<br>${brandConfig.companyPhone}</p>
         </div>
       </div>
 
@@ -359,9 +455,9 @@ router.post("/sendPOEmailYard/:orderNo", upload.any(), async (req, res) => {
           <col style="width:45%">
           <col style="width:55%">
         </colgroup>
-        <tr><td class="label">Card Number:</td><td>${cardNumber}</td></tr>
-<tr><td class="label">Expiration Date:</td><td>${cardExpiry}</td></tr>
-<tr><td class="label">CVV:</td><td>${cardCvv}</td></tr>
+        <tr><td class="label">Card Number:</td><td>${card.cardNumber}</td></tr>
+<tr><td class="label">Expiration Date:</td><td>${card.cardExpiry}</td></tr>
+<tr><td class="label">CVV:</td><td>${card.cardCvv}</td></tr>
 
       </table>
     </td>
@@ -386,7 +482,7 @@ router.post("/sendPOEmailYard/:orderNo", upload.any(), async (req, res) => {
       <div class="footer-note">
         <strong>Special Instructions:</strong><br>
         - Please identify yourself with the Purchase Order No.<br>
-        - Send pictures to purchase@auto-partsgroup.com before shipping.<br>
+        - Send pictures to ${brandConfig.purchaseEmailAddress} before shipping.<br>
         - Pack the part carefully. We are not accountable for shipping damage.<br>
         - Ensure "No Tags or Labels" — this is blind shipping.<br>
         - Send tracking and carrier info to our email.<br>
@@ -416,12 +512,11 @@ router.post("/sendPOEmailYard/:orderNo", upload.any(), async (req, res) => {
       });
     }
 
-    // Send email
-    const purchaseEmail = process.env.PURCHASE_EMAIL?.trim();
-    const purchasePass = process.env.PURCHASE_PASS?.trim();
+    // Send email - use brand-aware config
+    const { purchaseEmail, purchasePass } = brandConfig;
 
     if (!purchaseEmail || !purchasePass) {
-      console.error("[sendPO] PURCHASE_EMAIL or PURCHASE_PASS not set in environment");
+      console.error("[sendPO] PURCHASE_EMAIL or PURCHASE_PASS not set in environment for brand:", brandConfig.brand);
       return res.status(500).json({ message: "Email configuration missing" });
     }
 
@@ -502,30 +597,28 @@ router.post("/sendPOEmailYard/:orderNo", upload.any(), async (req, res) => {
         <p><img src="cid:logo" alt="logo" style="width: 180px; height: 100px;"></p>
         <p style="font-size: 16px;">
           ${firstNameTrimmed}<br>
-          Auto Parts Group Corp<br>
-          +1 (866) 207-5533 | purchase@auto-partsgroup.com
+          ${brandConfig.companyName}<br>
+          ${brandConfig.companyPhone} | ${brandConfig.purchaseEmailAddress}
         </p>
       `;
 
     try {
       await transporter.sendMail({
-      from: `"Auto Parts Group Corp" <${purchaseEmail}>`,
+      from: `"${brandConfig.companyName}" <${purchaseEmail}>`,
       to: yardEmail,
       replyTo: purchaseEmail,
-      bcc: "dipsikha.spotopsdigital@gmail.com,purchase@auto-partsgroup.com",
+      bcc: `dipsikha.spotopsdigital@gmail.com,${brandConfig.purchaseEmailAddress}`,
       subject: `Purchase Order | ${order.orderNo} | ${year} ${make} ${model} | ${pReq}`,
       html: htmlContent,
       // Minimal headers to avoid spam triggers
       headers: {
-        "X-Mailer": "Auto Parts Group CRM",
+        "X-Mailer": `${brandConfig.companyName} CRM`,
       },
       attachments: [
         ...attachments,
         {
           filename: "logo.png",
-          path:
-            process.env.LOGO_URL ||
-            "https://assets-autoparts.s3.ap-south-1.amazonaws.com/images/logo.png",
+          path: brandConfig.logoUrl,
           cid: "logo",
         },
       ],

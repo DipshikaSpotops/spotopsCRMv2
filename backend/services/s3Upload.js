@@ -66,3 +66,54 @@ export async function uploadVoidLabelScreenshotToS3(buffer, mimeType, keyBase) {
   return url;
 }
 
+/**
+ * Upload a logo image to S3
+ * @param {Buffer} buffer - Image file buffer
+ * @param {string} mimeType - MIME type (e.g., "image/png", "image/jpeg")
+ * @param {string} logoName - Name for the logo (e.g., "prolaneLogo", "logo")
+ * @param {string} bucketName - Optional bucket name (defaults to S3_ASSETS_BUCKET or assets-autoparts)
+ * @returns {Promise<string>} Public URL of the uploaded logo
+ */
+export async function uploadLogoToS3(buffer, mimeType, logoName = "logo", bucketName = null) {
+  if (!buffer || !buffer.length) {
+    throw new Error("No file data provided");
+  }
+
+  // Use provided bucket, or S3_ASSETS_BUCKET env var, or default to assets-autoparts
+  const targetBucket = bucketName || process.env.S3_ASSETS_BUCKET || "assets-autoparts";
+  const targetRegion = process.env.AWS_REGION || "ap-south-1";
+
+  // Derive extension from MIME type
+  let ext = "png";
+  if (mimeType && mimeType.startsWith("image/")) {
+    const rawExt = mimeType.split("/")[1].toLowerCase();
+    if (rawExt === "jpeg" || rawExt === "jpg") {
+      ext = "jpg";
+    } else if (rawExt) {
+      ext = rawExt;
+    }
+  }
+
+  // Create safe filename
+  const safeName = String(logoName || "logo")
+    .trim()
+    .replace(/[^\w\-]/g, "_")
+    .toLowerCase();
+  
+  // Upload to images/ folder in S3
+  const key = `images/${safeName}.${ext}`;
+
+  // Use the same S3 client (it will work with any bucket in the same region)
+  const putCommand = new PutObjectCommand({
+    Bucket: targetBucket,
+    Key: key,
+    Body: buffer,
+    ContentType: mimeType || "image/png",
+    // Make it publicly readable (if bucket policy allows)
+    ACL: "public-read",
+  });
+
+  await s3Client.send(putCommand);  // Construct public URL
+  const url = `https://${targetBucket}.s3.${targetRegion}.amazonaws.com/${key}`;
+  return url;
+}

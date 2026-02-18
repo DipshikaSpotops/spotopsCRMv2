@@ -1,5 +1,5 @@
 import express from "express";
-import Order from "../models/Order.js";
+import { getOrderModelForBrand } from "../models/Order.js";
 import moment from "moment-timezone";
 
 const router = express.Router();
@@ -47,6 +47,8 @@ router.get("/", async (req, res) => {
       orderDate: { $gte: startDate, $lt: endDate },
       orderStatus: "Refunded"
     };
+
+    const Order = getOrderModelForBrand(req.brand);
 
     const totalOrders = await Order.countDocuments(filter);
     const totalPages = Math.ceil(totalOrders / pageSize);

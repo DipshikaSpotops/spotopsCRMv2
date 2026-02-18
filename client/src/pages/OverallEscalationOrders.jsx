@@ -1,7 +1,8 @@
 // src/pages/OverallEscalationOrders.jsx
-import React from "react";
+import React, { useEffect } from "react";
 import OrdersTable from "../components/OrdersTable";
 import useOrdersRealtime from "../hooks/useOrdersRealtime";
+import useBrand from "../hooks/useBrand";
 
 /* ---------- Helpers ---------- */
 /**
@@ -73,6 +74,7 @@ function renderCell(row, key, formatDateSafe /*, currency */) {
 const navigateTo = (row) => `/order-details?orderNo=${encodeURIComponent(row.orderNo)}`;
 
 export default function OverallEscalationOrders() {
+  const brand = useBrand(); // 50STARS / PROLANE
   // Realtime: refetch overall escalation list when orders change
   useOrdersRealtime({
     enabled: true,
@@ -87,6 +89,13 @@ export default function OverallEscalationOrders() {
       }
     },
   });
+
+  // Refetch when brand changes
+  useEffect(() => {
+    if (window.__ordersTableRefs?.overallEscalations?.refetch) {
+      window.__ordersTableRefs.overallEscalations.refetch();
+    }
+  }, [brand]);
 
   return (
     <OrdersTable

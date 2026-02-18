@@ -1,6 +1,6 @@
 // routes/AllOrders.js
 import express from "express";
-import Order from "../models/Order.js";
+import { getOrderModelForBrand } from "../models/Order.js";
 
 const router = express.Router();
 
@@ -42,6 +42,8 @@ router.get("/", async (req, res) => {
         { additionalInfo: { $elemMatch: { returnTrackingCust: rx } } },
       ];
     }
+
+    const Order = getOrderModelForBrand(req.brand);
 
     const totalCount = await Order.countDocuments(query);
 

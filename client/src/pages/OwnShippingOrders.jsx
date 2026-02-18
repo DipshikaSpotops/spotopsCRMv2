@@ -1,6 +1,7 @@
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import OrdersTable from "../components/OrdersTable";
 import useOrdersRealtime from "../hooks/useOrdersRealtime";
+import useBrand from "../hooks/useBrand";
 
 const columns = [
   { key: "orderDate",    label: "Order Date" },
@@ -18,6 +19,7 @@ const wrap5 = (str = "") =>
 
 export default function OwnShippingOrders() {
   const [expandedIds, setExpandedIds] = useState(() => new Set());
+  const brand = useBrand(); // 50STARS / PROLANE
   const toggleExpand = useCallback((row) => {
     const id = row._id || row.orderNo || `${row.orderDate || ""}-${Math.random()}`;
     setExpandedIds(prev => {
@@ -184,6 +186,13 @@ export default function OwnShippingOrders() {
       }
     },
   });
+
+  // When brand changes, force the table to refetch with the new brand
+  useEffect(() => {
+    if (window.__ordersTableRefs?.ownShipping?.refetch) {
+      window.__ordersTableRefs.ownShipping.refetch();
+    }
+  }, [brand]);
 
   if (!roleOk) {
     return (

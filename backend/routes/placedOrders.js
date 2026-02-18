@@ -1,5 +1,5 @@
 import express from "express";
-import Order from "../models/Order.js";
+import { getOrderModelForBrand } from "../models/Order.js";
 import moment from "moment-timezone";
 
 const router = express.Router();
@@ -71,6 +71,8 @@ router.get("/", async (req, res) => {
         { additionalInfo: { $elemMatch: { returnTrackingCust: regex } } },
       ];
     }
+    const Order = getOrderModelForBrand(req.brand);
+
     // Fetch Orders from DB
     const orders = await Order.find(filter).sort({ orderDate: 1 }).limit(25);
     console.log(`Orders fetched: ${orders.length}`);

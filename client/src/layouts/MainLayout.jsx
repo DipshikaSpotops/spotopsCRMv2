@@ -1,12 +1,15 @@
 import { useEffect, useState } from "react";
+import { useLocation } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import Sidebar from "../components/Sidebar";
+import BrandBadge from "../components/BrandBadge";
 
 export default function MainLayout({ children }) {
   const [darkMode, setDarkMode] = useState(
     localStorage.getItem("darkMode") === "true"
   );
   const [sidebarOpen, setSidebarOpen] = useState(false); // mobile drawer
+  const location = useLocation();
 
   useEffect(() => {
     const root = document.documentElement;
@@ -14,6 +17,15 @@ export default function MainLayout({ children }) {
     else root.classList.remove("dark");
     localStorage.setItem("darkMode", darkMode);
   }, [darkMode]);
+
+  // Pages where BrandBadge should be hidden
+  const hideBrandBadgePages = [
+    "/view-users",
+    "/leads",
+    "/create-user",
+    "/yards",
+  ];
+  const shouldShowBrandBadge = !hideBrandBadgePages.includes(location.pathname);
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -59,6 +71,8 @@ export default function MainLayout({ children }) {
 
         {/* Main content */}
         <main className="flex-1 min-w-0 pt-16 text-white overflow-y-auto">
+          {/* Floating brand badge for all sidebar pages (except specified pages) */}
+          {shouldShowBrandBadge && <BrandBadge />}
           {/* Mobile toggle button (if Navbar doesn't render one) */}
           <div className="px-3 lg:hidden">
             <button

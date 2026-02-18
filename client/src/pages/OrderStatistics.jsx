@@ -5,6 +5,7 @@ import OrdersTable from "../components/OrdersTable";
 import StateDropdown from "../components/StateDropdown";
 import { formatInTimeZone } from "date-fns-tz";
 import { STATES } from "../data/states";
+import useBrand from "../hooks/useBrand";
 
 const TZ = "America/Chicago";
 
@@ -89,6 +90,7 @@ const extraTotals = (rows) => {
 
 /* ---------- Page ---------- */
 export default function OrderStatistics() {
+  const brand = useBrand();
   const { role, email } = useMemo(() => readAuthFromStorage(), []);
   
   // Only allow Admin and specific email
@@ -243,7 +245,7 @@ export default function OrderStatistics() {
     }
     
     return filtered;
-  }, [paramsBuilder]);
+  }, [paramsBuilder, brand]);
 
   const onRowsChange = useCallback((rows) => {
     // Sum the Total Orders column across all states so it matches Monthly Orders
@@ -273,7 +275,14 @@ export default function OrderStatistics() {
       }
     };
     fetchAllStates();
-  }, []);
+  }, [brand]);
+
+  // Auto-refetch when brand changes
+  useEffect(() => {
+    if (window.__ordersTableRefs?.orderStatistics?.refetch) {
+      window.__ordersTableRefs.orderStatistics.refetch();
+    }
+  }, [brand]);
 
   // Prepare state dropdown options
   const stateOptions = useMemo(() => {

@@ -1,5 +1,5 @@
 import express from "express";
-import Order from "../models/Order.js";
+import { getOrderModelForBrand } from "../models/Order.js";
 import moment from "moment-timezone";
 
 const router = express.Router();
@@ -78,6 +78,8 @@ router.get("/", async (req, res) => {
         { additionalInfo: { $elemMatch: { returnTrackingCust: rx } } },
       ];
     }
+
+    const Order = getOrderModelForBrand(req.brand);
 
     const totalOrders = await Order.countDocuments(filter);
 

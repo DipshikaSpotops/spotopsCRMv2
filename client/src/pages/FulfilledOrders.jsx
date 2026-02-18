@@ -1,7 +1,8 @@
 // src/pages/FulfilledOrders.jsx
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import OrdersTable from "../components/OrdersTable";
 import useOrdersRealtime from "../hooks/useOrdersRealtime";
+import useBrand from "../hooks/useBrand";
 
 /* ---------- Columns (order matters) ---------- */
 const columns = [
@@ -24,6 +25,7 @@ function isEscalated(order) {
 const FulfilledOrders = () => {
   // one toggle per row; expands details under Order No
   const [expandedIds, setExpandedIds] = useState(() => new Set());
+  const brand = useBrand(); // 50STARS / PROLANE
   const toggleExpand = useCallback((id) => {
     setExpandedIds((prev) => {
       const next = new Set(prev);
@@ -131,6 +133,13 @@ const FulfilledOrders = () => {
       }
     },
   });
+
+  // Refetch when brand changes
+  useEffect(() => {
+    if (window.__ordersTableRefs?.fulfilledOrders?.refetch) {
+      window.__ordersTableRefs.fulfilledOrders.refetch();
+    }
+  }, [brand]);
 
   return (
     <OrdersTable

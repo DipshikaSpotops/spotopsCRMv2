@@ -8,6 +8,7 @@ import moment from "moment-timezone";
 import api from "../api";
 import AgentDropdown from "../components/AgentDropdown";
 import useOrdersRealtime from "../hooks/useOrdersRealtime";
+import useBrand from "../hooks/useBrand";
 
 /* ----------------------------- Constants / helpers ----------------------------- */
 const TZ = "America/Chicago";
@@ -130,6 +131,7 @@ function dailySeriesForMonth(rows, monthIndex, year) {
 /* --------------------------------- Page ----------------------------------- */
 export default function SalesReport() {
   const now = useMemo(() => dallasNow(), []);
+  const brand = useBrand(); // 50STARS / PROLANE
   const DEFAULT_MONTH = now.month() + 1;
   const DEFAULT_YEAR  = now.year();
 
@@ -186,7 +188,7 @@ export default function SalesReport() {
       }
     })();
     return () => { cancel = true; };
-  }, [role, monthIdx, year]); // eslint-disable-line
+  }, [role, monthIdx, year, brand]); // eslint-disable-line
 
   // Load & compute charts (NO time math, only date-part compare where needed)
   useEffect(() => {
@@ -317,7 +319,7 @@ export default function SalesReport() {
     })();
 
     return () => { cancel = true; };
-  }, [granularity, monthIdx, year, role, firstName, selectedAgent, reloadTick]);
+  }, [granularity, monthIdx, year, role, firstName, selectedAgent, reloadTick, brand]);
 
   // Realtime: when orders change, recompute charts for current filters
   useOrdersRealtime({

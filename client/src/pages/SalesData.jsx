@@ -1,8 +1,9 @@
 // src/pages/SalesData.jsx
-import React, { useCallback } from "react";
+import React, { useCallback, useEffect } from "react";
 import API from "../api";
 import OrdersTable from "../components/OrdersTable";
 import useOrdersRealtime from "../hooks/useOrdersRealtime";
+import useBrand from "../hooks/useBrand";
 
 // Columns (order matters)
 const columns = [
@@ -97,6 +98,7 @@ async function fetchAllMonthlyOrders(params, headers) {
 }
 
 const SalesData = () => {
+  const brand = useBrand(); // 50STARS / PROLANE
   /* ---------- Params + Fetch override ---------- */
   const paramsBuilder = useCallback(({ filter }) => {
     const params = {};
@@ -118,7 +120,7 @@ const SalesData = () => {
       const all = await fetchAllMonthlyOrders(params, headers);
       return all;
     },
-    [paramsBuilder]
+    [paramsBuilder, brand]
   );
 
   // Realtime: refetch sales data when orders change
@@ -135,6 +137,13 @@ const SalesData = () => {
       }
     },
   });
+
+  // Refetch when brand changes
+  useEffect(() => {
+    if (window.__ordersTableRefs?.salesDataMonthly?.refetch) {
+      window.__ordersTableRefs.salesDataMonthly.refetch();
+    }
+  }, [brand]);
 
   return (
     <OrdersTable

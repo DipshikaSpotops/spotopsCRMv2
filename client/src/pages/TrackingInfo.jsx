@@ -1,9 +1,10 @@
 // /src/pages/TrackingInfo.jsx
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useMemo, useState, useEffect } from "react";
 import API from "../api";
 import OrdersTable from "../components/OrdersTable";
 import { formatInTimeZone } from "date-fns-tz";
 import useOrdersRealtime from "../hooks/useOrdersRealtime";
+import useBrand from "../hooks/useBrand";
 
 const TZ = "America/Chicago";
 
@@ -166,6 +167,7 @@ const extraTotals = (rows) => {
 
 /* ---------- Page ---------- */
 export default function TrackingInfo() {
+  const brand = useBrand();
   const [totalLabel, setTotalLabel] = useState("Rows: 0");
 
   const renderCell = useCallback((row, key) => {
@@ -207,8 +209,15 @@ export default function TrackingInfo() {
       const rows = allOrders.flatMap(projectTrackingRows);
       return rows;
     },
-    [paramsBuilder]
+    [paramsBuilder, brand]
   );
+
+  // Auto-refetch when brand changes
+  useEffect(() => {
+    if (window.__ordersTableRefs?.trackingInfo?.refetch) {
+      window.__ordersTableRefs.trackingInfo.refetch();
+    }
+  }, [brand]);
 
   const onRowsChange = useCallback((rows) => {
     setTotalLabel(`Rows: ${rows.length}`);

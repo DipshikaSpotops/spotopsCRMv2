@@ -583,8 +583,13 @@ export default function AddOrder() {
               <Dropdown
                 placeholder="Payment Source"
                 options={[
+                  "Affirm",
                   "Bank/Wire Transfer",
+                 " Both (VPS & SA Authorized)",
+                 " Both (VPS & SA Payment)",
                   "Paypal",
+                  "RP Authorize",
+                  "RP Payment",
                   "SA Authorized",
                   "SA Payment Link",
                   "VPS Authorized",

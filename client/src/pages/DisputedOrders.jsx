@@ -1,7 +1,8 @@
 // src/pages/DisputedOrders.jsx
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import OrdersTable from "../components/OrdersTable";
 import useOrdersRealtime from "../hooks/useOrdersRealtime";
+import useBrand from "../hooks/useBrand";
 
 /* ---------- Columns (order matters) ---------- */
 const columns = [
@@ -111,6 +112,7 @@ function getDisputedByFromHistory(order = {}) {
 const DisputedOrders = () => {
   // one toggle per row (expands ALL yards for that row)
   const [expandedIds, setExpandedIds] = useState(() => new Set());
+  const brand = useBrand(); // 50STARS / PROLANE
   const toggleExpand = useCallback((id) => {
     setExpandedIds((prev) => {
       const next = new Set(prev);
@@ -230,6 +232,13 @@ const DisputedOrders = () => {
       }
     },
   });
+
+  // Refetch when brand changes
+  useEffect(() => {
+    if (window.__ordersTableRefs?.disputedOrders?.refetch) {
+      window.__ordersTableRefs.disputedOrders.refetch();
+    }
+  }, [brand]);
 
   return (
     <OrdersTable

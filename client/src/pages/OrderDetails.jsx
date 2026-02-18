@@ -1360,12 +1360,12 @@ export default function OrderDetails() {
           </div>
 
           {/* 3 columns */}
-          <div className="grid grid-cols-12 gap-6 2xl:gap-8 items-start min-h-[calc(100vh-11rem)] pb-10">
+          <div className="grid grid-cols-12 gap-6 2xl:gap-8 items-start">
             {/* LEFT: Order Details */}
-            <aside className="col-span-12 xl:col-span-4 flex flex-col gap-4 h-full min-h-[600px]">
-              <div className="flex-1 min-h-0">
+            <aside className="col-span-12 xl:col-span-4 flex flex-col gap-4">
+              <div>
                 <GlassCard
-                  className="h-full flex flex-col dark:border-white/20 dark:bg-white/10 dark:text-white"
+                  className="flex flex-col dark:border-white/20 dark:bg-white/10 dark:text-white"
                   title="Order Details"
                   actions={
                     <div className="flex gap-2 rounded-lg p-1 bg-blue-50 border border-gray-200 dark:bg-white/10 dark:border-white/20">

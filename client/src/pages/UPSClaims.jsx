@@ -1,9 +1,10 @@
 // src/pages/UPSClaims.jsx
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import API from "../api";
 import OrdersTable from "../components/OrdersTable";
 import { formatInTimeZone } from "date-fns-tz";
 import useOrdersRealtime from "../hooks/useOrdersRealtime";
+import useBrand from "../hooks/useBrand";
 
 const TZ = "America/Chicago";
 
@@ -76,6 +77,7 @@ const extraTotals = (rows) => {
 
 /* ---------- Page ---------- */
 export default function UPSClaims() {
+  const brand = useBrand(); // 50STARS / PROLANE
   const [expandedIds, setExpandedIds] = useState(new Set());
   const [totalLabel, setTotalLabel] = useState("Total Orders: 0 | UPS Claims: $0.00");
 
@@ -165,13 +167,35 @@ export default function UPSClaims() {
       const params = paramsBuilder({ filter });
       return fetchUpsClaims(params, headers);
     },
-    [paramsBuilder]
+    [paramsBuilder, brand]
   );
 
   const onRowsChange = useCallback((rows) => {
     const totalClaim = rows.reduce((sum, order) => sum + (parseFloat(order.upsClaimAmount) || 0), 0);
     setTotalLabel(`Total Orders: ${rows.length} | UPS Claims: $${totalClaim.toFixed(2)}`);
   }, []);
+
+  // Realtime: refetch UPS claims when orders change
+  useOrdersRealtime({
+    enabled: true,
+    onOrderCreated: () => {
+      if (window.__ordersTableRefs?.upsClaims?.refetch) {
+        window.__ordersTableRefs.upsClaims.refetch();
+      }
+    },
+    onOrderUpdated: () => {
+      if (window.__ordersTableRefs?.upsClaims?.refetch) {
+        window.__ordersTableRefs.upsClaims.refetch();
+      }
+    },
+  });
+
+  // Auto-refetch when brand changes
+  useEffect(() => {
+    if (window.__ordersTableRefs?.upsClaims?.refetch) {
+      window.__ordersTableRefs.upsClaims.refetch();
+    }
+  }, [brand]);
 
   return (
     <OrdersTable

@@ -1,9 +1,10 @@
 // src/pages/CardNotCharged.jsx
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import API from "../api";
 import OrdersTable from "../components/OrdersTable";
 import { formatInTimeZone } from "date-fns-tz";
 import useOrdersRealtime from "../hooks/useOrdersRealtime";
+import useBrand from "../hooks/useBrand";
 
 const TZ = "America/Chicago";
 
@@ -109,6 +110,7 @@ const extraTotals = (rows) => {
 export default function CardNotCharged() {
   const [expandedIds, setExpandedIds] = useState(new Set());
   const [totalLabel, setTotalLabel] = useState("Total Orders: 0 | Approx: $0.00");
+  const brand = useBrand(); // 50STARS / PROLANE
 
   const renderCell = useCallback(
     (row, key) => {
@@ -204,7 +206,7 @@ export default function CardNotCharged() {
       const merged = await fetchCardNotChargedOrders(params, headers);
       return merged;
     },
-    [paramsBuilder]
+    [paramsBuilder, brand]
   );
 
   const onRowsChange = useCallback((rows) => {
@@ -213,6 +215,28 @@ export default function CardNotCharged() {
       `Total Orders: ${rows.length} | Approx: $${totalApprox.toFixed(2)}`
     );
   }, []);
+
+  // Realtime: refetch when orders change
+  useOrdersRealtime({
+    enabled: true,
+    onOrderCreated: () => {
+      if (window.__ordersTableRefs?.cardNotCharged?.refetch) {
+        window.__ordersTableRefs.cardNotCharged.refetch();
+      }
+    },
+    onOrderUpdated: () => {
+      if (window.__ordersTableRefs?.cardNotCharged?.refetch) {
+        window.__ordersTableRefs.cardNotCharged.refetch();
+      }
+    },
+  });
+
+  // Refetch when brand changes
+  useEffect(() => {
+    if (window.__ordersTableRefs?.cardNotCharged?.refetch) {
+      window.__ordersTableRefs.cardNotCharged.refetch();
+    }
+  }, [brand]);
 
   return (
     <OrdersTable

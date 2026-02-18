@@ -3,6 +3,7 @@ import { FaHome, FaUsers, FaChartBar, FaChevronDown } from "react-icons/fa";
 import { useState } from "react";
 import { useSelector } from "react-redux";
 import { selectRole } from "../store/authSlice";
+import { getCurrentBrand } from "../utils/brand";
 
 export default function Sidebar() {
   const location = useLocation();
@@ -28,6 +29,9 @@ export default function Sidebar() {
       } catch {}
       return localStorage.getItem("email") || undefined;
     })()?.toLowerCase();
+
+  // Brand (50STARS / PROLANE)
+  const brand = getCurrentBrand();
 
   // all menus open by default
   const [openMenu, setOpenMenu] = useState({
@@ -59,7 +63,7 @@ export default function Sidebar() {
     { text: "Fulfilled Orders", to: "/fulfilled-orders" },
     { text: "Overall Escalation", to: "/overall-escalation" },
     { text: "Ongoing Escalation", to: "/ongoing-escalation" },
-    { text: "Leads", to: "/leads", roles: ["Admin", "Sales"] },
+    { text: "Leads", to: "/leads", roles: ["Admin", "Sales"], brandOnly: "50STARS" },
     { text: "Yards", to: "/yards", adminOnly: true, emailAccess: "50starsauto110@gmail.com" },
   ];
 
@@ -87,7 +91,11 @@ export default function Sidebar() {
   ];
 
   // Helper function to check if a link should be shown based on role, email, and link properties
-  const shouldShowLink = (link, userRole, userEmail) => {
+  const shouldShowLink = (link, userRole, userEmail, currentBrand) => {
+    // Brand-specific visibility
+    if (link.brandOnly && String(currentBrand || "").toUpperCase() !== link.brandOnly) {
+      return false;
+    }
     // Special case: If link has both adminOnly and emailAccess, show only for Admin OR authorized email
     if (link.adminOnly && link.emailAccess) {
       // Admin can always see
@@ -142,7 +150,7 @@ export default function Sidebar() {
       // Filter out hidden items
       if (hiddenForSales.has(l.text)) return false;
       // Use helper function to check access
-      return shouldShowLink(l, role, email);
+      return shouldShowLink(l, role, email, brand);
     });
 
     // Hide Users block entirely
@@ -158,7 +166,7 @@ export default function Sidebar() {
       // Filter out hidden items
       if (hiddenForSupport.has(l.text)) return false;
       // Use helper function to check access
-      return shouldShowLink(l, role, email);
+      return shouldShowLink(l, role, email, brand);
     });
 
     // Hide Users block entirely
@@ -174,7 +182,7 @@ export default function Sidebar() {
     // Also check for email-based access for specific links
     dashboardLinks = dashboardLinksBase.filter((l) => {
       // Use helper function to check access
-      return shouldShowLink(l, role, email);
+      return shouldShowLink(l, role, email, brand);
     });
   }
 

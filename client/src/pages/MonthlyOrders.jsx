@@ -1,8 +1,9 @@
 // /src/pages/MonthlyOrders.jsx
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import API from "../api";
 import OrdersTable from "../components/OrdersTable";
 import useOrdersRealtime from "../hooks/useOrdersRealtime";
+import useBrand from "../hooks/useBrand";
 
 /* ---------- Columns (order matters) ---------- */
 const columns = [
@@ -108,6 +109,7 @@ async function fetchAllMonthlyOrders(params, headers) {
 /* ---------- Page ---------- */
 export default function MonthlyOrders() {
   const [expandedIds, setExpandedIds] = useState(() => new Set());
+  const brand = useBrand(); // 50STARS / PROLANE
 
   const toggleExpand = useCallback((row) => {
     const id = row._id || row.orderNo || `${row.orderDate || ""}-${Math.random()}`;
@@ -318,7 +320,7 @@ export default function MonthlyOrders() {
       const all = await fetchAllMonthlyOrders(params, headers);
       return all;
     },
-    [paramsBuilder]
+    [paramsBuilder, brand]
   );
 
   // Realtime: when orders change, refetch monthly data with the current filter.
@@ -338,6 +340,13 @@ export default function MonthlyOrders() {
       }
     },
   });
+
+  // When brand changes, force the table to refetch with the new brand
+  useEffect(() => {
+    if (window.__ordersTableRefs?.monthlyOrders?.refetch) {
+      window.__ordersTableRefs.monthlyOrders.refetch();
+    }
+  }, [brand]);
 
   return (
     <OrdersTable

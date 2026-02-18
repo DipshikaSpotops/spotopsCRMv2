@@ -7,6 +7,7 @@ import { useNavigate } from "react-router-dom";
 import moment from "moment-timezone";
 import API from "../api";
 import useOrdersRealtime from "../hooks/useOrdersRealtime";
+import useBrand from "../hooks/useBrand";
 
 const prettyFilterLabel = (filter) => {
   if (!filter) return "";
@@ -72,6 +73,7 @@ const CustomerApproved = () => {
   const [currentFilter, setCurrentFilter] = useState(null); // {month,year} OR {start,end}
   const [copiedId, setCopiedId] = useState(null);
   const navigate = useNavigate();
+  const brand = useBrand(); // 50STARS / PROLANE
 
   // Fetch helper
   const fetchOrders = async (filter = {}, options = {}) => {
@@ -112,7 +114,7 @@ const CustomerApproved = () => {
     }
   };
 
-  // Initial load -> Dallas month
+  // Initial load -> Dallas month, and refetch when brand changes
   useEffect(() => {
     const nowDallas = moment().tz("America/Chicago");
     const monthNames = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
@@ -121,14 +123,15 @@ const CustomerApproved = () => {
     const initialFilter = { month, year };
     setCurrentFilter(initialFilter);
     fetchOrders({ ...initialFilter, q: appliedQuery || undefined });
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [brand]);
 
-  // 🔁 Re-fetch when appliedQuery changes (e.g., after pressing Enter / clearing)
+  // 🔁 Re-fetch when appliedQuery or brand changes (e.g., after pressing Enter / clearing / switching brand)
   useEffect(() => {
     if (!currentFilter) return;
     fetchOrders({ ...currentFilter, q: appliedQuery || undefined });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [appliedQuery]);
+  }, [appliedQuery, brand]);
 
   // 🔄 Realtime: when any order is created or updated, refetch with current filter + applied query in the background
   useOrdersRealtime({

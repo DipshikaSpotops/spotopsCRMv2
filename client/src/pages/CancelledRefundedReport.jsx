@@ -4,6 +4,7 @@ import API from "../api";
 import OrdersTable from "../components/OrdersTable";
 import { formatInTimeZone } from "date-fns-tz";
 import useOrdersRealtime from "../hooks/useOrdersRealtime";
+import useBrand from "../hooks/useBrand";
 
 const TZ = "America/Chicago";
 
@@ -117,6 +118,7 @@ const extraTotals = (rows) => {
 export default function CancelledRefundedReport() {
   const [expandedIds, setExpandedIds] = useState(new Set());
   const [totalLabel, setTotalLabel] = useState("Total Orders: 0 | Refunded: $0.00");
+  const brand = useBrand(); // 50STARS / PROLANE
 
   /* cell renderer (unchanged) */
   const renderCell = useCallback(
@@ -186,13 +188,16 @@ export default function CancelledRefundedReport() {
   }, []);
 
   /* let OrdersTable FETCH for us by merging both endpoints */
-  const fetchOverride = useCallback(async ({ filter }) => {
-    const token = localStorage.getItem("token");
-    const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
-    const params = paramsBuilder({ filter });
-    const merged = await fetchCancelledAndRefunded(params, headers);
-    return merged;
-  }, [paramsBuilder]);
+  const fetchOverride = useCallback(
+    async ({ filter }) => {
+      const token = localStorage.getItem("token");
+      const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
+      const params = paramsBuilder({ filter });
+      const merged = await fetchCancelledAndRefunded(params, headers);
+      return merged;
+    },
+    [paramsBuilder, brand]
+  );
 
   /* Update the inline label whenever the visible rows change */
   const onRowsChange = useCallback((sortedVisibleRows) => {
@@ -220,6 +225,13 @@ export default function CancelledRefundedReport() {
       }
     },
   });
+
+  // Refetch when brand changes
+  useEffect(() => {
+    if (window.__ordersTableRefs?.cancelledRefunds?.refetch) {
+      window.__ordersTableRefs.cancelledRefunds.refetch();
+    }
+  }, [brand]);
 
   return (
     <OrdersTable

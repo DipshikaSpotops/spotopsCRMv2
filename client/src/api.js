@@ -24,17 +24,27 @@ const API = axios.create({
   withCredentials: true,
   timeout: 15000,
 });
-// Attach Bearer token from localStorage if present
+// Attach Bearer token + brand header from localStorage if present
 API.interceptors.request.use((cfg) => {
   const token = localStorage.getItem("token");
   if (token) {
     cfg.headers = cfg.headers || {};
     cfg.headers.Authorization = `Bearer ${token}`;
   }
-  
+
+  // Brand: 50STARS (default) or PROLANE
+  try {
+    const stored = localStorage.getItem("currentBrand") || "50STARS";
+    const brand = String(stored || "50STARS").toUpperCase();
+    cfg.headers = cfg.headers || {};
+    cfg.headers["x-brand"] = brand === "PROLANE" ? "PROLANE" : "50STARS";
+  } catch {
+    // fallback: keep header off, server will default to 50STARS
+  }
+
   // Note: firstName is no longer added to query params
   // The backend gets user info from the JWT token via requireAuth middleware
-  
+
   return cfg;
 });
 

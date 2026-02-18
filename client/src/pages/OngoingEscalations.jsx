@@ -1,7 +1,8 @@
 // src/pages/OngoingEscalationOrders.jsx
-import React from "react";
+import React, { useEffect } from "react";
 import OrdersTable from "../components/OrdersTable";
 import useOrdersRealtime from "../hooks/useOrdersRealtime";
+import useBrand from "../hooks/useBrand";
 
 /* ---------- Helpers ---------- */
 /**
@@ -74,6 +75,7 @@ function renderCell(row, key, formatDateSafe /*, currency */) {
 const navigateTo = (row) => `/order-details?orderNo=${encodeURIComponent(row.orderNo)}`;
 
 export default function OngoingEscalationOrders() {
+  const brand = useBrand(); // 50STARS / PROLANE
   // Realtime: refetch ongoing escalation list when orders change
   useOrdersRealtime({
     enabled: true,
@@ -88,6 +90,13 @@ export default function OngoingEscalationOrders() {
       }
     },
   });
+
+  // Refetch when brand changes
+  useEffect(() => {
+    if (window.__ordersTableRefs?.ongoingEscalations?.refetch) {
+      window.__ordersTableRefs.ongoingEscalations.refetch();
+    }
+  }, [brand]);
 
   return (
     <OrdersTable

@@ -4,6 +4,7 @@ import API from "../api";
 import OrdersTable from "../components/OrdersTable";
 import StateDropdown from "../components/StateDropdown";
 import { STATES } from "../data/states";
+import useBrand from "../hooks/useBrand";
 
 // Helper to get full state name from code
 function getStateName(stateCode) {
@@ -65,6 +66,7 @@ const extraTotals = (rows) => {
 
 /* ---------- Page ---------- */
 export default function MakeStatistics() {
+  const brand = useBrand();
   const { role, email } = useMemo(() => readAuthFromStorage(), []);
   
   // Only allow Admin and specific email
@@ -224,7 +226,7 @@ export default function MakeStatistics() {
     }
     
     return filtered;
-  }, [paramsBuilder]);
+  }, [paramsBuilder, brand]);
   
   // Get unique makes from all available data for dropdown
   const [availableMakes, setAvailableMakes] = useState([]);
@@ -245,7 +247,14 @@ export default function MakeStatistics() {
       }
     };
     fetchAllMakes();
-  }, []);
+  }, [brand]);
+
+  // Auto-refetch when brand changes
+  useEffect(() => {
+    if (window.__ordersTableRefs?.makeStatistics?.refetch) {
+      window.__ordersTableRefs.makeStatistics.refetch();
+    }
+  }, [brand]);
 
   // Prepare make dropdown options
   const makeOptions = useMemo(() => {
