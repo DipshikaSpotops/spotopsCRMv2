@@ -63,6 +63,7 @@ export default function EditYardStatusModal({
 }) {
   const [status, setStatus] = useState(yard?.status || "Yard located");
   const [escCause, setEscCause] = useState(yard?.escalationCause || "");
+  const [escOther, setEscOther] = useState("");
   const [escTicked] = useState(!!yard?.escTicked);
   const [toast, setToast] = useState("");
 
@@ -101,7 +102,23 @@ export default function EditYardStatusModal({
     // Clear toast when modal opens
     setToast("");
     setStatus(yard?.status || "Yard located");
-    setEscCause(yard?.escalationCause || "");
+
+    // Handle escalation reason: if existing reason is not in predefined list, treat as "Others"
+    const savedEsc = (yard?.escalationCause == null ? "" : String(yard.escalationCause)).trim();
+    const KNOWN_ESC_REASONS = [
+      "Damaged",
+      "Defective",
+      "Incorrect",
+      "Not programming",
+      "Personal reason",
+    ];
+    if (savedEsc && !KNOWN_ESC_REASONS.includes(savedEsc)) {
+      setEscCause("Others");
+      setEscOther(savedEsc);
+    } else {
+      setEscCause(savedEsc || "");
+      setEscOther("");
+    }
     setTrackingNo(yard?.trackingNo || "");
     setEta(yard?.eta || "");
     
@@ -158,6 +175,9 @@ export default function EditYardStatusModal({
       const chosenShipper =
         shipperName === "Others" ? t(otherShipper) : t(shipperName);
 
+      const chosenEscalation =
+        showEsc && escCause === "Others" ? t(escOther) : t(escCause);
+
       // Validation
       if (
         (status === "Label created" || status === "Part shipped") &&
@@ -174,7 +194,7 @@ export default function EditYardStatusModal({
 
       const body = {
         status,
-        escalationCause: showEsc ? t(escCause) : undefined,
+        escalationCause: showEsc ? chosenEscalation : undefined,
         // For "Part delivered", preserve existing tracking fields if they exist, otherwise use form values
         trackingNo: showTracking ? t(trackingNo) : (status === "Part delivered" && yard?.trackingNo ? yard.trackingNo : undefined),
         eta: showTracking ? t(eta) : (status === "Part delivered" && yard?.eta ? yard.eta : undefined),
@@ -874,18 +894,29 @@ export default function EditYardStatusModal({
           {showEsc && (
             <div className="grid grid-cols-1 gap-2">
               <label className="text-sm">Reason</label>
-             <select
-              value={escCause}
-              onChange={(e) => setEscCause(e.target.value)}
-              className="w-full rounded-lg px-3 py-2 bg-[#2b2d68] hover:bg-[#090c6c] border border-white/30 outline-none dark:bg-[#2b2d68] dark:hover:bg-[#090c6c] dark:text-white"
-            >
-              <option value="">Choose</option>
-              <option value="Damaged">Damaged</option>
-              <option value="Defective">Defective</option>
-              <option value="Incorrect">Incorrect</option>
-              <option value="Not programming">Not programming</option>
-              <option value="Personal reason">Personal reason</option>
-            </select>
+              <select
+                value={escCause}
+                onChange={(e) => setEscCause(e.target.value)}
+                className="w-full rounded-lg px-3 py-2 bg-[#2b2d68] hover:bg-[#090c6c] border border-white/30 outline-none dark:bg-[#2b2d68] dark:hover:bg-[#090c6c] dark:text-white"
+              >
+                <option value="">Choose</option>
+                <option value="Damaged">Damaged</option>
+                <option value="Defective">Defective</option>
+                <option value="Incorrect">Incorrect</option>
+                <option value="Not programming">Not programming</option>
+                <option value="Personal reason">Personal reason</option>
+                <option value="Others">Others</option>
+              </select>
+
+              {escCause === "Others" && (
+                <input
+                  type="text"
+                  value={escOther}
+                  onChange={(e) => setEscOther(e.target.value)}
+                  placeholder="Type escalation reason"
+                  className="mt-1 w-full rounded-lg px-3 py-2 bg-[#2b2d68] hover:bg-[#090c6c] border border-white/30 outline-none dark:bg-[#2b2d68] dark:hover:bg-[#090c6c] dark:text-white"
+                />
+              )}
               <div className="mt-2 flex items-center gap-2 text-xs opacity-90">
                 <label className="flex items-center gap-2">
                   <input
