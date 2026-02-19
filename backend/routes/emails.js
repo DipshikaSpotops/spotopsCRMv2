@@ -901,14 +901,32 @@ router.post("/orders/sendReplaceEmailCustomerShipping/:orderNo", async (req, res
         .trim() || "Customer Success Team"
     );
     const retAddressReplacement = (req.query.retAddressReplacement ?? "").toString();
+
+    const Order = getOrderModel(req);
     const order = await Order.findOne({ orderNo });
     if (!order) return res.status(400).json({ message: "Order not found" });
+
+    const {
+      serviceEmail,
+      servicePass,
+      supportBcc,
+      logoUrl,
+      companyName,
+      websiteUrl,
+      phoneNumber,
+      serviceEmailAddress,
+    } = getEmailBrandConfig(req);
+
+    if (!serviceEmail || !servicePass) {
+      console.error("[emails] SERVICE_EMAIL or SERVICE_PASS not set in environment");
+      return res.status(500).json({ message: "Email configuration missing" });
+    }
 
     const transporter = nodemailer.createTransport({
       service: "gmail",
       auth: {
-        user: process.env.SERVICE_EMAIL,
-        pass: process.env.SERVICE_PASS,
+        user: serviceEmail,
+        pass: servicePass,
       },
     });
 
@@ -932,14 +950,11 @@ router.post("/orders/sendReplaceEmailCustomerShipping/:orderNo", async (req, res
     }
     const customerName = cleanCustomerName(order.customerName || order.fName || "Customer");
     const bccList =
-      process.env.SUPPORT_BCC ||
+      supportBcc ||
       "service@50starsautoparts.com,dipsikha.spotopsdigital@gmail.com";
-    const logoUrl =
-      process.env.LOGO_URL ||
-      "https://assets-autoparts.s3.ap-south-1.amazonaws.com/images/logo.png";
 
     const mailOptions = {
-      from: `"50 Stars Auto Parts" <${process.env.SERVICE_EMAIL}>`,
+      from: `"${companyName}" <${serviceEmail}>`,
       to: order.email,
       bcc: bccList,
       subject: `Return Required for Replacement of ABS Module Order | Order ${orderNo}`,
@@ -952,7 +967,7 @@ router.post("/orders/sendReplaceEmailCustomerShipping/:orderNo", async (req, res
         <p>If you have any questions about the process or need further assistance, please feel free to contact us.</p>
         <p>Thank you for giving us an opportunity to make this right.</p>
         <p><img src="cid:logo" alt="logo" style="width: 180px; height: 100px;"></p>
-        <p>${firstName}<br/>Customer Service Team<br/>50 STARS AUTO PARTS<br/>+1 (866) 207-5533<br/>service@50starsautoparts.com<br/><a href="https://www.50starsautoparts.com">www.50starsautoparts.com</a></p>
+        <p>${firstName}<br/>Customer Service Team<br/>${companyName}<br/>${phoneNumber}<br/>${serviceEmailAddress}<br/><a href="https://${websiteUrl}">${websiteUrl}</a></p>
       </div>`,
       attachments: [
         {
@@ -987,27 +1002,41 @@ router.post(
         return res.status(400).json({ message: "Attach the required document (pdfFile)." });
       }
 
+      const Order = getOrderModel(req);
       const order = await Order.findOne({ orderNo });
       if (!order) return res.status(400).json({ message: "Order not found" });
+
+      const {
+        serviceEmail,
+        servicePass,
+        supportBcc,
+        logoUrl,
+        companyName,
+        websiteUrl,
+        phoneNumber,
+        serviceEmailAddress,
+      } = getEmailBrandConfig(req);
+
+      if (!serviceEmail || !servicePass) {
+        console.error("[emails] SERVICE_EMAIL or SERVICE_PASS not set in environment");
+        return res.status(500).json({ message: "Email configuration missing" });
+      }
 
       const transporter = nodemailer.createTransport({
         service: "gmail",
         auth: {
-          user: process.env.SERVICE_EMAIL,
-          pass: process.env.SERVICE_PASS,
+          user: serviceEmail,
+          pass: servicePass,
         },
       });
 
       const customerName = order.customerName || order.fName || "Customer";
       const bccList =
-        process.env.SUPPORT_BCC ||
+        supportBcc ||
         "service@50starsautoparts.com,dipsikha.spotopsdigital@gmail.com";
-      const logoUrl =
-        process.env.LOGO_URL ||
-        "https://assets-autoparts.s3.ap-south-1.amazonaws.com/images/logo.png";
 
       const mailOptions = {
-        from: `"50 Stars Auto Parts" <${process.env.SERVICE_EMAIL}>`,
+        from: `"${companyName}" <${serviceEmail}>`,
         to: order.email,
         bcc: bccList,
         subject: `Replacement Instructions & Shipping Document | Order ${orderNo}`,
@@ -1015,7 +1044,7 @@ router.post(
           <p>Dear ${customerName},</p>
           <p>Please find the attached shipping document for the replacement of your part. Kindly print and include it with the package when it is handed over to the carrier.</p>
           <p><img src="cid:logo" alt="logo" style="width: 180px; height: 100px;"></p>
-          <p>${firstName}<br/>Customer Service Team<br/>50 STARS AUTO PARTS<br/>+1 (866) 207-5533<br/>service@50starsautoparts.com<br/><a href="https://www.50starsautoparts.com">www.50starsautoparts.com</a></p>
+          <p>${firstName}<br/>Customer Service Team<br/>${companyName}<br/>${phoneNumber}<br/>${serviceEmailAddress}<br/><a href="https://${websiteUrl}">${websiteUrl}</a></p>
         </div>`,
         attachments: [
           {
@@ -1050,14 +1079,31 @@ router.post("/orders/sendReturnEmailCustomerShipping/:orderNo", async (req, res)
     );
     const retAddress = (req.query.retAddress ?? "").toString();
 
+    const Order = getOrderModel(req);
     const order = await Order.findOne({ orderNo });
     if (!order) return res.status(400).json({ message: "Order not found" });
+
+    const {
+      serviceEmail,
+      servicePass,
+      supportBcc,
+      logoUrl,
+      companyName,
+      websiteUrl,
+      phoneNumber,
+      serviceEmailAddress,
+    } = getEmailBrandConfig(req);
+
+    if (!serviceEmail || !servicePass) {
+      console.error("[emails] SERVICE_EMAIL or SERVICE_PASS not set in environment");
+      return res.status(500).json({ message: "Email configuration missing" });
+    }
 
     const transporter = nodemailer.createTransport({
       service: "gmail",
       auth: {
-        user: process.env.SERVICE_EMAIL,
-        pass: process.env.SERVICE_PASS,
+        user: serviceEmail,
+        pass: servicePass,
       },
     });
 
@@ -1081,14 +1127,11 @@ router.post("/orders/sendReturnEmailCustomerShipping/:orderNo", async (req, res)
     }
     const customerName = cleanCustomerName(order.customerName || order.fName || "Customer");
     const bccList =
-      process.env.SUPPORT_BCC ||
+      supportBcc ||
       "service@50starsautoparts.com,dipsikha.spotopsdigital@gmail.com";
-    const logoUrl =
-      process.env.LOGO_URL ||
-      "https://assets-autoparts.s3.ap-south-1.amazonaws.com/images/logo.png";
 
     const mailOptions = {
-      from: `"50 Stars Auto Parts" <${process.env.SERVICE_EMAIL}>`,
+      from: `"${companyName}" <${serviceEmail}>`,
       to: order.email,
       bcc: bccList,
       subject: `Return Instructions for Your Order ${orderNo}`,
@@ -1098,7 +1141,7 @@ router.post("/orders/sendReturnEmailCustomerShipping/:orderNo", async (req, res)
         <p>${formattedAddress}</p>
         <p>Kindly share the tracking number once the package is on its way. As soon as we receive and inspect the part, we will continue with the necessary next steps.</p>
         <p><img src="cid:logo" alt="logo" style="width: 180px; height: 100px;"></p>
-        <p>${firstName}<br/>Customer Service Team<br/>50 STARS AUTO PARTS<br/>+1 (866) 207-5533<br/>service@50starsautoparts.com<br/><a href="https://www.50starsautoparts.com">www.50starsautoparts.com</a></p>
+        <p>${firstName}<br/>Customer Service Team<br/>${companyName}<br/>${phoneNumber}<br/>${serviceEmailAddress}<br/><a href="https://${websiteUrl}">${websiteUrl}</a></p>
       </div>`,
       attachments: [
         {
@@ -1134,14 +1177,31 @@ router.post(
         return res.status(400).json({ message: "Attach the required document (pdfFile)." });
       }
 
+      const Order = getOrderModel(req);
       const order = await Order.findOne({ orderNo });
       if (!order) return res.status(400).json({ message: "Order not found" });
+
+      const {
+        serviceEmail,
+        servicePass,
+        supportBcc,
+        logoUrl,
+        companyName,
+        websiteUrl,
+        phoneNumber,
+        serviceEmailAddress,
+      } = getEmailBrandConfig(req);
+
+      if (!serviceEmail || !servicePass) {
+        console.error("[emails] SERVICE_EMAIL or SERVICE_PASS not set in environment");
+        return res.status(500).json({ message: "Email configuration missing" });
+      }
 
       const transporter = nodemailer.createTransport({
         service: "gmail",
         auth: {
-          user: process.env.SERVICE_EMAIL,
-          pass: process.env.SERVICE_PASS,
+          user: serviceEmail,
+          pass: servicePass,
         },
       });
 
@@ -1152,14 +1212,11 @@ router.post(
         .join(", ");
       const customerName = order.customerName || order.fName || "Customer";
       const bccList =
-        process.env.SUPPORT_BCC ||
+        supportBcc ||
         "service@50starsautoparts.com,dipsikha.spotopsdigital@gmail.com";
-      const logoUrl =
-        process.env.LOGO_URL ||
-        "https://assets-autoparts.s3.ap-south-1.amazonaws.com/images/logo.png";
 
       const mailOptions = {
-        from: `"50 Stars Auto Parts" <${process.env.SERVICE_EMAIL}>`,
+        from: `"${companyName}" <${serviceEmail}>`,
         to: order.email,
         bcc: bccList,
         subject: `Return Instructions & Shipping Document | Order ${orderNo}`,
@@ -1168,7 +1225,7 @@ router.post(
           <p>Please find the attached shipping document for the return of your part. Kindly attach it to the package before handing it over to the carrier.</p>
           <p>Return Address: ${formattedAddress}</p>
           <p><img src="cid:logo" alt="logo" style="width: 180px; height: 100px;"></p>
-          <p>${firstName}<br/>Customer Service Team<br/>50 STARS AUTO PARTS<br/>+1 (866) 207-5533<br/>service@50starsautoparts.com<br/><a href="https://www.50starsautoparts.com">www.50starsautoparts.com</a></p>
+          <p>${firstName}<br/>Customer Service Team<br/>${companyName}<br/>${phoneNumber}<br/>${serviceEmailAddress}<br/><a href="https://${websiteUrl}">${websiteUrl}</a></p>
         </div>`,
         attachments: [
           {
