@@ -185,44 +185,6 @@ export default function AddOrder() {
     fetchSalesAgents(currentBrand);
   }, [currentBrand, fetchSalesAgents]);
 
-  // Reset salesAgent when brand changes - map to corresponding agent
-  const prevBrandRef = useRef(currentBrand);
-  useEffect(() => {
-    // Only check when brand actually changes
-    if (prevBrandRef.current === currentBrand) return;
-    prevBrandRef.current = currentBrand;
-    
-    if (salesAgents.length === 0) return;
-    
-    // When brand changes, map the stored firstName to the corresponding agent for the new brand
-    const storedFirstName = getStoredFirstName();
-    if (storedFirstName) {
-      const mappedFirstName = getMappedFirstName(storedFirstName, currentBrand);
-      const newDefault = resolveSalesAgentValue(mappedFirstName, salesAgents);
-      
-      setFormData((prev) => ({
-        ...prev,
-        salesAgent: newDefault || "",
-      }));
-    } else {
-      // If no stored firstName, check if current salesAgent is valid for new brand
-      setFormData((prev) => {
-        if (!prev.salesAgent) return prev;
-        
-        const isValid = salesAgents.some(
-          (agent) => agent.toLowerCase() === prev.salesAgent.toLowerCase()
-        );
-        if (!isValid) {
-          return {
-            ...prev,
-            salesAgent: "",
-          };
-        }
-        return prev;
-      });
-    }
-  }, [currentBrand, salesAgents, resolveSalesAgentValue, getMappedFirstName]);
-
   const resolveSalesAgentValue = useCallback((value, agents) => {
     if (!value || !agents.length) return "";
     const match = agents.find(
@@ -241,7 +203,7 @@ export default function AddOrder() {
 
   const defaultSalesAgent = useMemo(() => {
     const storedFirstName = getStoredFirstName();
-    if (!storedFirstName) return "";
+    if (!storedFirstName || salesAgents.length === 0) return "";
     
     // Map the firstName based on current brand
     const mappedFirstName = getMappedFirstName(storedFirstName, currentBrand);
@@ -266,14 +228,38 @@ export default function AddOrder() {
   const [fieldErrors, setFieldErrors] = useState(new Set());
 
   // Update salesAgent when defaultSalesAgent becomes available (after salesAgents are fetched)
+  // Also update when brand changes or when salesAgents are first loaded
   useEffect(() => {
-    if (defaultSalesAgent && !formData.salesAgent) {
-      setFormData((prev) => ({
-        ...prev,
-        salesAgent: defaultSalesAgent,
-      }));
+    const storedFirstName = getStoredFirstName();
+    if (!storedFirstName || salesAgents.length === 0) return;
+    
+    // Map the firstName based on current brand
+    const mappedFirstName = getMappedFirstName(storedFirstName, currentBrand);
+    const expectedAgent = resolveSalesAgentValue(mappedFirstName, salesAgents);
+    
+    if (!expectedAgent) {
+      console.warn(`[AddOrder] No matching agent found for mapped firstName: ${mappedFirstName} in brand: ${currentBrand}`);
+      return;
     }
-  }, [defaultSalesAgent, formData.salesAgent]);
+    
+    console.log(`[AddOrder] Mapping sales agent: ${storedFirstName} -> ${mappedFirstName} (${currentBrand}) = ${expectedAgent}`);
+    
+    // Always update to the mapped agent for the current brand
+    setFormData((prev) => {
+      // Update if current value is different from expected (case-insensitive check)
+      const currentAgent = (prev.salesAgent || "").trim();
+      const expectedAgentTrimmed = expectedAgent.trim();
+      
+      if (!currentAgent || currentAgent.toLowerCase() !== expectedAgentTrimmed.toLowerCase()) {
+        console.log(`[AddOrder] Updating salesAgent from "${currentAgent}" to "${expectedAgentTrimmed}"`);
+        return {
+          ...prev,
+          salesAgent: expectedAgentTrimmed,
+        };
+      }
+      return prev;
+    });
+  }, [currentBrand, salesAgents, getMappedFirstName, resolveSalesAgentValue]);
 
   // Helper to clear error when field is updated
   const handleFieldChange = (fieldKey, value) => {
