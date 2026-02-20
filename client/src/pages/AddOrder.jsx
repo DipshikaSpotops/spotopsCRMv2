@@ -1,6 +1,17 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { STATES } from "../data/states";
+import { getCurrentBrand } from "../utils/brand";
+
+// Mapping from 50STARS agent firstName to PROLANE agent firstName
+const AGENT_BRAND_MAPPING = {
+  "Richard": "Victor",
+  "Mark": "Sam",
+  "David": "Steve",
+  "Michael": "Charlie",
+  "Dipsikha": "Dipsikha", // Same for both brands
+};
+
 const REQUIRED_FIELD_LABELS = {
   orderNo: "Order No",
   salesAgent: "Sales Agent",
@@ -131,26 +142,86 @@ function Toast({ toast, onClose }) {
 export default function AddOrder() {
   const navigate = useNavigate();
   const [salesAgents, setSalesAgents] = useState([]);
+  const [salesAgentsMap, setSalesAgentsMap] = useState({}); // firstName -> fullName mapping
+  const [currentBrand, setCurrentBrand] = useState(() => getCurrentBrand());
   
-  // Fetch all sales agents from API
-  useEffect(() => {
-    const fetchSalesAgents = async () => {
-      try {
-        const { data } = await API.get("/users", { params: { role: "Sales" } });
-        // Extract firstName from users and sort alphabetically
-        const agentNames = data
-          .map(user => user.firstName)
-          .filter(Boolean)
-          .sort();
-        setSalesAgents(agentNames);
-      } catch (err) {
-        console.error("Error fetching sales agents:", err);
-        // Fallback to hardcoded list if API fails
-        setSalesAgents(["David", "Dipshika", "John", "Mark", "Michael", "Nik", "Richard", "Tristan"]);
-      }
-    };
-    fetchSalesAgents();
+  // Fetch sales agents from database
+  const fetchSalesAgents = useCallback(async (brand) => {
+    try {
+      const { data } = await API.get("/salesAgents");
+      // Create mapping: firstName -> fullName
+      const map = {};
+      const firstNames = [];
+      data.forEach((agent) => {
+        map[agent.firstName] = agent.fullName;
+        firstNames.push(agent.firstName);
+      });
+      setSalesAgentsMap(map);
+      setSalesAgents(firstNames.sort());
+    } catch (err) {
+      console.error("Error fetching sales agents:", err);
+      // Fallback to empty array if API fails
+      setSalesAgents([]);
+      setSalesAgentsMap({});
+    }
   }, []);
+
+  // Get full name from first name for current brand
+  const getFullName = useCallback((firstName) => {
+    return salesAgentsMap[firstName] || firstName;
+  }, [salesAgentsMap]);
+
+  // Update brand when it changes
+  useEffect(() => {
+    const handleBrandChange = () => {
+      setCurrentBrand(getCurrentBrand());
+    };
+    window.addEventListener("brand-changed", handleBrandChange);
+    return () => window.removeEventListener("brand-changed", handleBrandChange);
+  }, []);
+
+  // Fetch sales agents when brand changes
+  useEffect(() => {
+    fetchSalesAgents(currentBrand);
+  }, [currentBrand, fetchSalesAgents]);
+
+  // Reset salesAgent when brand changes - map to corresponding agent
+  const prevBrandRef = useRef(currentBrand);
+  useEffect(() => {
+    // Only check when brand actually changes
+    if (prevBrandRef.current === currentBrand) return;
+    prevBrandRef.current = currentBrand;
+    
+    if (salesAgents.length === 0) return;
+    
+    // When brand changes, map the stored firstName to the corresponding agent for the new brand
+    const storedFirstName = getStoredFirstName();
+    if (storedFirstName) {
+      const mappedFirstName = getMappedFirstName(storedFirstName, currentBrand);
+      const newDefault = resolveSalesAgentValue(mappedFirstName, salesAgents);
+      
+      setFormData((prev) => ({
+        ...prev,
+        salesAgent: newDefault || "",
+      }));
+    } else {
+      // If no stored firstName, check if current salesAgent is valid for new brand
+      setFormData((prev) => {
+        if (!prev.salesAgent) return prev;
+        
+        const isValid = salesAgents.some(
+          (agent) => agent.toLowerCase() === prev.salesAgent.toLowerCase()
+        );
+        if (!isValid) {
+          return {
+            ...prev,
+            salesAgent: "",
+          };
+        }
+        return prev;
+      });
+    }
+  }, [currentBrand, salesAgents, resolveSalesAgentValue, getMappedFirstName]);
 
   const resolveSalesAgentValue = useCallback((value, agents) => {
     if (!value || !agents.length) return "";
@@ -160,10 +231,24 @@ export default function AddOrder() {
     return match || value;
   }, []);
 
-  const defaultSalesAgent = useMemo(
-    () => resolveSalesAgentValue(getStoredFirstName(), salesAgents),
-    [salesAgents, resolveSalesAgentValue]
-  );
+  // Map 50STARS firstName to PROLANE firstName if brand is PROLANE
+  const getMappedFirstName = useCallback((firstName, brand) => {
+    if (brand === "PROLANE" && firstName && AGENT_BRAND_MAPPING[firstName]) {
+      return AGENT_BRAND_MAPPING[firstName];
+    }
+    return firstName;
+  }, []);
+
+  const defaultSalesAgent = useMemo(() => {
+    const storedFirstName = getStoredFirstName();
+    if (!storedFirstName) return "";
+    
+    // Map the firstName based on current brand
+    const mappedFirstName = getMappedFirstName(storedFirstName, currentBrand);
+    
+    // Find matching agent in the current brand's agent list
+    return resolveSalesAgentValue(mappedFirstName, salesAgents);
+  }, [salesAgents, currentBrand, resolveSalesAgentValue, getMappedFirstName]);
   
   const salesAgentOptions = useMemo(() => {
     if (!defaultSalesAgent) return salesAgents;
@@ -419,6 +504,9 @@ export default function AddOrder() {
       const chargedNum = parseFloat(formData.chargedAmount) || soldPNum;
       const orderStatus = chargedNum === soldPNum ? "Placed" : "Partially charged order";
 
+      // Get full name for sales agent based on current brand
+      const salesAgentFullName = getFullName(formData.salesAgent);
+
       const payload = {
         ...formData,
         bName: formData.businessName || formData.bName,
@@ -431,6 +519,7 @@ export default function AddOrder() {
         chargedAmount: chargedNum,
         orderStatus: orderStatus,
         attention: formData.sAttention || formData.attention || "", // Map sAttention to attention
+        salesAgent: salesAgentFullName, // Save full name to database
       };
       // Remove sAttention from payload since we've mapped it to attention
       delete payload.sAttention;
