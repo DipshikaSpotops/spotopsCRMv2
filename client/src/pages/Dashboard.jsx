@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import API from "../api";
 import useOrdersRealtime from "../hooks/useOrdersRealtime";
+import useBrand from "../hooks/useBrand";
 
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -141,6 +142,8 @@ const getDallasNow = () => {
 /* --------------------------------- View ---------------------------------- */
 
 export default function Dashboard() {
+  const brand = useBrand(); // 50STARS / PROLANE
+  
   // Defaults from Dallas time
   const dallasNow = useMemo(() => getDallasNow(), []);
   const defaultMonth = dallasNow.getMonth() + 1;
@@ -362,6 +365,14 @@ export default function Dashboard() {
     onOrderCreated: () => setReloadTick((t) => t + 1),
     onOrderUpdated: () => setReloadTick((t) => t + 1),
   });
+
+  // Refetch when brand changes
+  useEffect(() => {
+    // Clear year overview cache when brand changes since data is brand-specific
+    setYearOverviewCache({});
+    // Trigger refetch by incrementing reloadTick
+    setReloadTick((t) => t + 1);
+  }, [brand]);
 
   /* ----------------------------------- UI ----------------------------------- */
 
