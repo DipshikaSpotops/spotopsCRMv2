@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { useSelector } from "react-redux";
 import { STATES } from "../data/states";
 import { selectRole } from "../store/authSlice";
+import useBrand from "../hooks/useBrand";
 const REQUIRED_FIELD_LABELS = {
   orderNo: "Order No",
   salesAgent: "Sales Agent",
@@ -136,26 +137,122 @@ export default function EditOrder() {
   const [partNames, setPartNames] = useState([]);
   const [fieldErrors, setFieldErrors] = useState(new Set());
   const [salesAgents, setSalesAgents] = useState([]);
+  const [salesAgentsMap, setSalesAgentsMap] = useState({}); // firstName -> fullName mapping
+  const [salesAgentsReverseMap, setSalesAgentsReverseMap] = useState({}); // fullName -> firstName mapping
+  const brand = useBrand(); // 50STARS / PROLANE
+  const originalSalesAgentRef = useRef(null); // Store original sales agent from loaded order
   
-  // Fetch all sales agents from API
-  useEffect(() => {
-    const fetchSalesAgents = async () => {
-      try {
-        const { data } = await API.get("/users", { params: { role: "Sales" } });
-        // Extract firstName from users and sort alphabetically
-        const agentNames = data
-          .map(user => user.firstName)
-          .filter(Boolean)
-          .sort();
-        setSalesAgents(agentNames);
-      } catch (err) {
-        console.error("Error fetching sales agents:", err);
-        // Fallback to hardcoded list if API fails
-        setSalesAgents(["David", "Dipshika", "John", "Mark", "Michael", "Nik", "Richard", "Tristan"]);
-      }
-    };
-    fetchSalesAgents();
+  // Fetch sales agents from database (brand-aware)
+  const fetchSalesAgents = useCallback(async () => {
+    try {
+      const { data } = await API.get("/salesAgents");
+      // Create mapping: firstName -> fullName and fullName -> firstName
+      const map = {};
+      const reverseMap = {};
+      const firstNames = [];
+      data.forEach((agent) => {
+        map[agent.firstName] = agent.fullName;
+        reverseMap[agent.fullName] = agent.firstName;
+        firstNames.push(agent.firstName);
+      });
+      setSalesAgentsMap(map);
+      setSalesAgentsReverseMap(reverseMap);
+      setSalesAgents(firstNames.sort());
+    } catch (err) {
+      console.error("Error fetching sales agents:", err);
+      // Fallback to empty arrays if API fails
+      setSalesAgents([]);
+      setSalesAgentsMap({});
+      setSalesAgentsReverseMap({});
+    }
   }, []);
+
+  // Fetch sales agents when brand changes
+  useEffect(() => {
+    fetchSalesAgents();
+  }, [brand, fetchSalesAgents]);
+
+  // Get first name from full name (for loading orders)
+  const getFirstName = useCallback((fullName) => {
+    if (!fullName) return "";
+    const trimmed = fullName.trim();
+    
+    // First try reverse map (exact match)
+    if (salesAgentsReverseMap[trimmed]) {
+      return salesAgentsReverseMap[trimmed];
+    }
+    
+    // Try case-insensitive match in reverse map
+    const reverseMapKey = Object.keys(salesAgentsReverseMap).find(
+      key => key.toLowerCase() === trimmed.toLowerCase()
+    );
+    if (reverseMapKey) {
+      return salesAgentsReverseMap[reverseMapKey];
+    }
+    
+    // If not found, try to extract first name (in case it's just a first name)
+    const firstName = trimmed.split(" ")[0].trim();
+    
+    // If the extracted first name exists in our agents list, use it
+    if (firstName && salesAgents.includes(firstName)) {
+      return firstName;
+    }
+    
+    // Try case-insensitive match in sales agents list
+    const matchingAgent = salesAgents.find(
+      agent => agent.toLowerCase() === firstName.toLowerCase()
+    );
+    if (matchingAgent) {
+      return matchingAgent;
+    }
+    
+    // Otherwise, return the extracted first name (might work if agents load later)
+    return firstName || trimmed;
+  }, [salesAgentsReverseMap, salesAgents]);
+
+  // Update salesAgent in formData when sales agents are loaded (in case order was loaded before agents)
+  useEffect(() => {
+    if (!formData.orderNo || salesAgents.length === 0 || Object.keys(salesAgentsReverseMap).length === 0) {
+      return;
+    }
+    
+    // If we have an original sales agent from the loaded order, use it for conversion
+    const originalAgent = originalSalesAgentRef.current;
+    if (originalAgent) {
+      const convertedFirstName = getFirstName(originalAgent);
+      if (convertedFirstName && salesAgents.includes(convertedFirstName)) {
+        // Only update if the current value doesn't match
+        if (formData.salesAgent !== convertedFirstName) {
+          console.log("[EditOrder] Updating sales agent after agents loaded:", { originalAgent, convertedFirstName });
+          setFormData((prev) => ({ ...prev, salesAgent: convertedFirstName }));
+        }
+        // Clear the ref after successful conversion
+        originalSalesAgentRef.current = null;
+        return;
+      }
+    }
+    
+    // Fallback: if current salesAgent is not in the dropdown options, try to convert it
+    const currentAgent = (formData.salesAgent || "").trim();
+    if (currentAgent) {
+      const isInDropdown = salesAgents.some(agent => agent.toLowerCase() === currentAgent.toLowerCase());
+      
+      if (!isInDropdown) {
+        // Try to convert full name to first name
+        const convertedFirstName = getFirstName(currentAgent);
+        if (convertedFirstName && convertedFirstName !== currentAgent) {
+          const isValidAgent = salesAgents.some(agent => agent.toLowerCase() === convertedFirstName.toLowerCase());
+          if (isValidAgent) {
+            // Find the exact match (case-sensitive) from salesAgents
+            const exactMatch = salesAgents.find(agent => agent.toLowerCase() === convertedFirstName.toLowerCase());
+            if (exactMatch) {
+              setFormData((prev) => ({ ...prev, salesAgent: exactMatch }));
+            }
+          }
+        }
+      }
+    }
+  }, [salesAgents, salesAgentsReverseMap, formData.orderNo, formData.salesAgent, getFirstName]);
 
   // Get role with fallback to localStorage (like Sidebar does)
   const role = userRole ?? (() => {
@@ -359,10 +456,28 @@ export default function EditOrder() {
       // Format order date if it exists
       const dateFormatted = formatOrderDate(order.orderDate);
 
+      // Convert sales agent full name to first name for dropdown
+      // Store original for later conversion if agents load after order
+      const orderSalesAgent = (order.salesAgent || "").trim();
+      originalSalesAgentRef.current = orderSalesAgent; // Store original for later use
+      
+      let salesAgentFirstName = "";
+      if (orderSalesAgent) {
+        if (Object.keys(salesAgentsReverseMap).length > 0 && salesAgents.length > 0) {
+          // Sales agents are loaded, use proper conversion
+          salesAgentFirstName = getFirstName(orderSalesAgent);
+          console.log("[EditOrder] Converting sales agent:", { orderSalesAgent, salesAgentFirstName, reverseMap: salesAgentsReverseMap });
+        } else {
+          // Sales agents not loaded yet, extract first word as fallback
+          salesAgentFirstName = orderSalesAgent.split(" ")[0].trim();
+          console.log("[EditOrder] Sales agents not loaded, using extracted first name:", salesAgentFirstName);
+        }
+      }
+
       // Map order data to form data
       setFormData({
         orderNo: order.orderNo || "",
-        salesAgent: order.salesAgent || "",
+        salesAgent: salesAgentFirstName,
         orderDateDisplay: order.orderDateDisplay || dateFormatted.display,
         orderDateISO: order.orderDateISO || dateFormatted.iso,
         orderStatus: order.orderStatus || "Placed",
@@ -547,6 +662,7 @@ export default function EditOrder() {
         notes: notesArray,
         chargedAmount: chargedNum,
         orderStatus: formData.orderStatus, // Preserve existing orderStatus
+        salesAgent: formData.salesAgent, // Save only firstName to database (for filtering compatibility)
         // Convert boolean toggles to strings (backend expects strings)
         expediteShipping: formData.expediteShipping ? "true" : "false",
         dsCall: formData.dsCall ? "true" : "false",
@@ -643,11 +759,16 @@ export default function EditOrder() {
             <Section title="Sales Agent">
               <Dropdown
                 placeholder="Select Sales Agent"
-                options={salesAgents}
-                value={formData.salesAgent}
+                options={salesAgents.length > 0 ? salesAgents : []}
+                value={formData.salesAgent || ""}
                 onChange={(e) => handleFieldChange("salesAgent", e.target.value)}
                 error={fieldErrors.has("salesAgent")}
               />
+              {formData.salesAgent && !salesAgents.includes(formData.salesAgent) && salesAgents.length > 0 && (
+                <p className="text-xs text-yellow-300 mt-1">
+                  Note: "{formData.salesAgent}" will be converted when you save
+                </p>
+              )}
             </Section>
 
             <Section title="Order Date">

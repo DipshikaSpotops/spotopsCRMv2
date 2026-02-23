@@ -166,11 +166,6 @@ export default function AddOrder() {
     }
   }, []);
 
-  // Get full name from first name for current brand
-  const getFullName = useCallback((firstName) => {
-    return salesAgentsMap[firstName] || firstName;
-  }, [salesAgentsMap]);
-
   // Update brand when it changes
   useEffect(() => {
     const handleBrandChange = () => {
@@ -490,9 +485,6 @@ export default function AddOrder() {
       const chargedNum = parseFloat(formData.chargedAmount) || soldPNum;
       const orderStatus = chargedNum === soldPNum ? "Placed" : "Partially charged order";
 
-      // Get full name for sales agent based on current brand
-      const salesAgentFullName = getFullName(formData.salesAgent);
-
       const payload = {
         ...formData,
         bName: formData.businessName || formData.bName,
@@ -505,7 +497,7 @@ export default function AddOrder() {
         chargedAmount: chargedNum,
         orderStatus: orderStatus,
         attention: formData.sAttention || formData.attention || "", // Map sAttention to attention
-        salesAgent: salesAgentFullName, // Save full name to database
+        salesAgent: formData.salesAgent, // Save only firstName to database (for filtering compatibility)
       };
       // Remove sAttention from payload since we've mapped it to attention
       delete payload.sAttention;
