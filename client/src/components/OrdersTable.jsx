@@ -21,6 +21,7 @@ import {
   FaSortUp,
 } from "react-icons/fa";
 import StickyXScrollbar from "./StickyXScrollbar";
+import useBrand from "../hooks/useBrand";
 
 /* =========================
    Constants / helpers
@@ -28,6 +29,15 @@ import StickyXScrollbar from "./StickyXScrollbar";
 const TZ = "America/Chicago";
 const ROWS_PER_PAGE = 25;
 const BAD_STATUSES = new Set(["Order Cancelled", "Refunded", "Dispute"]);
+
+// Mapping from 50STARS agent firstName to PROLANE agent firstName
+const AGENT_BRAND_MAPPING = {
+  "Richard": "Victor",
+  "Mark": "Sam",
+  "David": "Steve",
+  "Michael": "Charlie",
+  "Dipsikha": "Dipsikha", // Same for both brands
+};
 
 // utils - memoized for performance
 const currency = (n) => `$${(Number(n) || 0).toFixed(2)}`;
@@ -312,6 +322,7 @@ export default function OrdersTable({
   customFilters, // optional: custom filter components to render next to agent filter
 }) {
   const navigate = useNavigate();
+  const brand = useBrand(); // 50STARS / PROLANE
 
   // validate storage keys
   const LS_PAGE_KEY = storageKeys?.page || "ordersTablePage";
@@ -680,16 +691,27 @@ export default function OrdersTable({
   const filteredByRole = useMemo(() => {
     if ((userRole || "").toLowerCase() === "sales") {
       const me = firstName.toLowerCase();
+      // Get mapped agent name for PROLANE brand
+      const mappedFirstName = (brand === 'PROLANE' && AGENT_BRAND_MAPPING[firstName]) 
+        ? AGENT_BRAND_MAPPING[firstName] 
+        : firstName;
+      const mappedMe = mappedFirstName.toLowerCase();
+      
       return rowsWithDerived.filter((o) => {
         const agent = (o?.salesAgent || "").toLowerCase().trim();
         // Match exact firstName OR full name starting with firstName
-        // Examples: "richard" matches, "richard parker" matches
-        return agent === me || agent.startsWith(me + " ");
+        // Also match mapped agent name if brand is PROLANE
+        // Examples: "richard" matches, "richard parker" matches, "victor" matches (if PROLANE)
+        const matchesOriginal = agent === me || agent.startsWith(me + " ");
+        const matchesMapped = mappedFirstName !== firstName 
+          ? (agent === mappedMe || agent.startsWith(mappedMe + " "))
+          : false;
+        return matchesOriginal || matchesMapped;
       });
     }
     // Admin & Support see everything
     return rowsWithDerived;
-  }, [rowsWithDerived, userRole, firstName]);
+  }, [rowsWithDerived, userRole, firstName, brand]);
 
   // 2) Admin-only agent narrowing (Select/All=no narrowing)
   const agentFiltered = useMemo(() => {

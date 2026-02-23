@@ -6,6 +6,15 @@ import { requireAuth, allow } from "../middleware/auth.js";
 const router = express.Router();
 const TZ = "America/Chicago";
 
+// Mapping from 50STARS agent firstName to PROLANE agent firstName
+const AGENT_BRAND_MAPPING = {
+  "Richard": "Victor",
+  "Mark": "Sam",
+  "David": "Steve",
+  "Michael": "Charlie",
+  "Dipsikha": "Dipsikha", // Same for both brands
+};
+
 // Utility: build date range from query (same as monthlyOrders)
 function buildDateRange(q) {
   const { start, end, month, year } = q;
@@ -108,10 +117,35 @@ router.get("/", requireAuth, allow("Admin", "Sales", "Support"), async (req, res
       // Match either exact firstName or full name starting with firstName
       // This handles both: "Richard" (new format) and "Richard Parker" (old format)
       const firstName = req.user.firstName;
-      const escapedFirstName = firstName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      // Pattern matches: exact firstName OR firstName followed by space and any characters
-      // Examples: "Richard" matches, "Richard Parker" matches, "RichardParker" does NOT match
-      query.salesAgent = new RegExp(`^${escapedFirstName}(?:\\s.*|$)`, "i");
+      if (!firstName) {
+        console.warn('[partiallyChargedOrders] Sales user has no firstName, skipping salesAgent filter');
+      } else {
+        // Get mapped agent name for PROLANE brand
+        const mappedFirstName = (req.brand === 'PROLANE' && AGENT_BRAND_MAPPING[firstName]) 
+          ? AGENT_BRAND_MAPPING[firstName] 
+          : firstName;
+        
+        // Build regex patterns for both the original and mapped firstName
+        const escapedFirstName = firstName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const escapedMappedName = mappedFirstName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        
+        // Pattern matches: exact firstName OR firstName followed by space and any characters
+        // Examples: "Richard" matches, "Richard Parker" matches, "RichardParker" does NOT match
+        const pattern1 = `^${escapedFirstName}(?:\\s.*|$)`;
+        const pattern2 = `^${escapedMappedName}(?:\\s.*|$)`;
+        
+        // If mapped name is different, include both patterns
+        if (mappedFirstName !== firstName) {
+          query.salesAgent = { $in: [
+            new RegExp(pattern1, 'i'),
+            new RegExp(pattern2, 'i')
+          ]};
+          console.log(`[partiallyChargedOrders] Sales filter (PROLANE): firstName="${firstName}" -> mapped="${mappedFirstName}", patterns=["${pattern1}", "${pattern2}"]`);
+        } else {
+          query.salesAgent = new RegExp(pattern1, 'i');
+          console.log(`[partiallyChargedOrders] Sales filter: firstName="${firstName}", pattern="${pattern1}"`);
+        }
+      }
     } else if (req.user.role === "Admin" && salesAgent) {
       // Admin can filter by any agent via query
       query.salesAgent = new RegExp(salesAgent.trim(), "i");
