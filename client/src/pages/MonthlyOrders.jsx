@@ -30,6 +30,16 @@ function formatOrderStatus(status) {
 }
 
 /**
+ * Extract firstName from salesAgent (handles both "Richard" and "Richard Parker")
+ */
+function getSalesAgentFirstName(salesAgent) {
+  if (!salesAgent) return "—";
+  const trimmed = String(salesAgent).trim();
+  // Extract first word (firstName)
+  return trimmed.split(" ")[0] || trimmed;
+}
+
+/**
  * Extract numeric shipping value from shippingDetails string
  * Handles both "Own shipping: X" and "Yard shipping: X" formats
  * Always extracts from shippingDetails, never from ownShipping/yardShipping fields
@@ -192,7 +202,7 @@ export default function MonthlyOrders() {
           );
 
         case "salesAgent":
-          return row.salesAgent || "—";
+          return getSalesAgentFirstName(row.salesAgent);
 
         case "customerName":
           return (

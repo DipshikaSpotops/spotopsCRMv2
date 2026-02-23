@@ -102,8 +102,16 @@ router.get('/', requireAuth, allow('Admin', 'Sales', 'Support'), async (req, res
       // Match either exact firstName or full name starting with firstName
       // This handles both: "Richard" (new format) and "Richard Parker" (old format)
       const firstName = req.user.firstName;
-      const escapedFirstName = firstName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      query.salesAgent = new RegExp(`^${escapedFirstName}(?:\\s|$)`, 'i');
+      if (!firstName) {
+        console.warn('[monthlyOrders] Sales user has no firstName, skipping salesAgent filter');
+      } else {
+        const escapedFirstName = firstName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        // Pattern matches: exact firstName OR firstName followed by space and any characters
+        // Examples: "Richard" matches, "Richard Parker" matches, "RichardParker" does NOT match
+        const pattern = `^${escapedFirstName}(?:\\s.*|$)`;
+        query.salesAgent = new RegExp(pattern, 'i');
+        console.log(`[monthlyOrders] Sales filter: firstName="${firstName}", pattern="${pattern}"`);
+      }
     } else if (req.user.role === 'Admin' && salesAgent) {
       // Admin can filter by any agent via query
       query.salesAgent = new RegExp(salesAgent.trim(), 'i');

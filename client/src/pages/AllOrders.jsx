@@ -20,6 +20,16 @@ function formatOrderStatus(status) {
   return status;
 }
 
+/**
+ * Extract firstName from salesAgent (handles both "Richard" and "Richard Parker")
+ */
+function getSalesAgentFirstName(salesAgent) {
+  if (!salesAgent) return "—";
+  const trimmed = String(salesAgent).trim();
+  // Extract first word (firstName)
+  return trimmed.split(" ")[0] || trimmed;
+}
+
 const AllOrders = () => {
   const navigate = useNavigate();
   const brand = useBrand(); // 50STARS / PROLANE
@@ -450,7 +460,7 @@ const AllOrders = () => {
                 </td>
 
                 <td className="p-2.5 border-r border-white/20 whitespace-nowrap text-bodyText">
-                  {order.salesAgent}
+                  {getSalesAgentFirstName(order.salesAgent)}
                 </td>
 
                 {/* Customer Info (display best available) */}

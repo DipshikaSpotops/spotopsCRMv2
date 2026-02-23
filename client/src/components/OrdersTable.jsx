@@ -680,9 +680,12 @@ export default function OrdersTable({
   const filteredByRole = useMemo(() => {
     if ((userRole || "").toLowerCase() === "sales") {
       const me = firstName.toLowerCase();
-      return rowsWithDerived.filter(
-        (o) => (o?.salesAgent || "").toLowerCase() === me
-      );
+      return rowsWithDerived.filter((o) => {
+        const agent = (o?.salesAgent || "").toLowerCase().trim();
+        // Match exact firstName OR full name starting with firstName
+        // Examples: "richard" matches, "richard parker" matches
+        return agent === me || agent.startsWith(me + " ");
+      });
     }
     // Admin & Support see everything
     return rowsWithDerived;

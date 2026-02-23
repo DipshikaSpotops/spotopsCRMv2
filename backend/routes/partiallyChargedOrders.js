@@ -109,7 +109,9 @@ router.get("/", requireAuth, allow("Admin", "Sales", "Support"), async (req, res
       // This handles both: "Richard" (new format) and "Richard Parker" (old format)
       const firstName = req.user.firstName;
       const escapedFirstName = firstName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      query.salesAgent = new RegExp(`^${escapedFirstName}(?:\\s|$)`, "i");
+      // Pattern matches: exact firstName OR firstName followed by space and any characters
+      // Examples: "Richard" matches, "Richard Parker" matches, "RichardParker" does NOT match
+      query.salesAgent = new RegExp(`^${escapedFirstName}(?:\\s.*|$)`, "i");
     } else if (req.user.role === "Admin" && salesAgent) {
       // Admin can filter by any agent via query
       query.salesAgent = new RegExp(salesAgent.trim(), "i");
