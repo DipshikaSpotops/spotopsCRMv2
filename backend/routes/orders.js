@@ -1176,6 +1176,7 @@ router.post("/:orderNo/additionalInfo", async (req, res) => {
       orderStatus,
       yardName,
       agentName,
+      agentPhone,
       yardRating,
       phone,
       altPhone,
@@ -1225,7 +1226,7 @@ router.post("/:orderNo/additionalInfo", async (req, res) => {
     const nextIndex = order.additionalInfo.length + 1;
 
     const yardEntry = {
-      yardName, agentName, yardRating, phone, altPhone, ext, email,
+      yardName, agentName, agentPhone, yardRating, phone, altPhone, ext, email,
       street, city, state, zipcode,
       address: address || [street, city, state, zipcode].filter(Boolean).join(" "),
       country, partPrice,
@@ -1319,6 +1320,7 @@ router.put(
     const allowed = [
       "yardName",
       "agentName",
+      "agentPhone",
       "yardRating",
       "phone",
       "altPhone",

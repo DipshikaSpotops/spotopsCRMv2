@@ -10,7 +10,7 @@ router.get("/", async (req, res) => {
   try {
     const yards = await Yard.find(
       {},
-      "yardName yardRating phone altNo email street city state zipcode country warranty"
+      "yardName yardRating phone altNo email street city state zipcode country warranty agents"
     );
     res.json(yards);
   } catch (err) {
@@ -216,6 +216,8 @@ router.post("/", async (req, res) => {
       zipcode,
       country = "US",
       warranty,
+      agentName,
+      agentPhone,
     } = req.body;
 
     if (!yardName || !yardName.trim()) {
@@ -249,25 +251,64 @@ router.post("/", async (req, res) => {
       },
     });
 
+    // Build agent object if agentName is provided (phone is optional)
+    const agentNameTrimmed = agentName ? String(agentName).trim() : "";
+    const agentPhoneTrimmed = agentPhone ? String(agentPhone).trim() : "";
+    const hasAgent = agentNameTrimmed.length > 0;
+    const agent = hasAgent
+      ? {
+          name: agentNameTrimmed,
+          phone: agentPhoneTrimmed || "", // Allow empty phone
+        }
+      : null;
+
     if (existing) {
       // Update the existing yard instead of throwing duplicate error
+      const updateDoc = {
+        $set: {
+          yardRating,
+          phone,
+          altNo,
+          email,
+          street,
+          city,
+          state,
+          zipcode,
+          country,
+          warranty,
+        },
+      };
+
+      // Handle agent: save if name exists, update phone if agent already exists
+      if (agent) {
+        // Check if agent with same name already exists
+        const existingAgent = existing.agents?.find(
+          (a) => a && String(a.name || "").trim().toLowerCase() === agentNameTrimmed.toLowerCase()
+        );
+
+        if (existingAgent) {
+          // Agent exists: update phone if we have one and existing doesn't
+          if (agentPhoneTrimmed && !existingAgent.phone) {
+            // Update the existing agent's phone in the same update
+            updateDoc.$set = updateDoc.$set || {};
+            updateDoc.$set["agents.$[elem].phone"] = agentPhoneTrimmed;
+            updateDoc.arrayFilters = [{ "elem.name": existingAgent.name }];
+          }
+          // If agent exists and already has phone, do nothing (don't duplicate)
+        } else {
+          // Agent doesn't exist: add it
+          updateDoc.$addToSet = {
+            agents: agent,
+          };
+        }
+      }
+
       const updated = await Yard.findByIdAndUpdate(
         existing._id,
+        updateDoc,
         {
-          $set: {
-            yardRating,
-            phone,
-            altNo,
-            email,
-            street,
-            city,
-            state,
-            zipcode,
-            country,
-            warranty,
-          },
-        },
-        { new: true }
+          new: true,
+        }
       );
       return res.json({ message: "Yard updated (existing reused)", yard: updated });
     }
@@ -285,6 +326,7 @@ router.post("/", async (req, res) => {
       zipcode,
       country,
       warranty,
+      agents: agent ? [agent] : [],
     });
 
     await newYard.save();
@@ -315,27 +357,79 @@ router.put("/:id", async (req, res) => {
       zipcode,
       country,
       warranty,
+      agentName,
+      agentPhone,
     } = req.body;
 
-    const yard = await Yard.findByIdAndUpdate(
-      id,
-      {
-        $set: {
-          yardName: yardName?.trim(),
-          yardRating,
-          phone,
-          altNo,
-          email,
-          street,
-          city,
-          state,
-          zipcode,
-          country,
-          warranty,
-        },
+    // Build agent object if agentName is provided (phone is optional)
+    const agentNameTrimmed = agentName ? String(agentName).trim() : "";
+    const agentPhoneTrimmed = agentPhone ? String(agentPhone).trim() : "";
+    const hasAgent = agentNameTrimmed.length > 0;
+    const agent = hasAgent
+      ? {
+          name: agentNameTrimmed,
+          phone: agentPhoneTrimmed || "", // Allow empty phone
+        }
+      : null;
+
+    const yard = await Yard.findById(id);
+    if (!yard) {
+      return res.status(404).json({ message: "Yard not found" });
+    }
+
+    const updateDoc = {
+      $set: {
+        yardName: yardName?.trim(),
+        yardRating,
+        phone,
+        altNo,
+        email,
+        street,
+        city,
+        state,
+        zipcode,
+        country,
+        warranty,
       },
-      { new: true, runValidators: true }
-    );
+    };
+
+    // Handle agent: save if name exists, update phone if agent already exists
+    if (agent) {
+      // Check if agent with same name already exists
+      const existingAgent = yard.agents?.find(
+        (a) => a && String(a.name || "").trim().toLowerCase() === agentNameTrimmed.toLowerCase()
+      );
+
+      if (existingAgent) {
+        // Agent exists: update phone if provided (even if it already has one)
+        if (agentPhoneTrimmed !== undefined && agentPhoneTrimmed !== null) {
+          // Update the existing agent's phone using arrayFilters
+          updateDoc.$set = updateDoc.$set || {};
+          updateDoc.$set["agents.$[elem].phone"] = agentPhoneTrimmed;
+          // Use the exact name from existingAgent for matching
+          const agentNameForFilter = existingAgent.name || agentNameTrimmed;
+          const updateOptions = {
+            new: true,
+            runValidators: true,
+            arrayFilters: [{ 
+              "elem.name": agentNameForFilter
+            }]
+          };
+          const updated = await Yard.findByIdAndUpdate(id, updateDoc, updateOptions);
+          return res.json({ message: "Yard updated successfully", yard: updated });
+        }
+      } else {
+        // Agent doesn't exist: add it
+        updateDoc.$addToSet = {
+          agents: agent,
+        };
+      }
+    }
+
+    const updated = await Yard.findByIdAndUpdate(id, updateDoc, {
+      new: true,
+      runValidators: true,
+    });
 
     if (!yard) {
       return res.status(404).json({ message: "Yard not found" });

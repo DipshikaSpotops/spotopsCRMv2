@@ -43,10 +43,11 @@ function Toast({ message, onClose }) {
   );
 }
 
-export default function YardEditModal({ open, initial, order, orderNo, yardIndex, onClose, onSubmit }) {
+export default function YardEditModal({ open, initial, order, orderNo, yardIndex, onClose, onSubmit, canAddNewYard }) {
   const [form, setForm] = useState(() => ({
     yardName: "",
     agentName: "",
+    agentPhone: "",
     yardRating: "",
     phone: "",
     altPhone: "",
@@ -120,6 +121,7 @@ export default function YardEditModal({ open, initial, order, orderNo, yardIndex
     setForm({
       yardName: initial?.yardName || "",
       agentName: initial?.agentName || "",
+      agentPhone: initial?.agentPhone || "",
       yardRating: initial?.yardRating || "",
       phone: initial?.phone || "",
       altPhone: initial?.altPhone || "",
@@ -317,11 +319,47 @@ export default function YardEditModal({ open, initial, order, orderNo, yardIndex
     const shippingLabel = shippingChanged ? "Shipping Details" : null;
 
     try {
+      // Update order's additionalInfo
       const { data } = await API.patch(
         `/orders/${encodeURIComponent(orderNo)}/additionalInfo/${yardIndex + 1}`,
         changedFields,
         { params: { firstName } }
       );
+
+      // If agentName or agentPhone changed, also update the Yards collection
+      if ((changedFields.agentName !== undefined || changedFields.agentPhone !== undefined) && form.yardName) {
+        try {
+          // Find the yard by name
+          const yardSearchRes = await API.get(`/yards/search`, {
+            params: { name: form.yardName },
+          });
+          const existingYards = yardSearchRes.data || [];
+          
+          if (existingYards.length > 0) {
+            // Get the existing yard to preserve other fields
+            const existingYard = existingYards[0];
+            // Update only the agent info in the Yards collection
+            await API.put(`/yards/${existingYard._id}`, {
+              yardName: existingYard.yardName,
+              yardRating: existingYard.yardRating,
+              phone: existingYard.phone,
+              altNo: existingYard.altNo,
+              email: existingYard.email,
+              street: existingYard.street,
+              city: existingYard.city,
+              state: existingYard.state,
+              zipcode: existingYard.zipcode,
+              country: existingYard.country,
+              warranty: existingYard.warranty,
+              agentName: form.agentName || "",
+              agentPhone: form.agentPhone || "",
+            });
+          }
+        } catch (yardErr) {
+          console.error("Error updating yard in Yards collection:", yardErr);
+          // Don't fail the whole operation if yard update fails
+        }
+      }
 
       const message =
         data?.message || `Yard ${yardIndex + 1} details updated successfully!`;
@@ -342,6 +380,7 @@ export default function YardEditModal({ open, initial, order, orderNo, yardIndex
           setForm({
             yardName: latestYard.yardName || "",
             agentName: latestYard.agentName || "",
+            agentPhone: latestYard.agentPhone || "",
             yardRating: latestYard.yardRating || "",
             phone: latestYard.phone || "",
             altPhone: latestYard.altPhone || "",
@@ -501,6 +540,13 @@ export default function YardEditModal({ open, initial, order, orderNo, yardIndex
             Desc: {order?.desc || order?.description || "—"}
           </div>
         </header>
+        {canAddNewYard === false && (
+          <div className="px-5 pt-3 pb-2 border-b border-yellow-700/30 bg-yellow-900/20">
+            <div className="px-3 py-2 text-xs text-yellow-200 bg-yellow-900/30 border border-yellow-700/50 rounded-md">
+              Finish the current yard first. Status must be PO Cancelled or Escalation (Return/Junk) before adding a new yard.
+            </div>
+          </div>
+        )}
         <div
           className="p-5 space-y-4 max-h-[80vh] overflow-y-auto"
           onKeyDown={(e) => {
@@ -516,7 +562,12 @@ export default function YardEditModal({ open, initial, order, orderNo, yardIndex
           {/* Names / rating */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <Field label="Yard Name"><Input value={form.yardName} onChange={set("yardName")} /></Field>
-            <Field label="Agent Name"><Input value={form.agentName} onChange={set("agentName")} /></Field>
+            <Field label="Agent Name">
+              <div className="grid grid-cols-2 gap-2">
+                <Input value={form.agentName} onChange={set("agentName")} />
+                <Input value={form.agentPhone} onChange={set("agentPhone")} placeholder="Phone (optional)" />
+              </div>
+            </Field>
             <Field label="Yard Rating"><Input value={form.yardRating} onChange={set("yardRating")} /></Field>
           </div>
 

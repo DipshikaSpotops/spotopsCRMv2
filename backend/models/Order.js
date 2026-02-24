@@ -3,6 +3,7 @@ import mongoose from 'mongoose';
 const additionalInfoSchema = new mongoose.Schema({
 yardName: String,
 agentName: String,
+agentPhone: String,
 yardRating:String,
 phone: String,
 altNo: String,

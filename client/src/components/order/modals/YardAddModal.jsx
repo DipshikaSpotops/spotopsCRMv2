@@ -21,6 +21,7 @@ export default function YardAddModal({ open, onClose, onSubmit, order }) {
   const [form, setForm] = useState({
     yardName: "",
     agentName: "",
+    agentPhone: "",
     yardRating: "",
     phone: "",
     altPhone: "",
@@ -211,6 +212,19 @@ export default function YardAddModal({ open, onClose, onSubmit, order }) {
       ownShipping: v && String(v).trim() !== "" ? "" : p.ownShipping,
     }));
   };
+
+  // Helpers to derive currently selected yard + its agents (if any)
+  const trimmedYardName = String(form.yardName || "").trim();
+  const currentYard =
+    trimmedYardName &&
+    yards.find(
+      (y) => String(y.yardName || "").trim() === trimmedYardName
+    );
+  const currentYardAgents = Array.isArray(currentYard?.agents)
+    ? currentYard.agents.filter(
+        (a) => a && typeof a.name === "string" && a.name.trim().length > 0
+      )
+    : [];
 
   const req = [
     "yardName",
@@ -717,9 +731,89 @@ export default function YardAddModal({ open, onClose, onSubmit, order }) {
 
 
             <Field label="Agent Name">
-              <Input value={form.agentName} onChange={set("agentName")} />
+              {/* Show dropdown only when no agent is selected or when "Add" is chosen */}
+              {currentYardAgents.length > 0 && 
+               (!form.agentName || !currentYardAgents.some((a) => a.name === form.agentName)) && (
+                <div className="mb-2">
+                  <select
+                    className="w-full p-2 rounded-md text-white bg-[#2b2d68] hover:bg-[#090c6c] yard-select-dark-bg dark:bg-[#2b2d68] dark:hover:bg-[#090c6c] dark:text-white"
+                    value="new"
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (val === "new") {
+                        // user wants to add a new agent; clear current selection and show input
+                        setForm((prev) => ({
+                          ...prev,
+                          agentName: "",
+                          agentPhone: "",
+                        }));
+                        return;
+                      }
+
+                      const selected =
+                        currentYardAgents.find((a) => a.name === val) || {};
+                      setForm((prev) => ({
+                        ...prev,
+                        agentName: val,
+                        agentPhone: selected.phone || "",
+                      }));
+                    }}
+                  >
+                    <option value="new">Add</option>
+                    {currentYardAgents
+                      .slice()
+                      .sort((a, b) =>
+                        a.name.localeCompare(b.name, undefined, {
+                          sensitivity: "base",
+                        })
+                      )
+                      .map((a) => (
+                        <option key={a.name} value={a.name}>
+                          {a.name}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Show name and phone side by side when agent is selected from dropdown */}
+              {currentYardAgents.length > 0 && 
+               form.agentName && 
+               currentYardAgents.some((a) => a.name === form.agentName) ? (
+                <div className="grid grid-cols-2 gap-2">
+                  <Input
+                    value={form.agentName}
+                    onChange={set("agentName")}
+                  />
+                  <Input
+                    value={form.agentPhone}
+                    onChange={set("agentPhone")}
+                    placeholder="Phone (optional)"
+                  />
+                </div>
+              ) : (
+                /* Show inputs side by side when adding new agent or no saved agents */
+                <div className="grid grid-cols-2 gap-2">
+                  <Input
+                    value={form.agentName}
+                    onChange={set("agentName")}
+                    placeholder={
+                      currentYardAgents.length
+                        ? "Enter new agent name"
+                        : undefined
+                    }
+                  />
+                  <Input
+                    value={form.agentPhone}
+                    onChange={set("agentPhone")}
+                    placeholder="Phone (optional)"
+                  />
+                </div>
+              )}
               {errors.agentName && (
-                <p className="text-xs text-red-200 mt-1 dark:text-red-200">{errors.agentName}</p>
+                <p className="text-xs text-red-200 mt-1 dark:text-red-200">
+                  {errors.agentName}
+                </p>
               )}
             </Field>
 

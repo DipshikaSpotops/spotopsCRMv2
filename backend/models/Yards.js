@@ -13,6 +13,13 @@ const yardsSchema = new mongoose.Schema(
     zipcode: { type: String, trim: true },
     country: { type: String, trim: true, default: "US" },
     warranty: { type: Number },
+    // Optional list of known agents for this yard with their direct phone numbers
+    agents: [
+      {
+        name: { type: String, trim: true },
+        phone: { type: String, trim: true },
+      },
+    ],
   },
   { timestamps: true }
 );

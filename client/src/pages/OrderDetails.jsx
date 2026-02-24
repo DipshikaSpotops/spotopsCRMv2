@@ -874,6 +874,8 @@ export default function OrderDetails() {
       if (existingYards.length === 0) {
         await API.post(`/yards`, {
           yardName: formData.yardName,
+          agentName: formData.agentName,
+          agentPhone: formData.agentPhone,
           yardRating: formData.yardRating,
           phone: formData.phone,
           altNo: formData.altPhone,
@@ -1584,6 +1586,7 @@ export default function OrderDetails() {
         initial={yards[editDetailsIdx]}
         order={order}
         orderNo={order?.orderNo}
+        canAddNewYard={canAddNewYard}
         onClose={() => {
           // Preserve active yard index when closing modal without saving
           if (editDetailsIdx !== null && editDetailsIdx !== undefined) {
