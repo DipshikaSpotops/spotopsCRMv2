@@ -59,7 +59,7 @@ const Yards = () => {
   const [totalYards, setTotalYards] = useState(0);
   const [totalYardsAll, setTotalYardsAll] = useState(0);
 
-  const [sortBy, setSortBy] = useState(null);
+  const [sortBy, setSortBy] = useState("yardName");
   const [sortOrder, setSortOrder] = useState("asc");
 
   const [searchInput, setSearchInput] = useState(localStorage.getItem("yardsSearch") || "");
