@@ -58,7 +58,7 @@ const AddLeadNotes = () => {
     warrantyField: "days",
     brand: "",
     salesAgent: "",
-    comments: "",
+    comments: "$ with programming and 1 year",
   });
   const [errors, setErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
@@ -159,7 +159,7 @@ const AddLeadNotes = () => {
         warrantyField: "days",
         brand: "",
         salesAgent: "",
-        comments: "",
+        comments: "$ with programming and 1 year",
       });
       if (showLeads) {
         fetchLeads(dateFilter);
@@ -369,6 +369,67 @@ const AddLeadNotes = () => {
           </div>
           <div className="space-y-2">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              <div>
+                <label className="block text-sm font-medium text-white mb-1">
+                  Brand
+                </label>
+                <AgentDropdown
+                  options={["Select", "50STARS", "PROLANE"]}
+                  value={form.brand || "Select"}
+                  onChange={(val) => {
+                    setForm((prev) => ({
+                      ...prev,
+                      brand: val === "Select" ? "" : val,
+                    }));
+                    if (errors.brand) {
+                      setErrors((prev) => {
+                        const next = { ...prev };
+                        delete next.brand;
+                        return next;
+                      });
+                    }
+                  }}
+                  placeholder="Select Brand"
+                  className="w-full"
+                />
+                {errors.brand && (
+                  <p className="mt-1 text-xs text-red-200">
+                    {typeof errors.brand === "string" ? errors.brand : "Required"}
+                  </p>
+                )}
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-white mb-1">
+                  Sales Agent
+                </label>
+                <AgentDropdown
+                  options={agentOptions}
+                  value={form.salesAgent || "Select"}
+                  onChange={(val) => {
+                    setForm((prev) => ({
+                      ...prev,
+                      salesAgent: val === "Select" ? "" : val,
+                    }));
+                    if (errors.salesAgent) {
+                      setErrors((prev) => {
+                        const next = { ...prev };
+                        delete next.salesAgent;
+                        return next;
+                      });
+                    }
+                  }}
+                  className="w-full"
+                />
+                {errors.salesAgent && (
+                  <p className="mt-1 text-xs text-red-200">
+                    {typeof errors.salesAgent === "string"
+                      ? errors.salesAgent
+                      : "Required"}
+                  </p>
+                )}
+              </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
               <InputField
                 label="Name"
                 value={form.name}
@@ -477,70 +538,9 @@ const AddLeadNotes = () => {
                 </select>
               </div>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-              <div>
-                <label className="block text-sm font-medium text-white mb-1">
-                  Brand
-                </label>
-                <AgentDropdown
-                  options={["Select", "50STARS", "PROLANE"]}
-                  value={form.brand || "Select"}
-                  onChange={(val) => {
-                    setForm((prev) => ({
-                      ...prev,
-                      brand: val === "Select" ? "" : val,
-                    }));
-                    if (errors.brand) {
-                      setErrors((prev) => {
-                        const next = { ...prev };
-                        delete next.brand;
-                        return next;
-                      });
-                    }
-                  }}
-                  placeholder="Select Brand"
-                  className="w-full"
-                />
-                {errors.brand && (
-                  <p className="mt-1 text-xs text-red-200">
-                    {typeof errors.brand === "string" ? errors.brand : "Required"}
-                  </p>
-                )}
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-white mb-1">
-                  Sales Agent
-                </label>
-                <AgentDropdown
-                  options={agentOptions}
-                  value={form.salesAgent || "Select"}
-                  onChange={(val) => {
-                    setForm((prev) => ({
-                      ...prev,
-                      salesAgent: val === "Select" ? "" : val,
-                    }));
-                    if (errors.salesAgent) {
-                      setErrors((prev) => {
-                        const next = { ...prev };
-                        delete next.salesAgent;
-                        return next;
-                      });
-                    }
-                  }}
-                  className="w-full"
-                />
-                {errors.salesAgent && (
-                  <p className="mt-1 text-xs text-red-200">
-                    {typeof errors.salesAgent === "string"
-                      ? errors.salesAgent
-                      : "Required"}
-                  </p>
-                )}
-              </div>
-            </div>
             <div>
               <label className="block text-sm font-medium text-white mb-1">
-                Other Comments
+                Other Details
               </label>
               <textarea
                 value={form.comments}
