@@ -302,7 +302,7 @@ const AddLeadNotes = () => {
         {!showLeads && (
           <form
             onSubmit={handleSubmit}
-            className="bg-white/10 rounded-2xl p-5 border border-white/20 shadow-md backdrop-blur-md space-y-3"
+            className="bg-white/10 rounded-2xl p-5 border border-white/20 shadow-md backdrop-blur-md space-y-3 max-w-4xl mx-auto"
           >
           <h3 className="text-lg font-semibold text-white mb-2">New Lead</h3>
           <div className="space-y-2">
