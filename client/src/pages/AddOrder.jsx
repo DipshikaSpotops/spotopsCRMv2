@@ -145,19 +145,51 @@ export default function AddOrder() {
   const [salesAgentsMap, setSalesAgentsMap] = useState({}); // firstName -> fullName mapping
   const [currentBrand, setCurrentBrand] = useState(() => getCurrentBrand());
   
-  // Fetch sales agents from database
+  // Fetch sales agents from database (both brands, filtered by mapping)
   const fetchSalesAgents = useCallback(async (brand) => {
     try {
-      const { data } = await API.get("/salesAgents");
+      const storedFirstName = getStoredFirstName();
+      
+      // Fetch agents from both brands using custom headers
+      const [data50STARS, dataPROLANE] = await Promise.all([
+        API.get("/salesAgents", { headers: { "x-brand": "50STARS" } }).catch(() => ({ data: [] })),
+        API.get("/salesAgents", { headers: { "x-brand": "PROLANE" } }).catch(() => ({ data: [] })),
+      ]);
+
       // Create mapping: firstName -> fullName
       const map = {};
-      const firstNames = [];
-      data.forEach((agent) => {
+      let allAgents = [];
+      
+      // Combine agents from both brands, adding brand info
+      (data50STARS.data || []).forEach((agent) => {
         map[agent.firstName] = agent.fullName;
-        firstNames.push(agent.firstName);
+        allAgents.push({ ...agent, brand: "50STARS" });
       });
+      (dataPROLANE.data || []).forEach((agent) => {
+        map[agent.firstName] = agent.fullName;
+        allAgents.push({ ...agent, brand: "PROLANE" });
+      });
+
+      // Filter agents based on mapping if user has a mapping
+      let filteredAgents = [];
+      if (storedFirstName && AGENT_BRAND_MAPPING[storedFirstName]) {
+        // User is mapped (e.g., Richard -> Victor)
+        // Show only: user's 50STARS agent + mapped PROLANE agent
+        const mappedAgent = AGENT_BRAND_MAPPING[storedFirstName];
+        const user50STARS = allAgents.find(a => a.firstName === storedFirstName && a.brand === "50STARS");
+        const mappedPROLANE = allAgents.find(a => a.firstName === mappedAgent && a.brand === "PROLANE");
+        
+        if (user50STARS) filteredAgents.push(user50STARS.firstName);
+        if (mappedPROLANE) filteredAgents.push(mappedPROLANE.firstName);
+      } else {
+        // No mapping or user not in mapping - show all agents from current brand
+        filteredAgents = allAgents
+          .filter(agent => agent.brand === brand)
+          .map(agent => agent.firstName);
+      }
+
       setSalesAgentsMap(map);
-      setSalesAgents(firstNames.sort());
+      setSalesAgents(filteredAgents.sort());
     } catch (err) {
       console.error("Error fetching sales agents:", err);
       // Fallback to empty array if API fails
@@ -175,7 +207,7 @@ export default function AddOrder() {
     return () => window.removeEventListener("brand-changed", handleBrandChange);
   }, []);
 
-  // Fetch sales agents when brand changes
+  // Fetch sales agents when brand changes or on mount
   useEffect(() => {
     fetchSalesAgents(currentBrand);
   }, [currentBrand, fetchSalesAgents]);

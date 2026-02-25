@@ -142,22 +142,70 @@ export default function EditOrder() {
   const brand = useBrand(); // 50STARS / PROLANE
   const originalSalesAgentRef = useRef(null); // Store original sales agent from loaded order
   
-  // Fetch sales agents from database (brand-aware)
+  // Fetch sales agents from database (both brands, filtered by mapping)
   const fetchSalesAgents = useCallback(async () => {
     try {
-      const { data } = await API.get("/salesAgents");
+      const getStoredFirstName = () => {
+        if (typeof window === "undefined") return "";
+        const stored = localStorage.getItem("firstName");
+        return stored ? stored.trim() : "";
+      };
+      
+      const storedFirstName = getStoredFirstName();
+      
+      // Mapping from 50STARS agent firstName to PROLANE agent firstName
+      const AGENT_BRAND_MAPPING = {
+        "Richard": "Victor",
+        "Mark": "Sam",
+        "David": "Steve",
+        "Michael": "Charlie",
+        "Dipsikha": "Dipsikha", // Same for both brands
+      };
+      
+      // Fetch agents from both brands using custom headers
+      const [data50STARS, dataPROLANE] = await Promise.all([
+        API.get("/salesAgents", { headers: { "x-brand": "50STARS" } }).catch(() => ({ data: [] })),
+        API.get("/salesAgents", { headers: { "x-brand": "PROLANE" } }).catch(() => ({ data: [] })),
+      ]);
+      
       // Create mapping: firstName -> fullName and fullName -> firstName
       const map = {};
       const reverseMap = {};
-      const firstNames = [];
-      data.forEach((agent) => {
+      let allAgents = [];
+      
+      // Combine agents from both brands, adding brand info
+      (data50STARS.data || []).forEach((agent) => {
         map[agent.firstName] = agent.fullName;
         reverseMap[agent.fullName] = agent.firstName;
-        firstNames.push(agent.firstName);
+        allAgents.push({ ...agent, brand: "50STARS" });
       });
+      (dataPROLANE.data || []).forEach((agent) => {
+        map[agent.firstName] = agent.fullName;
+        reverseMap[agent.fullName] = agent.firstName;
+        allAgents.push({ ...agent, brand: "PROLANE" });
+      });
+
+      // Filter agents based on mapping if user has a mapping
+      let filteredAgents = [];
+      if (storedFirstName && AGENT_BRAND_MAPPING[storedFirstName]) {
+        // User is mapped (e.g., Richard -> Victor)
+        // Show only: user's 50STARS agent + mapped PROLANE agent
+        const mappedAgent = AGENT_BRAND_MAPPING[storedFirstName];
+        const user50STARS = allAgents.find(a => a.firstName === storedFirstName && a.brand === "50STARS");
+        const mappedPROLANE = allAgents.find(a => a.firstName === mappedAgent && a.brand === "PROLANE");
+        
+        if (user50STARS) filteredAgents.push(user50STARS.firstName);
+        if (mappedPROLANE) filteredAgents.push(mappedPROLANE.firstName);
+      } else {
+        // No mapping or user not in mapping - show all agents from current brand
+        filteredAgents = allAgents
+          .filter(agent => agent.brand === brand)
+          .map(agent => agent.firstName);
+      }
+
       setSalesAgentsMap(map);
       setSalesAgentsReverseMap(reverseMap);
-      setSalesAgents(firstNames.sort());
+      setSalesAgents(filteredAgents.sort());
     } catch (err) {
       console.error("Error fetching sales agents:", err);
       // Fallback to empty arrays if API fails
@@ -165,7 +213,7 @@ export default function EditOrder() {
       setSalesAgentsMap({});
       setSalesAgentsReverseMap({});
     }
-  }, []);
+  }, [brand]);
 
   // Fetch sales agents when brand changes
   useEffect(() => {

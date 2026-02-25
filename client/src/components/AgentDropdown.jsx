@@ -5,6 +5,7 @@ const AgentDropdown = ({
   value,
   onChange,
   className = "",
+  placeholder = "Select Sales-agent",
 }) => {
   return (
     <select
@@ -19,7 +20,7 @@ const AgentDropdown = ({
     >
       {options.map((opt) => (
         <option key={opt} value={opt}>
-          {opt === "Select" ? "Select Sales-agent" : opt}
+          {opt === "Select" ? placeholder : opt}
         </option>
       ))}
     </select>
