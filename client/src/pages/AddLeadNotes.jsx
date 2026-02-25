@@ -27,6 +27,21 @@ function readAuthFromStorage() {
 
 const AddLeadNotes = () => {
   const { role, firstName } = useMemo(() => readAuthFromStorage(), []);
+  
+  // Get email from storage
+  const email = useMemo(() => {
+    try {
+      const raw = localStorage.getItem("auth");
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        return parsed?.user?.email || localStorage.getItem("email") || undefined;
+      }
+    } catch (err) {
+      console.warn("Failed to parse auth storage", err);
+    }
+    return localStorage.getItem("email") || undefined;
+  }, []);
+  
   const isSales = role === "Sales";
 
   const [form, setForm] = useState({
@@ -241,12 +256,21 @@ const AddLeadNotes = () => {
     return ["Select", ...Array.from(new Set(names))];
   }, [salesAgents]);
 
-  if (!isSales && role !== "Admin") {
+  // Only allow Sales, Admin roles, or specific email
+  const isAdmin = role === "Admin";
+  const isAuthorizedEmail = email?.toLowerCase() === "50starsauto110@gmail.com";
+  const isAuthorized = isSales || isAdmin || isAuthorizedEmail;
+  
+  if (!isAuthorized) {
     return (
       <div className="min-h-screen p-6 flex items-center justify-center">
-        <div className="text-center text-white/80">
-          <h1 className="text-2xl font-bold mb-2">Access Restricted</h1>
-          <p>This page is only accessible to Sales and Admin users.</p>
+        <div className="text-center">
+          <h1 className="text-3xl font-bold text-red-400 mb-4">Access Denied</h1>
+          <p className="text-white/70">
+            This page is only accessible to Sales and Admin users, or 50starsauto110@gmail.com.
+          </p>
+          <p className="text-white/50 mt-2">Your current role: {role || "Not set"}</p>
+          <p className="text-white/50">Your email: {email || "Not set"}</p>
         </div>
       </div>
     );
