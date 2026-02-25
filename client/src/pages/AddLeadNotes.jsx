@@ -65,6 +65,7 @@ const AddLeadNotes = () => {
   const [toast, setToast] = useState("");
   const toastTimeoutRef = useRef(null);
   const [showLeads, setShowLeads] = useState(false);
+  const [copySuccess, setCopySuccess] = useState(false);
   const [leads, setLeads] = useState([]);
   const [loadingLeads, setLoadingLeads] = useState(false);
   const [salesAgents, setSalesAgents] = useState([]);
@@ -256,6 +257,54 @@ const AddLeadNotes = () => {
     return ["Select", ...Array.from(new Set(names))];
   }, [salesAgents]);
 
+  // Copy form data to clipboard
+  const handleCopy = async () => {
+    const formatValue = (value) => (value && value.trim() ? value.trim() : "");
+    
+    const warrantyDisplay = form.warranty && form.warrantyField
+      ? `${form.warranty} ${form.warrantyField}`
+      : form.warranty || "";
+    
+    const copyText = [
+      `Name: ${formatValue(form.name)}`,
+      `Email: ${formatValue(form.email)}`,
+      `Part required: ${formatValue(form.partRequired)}`,
+      `Year: ${formatValue(form.year)}`,
+      `Make: ${formatValue(form.make)}`,
+      `Model: ${formatValue(form.model)}`,
+      `Part Description: ${formatValue(form.partDescription)}`,
+      `Vin: ${formatValue(form.vinNo)}`,
+      `Part no: ${formatValue(form.partNo)}`,
+      `Warranty: ${warrantyDisplay}`,
+      `brand: ${formatValue(form.brand)}`,
+      `salesAgent: ${formatValue(form.salesAgent)}`,
+      `other comments: ${formatValue(form.comments)}`,
+    ].join("\n");
+
+    try {
+      await navigator.clipboard.writeText(copyText);
+      setCopySuccess(true);
+      setTimeout(() => setCopySuccess(false), 2000);
+    } catch (err) {
+      console.error("Failed to copy:", err);
+      // Fallback for older browsers
+      const textArea = document.createElement("textarea");
+      textArea.value = copyText;
+      textArea.style.position = "fixed";
+      textArea.style.opacity = "0";
+      document.body.appendChild(textArea);
+      textArea.select();
+      try {
+        document.execCommand("copy");
+        setCopySuccess(true);
+        setTimeout(() => setCopySuccess(false), 2000);
+      } catch (fallbackErr) {
+        console.error("Fallback copy failed:", fallbackErr);
+      }
+      document.body.removeChild(textArea);
+    }
+  };
+
   // Only allow Sales, Admin roles, or specific email
   const isAdmin = role === "Admin";
   const isAuthorizedEmail = email?.toLowerCase() === "50starsauto110@gmail.com";
@@ -304,7 +353,20 @@ const AddLeadNotes = () => {
             onSubmit={handleSubmit}
             className="bg-white/10 rounded-2xl p-5 border border-white/20 shadow-md backdrop-blur-md space-y-3 max-w-4xl"
           >
-          <h3 className="text-lg font-semibold text-white mb-2">New Lead</h3>
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-lg font-semibold text-white">New Lead</h3>
+            <button
+              type="button"
+              onClick={handleCopy}
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition ${
+                copySuccess
+                  ? "bg-green-600 text-white"
+                  : "bg-[#04356d] hover:bg-[#3b89bf] text-white"
+              }`}
+            >
+              {copySuccess ? "✓ Copied!" : "Copy"}
+            </button>
+          </div>
           <div className="space-y-2">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
               <InputField

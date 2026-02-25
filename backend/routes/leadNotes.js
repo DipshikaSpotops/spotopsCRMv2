@@ -60,49 +60,76 @@ router.post(
       const salesAgent = selectedSalesAgent || req.user?.firstName || "Unknown";
       const createdBy = req.user?.id || "Unknown";
 
-      // Save to both collections for now (can remove LeadNote later if needed)
-      const note = await LeadNote.create({
-        name,
-        email,
-        year,
-        make,
-        model,
-        partRequired,
-        partDescription,
-        vinNo,
-        partNo,
-        warranty,
-        warrantyField: warrantyField || "days",
-        comments,
-        brand,
-        salesAgent,
-      });
+      // Validate required fields
+      if (!brand || (brand !== "50STARS" && brand !== "PROLANE")) {
+        return res.status(400).json({
+          message: "Brand is required and must be either '50STARS' or 'PROLANE'",
+        });
+      }
 
-      // Also save to ordersDb Leads collection
+      if (!salesAgent || salesAgent.trim() === "" || salesAgent === "Unknown") {
+        return res.status(400).json({
+          message: "Sales Agent is required",
+        });
+      }
+
+      // Generate a unique messageId for this lead (to avoid duplicate key error on existing index)
+      const messageId = `lead-${Date.now()}-${Math.random().toString(36).substring(2, 15)}-${createdBy}`;
+
+      // Save to ordersDb Leads collection (primary storage)
       const leadForOrders = await LeadForOrders.create({
-        name,
-        email,
-        year,
-        make,
-        model,
-        partRequired,
-        partDescription,
-        vinNo,
-        partNo,
-        warranty,
+        name: name || "",
+        email: email || "",
+        year: year || "",
+        make: make || "",
+        model: model || "",
+        partRequired: partRequired || "",
+        partDescription: partDescription || "",
+        vinNo: vinNo || "",
+        partNo: partNo || "",
+        warranty: warranty || "",
         warrantyField: warrantyField || "days",
-        comments,
+        comments: comments || "",
         brand,
-        salesAgent,
+        salesAgent: salesAgent.trim(),
         createdBy,
+        messageId, // Add unique messageId to satisfy existing index
       });
 
-      res.status(201).json({ ...note.toObject(), _ordersDbId: leadForOrders._id });
+      // Optionally save to LeadNote collection (non-critical, continue even if it fails)
+      let note = null;
+      try {
+        note = await LeadNote.create({
+          name: name || "",
+          email: email || "",
+          year: year || "",
+          make: make || "",
+          model: model || "",
+          partRequired: partRequired || "",
+          partDescription: partDescription || "",
+          vinNo: vinNo || "",
+          partNo: partNo || "",
+          warranty: warranty || "",
+          warrantyField: warrantyField || "days",
+          comments: comments || "",
+          brand,
+          salesAgent: salesAgent.trim(),
+        });
+      } catch (noteErr) {
+        // Log but don't fail - LeadForOrders is the primary storage
+        console.warn("Failed to save to LeadNote collection (non-critical):", noteErr.message);
+      }
+
+      res.status(201).json({ 
+        ...leadForOrders.toObject(),
+        _leadNoteId: note?._id || null,
+      });
     } catch (err) {
       console.error("POST /api/lead-notes failed:", err);
-      res
-        .status(500)
-        .json({ message: "Failed to create lead note", error: err.message });
+      res.status(500).json({
+        message: `Failed to create lead note: ${err.message}`,
+        error: err.message,
+      });
     }
   }
 );

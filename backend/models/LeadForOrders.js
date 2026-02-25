@@ -31,6 +31,11 @@ const leadForOrdersSchema = new mongoose.Schema(
       required: true,
       index: true, // User ID who created the lead
     },
+    messageId: {
+      type: String,
+      sparse: true, // Sparse index - only index documents that have this field
+      unique: true, // Unique when present, but allows multiple nulls
+    },
   },
   {
     timestamps: true,
@@ -39,6 +44,8 @@ const leadForOrdersSchema = new mongoose.Schema(
 
 leadForOrdersSchema.index({ brand: 1, salesAgent: 1, createdAt: -1 });
 leadForOrdersSchema.index({ brand: 1, createdAt: -1 });
+// Sparse unique index on messageId - allows multiple nulls but enforces uniqueness when present
+leadForOrdersSchema.index({ messageId: 1 }, { sparse: true, unique: true });
 
 // Use the same connection as orders (ordersDb)
 const LeadForOrders = mongoose.models.LeadForOrders || mongoose.model("LeadForOrders", leadForOrdersSchema, "leads");
