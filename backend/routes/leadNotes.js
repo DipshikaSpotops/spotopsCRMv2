@@ -19,12 +19,25 @@ const AGENT_BRAND_MAPPING = {
 };
 
 // Create a new lead note for the logged-in Sales/Admin user
+// Helper: check if user is allowed to access lead-notes routes
+function isLeadNotesAuthorized(req) {
+  const role = req.user?.role;
+  const email = (req.user?.email || "").toLowerCase();
+  if (role === "Sales" || role === "Admin") return true;
+  if (email === "50starsauto110@gmail.com") return true;
+  return false;
+}
+
 router.post(
   "/",
   requireAuth,
-  allow("Sales", "Admin"),
   async (req, res) => {
     try {
+      if (!isLeadNotesAuthorized(req)) {
+        return res
+          .status(403)
+          .json({ message: "Access denied. Sales/Admin or authorized email required." });
+      }
       const {
         name,
         email,
@@ -98,9 +111,13 @@ router.post(
 router.get(
   "/my",
   requireAuth,
-  allow("Sales", "Admin"),
   async (req, res) => {
     try {
+      if (!isLeadNotesAuthorized(req)) {
+        return res
+          .status(403)
+          .json({ message: "Access denied. Sales/Admin or authorized email required." });
+      }
       const createdBy = req.user?.id || "Unknown";
 
       // Build query - show all leads created by this user (across all brands)
@@ -133,9 +150,13 @@ router.get(
 router.get(
   "/sales-agents",
   requireAuth,
-  allow("Sales", "Admin"),
   async (req, res) => {
     try {
+      if (!isLeadNotesAuthorized(req)) {
+        return res
+          .status(403)
+          .json({ message: "Access denied. Sales/Admin or authorized email required." });
+      }
       const userFirstName = req.user?.firstName || "";
       const SalesAgent = (await import("../models/SalesAgent.js")).default;
 
