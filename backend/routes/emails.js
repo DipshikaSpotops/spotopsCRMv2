@@ -132,11 +132,50 @@ const cleanFirstName = (firstName) => {
   if (!firstName) return "Auto Parts Group";
   let cleaned = String(firstName).trim();
   // If firstName contains comma, split and take first part only
-  if (cleaned.includes(',')) {
-    const parts = cleaned.split(',').map(p => p.trim()).filter(Boolean);
+  if (cleaned.includes(",")) {
+    const parts = cleaned
+      .split(",")
+      .map((p) => p.trim())
+      .filter(Boolean);
     cleaned = parts[0] || "Auto Parts Group";
   }
   return cleaned;
+};
+
+// Mapping from 50STARS support firstName → PROLANE support display name
+// Right-hand side in the spec is 50STARS name, left-hand side is PROLANE.
+// We invert that so we can map from stored firstName (50STARS) to PROLANE display name for emails.
+const SUPPORT_AGENT_PROLANE_NAME_MAP = {
+  Tristan: "Jonathan Whitmore",
+  James: "Justin Time",
+  Jessie: "Ace Ryder",
+  Peter: "Jerry Miller",
+  Suzanne: "Luna Brown",
+  Emily: "Rev Rhode",
+  Ashley: "Gloria Sky",
+  Noah: "Nilk Lewis",
+  Leo: "Max Williams",
+  // Handle both spellings just in case
+  Dipshika: "Dips",
+  Dipsikha: "Dips",
+};
+
+// Brand-aware support display name:
+// - For 50STARS: use cleaned firstName as-is
+// - For PROLANE: map 50STARS firstName → PROLANE display name when available
+const getSupportDisplayName = (rawFirstName, req) => {
+  const cleaned = cleanFirstName(rawFirstName);
+  const brand = getBrand(req);
+
+  if (!cleaned) return "Auto Parts Group";
+  if (brand !== "PROLANE") return cleaned;
+
+  const firstToken = cleaned.split(" ")[0];
+  return (
+    SUPPORT_AGENT_PROLANE_NAME_MAP[firstToken] ||
+    SUPPORT_AGENT_PROLANE_NAME_MAP[cleaned] ||
+    cleaned
+  );
 };
 // POST /emails/order-cancel/:orderNo
 router.post("/order-cancel/:orderNo", async (req, res) => {
@@ -145,7 +184,7 @@ router.post("/order-cancel/:orderNo", async (req, res) => {
   try {
     const { orderNo } = req.params;
     const cancelledRefAmount = req.query.cancelledRefAmount ?? "0.00";
-    const firstName = cleanFirstName(req.query.firstName ?? "");
+    const firstName = getSupportDisplayName(req.query.firstName ?? "", req);
     console.log("[emails] params:", { orderNo, cancelledRefAmount, firstName });
 
     const Order = getOrderModel(req);
@@ -213,7 +252,7 @@ router.post("/sendReimburseEmail/:orderNo", upload.single("attachment"), async (
   try {
     const { orderNo } = req.params;
     const reimburesementValue = req.query.reimburesementValue ?? "0";
-    const firstName = cleanFirstName(req.query.firstName ?? "");
+    const firstName = getSupportDisplayName(req.query.firstName ?? "", req);
 
     const Order = getOrderModel(req);
     const order = await Order.findOne({ orderNo });
@@ -302,7 +341,7 @@ router.post("/orders/sendRefundConfirmation/:orderNo", upload.single("pdfFile"),
   try {
     const { orderNo } = req.params;
     const refundedAmount = req.query.refundedAmount;
-    const firstName = cleanFirstName(req.query.firstName);
+    const firstName = getSupportDisplayName(req.query.firstName ?? "", req);
     if (!firstName) {
       return res.status(400).json({ message: "firstName is required" });
     }
@@ -392,8 +431,14 @@ router.post("/orders/sendRefundConfirmation/:orderNo", upload.single("pdfFile"),
 router.post("/customer-delivered/:orderNo", async (req, res) => {
   try {
     const { orderNo } = req.params;
-    const yardIndex = parseInt(req.query.yardIndex ?? req.body?.yardIndex ?? 1, 10);
-    const firstName  = cleanFirstName(req.query.firstName ?? req.body?.firstName ?? "");
+    const yardIndex = parseInt(
+      req.query.yardIndex ?? req.body?.yardIndex ?? 1,
+      10
+    );
+    const firstName = getSupportDisplayName(
+      req.query.firstName ?? req.body?.firstName ?? "",
+      req
+    );
 
     if (!yardIndex || Number.isNaN(yardIndex)) {
       return res.status(400).json({ message: "yardIndex (1-based) is required" });
@@ -503,8 +548,9 @@ router.post("/orders/sendTrackingInfo/:orderNo", async (req, res) => {
     const order = await Order.findOne({ orderNo: req.params.orderNo });
     if (!order) return res.status(400).send("Order not found");
 
-    const { trackingNo, eta, shipperName, link, firstName: rawFirstName } = req.body;
-    const firstName = cleanFirstName(rawFirstName);
+    const { trackingNo, eta, shipperName, link, firstName: rawFirstName } =
+      req.body;
+    const firstName = getSupportDisplayName(rawFirstName ?? "", req);
     const customerName = cleanCustomerName(order.customerName || order.fName || "Customer");
 
     const { serviceEmail, servicePass, supportBcc, logoUrl, companyName, phoneNumber, serviceEmailAddress, websiteUrl } = getEmailBrandConfig(req);
@@ -632,8 +678,15 @@ router.post("/orders/sendRefundEmail/:orderNo", upload.single("pdfFile"), async 
   console.log("[emails] sendRefundEmailYard hit");
   try {
     const { orderNo } = req.params;
-    let { firstName: rawFirstName, yardIndex, refundReason, returnTracking, refundToCollect, shipper } = req.query;
-    const firstName = cleanFirstName(rawFirstName);
+    let {
+      firstName: rawFirstName,
+      yardIndex,
+      refundReason,
+      returnTracking,
+      refundToCollect,
+      shipper,
+    } = req.query;
+    const firstName = getSupportDisplayName(rawFirstName ?? "", req);
 
 
     const Order = getOrderModel(req);
@@ -767,7 +820,7 @@ router.post("/orders/po-cancelled/:orderNo", async (req, res) => {
   try {
     const { orderNo } = req.params;
     let { firstName: rawFirstName, yardIndex } = req.query;
-    const firstName = cleanFirstName(rawFirstName);
+    const firstName = getSupportDisplayName(rawFirstName ?? "", req);
 
     const Order = getOrderModel(req);
     const order = await Order.findOne({ orderNo });
@@ -992,10 +1045,11 @@ router.post(
   async (req, res) => {
     try {
       const { orderNo } = req.params;
-      const firstName = cleanFirstName(
+      const firstName = getSupportDisplayName(
         (req.query.firstName ?? req.body?.firstName ?? "Customer Success Team")
           .toString()
-          .trim() || "Customer Success Team"
+          .trim() || "Customer Success Team",
+        req
       );
 
       if (!req.file) {
@@ -1072,10 +1126,11 @@ router.post(
 router.post("/orders/sendReturnEmailCustomerShipping/:orderNo", async (req, res) => {
   try {
     const { orderNo } = req.params;
-    const firstName = cleanFirstName(
+    const firstName = getSupportDisplayName(
       (req.query.firstName ?? req.body?.firstName ?? "Customer Success Team")
         .toString()
-        .trim() || "Customer Success Team"
+        .trim() || "Customer Success Team",
+      req
     );
     const retAddress = (req.query.retAddress ?? "").toString();
 
@@ -1166,10 +1221,11 @@ router.post(
   async (req, res) => {
     try {
       const { orderNo } = req.params;
-      const firstName = cleanFirstName(
+      const firstName = getSupportDisplayName(
         (req.query.firstName ?? req.body?.firstName ?? "Customer Success Team")
           .toString()
-          .trim() || "Customer Success Team"
+          .trim() || "Customer Success Team",
+        req
       );
       const retAddress = (req.query.retAddress ?? "").toString();
 

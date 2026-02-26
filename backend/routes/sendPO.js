@@ -109,6 +109,65 @@ function getEmailBrandConfig(req) {
   };
 }
 
+// --- Support agent display-name mapping for PROLANE (similar to emails.js) ---
+// Spec from user:
+//   Jonathan Whitmore - Tristan Brown
+//   Justin Time - James Foster
+//   Ace Ryder - Jessie Callum
+//   Jerry Miller - Peter Adams
+//   Luna Brown - Suzanne Brown
+//   Rev Rhode - Emily D'souza
+//   Gloria Sky - Ashley Williams
+//   Nilk Lewis - Noah Webster
+//   Max Williams - Leo Parker
+//   Dips - Dipshika
+//
+// In our app, we store the 50STARS firstName in localStorage and send it as ?firstName=.
+// We map that stored firstName to the PROLANE display name for emails when brand === "PROLANE".
+const SUPPORT_AGENT_PROLANE_NAME_MAP = {
+  Tristan: "Jonathan Whitmore",
+  James: "Justin Time",
+  Jessie: "Ace Ryder",
+  Peter: "Jerry Miller",
+  Suzanne: "Luna Brown",
+  Emily: "Rev Rhode",
+  Ashley: "Gloria Sky",
+  Noah: "Nilk Lewis",
+  Leo: "Max Williams",
+  // Handle both spellings for safety
+  Dipshika: "Dips",
+  Dipsikha: "Dips",
+};
+
+const cleanSupportFirstName = (name) => {
+  if (!name) return "Auto Parts Group";
+  let cleaned = String(name).trim();
+  if (cleaned.includes(",")) {
+    const parts = cleaned
+      .split(",")
+      .map((p) => p.trim())
+      .filter(Boolean);
+    cleaned = parts[0] || "Auto Parts Group";
+  }
+  return cleaned;
+};
+
+const getSupportDisplayName = (rawFirstName, req) => {
+  const cleaned = cleanSupportFirstName(rawFirstName);
+  const brand = getBrand(req);
+  if (!cleaned) return "Auto Parts Group";
+
+  // For 50STARS keep as-is
+  if (brand !== "PROLANE") return cleaned;
+
+  const firstToken = cleaned.split(" ")[0];
+  return (
+    SUPPORT_AGENT_PROLANE_NAME_MAP[firstToken] ||
+    SUPPORT_AGENT_PROLANE_NAME_MAP[cleaned] ||
+    cleaned
+  );
+};
+
 const router = express.Router();
 const upload = multer();
 
@@ -533,32 +592,12 @@ router.post("/sendPOEmailYard/:orderNo", upload.any(), async (req, res) => {
       })),
     ];
 
-    const {
-      year,
-      make,
-      model,
-      pReq,
-      desc,
-      vin,
-      partNo,
-      attention,
-      fName,
-      lName,
-    } = order;
+    const { year, make, model, pReq, desc, vin, partNo, attention, fName, lName } =
+      order;
 
     const stockNo = yard.stockNo || "NA";
-    // Clean firstName - remove duplicates if comma-separated, take first part only
-    const cleanFirstName = (name) => {
-      if (!name) return "Auto Parts Group";
-      let cleaned = String(name).trim();
-      // If firstName contains comma, split and take first part only
-      if (cleaned.includes(',')) {
-        const parts = cleaned.split(',').map(p => p.trim()).filter(Boolean);
-        cleaned = parts[0] || "Auto Parts Group";
-      }
-      return cleaned;
-    };
-    const firstNameTrimmed = cleanFirstName(firstName);
+    // Brand-aware support display name for signature
+    const firstNameTrimmed = getSupportDisplayName(firstName, req);
 
     const htmlContent = `
         <p style="font-size: 14px;">Dear ${yard.agentName || "Team"},</p>
@@ -646,7 +685,7 @@ order.additionalInfo[yardIndex].poSentDate = isoDallas;
 order.additionalInfo[yardIndex].notes = order.additionalInfo[yardIndex].notes || [];
 
 // Normalize firstName to avoid duplicates like "Tristan,Tristan"
-let firstNameStr = String(firstName || "Auto Parts Group").trim();
+let firstNameStr = getSupportDisplayName(firstName, req);
 if (firstNameStr.includes(",")) {
   const parts = firstNameStr
     .split(",")

@@ -134,7 +134,7 @@ router.post(
   }
 );
 
-// Get current user's lead notes (all brands, filtered by createdBy)
+// Get current user's lead notes (filtered by salesAgent mapping)
 router.get(
   "/my",
   requireAuth,
@@ -145,10 +145,41 @@ router.get(
           .status(403)
           .json({ message: "Access denied. Sales/Admin or authorized email required." });
       }
-      const createdBy = req.user?.id || "Unknown";
 
-      // Build query - show all leads created by this user (across all brands)
-      const query = { createdBy };
+      // Get logged-in user's firstName
+      const userFirstName = (req.user?.firstName || "").trim();
+      
+      console.log(`[leadNotes/my] User firstName: "${userFirstName}"`);
+      
+      if (!userFirstName) {
+        // If no firstName, return empty array
+        console.log(`[leadNotes/my] No firstName found, returning empty array`);
+        return res.json([]);
+      }
+      
+      // Build query - filter by salesAgent (user's firstName and mapped agent if exists)
+      // Use case-insensitive regex pattern like in monthlyOrders.js
+      const salesAgentPatterns = [];
+      
+      // Pattern for user's firstName (matches exact or full name starting with firstName)
+      const escapedFirstName = userFirstName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const pattern1 = `^${escapedFirstName}(?:\\s.*|$)`;
+      salesAgentPatterns.push(new RegExp(pattern1, 'i'));
+      
+      // If user has a mapping, include the mapped agent's leads too
+      if (AGENT_BRAND_MAPPING[userFirstName]) {
+        const mappedAgent = AGENT_BRAND_MAPPING[userFirstName];
+        const escapedMappedName = mappedAgent.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const pattern2 = `^${escapedMappedName}(?:\\s.*|$)`;
+        salesAgentPatterns.push(new RegExp(pattern2, 'i'));
+        console.log(`[leadNotes/my] User "${userFirstName}" mapped to "${mappedAgent}", patterns: ["${pattern1}", "${pattern2}"]`);
+      } else {
+        console.log(`[leadNotes/my] User "${userFirstName}" has no mapping, pattern: ["${pattern1}"]`);
+      }
+      
+      const query = {
+        salesAgent: { $in: salesAgentPatterns }
+      };
       
       // Handle date filtering (start/end are UTC ISO strings from UnifiedDatePicker)
       if (req.query.start && req.query.end) {
@@ -156,16 +187,68 @@ router.get(
           $gte: new Date(req.query.start),
           $lte: new Date(req.query.end),
         };
+        console.log(`[leadNotes/my] Date filter: ${req.query.start} to ${req.query.end}`);
+      } else {
+        console.log(`[leadNotes/my] No date filter applied`);
       }
+
+      console.log(`[leadNotes/my] Query:`, JSON.stringify(query, null, 2));
 
       // Fetch from ordersDb Leads collection
       const notes = await LeadForOrders.find(query)
         .sort({ createdAt: -1 })
         .lean();
 
+      console.log(`[leadNotes/my] Found ${notes.length} leads`);
+
       res.json(notes);
     } catch (err) {
       console.error("GET /api/lead-notes/my failed:", err);
+      res
+        .status(500)
+        .json({ message: "Failed to fetch lead notes", error: err.message });
+    }
+  }
+);
+
+// Get all lead notes (all users, filtered by date range only)
+router.get(
+  "/all",
+  requireAuth,
+  async (req, res) => {
+    try {
+      if (!isLeadNotesAuthorized(req)) {
+        return res
+          .status(403)
+          .json({ message: "Access denied. Sales/Admin or authorized email required." });
+      }
+
+      // Build query - show all leads (not filtered by createdBy)
+      const query = {};
+      
+      // Handle date filtering (start/end are UTC ISO strings from UnifiedDatePicker)
+      if (req.query.start && req.query.end) {
+        query.createdAt = {
+          $gte: new Date(req.query.start),
+          $lte: new Date(req.query.end),
+        };
+        console.log(`[leadNotes/all] Date filter: ${req.query.start} to ${req.query.end}`);
+      } else {
+        console.log(`[leadNotes/all] No date filter applied`);
+      }
+
+      console.log(`[leadNotes/all] Query:`, JSON.stringify(query, null, 2));
+
+      // Fetch from ordersDb Leads collection
+      const notes = await LeadForOrders.find(query)
+        .sort({ createdAt: -1 })
+        .lean();
+
+      console.log(`[leadNotes/all] Found ${notes.length} leads`);
+
+      res.json(notes);
+    } catch (err) {
+      console.error("GET /api/lead-notes/all failed:", err);
       res
         .status(500)
         .json({ message: "Failed to fetch lead notes", error: err.message });

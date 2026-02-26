@@ -5,6 +5,15 @@ import AgentDropdown from "../components/AgentDropdown";
 import moment from "moment-timezone";
 import { formatInTimeZone } from "date-fns-tz";
 
+// Mapping from 50STARS agent firstName to PROLANE agent firstName (same as AddOrder.jsx)
+const AGENT_BRAND_MAPPING = {
+  Richard: "Victor",
+  Mark: "Sam",
+  David: "Steve",
+  Michael: "Charlie",
+  Dipsikha: "Dipsikha", // Same for both brands
+};
+
 function readAuthFromStorage() {
   try {
     const raw = localStorage.getItem("auth");
@@ -65,9 +74,12 @@ const AddLeadNotes = () => {
   const [toast, setToast] = useState("");
   const toastTimeoutRef = useRef(null);
   const [showLeads, setShowLeads] = useState(false);
+  const [showAllLeads, setShowAllLeads] = useState(false);
   const [copySuccess, setCopySuccess] = useState(false);
   const [leads, setLeads] = useState([]);
   const [loadingLeads, setLoadingLeads] = useState(false);
+  const [searchInput, setSearchInput] = useState("");
+  const [appliedQuery, setAppliedQuery] = useState("");
   const [salesAgents, setSalesAgents] = useState([]);
   const [loadingAgents, setLoadingAgents] = useState(false);
   const [parts, setParts] = useState([]);
@@ -161,8 +173,8 @@ const AddLeadNotes = () => {
         salesAgent: "",
         comments: "$ with programming and 1 year",
       });
-      if (showLeads) {
-        fetchLeads(dateFilter);
+      if (showLeads || showAllLeads) {
+        fetchLeads(newFilter);
       }
     } catch (err) {
       console.error("Error saving lead note:", err);
@@ -193,7 +205,8 @@ const AddLeadNotes = () => {
         params.start = filter.start;
         params.end = filter.end;
       }
-      const { data } = await API.get("/lead-notes/my", { params });
+      // Always fetch all leads for the date range; frontend will handle "My" vs "All" filtering
+      const { data } = await API.get("/lead-notes/all", { params });
       setLeads(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error("Error fetching lead notes:", err);
@@ -209,16 +222,16 @@ const AddLeadNotes = () => {
       end: filter.end,
     };
     setDateFilter(newFilter);
-    if (showLeads) {
+    if (showLeads || showAllLeads) {
       fetchLeads(newFilter);
     }
   };
 
   useEffect(() => {
-    if (showLeads) {
+    if (showLeads || showAllLeads) {
       fetchLeads(dateFilter);
     }
-  }, [showLeads]);
+  }, [showLeads, showAllLeads, dateFilter]);
 
   // Fetch sales agents for dropdown
   useEffect(() => {
@@ -256,6 +269,61 @@ const AddLeadNotes = () => {
     const names = salesAgents.map((a) => a.firstName).filter(Boolean);
     return ["Select", ...Array.from(new Set(names))];
   }, [salesAgents]);
+
+  // Compute which agent names belong to the logged-in user (for "My Leads")
+  const myAgentNames = useMemo(() => {
+    const base = (firstName || "").trim();
+    if (!base) return [];
+    const names = [base];
+    const mapped = AGENT_BRAND_MAPPING[base];
+    if (mapped && !names.includes(mapped)) {
+      names.push(mapped);
+    }
+    return names;
+  }, [firstName]);
+
+  // Base leads depending on whether we're showing "My Leads" or "All Leads"
+  const baseLeads = useMemo(() => {
+    if (!Array.isArray(leads) || leads.length === 0) return [];
+    if (showAllLeads) return leads;
+
+    if (showLeads && myAgentNames.length > 0) {
+      const allowed = new Set(myAgentNames.map((n) => n.toLowerCase()));
+      return leads.filter((lead) =>
+        allowed.has((lead.salesAgent || "").toLowerCase())
+      );
+    }
+
+    return leads;
+  }, [leads, showAllLeads, showLeads, myAgentNames]);
+
+  // Filter leads by search query (applied to baseLeads)
+  const filteredLeads = useMemo(() => {
+    if (!appliedQuery.trim()) return baseLeads;
+    const query = appliedQuery.trim().toLowerCase();
+    return baseLeads.filter((lead) => {
+      const searchableText = [
+        lead.name,
+        lead.email,
+        lead.year,
+        lead.make,
+        lead.model,
+        lead.partRequired,
+        lead.partDescription,
+        lead.vinNo,
+        lead.partNo,
+        lead.warranty,
+        lead.warrantyField,
+        lead.brand,
+        lead.salesAgent,
+        lead.comments,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      return searchableText.includes(query);
+    });
+  }, [baseLeads, appliedQuery]);
 
   // Copy form data to clipboard
   const handleCopy = async () => {
@@ -336,11 +404,65 @@ const AddLeadNotes = () => {
           <UnifiedDatePicker onFilterChange={handleFilterChange} />
         </div>
         <div className="flex items-center gap-3">
+          {/* Search bar */}
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              setAppliedQuery(searchInput.trim());
+            }}
+            className="relative w-[280px]"
+          >
+            <input
+              value={searchInput}
+              onChange={(e) => {
+                const v = e.target.value;
+                setSearchInput(v);
+                if (v.trim() === "" && appliedQuery !== "") {
+                  setAppliedQuery("");
+                }
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") {
+                  setSearchInput("");
+                  setAppliedQuery("");
+                }
+              }}
+              placeholder="Search… (press Enter)"
+              className="px-3 py-2 pr-9 rounded-lg bg-white/10 border border-white/20 text-white placeholder-white/60 outline-none focus:ring-2 focus:ring-white/30 w-full"
+              aria-label="Search leads"
+            />
+            {searchInput && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchInput("");
+                  setAppliedQuery("");
+                }}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-white/60 hover:text-white"
+                aria-label="Clear search"
+              >
+                ×
+              </button>
+            )}
+            <input type="submit" hidden />
+          </form>
           <button
-            onClick={() => setShowLeads((prev) => !prev)}
+            onClick={() => {
+              setShowAllLeads(false);
+              setShowLeads((prev) => !prev);
+            }}
             className="px-4 py-2 rounded-lg font-medium bg-[#04356d] hover:bg-[#3b89bf] text-white whitespace-nowrap"
           >
             {showLeads ? "Hide" : "Show"} My Leads
+          </button>
+          <button
+            onClick={() => {
+              setShowLeads(false);
+              setShowAllLeads((prev) => !prev);
+            }}
+            className="px-4 py-2 rounded-lg font-medium bg-[#04356d] hover:bg-[#3b89bf] text-white whitespace-nowrap"
+          >
+            {showAllLeads ? "Hide" : "Show"} All Leads
           </button>
         </div>
       </div>
@@ -582,18 +704,18 @@ const AddLeadNotes = () => {
         )}
 
         {/* Leads list */}
-        {showLeads && (
+        {(showLeads || showAllLeads) && (
           <div className="bg-white/10 rounded-2xl p-5 border border-white/20 shadow-md backdrop-blur-md">
               <h3 className="text-lg font-semibold text-white mb-3">
-                My Leads
+                {showAllLeads ? "All Leads" : "My Leads"}
               </h3>
               {loadingLeads ? (
                 <div className="p-4 text-white/80 text-center">
                   ⏳ Loading leads...
                 </div>
-              ) : leads.length === 0 ? (
+              ) : filteredLeads.length === 0 ? (
                 <div className="p-4 text-white/80 text-center">
-                  No leads found.
+                  {appliedQuery ? "No leads found matching your search." : "No leads found."}
                 </div>
               ) : (
                 <div className="max-h-[70vh] overflow-y-auto rounded-xl ring-1 ring-white/10">
@@ -636,7 +758,7 @@ const AddLeadNotes = () => {
                       </tr>
                     </thead>
                     <tbody>
-                      {leads.map((lead) => (
+                      {filteredLeads.map((lead) => (
                         <tr
                           key={lead._id}
                           className="even:bg-white/5 odd:bg-white/10"
