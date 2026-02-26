@@ -948,10 +948,11 @@ router.post("/orders/po-cancelled/:orderNo", async (req, res) => {
 router.post("/orders/sendReplaceEmailCustomerShipping/:orderNo", async (req, res) => {
   try {
     const { orderNo } = req.params;
-    const firstName = cleanFirstName(
+    const firstName = getSupportDisplayName(
       (req.query.firstName ?? req.body?.firstName ?? "Customer Success Team")
         .toString()
-        .trim() || "Customer Success Team"
+        .trim() || "Customer Success Team",
+      req
     );
     const retAddressReplacement = (req.query.retAddressReplacement ?? "").toString();
 
