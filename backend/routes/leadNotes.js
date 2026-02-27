@@ -69,6 +69,7 @@ router.post(
       const {
         name,
         email,
+        phoneNo,
         year,
         make,
         model,
@@ -122,6 +123,7 @@ router.post(
       const leadForOrders = await LeadForOrders.create({
         name: name || "",
         email: email || "",
+        phoneNo: phoneNo || "",
         year: year || "",
         make: make || "",
         model: model || "",
@@ -149,6 +151,7 @@ router.post(
         note = await LeadNote.create({
           name: name || "",
           email: email || "",
+          phoneNo: phoneNo || "",
           year: year || "",
           make: make || "",
           model: model || "",
@@ -214,6 +217,7 @@ router.put(
       const updatableFields = [
         "name",
         "email",
+        "phoneNo",
         "year",
         "make",
         "model",
@@ -238,6 +242,42 @@ router.put(
       });
 
       await lead.save();
+
+      // Best-effort sync to LeadNote collection so leadStatus (and other edits) are reflected there too.
+      // We don't have a direct reference to the LeadNote _id, so we match by leadNo + brand + salesAgent.
+      try {
+        await LeadNote.findOneAndUpdate(
+          {
+            leadNo: lead.leadNo || "",
+            brand: lead.brand,
+            salesAgent: lead.salesAgent,
+          },
+          {
+            name: lead.name,
+            email: lead.email,
+            year: lead.year,
+            make: lead.make,
+            model: lead.model,
+            partRequired: lead.partRequired,
+            partDescription: lead.partDescription,
+            vinNo: lead.vinNo,
+            partNo: lead.partNo,
+            warranty: lead.warranty,
+            warrantyField: lead.warrantyField,
+            leadDate: lead.leadDate,
+            leadDateDisplay: lead.leadDateDisplay,
+            leadNo: lead.leadNo,
+            leadOrigin: lead.leadOrigin,
+            leadStatus: lead.leadStatus,
+            comments: lead.comments,
+            brand: lead.brand,
+            salesAgent: lead.salesAgent,
+          },
+          { new: true }
+        );
+      } catch (syncErr) {
+        console.warn("[leadNotes] Failed to sync LeadNote on update:", syncErr.message);
+      }
 
       res.json(lead.toObject());
     } catch (err) {

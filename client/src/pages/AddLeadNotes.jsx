@@ -59,6 +59,7 @@ const AddLeadNotes = () => {
   const createEmptyForm = () => ({
     name: "",
     email: "",
+    phoneNo: "",
     year: "",
     make: "",
     model: "",
@@ -105,6 +106,7 @@ const AddLeadNotes = () => {
   const requiredFields = [
     "name",
     "email",
+    "phoneNo",
     "partRequired",
     "year",
     "make",
@@ -396,7 +398,8 @@ const AddLeadNotes = () => {
     
     const copyText = [
       `Name: ${formatValue(form.name)}`,
-      `Email: ${formatValue(form.email)}`,
+          `Email: ${formatValue(form.email)}`,
+      `Phone: ${formatValue(form.phoneNo)}`,
       `Part required: ${formatValue(form.partRequired)}`,
       `Year: ${formatValue(form.year)}`,
       `Make: ${formatValue(form.make)}`,
@@ -550,6 +553,7 @@ const AddLeadNotes = () => {
           _id: lead._id,
           name: lead.name || form.name || "",
           email: lead.email || form.email || "",
+              phoneNo: lead.phoneNo || form.phoneNo || "",
           year: lead.year || form.year || "",
           make: lead.make || form.make || "",
           model: lead.model || form.model || "",
@@ -836,12 +840,18 @@ const AddLeadNotes = () => {
                 )}
               </div>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
               <InputField
                 label="Name"
                 value={form.name}
                 onChange={setField("name")}
                 error={errors.name}
+              />
+              <InputField
+                label="Phone"
+                value={form.phoneNo}
+                onChange={setField("phoneNo")}
+                error={errors.phoneNo}
               />
               <InputField
                 label="Email"
@@ -850,32 +860,6 @@ const AddLeadNotes = () => {
                 error={errors.email}
                 type="email"
               />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-white mb-1">
-                Part Required
-              </label>
-              <select
-                value={form.partRequired}
-                onChange={setField("partRequired")}
-                className={`w-full px-3 py-2 rounded-lg bg-white/10 border text-white outline-none focus:ring-2 focus:ring-white/30 ${
-                  errors.partRequired ? "border-red-400" : "border-white/20"
-                }`}
-              >
-                <option value="">Select Part Required</option>
-                {parts.map((p) => (
-                  <option key={p._id} value={p.name} className="text-black">
-                    {p.name}
-                  </option>
-                ))}
-              </select>
-              {errors.partRequired && (
-                <p className="mt-1 text-xs text-red-200">
-                  {typeof errors.partRequired === "string"
-                    ? errors.partRequired
-                    : "Required"}
-                </p>
-              )}
             </div>
             <div className="grid grid-cols-3 gap-2">
               <InputField
@@ -897,13 +881,41 @@ const AddLeadNotes = () => {
                 error={errors.model}
               />
             </div>
-            <InputField
-              label="Part Description"
-              value={form.partDescription}
-              onChange={setField("partDescription")}
-              error={errors.partDescription}
-            />
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              <div>
+                <label className="block text-sm font-medium text-white mb-1">
+                  Part Required
+                </label>
+                <select
+                  value={form.partRequired}
+                  onChange={setField("partRequired")}
+                  className={`w-full px-3 py-2 rounded-lg bg-white/10 border text-white outline-none focus:ring-2 focus:ring-white/30 ${
+                    errors.partRequired ? "border-red-400" : "border-white/20"
+                  }`}
+                >
+                  <option value="">Select Part Required</option>
+                  {parts.map((p) => (
+                    <option key={p._id} value={p.name} className="text-black">
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
+                {errors.partRequired && (
+                  <p className="mt-1 text-xs text-red-200">
+                    {typeof errors.partRequired === "string"
+                      ? errors.partRequired
+                      : "Required"}
+                  </p>
+                )}
+              </div>
+              <InputField
+                label="Part Description"
+                value={form.partDescription}
+                onChange={setField("partDescription")}
+                error={errors.partDescription}
+              />
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
               <InputField
                 label="VIN No"
                 value={form.vinNo}
@@ -915,8 +927,6 @@ const AddLeadNotes = () => {
                 value={form.partNo}
                 onChange={setField("partNo")}
               />
-            </div>
-            <div className="grid grid-cols-2 gap-2">
               <InputField
                 label="Warranty"
                 type="number"
@@ -1029,6 +1039,9 @@ const AddLeadNotes = () => {
                           Name
                         </th>
                         <th className="p-2 text-left border-r border-white/20">
+                          Phone
+                        </th>
+                        <th className="p-2 text-left border-r border-white/20">
                           Email
                         </th>
                         <th className="p-2 text-left border-r border-white/20">
@@ -1087,6 +1100,9 @@ const AddLeadNotes = () => {
                             {lead.name || "—"}
                           </td>
                           <td className="p-2 border-r border-white/15 whitespace-nowrap">
+                            {lead.phoneNo || "—"}
+                          </td>
+                          <td className="p-2 border-r border-white/15 whitespace-nowrap">
                             {lead.email || "—"}
                           </td>
                           <td className="p-2 border-r border-white/15 whitespace-nowrap">
@@ -1131,6 +1147,7 @@ const AddLeadNotes = () => {
                                   setForm({
                                     name: lead.name || "",
                                     email: lead.email || "",
+                                    phoneNo: lead.phoneNo || "",
                                     year: lead.year || "",
                                     make: lead.make || "",
                                     model: lead.model || "",

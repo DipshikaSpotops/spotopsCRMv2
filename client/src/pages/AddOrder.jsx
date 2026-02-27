@@ -322,6 +322,7 @@ export default function AddOrder() {
         fName: prev.fName || fName,
         lName: prev.lName || lName,
         email: prev.email || lead.email || "",
+        phone: prev.phone || lead.phoneNo || "",
         // Part info
         year: prev.year || lead.year || "",
         make: prev.make || lead.make || "",
