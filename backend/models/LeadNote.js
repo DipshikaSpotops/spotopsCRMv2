@@ -17,6 +17,7 @@ const leadNoteSchema = new mongoose.Schema(
     leadDateDisplay: { type: String, trim: true }, // Formatted Dallas datetime (for reference)
     leadNo: { type: String, trim: true },
     leadOrigin: { type: String, trim: true },
+    leadStatus: { type: String, trim: true },
     comments: { type: String, trim: true },
 
     brand: {
@@ -29,6 +30,10 @@ const leadNoteSchema = new mongoose.Schema(
       type: String,
       required: true,
       index: true, // firstName of sales agent
+    },
+    createdBy: {
+      type: String,
+      index: true,
     },
   },
   {

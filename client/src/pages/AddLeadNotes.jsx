@@ -72,6 +72,7 @@ const AddLeadNotes = () => {
     salesAgent: "",
     leadOrigin: "",
     leadNo: "",
+    leadStatus: "",
     comments: "$ with programming and 1 year",
   });
 
@@ -164,7 +165,19 @@ const AddLeadNotes = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!validate()) return;
+
+    // Validation failed – show a visible error toast
+    if (!validate()) {
+      if (toastTimeoutRef.current) {
+        clearTimeout(toastTimeoutRef.current);
+      }
+      setToast("Please fix the highlighted fields before saving.");
+      toastTimeoutRef.current = setTimeout(() => {
+        setToast("");
+        toastTimeoutRef.current = null;
+      }, 5000);
+      return;
+    }
 
     try {
       setSubmitting(true);
@@ -176,16 +189,21 @@ const AddLeadNotes = () => {
       }
       
       const payload = { ...form };
+      console.log("Submitting lead:", editingLeadId ? "UPDATE" : "CREATE", payload);
+      
       // Create or update depending on editingLeadId
+      let response;
       if (editingLeadId) {
-        await API.put(`/lead-notes/${editingLeadId}`, payload);
+        response = await API.put(`/lead-notes/${editingLeadId}`, payload);
         setToast("Lead updated successfully.");
       } else {
-        await API.post("/lead-notes", payload);
+        response = await API.post("/lead-notes", payload);
         setToast("Lead note saved successfully.");
       }
       
-      // Auto-hide toast after 5 seconds
+      console.log("Lead saved successfully:", response.data);
+      
+      // Auto-hide success toast after 5 seconds
       toastTimeoutRef.current = setTimeout(() => {
         setToast("");
         toastTimeoutRef.current = null;
@@ -198,6 +216,7 @@ const AddLeadNotes = () => {
       }
     } catch (err) {
       console.error("Error saving lead note:", err);
+      console.error("Error details:", err.response?.data);
       const message =
         err?.response?.data?.message || "Failed to save lead note.";
       setToast(message);
@@ -236,15 +255,15 @@ const AddLeadNotes = () => {
   };
 
   // Whenever both "Show My Leads" and "Show All Leads" are off (form visible),
-  // ensure the form is reset to an empty state.
+  // ensure the form is reset to an empty state *only when not editing*.
   useEffect(() => {
-    if (!showLeads && !showAllLeads) {
+    if (!showLeads && !showAllLeads && !editingLeadId) {
       setForm(createEmptyForm());
       setEditingLeadId(null);
       setErrors({});
       // Do not clear toast here so success messages can still be seen
     }
-  }, [showLeads, showAllLeads]);
+  }, [showLeads, showAllLeads, editingLeadId]);
 
   const handleFilterChange = (filter) => {
     // UnifiedDatePicker sends { start, end } as UTC ISO strings
@@ -433,67 +452,135 @@ const AddLeadNotes = () => {
     }
   };
 
-  // Save lead and immediately start sale (prefill AddOrder)
-  const handleSale = async () => {
-    // Validate all required fields (including Lead Origin and Other Details)
-    if (!validate()) return;
+  // Helper to save a lead with an optional status and optional redirect to AddOrder
+  const saveLeadWithStatus = async (status, { redirectToOrder = false } = {}) => {
+    // Validation & top-level error toast are handled by handleSubmit-style logic
+    if (!validate()) {
+      if (toastTimeoutRef.current) {
+        clearTimeout(toastTimeoutRef.current);
+      }
+      setToast("Please fix the highlighted fields before saving.");
+      toastTimeoutRef.current = setTimeout(() => {
+        setToast("");
+        toastTimeoutRef.current = null;
+      }, 5000);
+      return null;
+    }
 
     try {
       setSubmitting(true);
       setToast("");
 
-      // Save lead first (always create a new lead for Sale)
-      const { data } = await API.post("/lead-notes", { ...form });
-      const lead = data || {};
-
-      // Persist leadDraft so AddOrder can prefill
-      try {
-        localStorage.setItem(
-          "leadDraft",
-          JSON.stringify({
-            _id: lead._id,
-            name: lead.name || form.name || "",
-            email: lead.email || form.email || "",
-            year: lead.year || form.year || "",
-            make: lead.make || form.make || "",
-            model: lead.model || form.model || "",
-            partRequired: lead.partRequired || form.partRequired || "",
-            partDescription: lead.partDescription || form.partDescription || "",
-            vinNo: lead.vinNo || form.vinNo || "",
-            partNo: lead.partNo || form.partNo || "",
-            warranty: lead.warranty || form.warranty || "",
-            warrantyField: lead.warrantyField || form.warrantyField || "days",
-            brand: lead.brand || form.brand || "",
-            salesAgent: lead.salesAgent || form.salesAgent || "",
-            leadOrigin: lead.leadOrigin || form.leadOrigin || "",
-            comments: lead.comments || form.comments || "",
-          })
-        );
-      } catch (storageErr) {
-        console.error("Failed to save leadDraft to localStorage:", storageErr);
+      if (toastTimeoutRef.current) {
+        clearTimeout(toastTimeoutRef.current);
       }
 
-      // Switch active brand to the lead's brand so order is created under correct brand
-      const leadBrand = lead.brand || form.brand;
-      if (leadBrand) {
-        try {
-          localStorage.setItem("currentBrand", leadBrand);
-          window.dispatchEvent(new Event("brand-changed"));
-        } catch (err) {
-          console.error("Failed to update currentBrand from lead:", err);
+      const payload = {
+        ...form,
+        ...(status ? { leadStatus: status } : {}),
+      };
+
+      let response;
+      if (editingLeadId) {
+        response = await API.put(`/lead-notes/${editingLeadId}`, payload);
+      } else {
+        response = await API.post("/lead-notes", payload);
+      }
+
+      const lead = response?.data || payload;
+
+      if (!redirectToOrder) {
+        setToast(
+          status
+            ? `Lead saved as ${status}.`
+            : editingLeadId
+            ? "Lead updated successfully."
+            : "Lead note saved successfully."
+        );
+
+        // Auto-hide toast after 5 seconds
+        toastTimeoutRef.current = setTimeout(() => {
+          setToast("");
+          toastTimeoutRef.current = null;
+        }, 5000);
+
+        setForm(createEmptyForm());
+        setEditingLeadId(null);
+        if (showLeads || showAllLeads) {
+          fetchLeads(dateFilter);
         }
       }
 
-      // Navigate to Add Order page
-      navigate("/add-order");
+      return lead;
     } catch (err) {
-      console.error("Error creating sale from lead:", err);
+      console.error("Error saving lead:", err);
       const message =
-        err?.response?.data?.message || "Failed to create sale from lead.";
+        err?.response?.data?.message || "Failed to save lead note.";
       setToast(message);
+
+      if (toastTimeoutRef.current) {
+        clearTimeout(toastTimeoutRef.current);
+      }
+      toastTimeoutRef.current = setTimeout(() => {
+        setToast("");
+        toastTimeoutRef.current = null;
+      }, 5000);
+
+      return null;
     } finally {
       setSubmitting(false);
     }
+  };
+
+  // Buttons for quick status changes without redirect
+  const handleStatusSave = async (status) => {
+    await saveLeadWithStatus(status, { redirectToOrder: false });
+  };
+
+  // Save lead and immediately start sale (prefill AddOrder)
+  const handleSale = async () => {
+    const lead = await saveLeadWithStatus("Sale", { redirectToOrder: true });
+    if (!lead) return;
+
+    try {
+      // Persist leadDraft so AddOrder can prefill
+      localStorage.setItem(
+        "leadDraft",
+        JSON.stringify({
+          _id: lead._id,
+          name: lead.name || form.name || "",
+          email: lead.email || form.email || "",
+          year: lead.year || form.year || "",
+          make: lead.make || form.make || "",
+          model: lead.model || form.model || "",
+          partRequired: lead.partRequired || form.partRequired || "",
+          partDescription: lead.partDescription || form.partDescription || "",
+          vinNo: lead.vinNo || form.vinNo || "",
+          partNo: lead.partNo || form.partNo || "",
+          warranty: lead.warranty || form.warranty || "",
+          warrantyField: lead.warrantyField || form.warrantyField || "days",
+          brand: lead.brand || form.brand || "",
+          salesAgent: lead.salesAgent || form.salesAgent || "",
+          leadOrigin: lead.leadOrigin || form.leadOrigin || "",
+          comments: lead.comments || form.comments || "",
+        })
+      );
+    } catch (storageErr) {
+      console.error("Failed to save leadDraft to localStorage:", storageErr);
+    }
+
+    // Switch active brand to the lead's brand so order is created under correct brand
+    const leadBrand = lead.brand || form.brand;
+    if (leadBrand) {
+      try {
+        localStorage.setItem("currentBrand", leadBrand);
+        window.dispatchEvent(new Event("brand-changed"));
+      } catch (err) {
+        console.error("Failed to update currentBrand from lead:", err);
+      }
+    }
+
+    navigate("/add-order");
   };
 
   // Only allow Sales, Admin roles, or specific email
@@ -603,7 +690,7 @@ const AddLeadNotes = () => {
               {editingLeadId ? "Edit Lead" : "New Lead"}
               {form.leadNo ? ` - ${form.leadNo}` : ""}
             </h3>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap justify-end">
               <button
                 type="button"
                 onClick={handleCopy}
@@ -614,6 +701,30 @@ const AddLeadNotes = () => {
                 }`}
               >
                 {copySuccess ? "✓ Copied!" : "Copy"}
+              </button>
+              <button
+                type="button"
+                onClick={() => handleStatusSave("Voicemail")}
+                disabled={submitting}
+                className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-purple-600 hover:bg-purple-500 text-white disabled:opacity-60"
+              >
+                Voicemail
+              </button>
+              <button
+                type="button"
+                onClick={() => handleStatusSave("Quoted")}
+                disabled={submitting}
+                className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-600 hover:bg-blue-500 text-white disabled:opacity-60"
+              >
+                Quoted
+              </button>
+              <button
+                type="button"
+                onClick={() => handleStatusSave("Invalid")}
+                disabled={submitting}
+                className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-red-600 hover:bg-red-500 text-white disabled:opacity-60"
+              >
+                Invalid
               </button>
               <button
                 type="button"
@@ -944,9 +1055,14 @@ const AddLeadNotes = () => {
                         <th className="p-2 text-left border-r border-white/20">
                           Comments
                         </th>
-                        <th className="p-2 text-left">
-                          Action
+                        <th className="p-2 text-left border-r border-white/20">
+                          Status
                         </th>
+                        {showLeads && !showAllLeads && (
+                          <th className="p-2 text-left">
+                            Action
+                          </th>
+                        )}
                       </tr>
                     </thead>
                     <tbody>
@@ -1001,38 +1117,47 @@ const AddLeadNotes = () => {
                           <td className="p-2 border-r border-white/15">
                             {lead.comments || "—"}
                           </td>
+                          <td className="p-2 border-r border-white/15 whitespace-nowrap">
+                            {lead.leadStatus || "—"}
+                          </td>
                           <td className="p-2">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setEditingLeadId(lead._id || null);
-                                setForm({
-                                  name: lead.name || "",
-                                  email: lead.email || "",
-                                  year: lead.year || "",
-                                  make: lead.make || "",
-                                  model: lead.model || "",
-                                  partRequired: lead.partRequired || "",
-                                  partDescription: lead.partDescription || "",
-                                  vinNo: lead.vinNo || "",
-                                  partNo: lead.partNo || "",
-                                  warranty: lead.warranty || "",
-                                  warrantyField: lead.warrantyField || "",
-                                  brand: lead.brand || "",
-                                  salesAgent: lead.salesAgent || "",
-                                  leadOrigin: lead.leadOrigin || "",
-                                  leadNo: lead.leadNo || "",
-                                  comments: lead.comments || "",
-                                });
-                                // Show form for editing
-                                setShowLeads(false);
-                                setShowAllLeads(false);
-                                setErrors({});
-                              }}
-                              className="px-3 py-1 rounded-lg text-xs font-semibold bg-yellow-500 hover:bg-yellow-400 text-black shadow-sm"
-                            >
-                              Edit
-                            </button>
+                            {showLeads && !showAllLeads && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const leadId = lead._id || null;
+                                  console.log("Editing lead:", leadId, lead);
+                                  setEditingLeadId(leadId);
+                                  setForm({
+                                    name: lead.name || "",
+                                    email: lead.email || "",
+                                    year: lead.year || "",
+                                    make: lead.make || "",
+                                    model: lead.model || "",
+                                    partRequired: lead.partRequired || "",
+                                    partDescription: lead.partDescription || "",
+                                    vinNo: lead.vinNo || "",
+                                    partNo: lead.partNo || "",
+                                    warranty: lead.warranty || "",
+                                    warrantyField: lead.warrantyField || "days",
+                                    brand: lead.brand || "",
+                                    salesAgent: lead.salesAgent || "",
+                                    leadOrigin: lead.leadOrigin || "",
+                                    leadNo: lead.leadNo || "",
+                                  leadStatus: lead.leadStatus || "",
+                                    comments: lead.comments || "$ with programming and 1 year",
+                                  });
+                                  // Show form for editing
+                                  setShowLeads(false);
+                                  setShowAllLeads(false);
+                                  setErrors({});
+                                  console.log("Form set for editing, editingLeadId:", leadId);
+                                }}
+                                className="px-3 py-1 rounded-lg text-xs font-semibold bg-yellow-500 hover:bg-yellow-400 text-black shadow-sm"
+                              >
+                                Edit
+                              </button>
+                            )}
                           </td>
                         </tr>
                       ))}

@@ -42,7 +42,8 @@ async function generateLeadNo(req, brand) {
   const createdBy = req.user?.id || "Unknown";
   const { now, start, end } = getDallasDayRange();
 
-  const count = await LeadForOrders.countDocuments({
+  // Use LeadNote (leadnotes collection) as the primary source for numbering
+  const count = await LeadNote.countDocuments({
     createdBy,
     brand,
     createdAt: { $gte: start, $lte: end },
@@ -78,6 +79,7 @@ router.post(
         warranty,
         warrantyField,
         leadNo,
+        leadStatus,
         comments,
         brand: selectedBrand,
         salesAgent: selectedSalesAgent,
@@ -133,6 +135,7 @@ router.post(
         leadDateDisplay,
         leadNo: finalLeadNo,
         leadOrigin: leadOrigin || "",
+        leadStatus: leadStatus || "",
         comments: comments || "",
         brand,
         salesAgent: salesAgent.trim(),
@@ -159,9 +162,11 @@ router.post(
           leadDateDisplay,
           leadNo: finalLeadNo,
           leadOrigin: leadOrigin || "",
+          leadStatus: leadStatus || "",
           comments: comments || "",
           brand,
           salesAgent: salesAgent.trim(),
+          createdBy,
         });
       } catch (noteErr) {
         // Log but don't fail - LeadForOrders is the primary storage
@@ -220,6 +225,7 @@ router.put(
         "warrantyField",
         "leadNo",
         "leadOrigin",
+        "leadStatus",
         "comments",
         "brand",
         "salesAgent",
