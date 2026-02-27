@@ -106,7 +106,7 @@ const buildInitialFormData = (defaultSalesAgent = "") => ({
   grossProfit: "",
   last4digits: "",
   notes: "",
-  saleMadeBy: "",
+  leadOrigin: "",
 
   // Toggles
   expediteShipping: false,
@@ -334,8 +334,8 @@ export default function AddOrder() {
         warrantyField: prev.warrantyField || lead.warrantyField || "days",
         // Notes
         notes: prev.notes || lead.comments || "",
-        // Sale source
-        saleMadeBy: prev.saleMadeBy || lead.saleMadeBy || "",
+        // Lead origin
+        leadOrigin: prev.leadOrigin || lead.leadOrigin || "",
       }));
 
       // Clear the draft so it isn't reused accidentally
@@ -974,10 +974,10 @@ export default function AddOrder() {
                 error={fieldErrors.has("last4digits")}
               />
               <Dropdown
-                placeholder="Sale Made By"
+                placeholder="Lead Origin"
                 options={["Chat", "Call", "Lead"]}
-                value={formData.saleMadeBy}
-                onChange={(e) => handleFieldChange("saleMadeBy", e.target.value)}
+                value={formData.leadOrigin}
+                onChange={(e) => handleFieldChange("leadOrigin", e.target.value)}
               />
               <Input 
                 placeholder="Order Notes" 

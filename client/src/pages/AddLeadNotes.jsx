@@ -69,7 +69,7 @@ const AddLeadNotes = () => {
     warrantyField: "",
     brand: "",
     salesAgent: "",
-    saleMadeBy: "",
+    leadOrigin: "",
     comments: "$ with programming and 1 year",
   });
   const [errors, setErrors] = useState({});
@@ -109,7 +109,7 @@ const AddLeadNotes = () => {
     "warrantyField",
     "brand",
     "salesAgent",
-    "saleMadeBy",
+    "leadOrigin",
     "comments",
   ];
 
@@ -192,7 +192,7 @@ const AddLeadNotes = () => {
         warrantyField: "",
         brand: "",
         salesAgent: "",
-        saleMadeBy: "",
+        leadOrigin: "",
         comments: "$ with programming and 1 year",
       });
       if (showLeads || showAllLeads) {
@@ -397,7 +397,7 @@ const AddLeadNotes = () => {
 
   // Save lead and immediately start sale (prefill AddOrder)
   const handleSale = async () => {
-    // Validate all required fields (including Sale Made By and Other Details)
+    // Validate all required fields (including Lead Origin and Other Details)
     if (!validate()) return;
 
     try {
@@ -427,7 +427,7 @@ const AddLeadNotes = () => {
             warrantyField: lead.warrantyField || form.warrantyField || "days",
             brand: lead.brand || form.brand || "",
             salesAgent: lead.salesAgent || form.salesAgent || "",
-            saleMadeBy: lead.saleMadeBy || form.saleMadeBy || "",
+            leadOrigin: lead.leadOrigin || form.leadOrigin || "",
             comments: lead.comments || form.comments || "",
           })
         );
@@ -769,13 +769,13 @@ const AddLeadNotes = () => {
             </div>
             <div>
               <label className="block text-sm font-medium text-white mb-1">
-                Sale Made By
+                Lead Origin
               </label>
               <select
-                value={form.saleMadeBy}
-                onChange={setField("saleMadeBy")}
+                value={form.leadOrigin}
+                onChange={setField("leadOrigin")}
                 className={`w-full px-3 py-2 rounded-lg bg-white/10 border text-white outline-none focus:ring-2 focus:ring-white/30 ${
-                  errors.saleMadeBy ? "border-red-400" : "border-white/20"
+                  errors.leadOrigin ? "border-red-400" : "border-white/20"
                 }`}
               >
                 <option value="">Select</option>
@@ -789,10 +789,10 @@ const AddLeadNotes = () => {
                   Lead
                 </option>
               </select>
-              {errors.saleMadeBy && (
+              {errors.leadOrigin && (
                 <p className="mt-1 text-xs text-red-200">
-                  {typeof errors.saleMadeBy === "string"
-                    ? errors.saleMadeBy
+                  {typeof errors.leadOrigin === "string"
+                    ? errors.leadOrigin
                     : "Required"}
                 </p>
               )}

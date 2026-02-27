@@ -53,7 +53,7 @@ router.post(
         comments,
         brand: selectedBrand,
         salesAgent: selectedSalesAgent,
-        saleMadeBy,
+        leadOrigin,
       } = req.body || {};
 
       // Use selected brand from form, or fallback to request brand
@@ -90,7 +90,7 @@ router.post(
         partNo: partNo || "",
         warranty: warranty || "",
         warrantyField: warrantyField || "days",
-        saleMadeBy: saleMadeBy || "",
+        leadOrigin: leadOrigin || "",
         comments: comments || "",
         brand,
         salesAgent: salesAgent.trim(),
@@ -113,7 +113,7 @@ router.post(
           partNo: partNo || "",
           warranty: warranty || "",
           warrantyField: warrantyField || "days",
-          saleMadeBy: saleMadeBy || "",
+          leadOrigin: leadOrigin || "",
           comments: comments || "",
           brand,
           salesAgent: salesAgent.trim(),
