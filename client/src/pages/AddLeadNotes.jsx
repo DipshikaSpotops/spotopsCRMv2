@@ -626,7 +626,7 @@ const AddLeadNotes = () => {
             </div>
           </div>
           <div className="space-y-2">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
               <div>
                 <label className="block text-sm font-medium text-white mb-1">
                   Brand
@@ -689,6 +689,37 @@ const AddLeadNotes = () => {
                   <p className="mt-1 text-xs text-red-200">
                     {typeof errors.salesAgent === "string"
                       ? errors.salesAgent
+                      : "Required"}
+                  </p>
+                )}
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-white mb-1">
+                  Lead Origin
+                </label>
+                <AgentDropdown
+                  options={["Select", "Chat", "Call", "Lead"]}
+                  value={form.leadOrigin || "Select"}
+                  onChange={(val) => {
+                    setForm((prev) => ({
+                      ...prev,
+                      leadOrigin: val === "Select" ? "" : val,
+                    }));
+                    if (errors.leadOrigin) {
+                      setErrors((prev) => {
+                        const next = { ...prev };
+                        delete next.leadOrigin;
+                        return next;
+                      });
+                    }
+                  }}
+                  placeholder="Select Lead Origin"
+                  className="w-full"
+                />
+                {errors.leadOrigin && (
+                  <p className="mt-1 text-xs text-red-200">
+                    {typeof errors.leadOrigin === "string"
+                      ? errors.leadOrigin
                       : "Required"}
                   </p>
                 )}
@@ -815,42 +846,6 @@ const AddLeadNotes = () => {
                 )}
               </div>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-white mb-1">
-                Lead Origin
-              </label>
-              <select
-                value={form.leadOrigin}
-                onChange={setField("leadOrigin")}
-                className={`w-full px-3 py-2 rounded-lg bg-white/10 border text-white outline-none focus:ring-2 focus:ring-white/30 ${
-                  errors.leadOrigin ? "border-red-400" : "border-white/20"
-                }`}
-              >
-                <option value="">Select</option>
-                <option value="Chat" className="text-black">
-                  Chat
-                </option>
-                <option value="Call" className="text-black">
-                  Call
-                </option>
-                <option value="Lead" className="text-black">
-                  Lead
-                </option>
-              </select>
-              {errors.leadOrigin && (
-                <p className="mt-1 text-xs text-red-200">
-                  {typeof errors.leadOrigin === "string"
-                    ? errors.leadOrigin
-                    : "Required"}
-                </p>
-              )}
-            </div>
-            <InputField
-              label="Lead No"
-              value={form.leadNo}
-              onChange={setField("leadNo")}
-              error={errors.leadNo}
-            />
             <div>
               <label className="block text-sm font-medium text-white mb-1">
                 Other Details
