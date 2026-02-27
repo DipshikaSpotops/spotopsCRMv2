@@ -13,6 +13,7 @@ const AGENT_BRAND_MAPPING = {
   David: "Steve",
   Michael: "Charlie",
   Dipsikha: "Dipsikha", // Same for both brands
+  Dipshika: "Dipsikha", // Handle alternate spelling for safety
 };
 
 function readAuthFromStorage() {
@@ -55,7 +56,7 @@ const AddLeadNotes = () => {
   
   const isSales = role === "Sales";
 
-  const [form, setForm] = useState({
+  const createEmptyForm = () => ({
     name: "",
     email: "",
     year: "",
@@ -70,8 +71,11 @@ const AddLeadNotes = () => {
     brand: "",
     salesAgent: "",
     leadOrigin: "",
+    leadNo: "",
     comments: "$ with programming and 1 year",
   });
+
+  const [form, setForm] = useState(createEmptyForm);
   const [errors, setErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
   const [toast, setToast] = useState("");
@@ -86,6 +90,7 @@ const AddLeadNotes = () => {
   const [salesAgents, setSalesAgents] = useState([]);
   const [loadingAgents, setLoadingAgents] = useState(false);
   const [parts, setParts] = useState([]);
+  const [editingLeadId, setEditingLeadId] = useState(null);
   const [dateFilter, setDateFilter] = useState(() => {
     // Initialize with today (Dallas timezone)
     const todayDallas = moment.tz("America/Chicago").startOf("day");
@@ -110,6 +115,7 @@ const AddLeadNotes = () => {
     "brand",
     "salesAgent",
     "leadOrigin",
+    "leadNo",
     "comments",
   ];
 
@@ -169,8 +175,15 @@ const AddLeadNotes = () => {
         clearTimeout(toastTimeoutRef.current);
       }
       
-      await API.post("/lead-notes", form);
-      setToast("Lead note saved successfully.");
+      const payload = { ...form };
+      // Create or update depending on editingLeadId
+      if (editingLeadId) {
+        await API.put(`/lead-notes/${editingLeadId}`, payload);
+        setToast("Lead updated successfully.");
+      } else {
+        await API.post("/lead-notes", payload);
+        setToast("Lead note saved successfully.");
+      }
       
       // Auto-hide toast after 5 seconds
       toastTimeoutRef.current = setTimeout(() => {
@@ -178,25 +191,10 @@ const AddLeadNotes = () => {
         toastTimeoutRef.current = null;
       }, 5000);
       
-      setForm({
-        name: "",
-        email: "",
-        year: "",
-        make: "",
-        model: "",
-        partRequired: "",
-        partDescription: "",
-        vinNo: "",
-        partNo: "",
-        warranty: "",
-        warrantyField: "",
-        brand: "",
-        salesAgent: "",
-        leadOrigin: "",
-        comments: "$ with programming and 1 year",
-      });
+      setForm(createEmptyForm());
+      setEditingLeadId(null);
       if (showLeads || showAllLeads) {
-        fetchLeads(newFilter);
+        fetchLeads(dateFilter);
       }
     } catch (err) {
       console.error("Error saving lead note:", err);
@@ -236,6 +234,17 @@ const AddLeadNotes = () => {
       setLoadingLeads(false);
     }
   };
+
+  // Whenever both "Show My Leads" and "Show All Leads" are off (form visible),
+  // ensure the form is reset to an empty state.
+  useEffect(() => {
+    if (!showLeads && !showAllLeads) {
+      setForm(createEmptyForm());
+      setEditingLeadId(null);
+      setErrors({});
+      // Do not clear toast here so success messages can still be seen
+    }
+  }, [showLeads, showAllLeads]);
 
   const handleFilterChange = (filter) => {
     // UnifiedDatePicker sends { start, end } as UTC ISO strings
@@ -292,9 +301,20 @@ const AddLeadNotes = () => {
     return ["Select", ...Array.from(new Set(names))];
   }, [salesAgents]);
 
+  // Normalize firstName for edge cases (e.g., Dipshika vs Dipsikha)
+  const normalizeFirstName = (name) => {
+    if (!name) return "";
+    const trimmed = String(name).trim();
+    const lower = trimmed.toLowerCase();
+    if (lower === "dipshika" || lower === "dipsikha") return "Dipsikha";
+    return trimmed;
+  };
+
   // Compute which agent names belong to the logged-in user (for "My Leads")
   const myAgentNames = useMemo(() => {
-    const base = (firstName || "").trim();
+    const baseRaw = (firstName || "").trim();
+    if (!baseRaw) return [];
+    const base = normalizeFirstName(baseRaw);
     if (!base) return [];
     const names = [base];
     const mapped = AGENT_BRAND_MAPPING[base];
@@ -395,6 +415,24 @@ const AddLeadNotes = () => {
     }
   };
 
+  // Fetch next lead number for current user / selected brand (server-calculated)
+  const fetchNextLeadNo = async (brand) => {
+    if (!brand) return;
+    try {
+      const { data } = await API.get("/lead-notes/next-number", {
+        params: { brand },
+      });
+      if (data?.leadNo) {
+        setForm((prev) => ({
+          ...prev,
+          leadNo: data.leadNo, // Always update when brand changes (for new leads)
+        }));
+      }
+    } catch (err) {
+      console.error("Error fetching next lead number:", err);
+    }
+  };
+
   // Save lead and immediately start sale (prefill AddOrder)
   const handleSale = async () => {
     // Validate all required fields (including Lead Origin and Other Details)
@@ -404,8 +442,8 @@ const AddLeadNotes = () => {
       setSubmitting(true);
       setToast("");
 
-      // Save lead first
-      const { data } = await API.post("/lead-notes", form);
+      // Save lead first (always create a new lead for Sale)
+      const { data } = await API.post("/lead-notes", { ...form });
       const lead = data || {};
 
       // Persist leadDraft so AddOrder can prefill
@@ -561,7 +599,10 @@ const AddLeadNotes = () => {
             className="bg-white/10 rounded-2xl p-5 border border-white/20 shadow-md backdrop-blur-md space-y-3 max-w-4xl"
           >
           <div className="flex items-center justify-between mb-2">
-            <h3 className="text-lg font-semibold text-white">New Lead</h3>
+            <h3 className="text-lg font-semibold text-white">
+              {editingLeadId ? "Edit Lead" : "New Lead"}
+              {form.leadNo ? ` - ${form.leadNo}` : ""}
+            </h3>
             <div className="flex items-center gap-2">
               <button
                 type="button"
@@ -593,10 +634,13 @@ const AddLeadNotes = () => {
                 <AgentDropdown
                   options={["Select", "50STARS", "PROLANE"]}
                   value={form.brand || "Select"}
-                  onChange={(val) => {
+                  onChange={async (val) => {
+                    const brandValue = val === "Select" ? "" : val;
                     setForm((prev) => ({
                       ...prev,
-                      brand: val === "Select" ? "" : val,
+                      brand: brandValue,
+                      // Clear leadNo when brand is cleared
+                      leadNo: brandValue ? prev.leadNo : "",
                     }));
                     if (errors.brand) {
                       setErrors((prev) => {
@@ -604,6 +648,10 @@ const AddLeadNotes = () => {
                         delete next.brand;
                         return next;
                       });
+                    }
+                    // Only auto-generate Lead No for new leads (not when editing)
+                    if (brandValue && !editingLeadId) {
+                      await fetchNextLeadNo(brandValue);
                     }
                   }}
                   placeholder="Select Brand"
@@ -797,6 +845,12 @@ const AddLeadNotes = () => {
                 </p>
               )}
             </div>
+            <InputField
+              label="Lead No"
+              value={form.leadNo}
+              onChange={setField("leadNo")}
+              error={errors.leadNo}
+            />
             <div>
               <label className="block text-sm font-medium text-white mb-1">
                 Other Details
@@ -863,6 +917,9 @@ const AddLeadNotes = () => {
                           Date
                         </th>
                         <th className="p-2 text-left border-r border-white/20">
+                          Lead No
+                        </th>
+                        <th className="p-2 text-left border-r border-white/20">
                           Name
                         </th>
                         <th className="p-2 text-left border-r border-white/20">
@@ -892,6 +949,9 @@ const AddLeadNotes = () => {
                         <th className="p-2 text-left border-r border-white/20">
                           Comments
                         </th>
+                        <th className="p-2 text-left">
+                          Action
+                        </th>
                       </tr>
                     </thead>
                     <tbody>
@@ -908,6 +968,9 @@ const AddLeadNotes = () => {
                                   "do MMM, yyyy"
                                 )
                               : "—"}
+                          </td>
+                          <td className="p-2 border-r border-white/15 whitespace-nowrap">
+                            {lead.leadNo || "—"}
                           </td>
                           <td className="p-2 border-r border-white/15 whitespace-nowrap">
                             {lead.name || "—"}
@@ -942,6 +1005,39 @@ const AddLeadNotes = () => {
                           </td>
                           <td className="p-2 border-r border-white/15">
                             {lead.comments || "—"}
+                          </td>
+                          <td className="p-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingLeadId(lead._id || null);
+                                setForm({
+                                  name: lead.name || "",
+                                  email: lead.email || "",
+                                  year: lead.year || "",
+                                  make: lead.make || "",
+                                  model: lead.model || "",
+                                  partRequired: lead.partRequired || "",
+                                  partDescription: lead.partDescription || "",
+                                  vinNo: lead.vinNo || "",
+                                  partNo: lead.partNo || "",
+                                  warranty: lead.warranty || "",
+                                  warrantyField: lead.warrantyField || "",
+                                  brand: lead.brand || "",
+                                  salesAgent: lead.salesAgent || "",
+                                  leadOrigin: lead.leadOrigin || "",
+                                  leadNo: lead.leadNo || "",
+                                  comments: lead.comments || "",
+                                });
+                                // Show form for editing
+                                setShowLeads(false);
+                                setShowAllLeads(false);
+                                setErrors({});
+                              }}
+                              className="px-3 py-1 rounded-lg text-xs font-semibold bg-yellow-500 hover:bg-yellow-400 text-black shadow-sm"
+                            >
+                              Edit
+                            </button>
                           </td>
                         </tr>
                       ))}

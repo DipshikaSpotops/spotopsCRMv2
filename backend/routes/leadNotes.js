@@ -1,4 +1,5 @@
 import express from "express";
+import moment from "moment-timezone";
 import LeadNote from "../models/LeadNote.js";
 import LeadForOrders from "../models/LeadForOrders.js";
 import { requireAuth, allow } from "../middleware/auth.js";
@@ -28,6 +29,31 @@ function isLeadNotesAuthorized(req) {
   return false;
 }
 
+// Dallas (America/Chicago) day range helper
+function getDallasDayRange() {
+  const now = moment.tz("America/Chicago");
+  const start = now.clone().startOf("day").toDate();
+  const end = now.clone().endOf("day").toDate();
+  return { now, start, end };
+}
+
+// Generate next lead number for a given user, brand, and day
+async function generateLeadNo(req, brand) {
+  const createdBy = req.user?.id || "Unknown";
+  const { now, start, end } = getDallasDayRange();
+
+  const count = await LeadForOrders.countDocuments({
+    createdBy,
+    brand,
+    createdAt: { $gte: start, $lte: end },
+  });
+
+  const index = (count || 0) + 1;
+  const dateLabel = now.format("Do MMM"); // e.g. "27th Feb"
+  const indexStr = String(index).padStart(2, "0"); // 01, 02, ...
+  return `${dateLabel}- ${brand}${indexStr}`;
+}
+
 router.post(
   "/",
   requireAuth,
@@ -50,6 +76,7 @@ router.post(
         partNo,
         warranty,
         warrantyField,
+        leadNo,
         comments,
         brand: selectedBrand,
         salesAgent: selectedSalesAgent,
@@ -74,6 +101,12 @@ router.post(
         });
       }
 
+      // Determine / generate Lead No for today (per user, brand)
+      let finalLeadNo = (leadNo || "").trim();
+      if (!finalLeadNo) {
+        finalLeadNo = await generateLeadNo(req, brand);
+      }
+
       // Generate a unique messageId for this lead (to avoid duplicate key error on existing index)
       const messageId = `lead-${Date.now()}-${Math.random().toString(36).substring(2, 15)}-${createdBy}`;
 
@@ -90,6 +123,7 @@ router.post(
         partNo: partNo || "",
         warranty: warranty || "",
         warrantyField: warrantyField || "days",
+        leadNo: finalLeadNo,
         leadOrigin: leadOrigin || "",
         comments: comments || "",
         brand,
@@ -113,6 +147,7 @@ router.post(
           partNo: partNo || "",
           warranty: warranty || "",
           warrantyField: warrantyField || "days",
+          leadNo: finalLeadNo,
           leadOrigin: leadOrigin || "",
           comments: comments || "",
           brand,
@@ -131,6 +166,97 @@ router.post(
       console.error("POST /api/lead-notes failed:", err);
       res.status(500).json({
         message: `Failed to create lead note: ${err.message}`,
+        error: err.message,
+      });
+    }
+  }
+);
+
+// Update an existing lead (only creator can edit)
+router.put(
+  "/:id",
+  requireAuth,
+  async (req, res) => {
+    try {
+      if (!isLeadNotesAuthorized(req)) {
+        return res
+          .status(403)
+          .json({ message: "Access denied. Sales/Admin or authorized email required." });
+      }
+
+      const leadId = req.params.id;
+      const userId = req.user?.id || "Unknown";
+
+      const lead = await LeadForOrders.findById(leadId);
+      if (!lead) {
+        return res.status(404).json({ message: "Lead not found" });
+      }
+
+      if (String(lead.createdBy) !== String(userId)) {
+        return res.status(403).json({ message: "You can edit only leads you created" });
+      }
+
+      const updatableFields = [
+        "name",
+        "email",
+        "year",
+        "make",
+        "model",
+        "partRequired",
+        "partDescription",
+        "vinNo",
+        "partNo",
+        "warranty",
+        "warrantyField",
+        "leadNo",
+        "leadOrigin",
+        "comments",
+        "brand",
+        "salesAgent",
+      ];
+
+      updatableFields.forEach((field) => {
+        if (Object.prototype.hasOwnProperty.call(req.body, field)) {
+          lead[field] = req.body[field] ?? "";
+        }
+      });
+
+      await lead.save();
+
+      res.json(lead.toObject());
+    } catch (err) {
+      console.error("PUT /api/lead-notes/:id failed:", err);
+      res.status(500).json({
+        message: "Failed to update lead note",
+        error: err.message,
+      });
+    }
+  }
+);
+
+// Get next Lead No for the logged-in user for today and brand
+router.get(
+  "/next-number",
+  requireAuth,
+  async (req, res) => {
+    try {
+      if (!isLeadNotesAuthorized(req)) {
+        return res
+          .status(403)
+          .json({ message: "Access denied. Sales/Admin or authorized email required." });
+      }
+
+      const requestedBrand = (req.query.brand || "").trim().toUpperCase();
+      const brand = requestedBrand === "PROLANE" || requestedBrand === "50STARS"
+        ? requestedBrand
+        : getBrand(req);
+
+      const leadNo = await generateLeadNo(req, brand);
+      res.json({ leadNo, brand });
+    } catch (err) {
+      console.error("GET /api/lead-notes/next-number failed:", err);
+      res.status(500).json({
+        message: "Failed to get next lead number",
         error: err.message,
       });
     }
