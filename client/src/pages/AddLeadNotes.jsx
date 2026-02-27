@@ -1,4 +1,5 @@
 import { useMemo, useState, useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import API from "../api";
 import UnifiedDatePicker from "../components/UnifiedDatePicker";
 import AgentDropdown from "../components/AgentDropdown";
@@ -36,6 +37,7 @@ function readAuthFromStorage() {
 
 const AddLeadNotes = () => {
   const { role, firstName } = useMemo(() => readAuthFromStorage(), []);
+  const navigate = useNavigate();
   
   // Get email from storage
   const email = useMemo(() => {
@@ -64,9 +66,10 @@ const AddLeadNotes = () => {
     vinNo: "",
     partNo: "",
     warranty: "",
-    warrantyField: "days",
+    warrantyField: "",
     brand: "",
     salesAgent: "",
+    saleMadeBy: "",
     comments: "$ with programming and 1 year",
   });
   const [errors, setErrors] = useState({});
@@ -103,8 +106,10 @@ const AddLeadNotes = () => {
     "partDescription",
     "vinNo",
     "warranty",
+    "warrantyField",
     "brand",
     "salesAgent",
+    "saleMadeBy",
     "comments",
   ];
 
@@ -113,6 +118,22 @@ const AddLeadNotes = () => {
     requiredFields.forEach((k) => {
       if (!String(form[k] || "").trim()) e[k] = "Required";
     });
+    // Special case: Other Details should not stay at the default placeholder text
+    const defaultComments = "$ with programming and 1 year";
+    const commentsValue = String(form.comments || "").trim();
+    if (!e.comments && commentsValue === defaultComments) {
+      e.comments = "Required";
+    }
+    // Ensure Other Details starts with `$` followed by a valid number like 300 or 300.14
+    if (
+      !e.comments && // only if not already marked as error
+      commentsValue
+    ) {
+      const moneyPattern = /^\$\s*\d+(\.\d{0,2})?(\b|[^0-9])/;
+      if (!moneyPattern.test(commentsValue)) {
+        e.comments = "Enter amount after $ like $300 or $300.14";
+      }
+    }
     // Validate email format
     if (form.email && !/^[\w-.]+@([\w-]+\.)+[\w-]{2,4}$/.test(form.email.trim())) {
       e.email = "Enter a valid email address";
@@ -168,9 +189,10 @@ const AddLeadNotes = () => {
         vinNo: "",
         partNo: "",
         warranty: "",
-        warrantyField: "days",
+        warrantyField: "",
         brand: "",
         salesAgent: "",
+        saleMadeBy: "",
         comments: "$ with programming and 1 year",
       });
       if (showLeads || showAllLeads) {
@@ -373,6 +395,69 @@ const AddLeadNotes = () => {
     }
   };
 
+  // Save lead and immediately start sale (prefill AddOrder)
+  const handleSale = async () => {
+    // Validate all required fields (including Sale Made By and Other Details)
+    if (!validate()) return;
+
+    try {
+      setSubmitting(true);
+      setToast("");
+
+      // Save lead first
+      const { data } = await API.post("/lead-notes", form);
+      const lead = data || {};
+
+      // Persist leadDraft so AddOrder can prefill
+      try {
+        localStorage.setItem(
+          "leadDraft",
+          JSON.stringify({
+            _id: lead._id,
+            name: lead.name || form.name || "",
+            email: lead.email || form.email || "",
+            year: lead.year || form.year || "",
+            make: lead.make || form.make || "",
+            model: lead.model || form.model || "",
+            partRequired: lead.partRequired || form.partRequired || "",
+            partDescription: lead.partDescription || form.partDescription || "",
+            vinNo: lead.vinNo || form.vinNo || "",
+            partNo: lead.partNo || form.partNo || "",
+            warranty: lead.warranty || form.warranty || "",
+            warrantyField: lead.warrantyField || form.warrantyField || "days",
+            brand: lead.brand || form.brand || "",
+            salesAgent: lead.salesAgent || form.salesAgent || "",
+            saleMadeBy: lead.saleMadeBy || form.saleMadeBy || "",
+            comments: lead.comments || form.comments || "",
+          })
+        );
+      } catch (storageErr) {
+        console.error("Failed to save leadDraft to localStorage:", storageErr);
+      }
+
+      // Switch active brand to the lead's brand so order is created under correct brand
+      const leadBrand = lead.brand || form.brand;
+      if (leadBrand) {
+        try {
+          localStorage.setItem("currentBrand", leadBrand);
+          window.dispatchEvent(new Event("brand-changed"));
+        } catch (err) {
+          console.error("Failed to update currentBrand from lead:", err);
+        }
+      }
+
+      // Navigate to Add Order page
+      navigate("/add-order");
+    } catch (err) {
+      console.error("Error creating sale from lead:", err);
+      const message =
+        err?.response?.data?.message || "Failed to create sale from lead.";
+      setToast(message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   // Only allow Sales, Admin roles, or specific email
   const isAdmin = role === "Admin";
   const isAuthorizedEmail = email?.toLowerCase() === "50starsauto110@gmail.com";
@@ -470,24 +555,34 @@ const AddLeadNotes = () => {
       {/* Content */}
       <div>
         {/* Form */}
-        {!showLeads && (
+        {!showLeads && !showAllLeads && (
           <form
             onSubmit={handleSubmit}
             className="bg-white/10 rounded-2xl p-5 border border-white/20 shadow-md backdrop-blur-md space-y-3 max-w-4xl"
           >
           <div className="flex items-center justify-between mb-2">
             <h3 className="text-lg font-semibold text-white">New Lead</h3>
-            <button
-              type="button"
-              onClick={handleCopy}
-              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition ${
-                copySuccess
-                  ? "bg-green-600 text-white"
-                  : "bg-[#04356d] hover:bg-[#3b89bf] text-white"
-              }`}
-            >
-              {copySuccess ? "✓ Copied!" : "Copy"}
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleCopy}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition ${
+                  copySuccess
+                    ? "bg-green-600 text-white"
+                    : "bg-[#04356d] hover:bg-[#3b89bf] text-white"
+                }`}
+              >
+                {copySuccess ? "✓ Copied!" : "Copy"}
+              </button>
+              <button
+                type="button"
+                onClick={handleSale}
+                disabled={submitting}
+                className="px-3 py-1.5 rounded-lg text-sm font-semibold bg-green-600 hover:bg-green-500 text-white disabled:opacity-60"
+              >
+                Sale
+              </button>
+            </div>
           </div>
           <div className="space-y-2">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
@@ -646,8 +741,13 @@ const AddLeadNotes = () => {
                 <select
                   value={form.warrantyField}
                   onChange={setField("warrantyField")}
-                  className="w-full px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-white outline-none focus:ring-2 focus:ring-white/30"
+                  className={`w-full px-3 py-2 rounded-lg bg-white/10 border text-white outline-none focus:ring-2 focus:ring-white/30 ${
+                    errors.warrantyField ? "border-red-400" : "border-white/20"
+                  }`}
                 >
+                  <option value="" className="text-black">
+                    Select Warranty Units
+                  </option>
                   <option value="days" className="text-black">
                     {Number(form.warranty) === 1 ? "Day" : "Day(s)"}
                   </option>
@@ -658,7 +758,44 @@ const AddLeadNotes = () => {
                     {Number(form.warranty) === 1 ? "Year" : "Year(s)"}
                   </option>
                 </select>
+                {errors.warrantyField && (
+                  <p className="mt-1 text-xs text-red-200">
+                    {typeof errors.warrantyField === "string"
+                      ? errors.warrantyField
+                      : "Required"}
+                  </p>
+                )}
               </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-white mb-1">
+                Sale Made By
+              </label>
+              <select
+                value={form.saleMadeBy}
+                onChange={setField("saleMadeBy")}
+                className={`w-full px-3 py-2 rounded-lg bg-white/10 border text-white outline-none focus:ring-2 focus:ring-white/30 ${
+                  errors.saleMadeBy ? "border-red-400" : "border-white/20"
+                }`}
+              >
+                <option value="">Select</option>
+                <option value="Chat" className="text-black">
+                  Chat
+                </option>
+                <option value="Call" className="text-black">
+                  Call
+                </option>
+                <option value="Lead" className="text-black">
+                  Lead
+                </option>
+              </select>
+              {errors.saleMadeBy && (
+                <p className="mt-1 text-xs text-red-200">
+                  {typeof errors.saleMadeBy === "string"
+                    ? errors.saleMadeBy
+                    : "Required"}
+                </p>
+              )}
             </div>
             <div>
               <label className="block text-sm font-medium text-white mb-1">

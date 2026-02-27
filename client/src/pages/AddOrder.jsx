@@ -106,6 +106,7 @@ const buildInitialFormData = (defaultSalesAgent = "") => ({
   grossProfit: "",
   last4digits: "",
   notes: "",
+  saleMadeBy: "",
 
   // Toggles
   expediteShipping: false,
@@ -248,9 +249,7 @@ export default function AddOrder() {
   }, [defaultSalesAgent, salesAgents]);
   const [toast, setToast] = useState(null);
   const [submitting, setSubmitting] = useState(false);
-  const [formData, setFormData] = useState(() =>
-    buildInitialFormData("")
-  );
+  const [formData, setFormData] = useState(() => buildInitialFormData(""));
   const [partNames, setPartNames] = useState([]);
   const [fieldErrors, setFieldErrors] = useState(new Set());
 
@@ -302,6 +301,48 @@ export default function AddOrder() {
 
   useEffect(() => {
     fetchParts();
+  }, []);
+
+  // Prefill from a lead draft if one exists (set in AddLeadNotes "Sale" action)
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("leadDraft");
+      if (!raw) return;
+      const lead = JSON.parse(raw);
+      if (!lead) return;
+
+      const fullName = (lead.name || "").trim();
+      const nameParts = fullName.split(" ").filter(Boolean);
+      const fName = nameParts[0] || "";
+      const lName = nameParts.slice(1).join(" ");
+
+      setFormData((prev) => ({
+        ...prev,
+        // Customer info
+        fName: prev.fName || fName,
+        lName: prev.lName || lName,
+        email: prev.email || lead.email || "",
+        // Part info
+        year: prev.year || lead.year || "",
+        make: prev.make || lead.make || "",
+        model: prev.model || lead.model || "",
+        pReq: prev.pReq || lead.partRequired || lead.partDescription || "",
+        desc: prev.desc || lead.partDescription || lead.comments || "",
+        vin: prev.vin || lead.vinNo || "",
+        partNo: prev.partNo || lead.partNo || "",
+        warranty: prev.warranty || lead.warranty || "",
+        warrantyField: prev.warrantyField || lead.warrantyField || "days",
+        // Notes
+        notes: prev.notes || lead.comments || "",
+        // Sale source
+        saleMadeBy: prev.saleMadeBy || lead.saleMadeBy || "",
+      }));
+
+      // Clear the draft so it isn't reused accidentally
+      localStorage.removeItem("leadDraft");
+    } catch (err) {
+      console.error("Failed to prefill from leadDraft:", err);
+    }
   }, []);
 
   const normalizeWarrantyField = useCallback((quantity, unit) => {
@@ -931,6 +972,12 @@ export default function AddOrder() {
                 value={formData.last4digits}
                 onChange={(e) => handleFieldChange("last4digits", e.target.value)}
                 error={fieldErrors.has("last4digits")}
+              />
+              <Dropdown
+                placeholder="Sale Made By"
+                options={["Chat", "Call", "Lead"]}
+                value={formData.saleMadeBy}
+                onChange={(e) => handleFieldChange("saleMadeBy", e.target.value)}
               />
               <Input 
                 placeholder="Order Notes" 

@@ -14,6 +14,7 @@ const leadForOrdersSchema = new mongoose.Schema(
     partNo: { type: String, trim: true },
     warranty: { type: String, trim: true },
     warrantyField: { type: String, trim: true, default: "days" },
+    saleMadeBy: { type: String, trim: true },
     comments: { type: String, trim: true },
     brand: {
       type: String,
