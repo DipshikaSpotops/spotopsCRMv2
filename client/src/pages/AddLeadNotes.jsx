@@ -961,9 +961,9 @@ const AddLeadNotes = () => {
                           className="even:bg-white/5 odd:bg-white/10"
                         >
                           <td className="p-2 border-r border-white/15 whitespace-nowrap">
-                            {lead.createdAt
+                            {(lead.leadDate || lead.createdAt)
                               ? formatInTimeZone(
-                                  new Date(lead.createdAt),
+                                  new Date(lead.leadDate || lead.createdAt),
                                   "America/Chicago",
                                   "do MMM, yyyy"
                                 )

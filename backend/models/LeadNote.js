@@ -13,6 +13,8 @@ const leadNoteSchema = new mongoose.Schema(
     partNo: { type: String, trim: true },
     warranty: { type: String, trim: true },
     warrantyField: { type: String, trim: true, default: "days" },
+    leadDate: { type: Date }, // Dallas datetime when lead was created
+    leadDateDisplay: { type: String, trim: true }, // Formatted Dallas datetime (for reference)
     leadNo: { type: String, trim: true },
     leadOrigin: { type: String, trim: true },
     comments: { type: String, trim: true },

@@ -37,7 +37,7 @@ function getDallasDayRange() {
   return { now, start, end };
 }
 
-// Generate next lead number for a given user, brand, and day
+// Generate next lead number for a given user, brand, and Dallas day
 async function generateLeadNo(req, brand) {
   const createdBy = req.user?.id || "Unknown";
   const { now, start, end } = getDallasDayRange();
@@ -51,7 +51,8 @@ async function generateLeadNo(req, brand) {
   const index = (count || 0) + 1;
   const dateLabel = now.format("Do MMM"); // e.g. "27th Feb"
   const indexStr = String(index).padStart(2, "0"); // 01, 02, ...
-  return `${dateLabel}- ${brand}${indexStr}`;
+  const brandCode = brand === "PROLANE" ? "PAP" : "50SAP";
+  return `${dateLabel}, ${brandCode} - ${indexStr}`;
 }
 
 router.post(
@@ -101,11 +102,16 @@ router.post(
         });
       }
 
-      // Determine / generate Lead No for today (per user, brand)
+      // Determine / generate Lead No for today (per user, brand, Dallas date)
       let finalLeadNo = (leadNo || "").trim();
       if (!finalLeadNo) {
         finalLeadNo = await generateLeadNo(req, brand);
       }
+
+      // Dallas datetime for lead (same timezone idea as AddOrder)
+      const central = moment.tz("America/Chicago");
+      const leadDate = central.toDate();
+      const leadDateDisplay = central.format("D MMM, YYYY HH:mm");
 
       // Generate a unique messageId for this lead (to avoid duplicate key error on existing index)
       const messageId = `lead-${Date.now()}-${Math.random().toString(36).substring(2, 15)}-${createdBy}`;
@@ -123,6 +129,8 @@ router.post(
         partNo: partNo || "",
         warranty: warranty || "",
         warrantyField: warrantyField || "days",
+        leadDate,
+        leadDateDisplay,
         leadNo: finalLeadNo,
         leadOrigin: leadOrigin || "",
         comments: comments || "",
@@ -147,6 +155,8 @@ router.post(
           partNo: partNo || "",
           warranty: warranty || "",
           warrantyField: warrantyField || "days",
+          leadDate,
+          leadDateDisplay,
           leadNo: finalLeadNo,
           leadOrigin: leadOrigin || "",
           comments: comments || "",
