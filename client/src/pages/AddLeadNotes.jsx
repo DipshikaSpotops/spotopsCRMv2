@@ -389,7 +389,7 @@ const AddLeadNotes = () => {
     });
   }, [baseLeads, appliedQuery]);
 
-  // Status summaries for Voicemail / Quoted / Invalid / Sale
+  // Status & origin summaries for Voicemail / Quoted / Invalid / Sale and Chat / Call / Lead
   const statusSummary = useMemo(() => {
     const totals = {
       Voicemail: 0,
@@ -397,19 +397,21 @@ const AddLeadNotes = () => {
       Invalid: 0,
       Sale: 0,
     };
+    const originTotals = {
+      Chat: 0,
+      Call: 0,
+      Lead: 0,
+    };
     const byAgent = {};
 
     baseLeads.forEach((lead) => {
+      // --- Status buckets ---
       const rawStatus = (lead.leadStatus || "").toLowerCase().trim();
       let key = null;
       if (rawStatus === "voicemail" || rawStatus === "voice mail") key = "Voicemail";
       else if (rawStatus === "quoted" || rawStatus === "quote") key = "Quoted";
       else if (rawStatus === "invalid") key = "Invalid";
       else if (rawStatus === "sale" || rawStatus === "sold") key = "Sale";
-
-      if (!key) return;
-
-      totals[key] += 1;
 
       const agent = lead.salesAgent || "Unknown";
       if (!byAgent[agent]) {
@@ -419,12 +421,31 @@ const AddLeadNotes = () => {
           Quoted: 0,
           Invalid: 0,
           Sale: 0,
+          Chat: 0,
+          Call: 0,
+          Lead: 0,
         };
       }
-      byAgent[agent][key] += 1;
+
+      if (key) {
+        totals[key] += 1;
+        byAgent[agent][key] += 1;
+      }
+
+      // --- Lead Origin buckets ---
+      const rawOrigin = (lead.leadOrigin || "").toLowerCase().trim();
+      let originKey = null;
+      if (rawOrigin === "chat") originKey = "Chat";
+      else if (rawOrigin === "call") originKey = "Call";
+      else if (rawOrigin === "lead") originKey = "Lead";
+
+      if (originKey) {
+        originTotals[originKey] += 1;
+        byAgent[agent][originKey] += 1;
+      }
     });
 
-    return { totals, byAgent };
+    return { totals, originTotals, byAgent };
   }, [baseLeads]);
 
   // Copy form data to clipboard
@@ -1264,7 +1285,11 @@ const AddLeadNotes = () => {
           onMouseDown={() => setShowStatusModal(false)}
         >
           <div
-            className="w-[92%] max-w-xl rounded-xl bg-[#0f1b2a] border border-white/15 p-5 text-white shadow-xl"
+            className={
+              showAllLeads
+                ? "w-[96%] max-w-5xl rounded-xl bg-[#0f1b2a] border border-white/15 p-5 text-white shadow-xl mt-[-40px] ml-[76px]"
+                : "w-[92%] max-w-xl rounded-xl bg-[#0f1b2a] border border-white/15 p-5 text-white shadow-xl ml-[76px]"
+            }
             onMouseDown={(e) => e.stopPropagation()}
           >
             <div className="mb-3">
@@ -1289,6 +1314,9 @@ const AddLeadNotes = () => {
                   <thead>
                     <tr className="bg-white/10">
                       <th className="text-left px-3 py-2">Sales Agent</th>
+                      <th className="text-right px-3 py-2">Chat</th>
+                      <th className="text-right px-3 py-2">Lead</th>
+                      <th className="text-right px-3 py-2">Call</th>
                       <th className="text-right px-3 py-2">Voicemail</th>
                       <th className="text-right px-3 py-2">Quoted</th>
                       <th className="text-right px-3 py-2">Invalid</th>
@@ -1301,10 +1329,19 @@ const AddLeadNotes = () => {
                       .sort((a, b) => a.agent.localeCompare(b.agent))
                       .map((row) => {
                         const total =
-                          row.Voicemail + row.Quoted + row.Invalid + row.Sale;
+                          row.Voicemail +
+                          row.Quoted +
+                          row.Invalid +
+                          row.Sale +
+                          row.Chat +
+                          row.Lead +
+                          row.Call;
                         return (
                           <tr key={row.agent} className="even:bg-white/5 odd:bg-white/0">
                             <td className="px-3 py-2">{row.agent}</td>
+                            <td className="px-3 py-2 text-right">{row.Chat}</td>
+                            <td className="px-3 py-2 text-right">{row.Lead}</td>
+                            <td className="px-3 py-2 text-right">{row.Call}</td>
                             <td className="px-3 py-2 text-right">{row.Voicemail}</td>
                             <td className="px-3 py-2 text-right">{row.Quoted}</td>
                             <td className="px-3 py-2 text-right">{row.Invalid}</td>
@@ -1313,6 +1350,39 @@ const AddLeadNotes = () => {
                           </tr>
                         );
                       })}
+                    <tr className="bg-white/10">
+                      <td className="px-3 py-2 font-semibold">Total</td>
+                      <td className="px-3 py-2 text-right font-semibold">
+                        {statusSummary.originTotals.Chat}
+                      </td>
+                      <td className="px-3 py-2 text-right font-semibold">
+                        {statusSummary.originTotals.Lead}
+                      </td>
+                      <td className="px-3 py-2 text-right font-semibold">
+                        {statusSummary.originTotals.Call}
+                      </td>
+                      <td className="px-3 py-2 text-right font-semibold">
+                        {statusSummary.totals.Voicemail}
+                      </td>
+                      <td className="px-3 py-2 text-right font-semibold">
+                        {statusSummary.totals.Quoted}
+                      </td>
+                      <td className="px-3 py-2 text-right font-semibold">
+                        {statusSummary.totals.Invalid}
+                      </td>
+                      <td className="px-3 py-2 text-right font-semibold">
+                        {statusSummary.totals.Sale}
+                      </td>
+                      <td className="px-3 py-2 text-right font-semibold">
+                        {statusSummary.originTotals.Chat +
+                          statusSummary.originTotals.Lead +
+                          statusSummary.originTotals.Call +
+                          statusSummary.totals.Voicemail +
+                          statusSummary.totals.Quoted +
+                          statusSummary.totals.Invalid +
+                          statusSummary.totals.Sale}
+                      </td>
+                    </tr>
                   </tbody>
                 </table>
               </div>
@@ -1336,6 +1406,27 @@ const AddLeadNotes = () => {
                     ))}
                   </tbody>
                 </table>
+                <div className="mt-4">
+                  <h4 className="text-sm font-semibold mb-2">Lead Origin</h4>
+                  <table className="w-full text-sm rounded-lg overflow-hidden">
+                    <thead>
+                      <tr className="bg-white/10">
+                        <th className="text-left px-3 py-2">Origin</th>
+                        <th className="text-right px-3 py-2">Count</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {["Chat", "Lead", "Call"].map((origin) => (
+                        <tr key={origin} className="even:bg-white/5 odd:bg-white/0">
+                          <td className="px-3 py-2">{origin}</td>
+                          <td className="px-3 py-2 text-right font-semibold">
+                            {statusSummary.originTotals[origin]}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             )}
 
