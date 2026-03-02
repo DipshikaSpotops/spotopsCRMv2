@@ -118,7 +118,7 @@ function getEmailBrandConfig(req) {
 //   Luna Brown - Suzanne Brown
 //   Rev Rhode - Emily D'souza
 //   Gloria Sky - Ashley Williams
-//   Nilk Lewis - Noah Webster
+//   Nik Lewis - Noah Webster
 //   Max Williams - Leo Parker
 //   Dips - Dipshika
 //
@@ -132,7 +132,7 @@ const SUPPORT_AGENT_PROLANE_NAME_MAP = {
   Suzanne: "Luna Brown",
   Emily: "Rev Rhode",
   Ashley: "Gloria Sky",
-  Noah: "Nilk Lewis",
+  Noah: "Nik Lewis",
   Leo: "Max Williams",
   // Handle both spellings for safety
   Dipshika: "Dips",
