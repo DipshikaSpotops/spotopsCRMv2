@@ -553,7 +553,7 @@ const AddLeadNotes = () => {
           _id: lead._id,
           name: lead.name || form.name || "",
           email: lead.email || form.email || "",
-              phoneNo: lead.phoneNo || form.phoneNo || "",
+              phoneNo: lead.phone || form.phone || "",
           year: lead.year || form.year || "",
           make: lead.make || form.make || "",
           model: lead.model || form.model || "",
@@ -974,11 +974,11 @@ const AddLeadNotes = () => {
               <textarea
                 value={form.comments}
                 onChange={setField("comments")}
-                rows={4}
-                className={`w-full px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-white outline-none focus:ring-2 focus:ring-white/30 ${
+                rows={8}
+                className={`w-full px-3 py-3 rounded-lg bg-white/10 border border-white/20 text-white outline-none focus:ring-2 focus:ring-white/30 ${
                   errors.comments ? "border-red-400" : "border-white/20"
                 }`}
-                style={{ caretColor: '#ffff00' }}
+                style={{ caretColor: "#ffff00" }}
               />
               {errors.comments && (
                 <p className="mt-1 text-xs text-red-200">
@@ -1033,37 +1033,19 @@ const AddLeadNotes = () => {
                           Date
                         </th>
                         <th className="p-2 text-left border-r border-white/20">
-                          Lead No
-                        </th>
-                        <th className="p-2 text-left border-r border-white/20">
-                          Name
-                        </th>
-                        <th className="p-2 text-left border-r border-white/20">
-                          Phone
-                        </th>
-                        <th className="p-2 text-left border-r border-white/20">
-                          Email
-                        </th>
-                        <th className="p-2 text-left border-r border-white/20">
-                          Brand
+                          Order Number
                         </th>
                         <th className="p-2 text-left border-r border-white/20">
                           Sales Agent
                         </th>
                         <th className="p-2 text-left border-r border-white/20">
-                          Y/M/M
+                          Name Email Phone
                         </th>
                         <th className="p-2 text-left border-r border-white/20">
-                          Part
+                          Part Info
                         </th>
                         <th className="p-2 text-left border-r border-white/20">
-                          VIN
-                        </th>
-                        <th className="p-2 text-left border-r border-white/20">
-                          Part No
-                        </th>
-                        <th className="p-2 text-left border-r border-white/20">
-                          Warranty
+                          Part Required
                         </th>
                         <th className="p-2 text-left border-r border-white/20">
                           Comments
@@ -1097,38 +1079,72 @@ const AddLeadNotes = () => {
                             {lead.leadNo || "—"}
                           </td>
                           <td className="p-2 border-r border-white/15 whitespace-nowrap">
-                            {lead.name || "—"}
-                          </td>
-                          <td className="p-2 border-r border-white/15 whitespace-nowrap">
-                            {lead.phoneNo || "—"}
-                          </td>
-                          <td className="p-2 border-r border-white/15 whitespace-nowrap">
-                            {lead.email || "—"}
-                          </td>
-                          <td className="p-2 border-r border-white/15 whitespace-nowrap">
-                            {lead.brand || "—"}
-                          </td>
-                          <td className="p-2 border-r border-white/15 whitespace-nowrap">
                             {lead.salesAgent || "—"}
                           </td>
-                          <td className="p-2 border-r border-white/15 whitespace-nowrap">
-                            {[lead.year, lead.make, lead.model]
-                              .filter(Boolean)
-                              .join(" ") || "—"}
+                          <td className="p-2 border-r border-white/15">
+                            {lead.name && (
+                              <div className="whitespace-nowrap">
+                                <span className="font-semibold">Name:</span>{" "}
+                                {lead.name}
+                              </div>
+                            )}
+                            {lead.email && (
+                              <div className="whitespace-nowrap">
+                                <span className="font-semibold">Email:</span>{" "}
+                                {lead.email}
+                              </div>
+                            )}
+                            {lead.phoneNo && (
+                              <div className="whitespace-nowrap">
+                                <span className="font-semibold">Ph:</span>{" "}
+                                {lead.phoneNo}
+                              </div>
+                            )}
+                            {!lead.name && !lead.email && !lead.phoneNo && "—"}
                           </td>
-                          <td className="p-2 border-r border-white/15 whitespace-nowrap">
-                            {lead.partRequired || lead.partDescription || "—"}
+                          <td className="p-2 border-r border-white/15">
+                            {[lead.year, lead.make, lead.model].some(Boolean) && (
+                              <div className="whitespace-nowrap">
+                                <span className="font-semibold">Year/Make/Model:</span>{" "}
+                                {[lead.year, lead.make, lead.model]
+                                  .filter(Boolean)
+                                  .join(" ")}
+                              </div>
+                            )}
+                            {lead.vinNo && (
+                              <div className="whitespace-nowrap">
+                                <span className="font-semibold">VIN:</span>{" "}
+                                {lead.vinNo}
+                              </div>
+                            )}
+                            {lead.warranty && (
+                              <div className="whitespace-nowrap">
+                                <span className="font-semibold">Warranty:</span>{" "}
+                                {lead.warranty} {lead.warrantyField || ""}
+                              </div>
+                            )}
+                            {![
+                              lead.year,
+                              lead.make,
+                              lead.model,
+                              lead.vinNo,
+                              lead.warranty,
+                            ].some(Boolean) && "—"}
                           </td>
-                          <td className="p-2 border-r border-white/15 whitespace-nowrap">
-                            {lead.vinNo || "—"}
-                          </td>
-                          <td className="p-2 border-r border-white/15 whitespace-nowrap">
-                            {lead.partNo || "—"}
-                          </td>
-                          <td className="p-2 border-r border-white/15 whitespace-nowrap">
-                            {lead.warranty && lead.warrantyField
-                              ? `${lead.warranty} ${lead.warrantyField}`
-                              : lead.warranty || "—"}
+                          <td className="p-2 border-r border-white/15">
+                            {lead.partRequired && (
+                              <div className="whitespace-nowrap">
+                                <span className="font-semibold">Part Required:</span>{" "}
+                                {lead.partRequired}
+                              </div>
+                            )}
+                            {lead.partDescription && (
+                              <div>
+                                <span className="font-semibold">Description:</span>{" "}
+                                {lead.partDescription}
+                              </div>
+                            )}
+                            {!lead.partRequired && !lead.partDescription && "—"}
                           </td>
                           <td className="p-2 border-r border-white/15">
                             {lead.comments || "—"}
@@ -1136,8 +1152,8 @@ const AddLeadNotes = () => {
                           <td className="p-2 border-r border-white/15 whitespace-nowrap">
                             {lead.leadStatus || "—"}
                           </td>
-                          <td className="p-2">
-                            {showLeads && !showAllLeads && (
+                          {showLeads && !showAllLeads && (
+                            <td className="p-2">
                               <button
                                 type="button"
                                 onClick={() => {
@@ -1161,21 +1177,26 @@ const AddLeadNotes = () => {
                                     salesAgent: lead.salesAgent || "",
                                     leadOrigin: lead.leadOrigin || "",
                                     leadNo: lead.leadNo || "",
-                                  leadStatus: lead.leadStatus || "",
-                                    comments: lead.comments || "$ with programming and 1 year",
+                                    leadStatus: lead.leadStatus || "",
+                                    comments:
+                                      lead.comments ||
+                                      "$ with programming and 1 year",
                                   });
                                   // Show form for editing
                                   setShowLeads(false);
                                   setShowAllLeads(false);
                                   setErrors({});
-                                  console.log("Form set for editing, editingLeadId:", leadId);
+                                  console.log(
+                                    "Form set for editing, editingLeadId:",
+                                    leadId
+                                  );
                                 }}
                                 className="px-3 py-1 rounded-lg text-xs font-semibold bg-yellow-500 hover:bg-yellow-400 text-black shadow-sm"
                               >
                                 Edit
                               </button>
-                            )}
-                          </td>
+                            </td>
+                          )}
                         </tr>
                       ))}
                     </tbody>
