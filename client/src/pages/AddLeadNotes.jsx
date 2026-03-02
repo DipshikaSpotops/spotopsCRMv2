@@ -1313,71 +1313,112 @@ const AddLeadNotes = () => {
                 <table className="w-full text-sm rounded-lg overflow-hidden">
                   <thead>
                     <tr className="bg-white/10">
-                      <th className="text-left px-3 py-2">Sales Agent</th>
-                      <th className="text-right px-3 py-2">Chat</th>
-                      <th className="text-right px-3 py-2">Lead</th>
-                      <th className="text-right px-3 py-2">Call</th>
-                      <th className="text-right px-3 py-2">Voicemail</th>
-                      <th className="text-right px-3 py-2">Quoted</th>
-                      <th className="text-right px-3 py-2">Invalid</th>
-                      <th className="text-right px-3 py-2">Sale</th>
-                      <th className="text-right px-3 py-2">Total</th>
+                      <th className="text-left px-3 py-2 border-r border-white/20">
+                        Sales Agent
+                      </th>
+                      <th className="text-right px-3 py-2 border-r border-white/20">
+                        Chat
+                      </th>
+                      <th className="text-right px-3 py-2 border-r border-white/20">
+                        Lead
+                      </th>
+                      <th className="text-right px-3 py-2 border-r border-white/20">
+                        Call
+                      </th>
+                      <th className="text-right px-3 py-2 border-r border-white/20">
+                        Total CLC
+                      </th>
+                      <th className="text-right px-3 py-2 border-r border-white/20">
+                        Voicemail
+                      </th>
+                      <th className="text-right px-3 py-2 border-r border-white/20">
+                        Quoted
+                      </th>
+                      <th className="text-right px-3 py-2 border-r border-white/20">
+                        Invalid
+                      </th>
+                      <th className="text-right px-3 py-2 border-r border-white/20">
+                        Sale
+                      </th>
+                      <th className="text-right px-3 py-2">
+                        Total Status
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
                     {Object.values(statusSummary.byAgent)
                       .sort((a, b) => a.agent.localeCompare(b.agent))
                       .map((row) => {
-                        const total =
-                          row.Voicemail +
-                          row.Quoted +
-                          row.Invalid +
-                          row.Sale +
-                          row.Chat +
-                          row.Lead +
-                          row.Call;
+                        const originTotal = row.Chat + row.Lead + row.Call;
+                        const statusTotal =
+                          row.Voicemail + row.Quoted + row.Invalid + row.Sale;
                         return (
                           <tr key={row.agent} className="even:bg-white/5 odd:bg-white/0">
-                            <td className="px-3 py-2">{row.agent}</td>
-                            <td className="px-3 py-2 text-right">{row.Chat}</td>
-                            <td className="px-3 py-2 text-right">{row.Lead}</td>
-                            <td className="px-3 py-2 text-right">{row.Call}</td>
-                            <td className="px-3 py-2 text-right">{row.Voicemail}</td>
-                            <td className="px-3 py-2 text-right">{row.Quoted}</td>
-                            <td className="px-3 py-2 text-right">{row.Invalid}</td>
-                            <td className="px-3 py-2 text-right">{row.Sale}</td>
-                            <td className="px-3 py-2 text-right font-semibold">{total}</td>
+                            <td className="px-3 py-2 border-r border-white/10">
+                              {row.agent}
+                            </td>
+                            <td className="px-3 py-2 text-right border-r border-white/10">
+                              {row.Chat}
+                            </td>
+                            <td className="px-3 py-2 text-right border-r border-white/10">
+                              {row.Lead}
+                            </td>
+                            <td className="px-3 py-2 text-right border-r border-white/10">
+                              {row.Call}
+                            </td>
+                            <td className="px-3 py-2 text-right border-r border-white/10">
+                              {originTotal}
+                            </td>
+                            <td className="px-3 py-2 text-right border-r border-white/10">
+                              {row.Voicemail}
+                            </td>
+                            <td className="px-3 py-2 text-right border-r border-white/10">
+                              {row.Quoted}
+                            </td>
+                            <td className="px-3 py-2 text-right border-r border-white/10">
+                              {row.Invalid}
+                            </td>
+                            <td className="px-3 py-2 text-right border-r border-white/10">
+                              {row.Sale}
+                            </td>
+                            <td className="px-3 py-2 text-right">
+                              {statusTotal}
+                            </td>
                           </tr>
                         );
                       })}
                     <tr className="bg-white/10">
-                      <td className="px-3 py-2 font-semibold">Total</td>
-                      <td className="px-3 py-2 text-right font-semibold">
+                      <td className="px-3 py-2 font-semibold border-r border-white/20">
+                        Total
+                      </td>
+                      <td className="px-3 py-2 text-right font-semibold border-r border-white/20">
                         {statusSummary.originTotals.Chat}
                       </td>
-                      <td className="px-3 py-2 text-right font-semibold">
+                      <td className="px-3 py-2 text-right font-semibold border-r border-white/20">
                         {statusSummary.originTotals.Lead}
                       </td>
-                      <td className="px-3 py-2 text-right font-semibold">
+                      <td className="px-3 py-2 text-right font-semibold border-r border-white/20">
                         {statusSummary.originTotals.Call}
                       </td>
-                      <td className="px-3 py-2 text-right font-semibold">
+                      <td className="px-3 py-2 text-right font-semibold border-r border-white/20">
+                        {statusSummary.originTotals.Chat +
+                          statusSummary.originTotals.Lead +
+                          statusSummary.originTotals.Call}
+                      </td>
+                      <td className="px-3 py-2 text-right font-semibold border-r border-white/20">
                         {statusSummary.totals.Voicemail}
                       </td>
-                      <td className="px-3 py-2 text-right font-semibold">
+                      <td className="px-3 py-2 text-right font-semibold border-r border-white/20">
                         {statusSummary.totals.Quoted}
                       </td>
-                      <td className="px-3 py-2 text-right font-semibold">
+                      <td className="px-3 py-2 text-right font-semibold border-r border-white/20">
                         {statusSummary.totals.Invalid}
                       </td>
-                      <td className="px-3 py-2 text-right font-semibold">
+                      <td className="px-3 py-2 text-right font-semibold border-r border-white/20">
                         {statusSummary.totals.Sale}
                       </td>
                       <td className="px-3 py-2 text-right font-semibold">
-                        {statusSummary.originTotals.Chat +
-                          statusSummary.originTotals.Lead +
-                          statusSummary.originTotals.Call +
-                          statusSummary.totals.Voicemail +
+                        {statusSummary.totals.Voicemail +
                           statusSummary.totals.Quoted +
                           statusSummary.totals.Invalid +
                           statusSummary.totals.Sale}
@@ -1391,14 +1432,18 @@ const AddLeadNotes = () => {
                 <table className="w-full text-sm rounded-lg overflow-hidden">
                   <thead>
                     <tr className="bg-white/10">
-                      <th className="text-left px-3 py-2">Status</th>
+                      <th className="text-left px-3 py-2 border-r border-white/20">
+                        Status
+                      </th>
                       <th className="text-right px-3 py-2">Count</th>
                     </tr>
                   </thead>
                   <tbody>
                     {["Voicemail", "Quoted", "Invalid", "Sale"].map((key) => (
                       <tr key={key} className="even:bg-white/5 odd:bg-white/0">
-                        <td className="px-3 py-2">{key}</td>
+                        <td className="px-3 py-2 border-r border-white/10">
+                          {key}
+                        </td>
                         <td className="px-3 py-2 text-right font-semibold">
                           {statusSummary.totals[key]}
                         </td>
@@ -1411,14 +1456,18 @@ const AddLeadNotes = () => {
                   <table className="w-full text-sm rounded-lg overflow-hidden">
                     <thead>
                       <tr className="bg-white/10">
-                        <th className="text-left px-3 py-2">Origin</th>
+                        <th className="text-left px-3 py-2 border-r border-white/20">
+                          Origin
+                        </th>
                         <th className="text-right px-3 py-2">Count</th>
                       </tr>
                     </thead>
                     <tbody>
                       {["Chat", "Lead", "Call"].map((origin) => (
                         <tr key={origin} className="even:bg-white/5 odd:bg-white/0">
-                          <td className="px-3 py-2">{origin}</td>
+                          <td className="px-3 py-2 border-r border-white/10">
+                            {origin}
+                          </td>
                           <td className="px-3 py-2 text-right font-semibold">
                             {statusSummary.originTotals[origin]}
                           </td>

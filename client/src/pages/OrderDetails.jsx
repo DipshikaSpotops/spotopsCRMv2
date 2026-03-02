@@ -1362,9 +1362,9 @@ export default function OrderDetails() {
           </div>
 
           {/* 3 columns */}
-          <div className="grid grid-cols-12 gap-6 2xl:gap-8 items-start">
+          <div className="grid grid-cols-12 gap-6 2xl:gap-8 items-stretch">
             {/* LEFT: Order Details */}
-            <aside className="col-span-12 xl:col-span-4 flex flex-col gap-4">
+            <aside className="col-span-12 xl:col-span-4 flex flex-col gap-4 h-full">
               <div>
                 <GlassCard
                   className="flex flex-col dark:border-white/20 dark:bg-white/10 dark:text-white"
@@ -1510,9 +1510,9 @@ export default function OrderDetails() {
             </section>
 
             {/* RIGHT: comments */}
-            <aside className="col-span-12 xl:col-span-4 flex flex-col gap-4 h-full xl:max-h-full xl:overflow-hidden">
+            <aside className="col-span-12 xl:col-span-4 flex flex-col gap-4 h-full xl:overflow-hidden">
       <GlassCard
-        className="relative h-full xl:max-h-full flex flex-col xl:overflow-hidden z-20 dark:border-white/20 dark:bg-white/10 dark:text-white"
+        className="relative flex-1 flex flex-col z-20 dark:border-white/20 dark:bg-white/10 dark:text-white"
                 title="Support Comments"
                 actions={
                   <div className={`flex flex-wrap gap-2 rounded-lg p-1 bg-white border border-gray-200 shadow-sm dark:bg-white/10 dark:border-white/20 ${yards?.length > 6 ? 'max-h-32 overflow-y-auto' : ''}`}>
@@ -1545,8 +1545,8 @@ export default function OrderDetails() {
                   </div>
                 }
               >
-              <div className="flex-1 min-h-0 overflow-hidden" style={{ height: 0 }}>
-                <div className="h-full flex flex-col overflow-hidden">
+              <div className="flex-1 min-h-0 overflow-y-auto">
+                <div className="h-full flex flex-col">
                   <CommentBox
                     orderNo={order?.orderNo}
                     mode={activeSection === "support" ? "support" : "yard"}
