@@ -5,6 +5,7 @@ import UnifiedDatePicker from "../components/UnifiedDatePicker";
 import AgentDropdown from "../components/AgentDropdown";
 import moment from "moment-timezone";
 import { formatInTimeZone } from "date-fns-tz";
+import { FaEye } from "react-icons/fa";
 
 // Mapping from 50STARS agent firstName to PROLANE agent firstName (same as AddOrder.jsx)
 const AGENT_BRAND_MAPPING = {
@@ -102,6 +103,7 @@ const AddLeadNotes = () => {
       end: todayEndDallas.utc().toISOString(),
     };
   });
+  const [showStatusModal, setShowStatusModal] = useState(false);
 
   const requiredFields = [
     "name",
@@ -119,25 +121,24 @@ const AddLeadNotes = () => {
     "salesAgent",
     "leadOrigin",
     "leadNo",
-    "comments",
   ];
 
   const validate = () => {
     const e = {};
     requiredFields.forEach((k) => {
+      // Allow legacy leads without leadNo to be edited
+      if (k === "leadNo" && editingLeadId && !form.leadNo) {
+        return;
+      }
       if (!String(form[k] || "").trim()) e[k] = "Required";
     });
-    // Special case: Other Details should not stay at the default placeholder text
+    // Special case: Other Details (comments) – must be filled, not placeholder, and money formatted
     const defaultComments = "$ with programming and 1 year";
     const commentsValue = String(form.comments || "").trim();
-    if (!e.comments && commentsValue === defaultComments) {
+    if (!commentsValue || commentsValue === defaultComments) {
       e.comments = "Required";
-    }
-    // Ensure Other Details starts with `$` followed by a valid number like 300 or 300.14
-    if (
-      !e.comments && // only if not already marked as error
-      commentsValue
-    ) {
+    } else {
+      // Ensure Other Details starts with `$` followed by a valid number like 300 or 300.14
       const moneyPattern = /^\$\s*\d+(\.\d{0,2})?(\b|[^0-9])/;
       if (!moneyPattern.test(commentsValue)) {
         e.comments = "Enter amount after $ like $300 or $300.14";
@@ -388,6 +389,44 @@ const AddLeadNotes = () => {
     });
   }, [baseLeads, appliedQuery]);
 
+  // Status summaries for Voicemail / Quoted / Invalid / Sale
+  const statusSummary = useMemo(() => {
+    const totals = {
+      Voicemail: 0,
+      Quoted: 0,
+      Invalid: 0,
+      Sale: 0,
+    };
+    const byAgent = {};
+
+    baseLeads.forEach((lead) => {
+      const rawStatus = (lead.leadStatus || "").toLowerCase().trim();
+      let key = null;
+      if (rawStatus === "voicemail" || rawStatus === "voice mail") key = "Voicemail";
+      else if (rawStatus === "quoted" || rawStatus === "quote") key = "Quoted";
+      else if (rawStatus === "invalid") key = "Invalid";
+      else if (rawStatus === "sale" || rawStatus === "sold") key = "Sale";
+
+      if (!key) return;
+
+      totals[key] += 1;
+
+      const agent = lead.salesAgent || "Unknown";
+      if (!byAgent[agent]) {
+        byAgent[agent] = {
+          agent,
+          Voicemail: 0,
+          Quoted: 0,
+          Invalid: 0,
+          Sale: 0,
+        };
+      }
+      byAgent[agent][key] += 1;
+    });
+
+    return { totals, byAgent };
+  }, [baseLeads]);
+
   // Copy form data to clipboard
   const handleCopy = async () => {
     const formatValue = (value) => (value && value.trim() ? value.trim() : "");
@@ -396,9 +435,9 @@ const AddLeadNotes = () => {
       ? `${form.warranty} ${form.warrantyField}`
       : form.warranty || "";
     
-    const copyText = [
+    const mainLines = [
       `Name: ${formatValue(form.name)}`,
-          `Email: ${formatValue(form.email)}`,
+      `Email: ${formatValue(form.email)}`,
       `Phone: ${formatValue(form.phoneNo)}`,
       `Part required: ${formatValue(form.partRequired)}`,
       `Year: ${formatValue(form.year)}`,
@@ -408,10 +447,10 @@ const AddLeadNotes = () => {
       `Vin: ${formatValue(form.vinNo)}`,
       `Part no: ${formatValue(form.partNo)}`,
       `Warranty: ${warrantyDisplay}`,
-      `brand: ${formatValue(form.brand)}`,
-      `salesAgent: ${formatValue(form.salesAgent)}`,
-      `other comments: ${formatValue(form.comments)}`,
-    ].join("\n");
+    ];
+
+    // Add a separator line at the end; you can color this blue after pasting
+    const copyText = `${mainLines.join("\n")}\n\n==============================`;
 
     try {
       await navigator.clipboard.writeText(copyText);
@@ -740,6 +779,7 @@ const AddLeadNotes = () => {
               </button>
             </div>
           </div>
+          <div className="w-full h-[3px] bg-[#5c8bc1] rounded-full mb-2" />
           <div className="space-y-2">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
               <div>
@@ -1013,9 +1053,21 @@ const AddLeadNotes = () => {
         {/* Leads list */}
         {(showLeads || showAllLeads) && (
           <div className="bg-white/10 rounded-2xl p-5 border border-white/20 shadow-md backdrop-blur-md">
-              <h3 className="text-lg font-semibold text-white mb-3">
-                {showAllLeads ? "All Leads" : "My Leads"}
-              </h3>
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <h3 className="text-lg font-semibold text-white">
+                  {showAllLeads ? "All Leads" : "My Leads"}
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setShowStatusModal(true)}
+                  disabled={baseLeads.length === 0}
+                  className="inline-flex items-center gap-2 rounded-lg px-3 py-2 bg-[#1f4c74] hover:bg-[#215784] text-white border border-white/15 disabled:opacity-40 disabled:cursor-not-allowed"
+                  title="View lead status totals"
+                >
+                  <FaEye className="text-sm" />
+                  <span className="text-xs font-medium">Totals</span>
+                </button>
+              </div>
               {loadingLeads ? (
                 <div className="p-4 text-white/80 text-center">
                   ⏳ Loading leads...
@@ -1206,6 +1258,98 @@ const AddLeadNotes = () => {
           </div>
         )}
       </div>
+      {showStatusModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
+          onMouseDown={() => setShowStatusModal(false)}
+        >
+          <div
+            className="w-[92%] max-w-xl rounded-xl bg-[#0f1b2a] border border-white/15 p-5 text-white shadow-xl"
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            <div className="mb-3">
+              <h3 className="text-lg font-semibold">
+                {showAllLeads ? "Lead Status Totals — All Leads" : "Lead Status Totals — My Leads"}
+              </h3>
+              {dateFilter?.start && dateFilter?.end && (
+                <p className="text-xs text-white/70 mt-1">
+                  Range:{" "}
+                  {formatInTimeZone(new Date(dateFilter.start), "America/Chicago", "MMM d, yyyy")}{" "}
+                  –{" "}
+                  {formatInTimeZone(new Date(dateFilter.end), "America/Chicago", "MMM d, yyyy")}
+                </p>
+              )}
+            </div>
+
+            {baseLeads.length === 0 ? (
+              <p className="text-sm text-white/70">No leads in the selected date range.</p>
+            ) : showAllLeads ? (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm rounded-lg overflow-hidden">
+                  <thead>
+                    <tr className="bg-white/10">
+                      <th className="text-left px-3 py-2">Sales Agent</th>
+                      <th className="text-right px-3 py-2">Voicemail</th>
+                      <th className="text-right px-3 py-2">Quoted</th>
+                      <th className="text-right px-3 py-2">Invalid</th>
+                      <th className="text-right px-3 py-2">Sale</th>
+                      <th className="text-right px-3 py-2">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {Object.values(statusSummary.byAgent)
+                      .sort((a, b) => a.agent.localeCompare(b.agent))
+                      .map((row) => {
+                        const total =
+                          row.Voicemail + row.Quoted + row.Invalid + row.Sale;
+                        return (
+                          <tr key={row.agent} className="even:bg-white/5 odd:bg-white/0">
+                            <td className="px-3 py-2">{row.agent}</td>
+                            <td className="px-3 py-2 text-right">{row.Voicemail}</td>
+                            <td className="px-3 py-2 text-right">{row.Quoted}</td>
+                            <td className="px-3 py-2 text-right">{row.Invalid}</td>
+                            <td className="px-3 py-2 text-right">{row.Sale}</td>
+                            <td className="px-3 py-2 text-right font-semibold">{total}</td>
+                          </tr>
+                        );
+                      })}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm rounded-lg overflow-hidden">
+                  <thead>
+                    <tr className="bg-white/10">
+                      <th className="text-left px-3 py-2">Status</th>
+                      <th className="text-right px-3 py-2">Count</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {["Voicemail", "Quoted", "Invalid", "Sale"].map((key) => (
+                      <tr key={key} className="even:bg-white/5 odd:bg-white/0">
+                        <td className="px-3 py-2">{key}</td>
+                        <td className="px-3 py-2 text-right font-semibold">
+                          {statusSummary.totals[key]}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            <div className="mt-4 flex items-center justify-end">
+              <button
+                onClick={() => setShowStatusModal(false)}
+                className="px-4 py-2 rounded bg-[#2c5d81] hover:bg-blue-700"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
