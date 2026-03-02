@@ -1033,7 +1033,7 @@ const AddLeadNotes = () => {
                           Date
                         </th>
                         <th className="p-2 text-left border-r border-white/20">
-                          Order Number
+                          Lead Number
                         </th>
                         <th className="p-2 text-left border-r border-white/20">
                           Sales Agent
