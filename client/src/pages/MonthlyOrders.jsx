@@ -13,6 +13,8 @@ const columns = [
   { key: "salesAgent", label: "Sales Agent" },
   { key: "customerName", label: "Customer Name" },
   { key: "yardName", label: "Yard Details" },
+  { key: "soldP", label: "Sale Price" },
+  { key: "paymentSource", label: "Payment Source" },
   { key: "grossProfit", label: "Est GP" },
   { key: "_actualGP", label: "Actual GP" },
   { key: "orderStatus", label: "Order Status" },
@@ -293,6 +295,12 @@ export default function MonthlyOrders() {
           );
         }
 
+        case "soldP":
+          return <span className="block">{currency(row.soldP)}</span>;
+
+        case "paymentSource":
+          return row.paymentSource || "—";
+
         case "grossProfit":
           return <span className="block">{currency(row.grossProfit)}</span>;
 
@@ -358,6 +366,24 @@ export default function MonthlyOrders() {
     }
   }, [brand]);
 
+  // Totals for eye-icon modal: sum Sale Price (soldP) by paymentSource
+  const paymentSourceTotals = useCallback((rows = []) => {
+    if (!Array.isArray(rows) || rows.length === 0) return [];
+
+    const bySource = rows.reduce((acc, row) => {
+      const rawSource = (row?.paymentSource || "").toString().trim();
+      const key = rawSource || "Unknown / Not Set";
+      const sold = parseFloat(row?.soldP) || 0;
+      acc[key] = (acc[key] || 0) + sold;
+      return acc;
+    }, {});
+
+    return Object.entries(bySource).map(([source, total]) => ({
+      name: `Payment Source — ${source}`,
+      value: `$${total.toFixed(2)}`,
+    }));
+  }, []);
+
   return (
     <OrdersTable
       title="Monthly Orders"
@@ -372,7 +398,8 @@ export default function MonthlyOrders() {
       renderCell={renderCell}
       showAgentFilter={true}
       showGP={false}
-      showTotalsButton={false}
+      showTotalsButton={true}
+      extraTotals={paymentSourceTotals}
       paramsBuilder={paramsBuilder}
       fetchOverride={fetchOverride}
       tableId="monthlyOrders"

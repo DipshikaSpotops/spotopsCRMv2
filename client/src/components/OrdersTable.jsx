@@ -252,13 +252,13 @@ const GlassModal = ({ title, subtitle, onClose, children, actions }) => {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
       onMouseDown={onClose}
       role="dialog"
       aria-modal="true"
     >
       <div
-        className="w-[92%] max-w-lg rounded-xl bg-[#0f1b2a] border border-white/15 p-5 text-white shadow-xl"
+        className="w-[92%] max-w-lg rounded-xl bg-gradient-to-b from-[#0b1726] to-[#122641] border border-white/10 p-5 text-white shadow-xl ml-[120px]"
         onMouseDown={(e) => e.stopPropagation()}
       >
         {(title || subtitle) && (
@@ -1416,18 +1416,20 @@ export default function OrdersTable({
           }
         >
           <div className="overflow-x-auto">
-            <table className="w-full text-sm rounded-lg overflow-hidden">
+            <table className="w-full text-sm rounded-lg overflow-hidden border-collapse">
               <thead>
                 <tr className="bg-white/10">
                   <th className="text-left px-3 py-2">Metric</th>
-                  <th className="text-right px-3 py-2">Value</th>
+                  <th className="text-right px-3 py-2 border-l border-white/25">
+                    Value
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 {showOrdersCountInTotals && (
-                  <tr className="even:bg-white/5 odd:bg-white/0">
+                  <tr className="bg-white/5 border-b border-white/10">
                     <td className="px-3 py-2">Orders</td>
-                    <td className="px-3 py-2 text-right font-semibold">
+                    <td className="px-3 py-2 text-right font-semibold border-l border-white/15">
                       {sortedRows.length}
                     </td>
                   </tr>
@@ -1435,21 +1437,21 @@ export default function OrdersTable({
 
                 {showGP && (
                   <>
-                    <tr className="even:bg-white/5 odd:bg-white/0">
+                    <tr className="bg-white/5 border-b border-white/10">
                       <td className="px-3 py-2">Est GP</td>
-                      <td className="px-3 py-2 text-right font-semibold">
+                      <td className="px-3 py-2 text-right font-semibold border-l border-white/15">
                         {currency(totals.totalEstGP)}
                       </td>
                     </tr>
-                    <tr className="even:bg-white/5 odd:bg-white/0">
+                    <tr className="bg-white/5 border-b border-white/10">
                       <td className="px-3 py-2">Current GP</td>
-                      <td className="px-3 py-2 text-right font-semibold">
+                      <td className="px-3 py-2 text-right font-semibold border-l border-white/15">
                         {currency(totals.totalCurrentGP)}
                       </td>
                     </tr>
-                    <tr className="even:bg-white/5 odd:bg-white/0">
+                    <tr className="bg-white/5 border-b border-white/10">
                       <td className="px-3 py-2">Actual GP</td>
-                      <td className="px-3 py-2 text-right font-semibold">
+                      <td className="px-3 py-2 text-right font-semibold border-l border-white/15">
                         {currency(totals.totalActualGP)}
                       </td>
                     </tr>
@@ -1459,9 +1461,9 @@ export default function OrdersTable({
                 {/* Extra totals (e.g., cancellation rate, counts, etc.) */}
                 {typeof extraTotals === "function" &&
                   (extraTotals(sortedRows, { denomCount, badCount }) || []).map((item) => (
-                    <tr key={item.name} className="even:bg-white/5 odd:bg-white/0">
+                    <tr key={item.name} className="bg-white/5 border-b border-white/10">
                       <td className="px-3 py-2">{item.name}</td>
-                      <td className="px-3 py-2 text-right font-semibold">
+                      <td className="px-3 py-2 text-right font-semibold border-l border-white/15">
                         {item.value}
                       </td>
                     </tr>
