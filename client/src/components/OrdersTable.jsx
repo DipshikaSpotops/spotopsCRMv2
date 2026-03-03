@@ -1460,14 +1460,20 @@ export default function OrdersTable({
 
                 {/* Extra totals (e.g., cancellation rate, counts, etc.) */}
                 {typeof extraTotals === "function" &&
-                  (extraTotals(sortedRows, { denomCount, badCount }) || []).map((item) => (
-                    <tr key={item.name} className="bg-white/5 border-b border-white/10">
-                      <td className="px-3 py-2">{item.name}</td>
-                      <td className="px-3 py-2 text-right font-semibold border-l border-white/15">
-                        {item.value}
-                      </td>
-                    </tr>
-                  ))}
+                  (extraTotals(sortedRows, { denomCount, badCount }) || []).map((item) => {
+                    const baseBg = item.isTotal ? "bg-[#0b1726]" : "bg-white/5";
+                    const borderClass = item.isTotal
+                      ? "border-b border-white/20"
+                      : "border-b border-white/10";
+                    return (
+                      <tr key={item.name} className={`${baseBg} ${borderClass}`}>
+                        <td className="px-3 py-2">{item.name}</td>
+                        <td className="px-3 py-2 text-right font-semibold border-l border-white/15">
+                          {item.value}
+                        </td>
+                      </tr>
+                    );
+                  })}
 
               </tbody>
             </table>

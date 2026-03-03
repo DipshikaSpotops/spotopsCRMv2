@@ -393,6 +393,7 @@ export default function MonthlyOrders() {
       {
         name: "Total — All Payment Sources",
         value: `$${grandTotal.toFixed(2)}`,
+        isTotal: true,
       },
     ];
   }, []);
