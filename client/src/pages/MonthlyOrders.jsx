@@ -378,10 +378,23 @@ export default function MonthlyOrders() {
       return acc;
     }, {});
 
-    return Object.entries(bySource).map(([source, total]) => ({
+    const rowsBySource = Object.entries(bySource).map(([source, total]) => ({
       name: `Payment Source — ${source}`,
       value: `$${total.toFixed(2)}`,
     }));
+
+    const grandTotal = Object.values(bySource).reduce(
+      (sum, val) => sum + (Number(val) || 0),
+      0
+    );
+
+    return [
+      ...rowsBySource,
+      {
+        name: "Total — All Payment Sources",
+        value: `$${grandTotal.toFixed(2)}`,
+      },
+    ];
   }, []);
 
   return (
