@@ -26,10 +26,23 @@ function formatDateSafe(dateStr) {
   return formatInTimeZone(d, TZ, "do MMM, yyyy");
 }
 
-function parseShippingAmount(s) {
-  if (!s || typeof s !== "string") return 0;
-  const m = s.match(/(-?\\d+(?:\\.\\d+)?)/);
-  return m ? parseFloat(m[0]) : 0;
+function parseShippingAmount(field) {
+  if (!field || typeof field !== "string") return 0;
+  // Match "Own shipping: X" or "Yard shipping: X" and extract X
+  const match = field.match(/(?:Own shipping|Yard shipping):\s*([\d.]+)/i);
+  if (match) {
+    const num = parseFloat(match[1]);
+    return Number.isFinite(num) ? num : 0;
+  }
+  return 0;
+}
+
+function isOwnShipping(field) {
+  return typeof field === "string" && /Own shipping:/i.test(field);
+}
+
+function isYardShipping(field) {
+  return typeof field === "string" && /Yard shipping:/i.test(field);
 }
 
 /* ---------- Multi-page Fetch (Fix 1) ---------- */
@@ -68,7 +81,8 @@ async function fetchAllShippingExpenses(params, headers) {
     }));
 
     const shippingCardCharged = infos.reduce((sum, ai) => {
-      if (ai?.paymentStatus === "Card charged") {
+      const status = (ai?.paymentStatus || "").toLowerCase();
+      if (status === "card charged") {
         sum += parseShippingAmount(ai.shippingDetails);
       }
       return sum;
@@ -86,10 +100,44 @@ async function fetchAllShippingExpenses(params, headers) {
 
 /* ---------- Extra totals for modal ---------- */
 const extraTotals = (rows) => {
-  const totalShip = rows.reduce((s, o) => s + (parseFloat(o.shippingCardCharged) || 0), 0);
+  if (!Array.isArray(rows) || rows.length === 0) {
+    return [
+      { name: "Total Orders", value: 0 },
+      { name: "Own Shipping (Card Charged)", value: "$0.00" },
+      { name: "Yard Shipping (Card Charged)", value: "$0.00" },
+      { name: "Total Shipping (Card Charged)", value: "$0.00", isTotal: true },
+    ];
+  }
+
+  let ownTotal = 0;
+  let yardTotal = 0;
+
+  rows.forEach((order) => {
+    const yards = Array.isArray(order.yardDetails) ? order.yardDetails : [];
+    yards.forEach((y) => {
+      const status = (y.paymentStatus || "").toLowerCase();
+      if (status === "card charged") {
+        const amt = parseShippingAmount(y.shippingDetails);
+        if (isOwnShipping(y.shippingDetails)) {
+          ownTotal += amt;
+        } else if (isYardShipping(y.shippingDetails)) {
+          yardTotal += amt;
+        }
+      }
+    });
+  });
+
+  const totalShip = ownTotal + yardTotal;
+
   return [
     { name: "Total Orders", value: rows.length },
-    { name: "Total Shipping (Card Charged)", value: `$${totalShip.toFixed(2)}` },
+    { name: "Own Shipping (Card Charged)", value: `$${ownTotal.toFixed(2)}` },
+    { name: "Yard Shipping (Card Charged)", value: `$${yardTotal.toFixed(2)}` },
+    {
+      name: "Total Shipping (Card Charged)",
+      value: `$${totalShip.toFixed(2)}`,
+      isTotal: true,
+    },
   ];
 };
 
