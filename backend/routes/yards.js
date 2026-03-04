@@ -174,7 +174,7 @@ router.get("/list", async (req, res) => {
       .sort(sortObj)
       .skip(skip)
       .limit(limit)
-      .select("yardName yardRating phone altNo email street city state zipcode country updatedAt");
+      .select("yardName yardRating phone altNo email street city state zipcode country updatedAt agents");
 
     const totalPages = Math.ceil(filteredCount / limit);
 
@@ -401,23 +401,28 @@ router.put("/:id", async (req, res) => {
       );
 
       if (existingAgent) {
-        // Agent exists: update phone if provided (even if it already has one)
-        if (agentPhoneTrimmed !== undefined && agentPhoneTrimmed !== null) {
-          // Update the existing agent's phone using arrayFilters
-          updateDoc.$set = updateDoc.$set || {};
-          updateDoc.$set["agents.$[elem].phone"] = agentPhoneTrimmed;
-          // Use the exact name from existingAgent for matching
-          const agentNameForFilter = existingAgent.name || agentNameTrimmed;
-          const updateOptions = {
-            new: true,
-            runValidators: true,
-            arrayFilters: [{ 
-              "elem.name": agentNameForFilter
-            }]
-          };
-          const updated = await Yard.findByIdAndUpdate(id, updateDoc, updateOptions);
-          return res.json({ message: "Yard updated successfully", yard: updated });
+        // Agent exists: update BOTH name and phone (if provided) using arrayFilters
+        updateDoc.$set = updateDoc.$set || {};
+        if (agentNameTrimmed) {
+          updateDoc.$set["agents.$[elem].name"] = agentNameTrimmed;
         }
+        if (agentPhoneTrimmed !== undefined && agentPhoneTrimmed !== null) {
+          updateDoc.$set["agents.$[elem].phone"] = agentPhoneTrimmed;
+        }
+
+        // Use the exact name from existingAgent for matching the existing element
+        const agentNameForFilter = existingAgent.name || agentNameTrimmed;
+        const updateOptions = {
+          new: true,
+          runValidators: true,
+          arrayFilters: [
+            {
+              "elem.name": agentNameForFilter,
+            },
+          ],
+        };
+        const updated = await Yard.findByIdAndUpdate(id, updateDoc, updateOptions);
+        return res.json({ message: "Yard updated successfully", yard: updated });
       } else {
         // Agent doesn't exist: add it
         updateDoc.$addToSet = {

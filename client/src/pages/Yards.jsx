@@ -78,6 +78,8 @@ const Yards = () => {
     zipcode: "",
     country: "US",
     warranty: "",
+    agentName: "",
+    agentPhone: "",
   });
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
@@ -178,6 +180,7 @@ const Yards = () => {
 
   const handleEdit = (yard) => {
     setEditingYard(yard);
+    const primaryAgent = Array.isArray(yard.agents) && yard.agents.length > 0 ? yard.agents[0] : null;
     setEditForm({
       yardName: yard.yardName || "",
       yardRating: yard.yardRating || "",
@@ -190,6 +193,8 @@ const Yards = () => {
       zipcode: yard.zipcode || "",
       country: yard.country || "US",
       warranty: yard.warranty || "",
+      agentName: primaryAgent?.name || "",
+      agentPhone: primaryAgent?.phone || "",
     });
   };
 
@@ -332,6 +337,7 @@ const Yards = () => {
                 { key: "zipcode", label: "Zipcode" },
                 { key: "email", label: "Email" },
                 { key: "phone", label: "Phone" },
+                { key: "agents", label: "Agents" },
                 { key: "state", label: "State" },
                 { key: "altNo", label: "Alt No" },
                 { key: "updatedAt", label: "Updated At" },
@@ -382,6 +388,25 @@ const Yards = () => {
                 </td>
                 <td className="p-2.5 border-r border-white/20 whitespace-nowrap text-[#e1ebeb]">
                   {yard.phone || "—"}
+                </td>
+                <td className="p-2.5 border-r border-white/20 whitespace-nowrap text-[#e1ebeb]">
+                  {Array.isArray(yard.agents) && yard.agents.length > 0 ? (
+                    <div className="space-y-0.5">
+                      {yard.agents.map((agent, idx) => {
+                        const name = (agent?.name || "").trim();
+                        const phone = (agent?.phone || "").trim();
+                        if (!name && !phone) return null;
+                        return (
+                          <div key={agent?._id || idx}>
+                            {name || "—"}{" "}
+                            {phone ? <span className="text-xs text-white/80">| {phone}</span> : null}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    "—"
+                  )}
                 </td>
                 <td className="p-2.5 border-r border-white/20 whitespace-nowrap text-[#e1ebeb]">
                   {yard.state || "—"}
@@ -531,6 +556,24 @@ const Yards = () => {
                     type="number"
                     value={editForm.warranty}
                     onChange={(e) => setEditForm({ ...editForm, warranty: e.target.value })}
+                    className="w-full px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-white outline-none focus:ring-2 focus:ring-white/30"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Agent Name</label>
+                  <input
+                    type="text"
+                    value={editForm.agentName}
+                    onChange={(e) => setEditForm({ ...editForm, agentName: e.target.value })}
+                    className="w-full px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-white outline-none focus:ring-2 focus:ring-white/30"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Agent Phone</label>
+                  <input
+                    type="text"
+                    value={editForm.agentPhone}
+                    onChange={(e) => setEditForm({ ...editForm, agentPhone: e.target.value })}
                     className="w-full px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-white outline-none focus:ring-2 focus:ring-white/30"
                   />
                 </div>
