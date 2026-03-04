@@ -613,7 +613,7 @@ const AddLeadNotes = () => {
           _id: lead._id,
           name: lead.name || form.name || "",
           email: lead.email || form.email || "",
-              phoneNo: lead.phone || form.phone || "",
+          phoneNo: lead.phoneNo || form.phoneNo || "",
           year: lead.year || form.year || "",
           make: lead.make || form.make || "",
           model: lead.model || form.model || "",
