@@ -594,7 +594,16 @@ router.post("/orders", async (req, res) => {
     newOrder.orderDate = central.toDate();
 
     newOrder.orderHistory = newOrder.orderHistory || [];
-    newOrder.orderHistory.push(`Order placed by ${firstName} on ${formattedDateTime}`);
+    // History entry depends on whether this is fully charged or partially charged
+    if (orderStatus === "Partially charged order") {
+      newOrder.orderHistory.push(
+        `Partially charged order by ${firstName} on ${formattedDateTime}`
+      );
+    } else {
+      newOrder.orderHistory.push(
+        `Order placed by ${firstName} on ${formattedDateTime}`
+      );
+    }
 
     await newOrder.save();
     const io = req.app.get("io");
@@ -999,6 +1008,30 @@ router.put("/:orderNo", async (req, res) => {
         order[key] = req.body[key];
       }
     });
+
+    // If payment-related fields changed, auto-adjust orderStatus between
+    // "Placed" and "Partially charged order" (but don't override explicit
+    // non-payment statuses like Cancelled, Refunded, Dispute, etc.).
+    const paymentFieldsTouched =
+      Object.prototype.hasOwnProperty.call(req.body, "soldP") ||
+      Object.prototype.hasOwnProperty.call(req.body, "chargedAmount");
+
+    if (paymentFieldsTouched) {
+      const currentStatus = (order.orderStatus || "").trim();
+      const isPaymentDrivenStatus =
+        !currentStatus ||
+        currentStatus === "Placed" ||
+        currentStatus === "Partially charged order";
+
+      if (isPaymentDrivenStatus) {
+        const soldPNum = parseFloat(order.soldP) || 0;
+        const chargedParsed = parseFloat(order.chargedAmount);
+        const chargedNum = Number.isFinite(chargedParsed) ? chargedParsed : soldPNum;
+
+        order.orderStatus =
+          chargedNum === soldPNum ? "Placed" : "Partially charged order";
+      }
+    }
 
     const firstName = cleanFirstName(req.query.firstName || req.user?.firstName || "");
     if (!firstName) {

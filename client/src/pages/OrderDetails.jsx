@@ -454,6 +454,7 @@ export default function OrderDetails() {
 
   const STATUS_OPTIONS = [
     { label: "Placed", value: "Placed" },
+    { label: "Partially Charged Order", value: "Partially charged order" },
     { label: "Customer Approved", value: "Customer Approved" },
     { label: "Yard Processing", value: "Yard Processing" },
     { label: "In Transit", value: "In Transit" },
@@ -477,6 +478,7 @@ export default function OrderDetails() {
       "Customer approved": "Customer Approved", // lowercase 'a' -> uppercase 'A'
       "Customer Approved": "Customer Approved", // already correct
       "Dispute 2": "Dispute 2", // backend value for "Dispute after Cancellation"
+      "Partially charged order": "Partially charged order",
     };
     // If exact match found, use it; otherwise try case-insensitive match
     if (statusMap[backendStatus]) {
@@ -485,6 +487,10 @@ export default function OrderDetails() {
     // Try case-insensitive match for "Customer approved"
     if (backendStatus.toLowerCase() === "customer approved") {
       return "Customer Approved";
+    }
+    // Case-insensitive match for "Partially charged order"
+    if (backendStatus.toLowerCase() === "partially charged order") {
+      return "Partially charged order";
     }
     // For other statuses, check if they exist in STATUS_OPTIONS
     const found = STATUS_OPTIONS.find(
