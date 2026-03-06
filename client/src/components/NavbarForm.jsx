@@ -287,13 +287,27 @@ export default function NavbarForm() {
                 </li>
                 <li
                   className="px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
-                  onClick={() => {
+                  onClick={async () => {
                     try {
+                      // Call backend logout API to update Google Sheet
+                      const token = localStorage.getItem("token");
+                      if (token) {
+                        try {
+                          await API.post("/auth/logout");
+                          console.log("[NavbarForm] Logout API called successfully");
+                        } catch (apiErr) {
+                          // Don't block logout if API call fails - still clear local storage
+                          console.warn("[NavbarForm] Logout API call failed (non-blocking):", apiErr.message);
+                        }
+                      }
+                      
                       clearStoredAuth();
+                      window.location.href = "/login";
                     } catch (e) {
                       console.error("Error clearing auth on logout:", e);
+                      clearStoredAuth();
+                      window.location.href = "/login";
                     }
-                    window.location.href = "/login";
                   }}
                 >
                   Log Out

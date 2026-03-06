@@ -66,14 +66,31 @@ export default function Navbar() {
   };
 
   // --- Single logout that clears ALL possible keys + Redux ---
-  const handleLogout = () => {
+  const handleLogout = async () => {
     try {
+      // Call backend logout API to update Google Sheet
+      const token = localStorage.getItem("token");
+      if (token) {
+        try {
+          await API.post("/auth/logout");
+          console.log("[Navbar] Logout API called successfully");
+        } catch (apiErr) {
+          // Don't block logout if API call fails - still clear local storage
+          console.warn("[Navbar] Logout API call failed (non-blocking):", apiErr.message);
+        }
+      }
+      
+      // Clear local storage and Redux state
       clearStoredAuth();
+      dispatch(logoutAction());
+      navigate("/login", { replace: true });
     } catch (e) {
       console.error("Logout error:", e);
+      // Still clear local storage and redirect even if there's an error
+      clearStoredAuth();
+      dispatch(logoutAction());
+      navigate("/login", { replace: true });
     }
-    dispatch(logoutAction());
-    navigate("/login", { replace: true });
   };
 
   return (
