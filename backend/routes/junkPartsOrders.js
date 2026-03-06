@@ -70,6 +70,7 @@ router.get("/", async (req, res) => {
     const skip = (Math.max(parseInt(page, 10) || 1, 1) - 1) * pageSize;
 
     // Base filter: date range + at least one yard marked as Junk / Junked Replacement
+    // Exclude orders where the junk yard has refundStatus = "Refund collected"
     const filter = {
       orderDate: { $gte: startDate, $lt: endDate },
       additionalInfo: {
@@ -81,6 +82,10 @@ router.get("/", async (req, res) => {
               escalationProcess: "Replacement",
               custReason: "Junked",
             },
+          ],
+          // Exclude if refundStatus is "Refund collected" (case-insensitive)
+          $nor: [
+            { refundStatus: { $regex: /^refund collected$/i } },
           ],
         },
       },
