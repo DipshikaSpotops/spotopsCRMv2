@@ -355,20 +355,33 @@ async function appendLoginToGoogleSheet(user, ipAddress, userAgent) {
       isNewDay = false;
     }
 
-    // If user already has a row for today, update it instead of appending
+    // If user already has a row for today, append login times with comma
     if (existingRowIndex > 0) {
       try {
+        // Get existing login times from the row
+        const existingRow = allData[existingRowIndex - 1]; // -1 because allData is 0-indexed
+        const existingLoginTimeDallas = (existingRow[5] || "").trim();
+        const existingLoginTimeISO = (existingRow[6] || "").trim();
+        
+        // Append new login times with comma separator
+        const updatedLoginTimeDallas = existingLoginTimeDallas 
+          ? `${existingLoginTimeDallas}, ${loginTimeFormatted}`
+          : loginTimeFormatted;
+        const updatedLoginTimeISO = existingLoginTimeISO
+          ? `${existingLoginTimeISO}, ${loginTime}`
+          : loginTime;
+        
         // Update login time columns (F and G, indices 5 and 6)
         await sheets.spreadsheets.values.update({
           spreadsheetId,
           range: `${sheetName}!F${existingRowIndex}:G${existingRowIndex}`,
           valueInputOption: "USER_ENTERED",
           resource: {
-            values: [[loginTimeFormatted, loginTime]],
+            values: [[updatedLoginTimeDallas, updatedLoginTimeISO]],
           },
         });
-        console.log(`[auth] Updated existing login row ${existingRowIndex} for user: ${user.email}`);
-        return; // Don't append, we've updated
+        console.log(`[auth] Appended login time to existing row ${existingRowIndex} for user: ${user.email}`);
+        return; // Don't append new row, we've updated existing one
       } catch (err) {
         console.warn(`[auth] Failed to update existing row, will append instead:`, err.message);
         // Fall through to append logic
@@ -486,41 +499,56 @@ async function appendLogoutToGoogleSheet(user, ipAddress, userAgent) {
       return;
     }
 
-    // Find the most recent login row for this user that doesn't have logout time
-    // Start from the bottom (most recent) and work up
+    // Find the most recent row for this user for today
+    // We'll append logout time to match the number of login times
     let rowIndex = -1;
-    console.log(`[auth] Searching for user ${userEmail} in sheet ${sheetName}...`);
+    const currentDate = logoutTimeFormatted.split(" at ")[0] || "";
+    console.log(`[auth] Searching for user ${userEmail} in sheet ${sheetName} for date ${currentDate}...`);
     
+    // Find the row for this user on today's date (most recent one)
     for (let i = allData.length - 1; i >= 1; i--) {
       const row = allData[i];
       const rowEmail = (row[1] || "").trim().toLowerCase();
       const searchEmail = userEmail.trim().toLowerCase();
-      const logoutTimeDallas = (row[7] || "").trim();
-      const logoutTimeISO = (row[8] || "").trim();
+      const rowLoginTime = (row[5] || "").trim(); // Column F (index 5) is Login Time (Dallas)
+      const rowDate = rowLoginTime.split(" at ")[0] || "";
       
-      // Check if this row matches the user email (column B, index 1)
-      // and if logout time columns (H and I, indices 7 and 8) are empty
-      if (rowEmail === searchEmail && !logoutTimeDallas && !logoutTimeISO) {
+      // Check if this row matches the user email and date
+      if (rowEmail === searchEmail && rowDate === currentDate) {
         rowIndex = i + 1; // +1 because Sheets API uses 1-based indexing
-        console.log(`[auth] Found matching row at index ${rowIndex} (sheet row ${i + 1}) for user ${userEmail}`);
+        console.log(`[auth] Found matching row at index ${rowIndex} (sheet row ${i + 1}) for user ${userEmail} on ${currentDate}`);
         break;
       }
     }
 
     if (rowIndex === -1) {
-      console.warn(`[auth] No open login session found for user ${userEmail} in sheet ${sheetName}`);
+      console.warn(`[auth] No login session found for user ${userEmail} on ${currentDate} in sheet ${sheetName}`);
       console.warn(`[auth] Searched through ${allData.length - 1} data rows`);
       // Log a few sample rows for debugging
       if (allData.length > 1) {
         console.warn(`[auth] Sample rows (last 3):`, allData.slice(-3).map((r, idx) => ({
           row: allData.length - 3 + idx,
           email: r[1],
+          loginTime: r[5],
           logoutDallas: r[7],
           logoutISO: r[8]
         })));
       }
       return;
     }
+
+    // Get existing logout times from the row
+    const existingRow = allData[rowIndex - 1]; // -1 because allData is 0-indexed
+    const existingLogoutTimeDallas = (existingRow[7] || "").trim();
+    const existingLogoutTimeISO = (existingRow[8] || "").trim();
+    
+    // Append new logout times with comma separator
+    const updatedLogoutTimeDallas = existingLogoutTimeDallas 
+      ? `${existingLogoutTimeDallas}, ${logoutTimeFormatted}`
+      : logoutTimeFormatted;
+    const updatedLogoutTimeISO = existingLogoutTimeISO
+      ? `${existingLogoutTimeISO}, ${logoutTime}`
+      : logoutTime;
 
     // Update the logout time columns (H and I)
     try {
@@ -529,10 +557,10 @@ async function appendLogoutToGoogleSheet(user, ipAddress, userAgent) {
         range: `${sheetName}!H${rowIndex}:I${rowIndex}`,
         valueInputOption: "USER_ENTERED",
         resource: {
-          values: [[logoutTimeFormatted, logoutTime]],
+          values: [[updatedLogoutTimeDallas, updatedLogoutTimeISO]],
         },
       });
-      console.log(`[auth] Logout data updated successfully in Google Sheet (${sheetName}) row ${rowIndex} for user: ${userEmail}`);
+      console.log(`[auth] Logout data appended successfully in Google Sheet (${sheetName}) row ${rowIndex} for user: ${userEmail}`);
     } catch (updateErr) {
       console.error(`[auth] Failed to update logout data in row ${rowIndex}:`, updateErr.message);
       throw updateErr;
