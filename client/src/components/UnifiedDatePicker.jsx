@@ -72,6 +72,9 @@ const UnifiedDatePicker = ({ onFilterChange }) => {
   });
 
   const [lastClick, setLastClick] = useState({ date: null, time: 0 });
+  const [selectedYear, setSelectedYear] = useState(() => {
+    return todayDallas.year();
+  });
 
   useEffect(() => {
     const r = range?.[0];
@@ -218,6 +221,39 @@ const UnifiedDatePicker = ({ onFilterChange }) => {
     }
   };
 
+  const handleYearSelect = (year) => {
+    setSelectedYear(year);
+    
+    // Create the date range for the entire year (Jan 1 to Dec 31)
+    const start = moment.tz({ year, month: 0, day: 1 }, ZONE).startOf("day");
+    const lastDay = moment.tz({ year, month: 11 }, ZONE).daysInMonth();
+    const end = moment.tz({ year, month: 11, day: lastDay }, ZONE).startOf("day");
+
+    const startYear = start.year();
+    const startMonth = start.month();
+    const startDay = start.date();
+    
+    const endYear = end.year();
+    const endMonth = end.month();
+    const endDay = end.date();
+
+    const startDate = new Date(startYear, startMonth, startDay, 12, 0, 0);
+    const endDate = new Date(endYear, endMonth, endDay, 12, 0, 0);
+
+    setRange([{ startDate, endDate, key: "selection" }]);
+    setShownDate(startDate);
+    
+    // Don't emit immediately - wait for Load button click
+  };
+
+  const handleLoadYear = () => {
+    // Load the currently selected year range
+    const currentRange = range?.[0];
+    if (currentRange?.startDate && currentRange?.endDate) {
+      emitRangeToBackend(currentRange.startDate, currentRange.endDate);
+    }
+  };
+
   const handleShortcut = (type) => {
     let startMoment, endMoment;
     const now = moment().tz(ZONE);
@@ -242,6 +278,15 @@ const UnifiedDatePicker = ({ onFilterChange }) => {
       // Get the last day of the current month explicitly
       const lastDay = now.daysInMonth();
       endMoment = now.clone().date(lastDay).startOf("day");
+    } else if (type === "thisYear") {
+      startMoment = now.clone().startOf("year");
+      const lastDay = moment.tz({ year: now.year(), month: 11 }, ZONE).daysInMonth();
+      endMoment = moment.tz({ year: now.year(), month: 11, day: lastDay }, ZONE).startOf("day");
+    } else if (type === "lastYear") {
+      const lastYear = now.clone().subtract(1, "year");
+      startMoment = lastYear.clone().startOf("year");
+      const lastDay = moment.tz({ year: lastYear.year(), month: 11 }, ZONE).daysInMonth();
+      endMoment = moment.tz({ year: lastYear.year(), month: 11, day: lastDay }, ZONE).startOf("day");
     }
 
     // Extract date components from moment objects to avoid timezone conversion issues
@@ -260,6 +305,12 @@ const UnifiedDatePicker = ({ onFilterChange }) => {
 
     setRange([{ startDate: start, endDate: end, key: "selection" }]);
     setShownDate(start);
+    // Update selectedYear for year-based shortcuts
+    if (type === "thisYear") {
+      setSelectedYear(now.year());
+    } else if (type === "lastYear") {
+      setSelectedYear(now.year() - 1);
+    }
     emitRangeToBackend(start, end);
     setShowCalendar(false);
   };
@@ -284,10 +335,12 @@ const UnifiedDatePicker = ({ onFilterChange }) => {
             left: popoverPos.left,
             minWidth: 300,
             maxWidth: "90vw",
+            minHeight: 360,
             maxHeight: "90vh",
             overflow: "auto",
           }}
         >
+          {/* Top row: quick shortcuts (original layout) */}
           <div className="flex justify-end gap-3 mb-2 flex-wrap text-xs">
             <button onClick={() => handleShortcut("today")} className="text-blue-600 hover:underline" type="button">
               Today
@@ -300,6 +353,32 @@ const UnifiedDatePicker = ({ onFilterChange }) => {
             </button>
             <button onClick={() => handleShortcut("last3Months")} className="text-blue-600 hover:underline" type="button">
               Last 3 Months
+            </button>
+          </div>
+
+          {/* Second row: year selector + Load Year, below shortcuts */}
+          <div className="flex items-center gap-2 mb-2">
+            <label className="text-xs text-gray-700 font-medium">Year:</label>
+            <select
+              value={selectedYear}
+              onChange={(e) => handleYearSelect(parseInt(e.target.value))}
+              className="text-xs border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-[#4f46e5]"
+            >
+              {Array.from({ length: 10 }, (_, i) => {
+                const year = todayDallas.year() - i;
+                return (
+                  <option key={year} value={year}>
+                    {year}
+                  </option>
+                );
+              })}
+            </select>
+            <button
+              onClick={handleLoadYear}
+              className="px-2 py-1 text-xs bg-[#4f46e5] text-white rounded hover:bg-[#4338ca] font-medium"
+              type="button"
+            >
+              Load Year
             </button>
           </div>
 
