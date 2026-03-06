@@ -34,6 +34,7 @@ function getIpAddress(req) {
 
 // Helper function to append login data to Google Sheet
 async function appendLoginToGoogleSheet(user, ipAddress, userAgent) {
+  console.log("[auth] appendLoginToGoogleSheet called for user:", user?.email);
   try {
     const spreadsheetId = process.env.LOGIN_TRACKING_SHEET_ID;
     
@@ -41,6 +42,8 @@ async function appendLoginToGoogleSheet(user, ipAddress, userAgent) {
       console.warn("[auth] LOGIN_TRACKING_SHEET_ID not configured, skipping Google Sheet append");
       return;
     }
+    
+    console.log("[auth] Spreadsheet ID:", spreadsheetId);
 
     const loginTime = moment().tz(TZ).format("YYYY-MM-DD HH:mm:ss");
     const loginTimeFormatted = moment().tz(TZ).format("MMMM DD, YYYY [at] hh:mm A [Dallas Time]");
@@ -64,20 +67,36 @@ async function appendLoginToGoogleSheet(user, ipAddress, userAgent) {
       "", // Logout Time (ISO) - empty on login
     ];
 
-    // Get Google Sheets API client
-    // Try to use OAuth2 first (if available), otherwise use service account
+    // Get Google Sheets API client using service account
     const sheetsScopes = ["https://www.googleapis.com/auth/spreadsheets"];
     let auth;
     try {
-      auth = getGoogleJwtClient(sheetsScopes);
+      console.log("[auth] Attempting to get Google auth client for Sheets...");
+      
+      const clientEmail = process.env.GCP_CLIENT_EMAIL;
+      const privateKey = process.env.GCP_PRIVATE_KEY;
+      
+      if (!clientEmail || !privateKey) {
+        throw new Error("GCP_CLIENT_EMAIL and GCP_PRIVATE_KEY are required for Google Sheets API");
+      }
+      
+      // Create JWT auth for Sheets (doesn't need GMAIL_IMPERSONATED_USER)
+      auth = new google.auth.JWT({
+        email: clientEmail,
+        key: privateKey.replace(/\\n/g, "\n"),
+        scopes: sheetsScopes,
+      });
+      
+      console.log("[auth] Google auth client obtained successfully");
     } catch (err) {
       console.error("[auth] Failed to get Google auth client:", err.message);
-      console.error("[auth] Please set up either:");
-      console.error("[auth]   1. OAuth2: credentials.json + token.json with Sheets scope");
-      console.error("[auth]   2. Service Account: GCP_CLIENT_EMAIL + GCP_PRIVATE_KEY");
-      throw err;
+      console.error("[auth] Error stack:", err.stack);
+      console.error("[auth] Please ensure GCP_CLIENT_EMAIL and GCP_PRIVATE_KEY are set in .env");
+      // Don't throw - just return so login can continue
+      return;
     }
     const sheets = google.sheets({ version: "v4", auth });
+    console.log("[auth] Google Sheets API client created");
 
     // Check if the monthly sheet exists, if not create it
     let sheetExists = false;
@@ -306,12 +325,18 @@ async function appendLoginToGoogleSheet(user, ipAddress, userAgent) {
     console.log(`[auth] Login data appended to Google Sheet (${sheetName}) for user: ${user.email}`);
   } catch (error) {
     // Don't block login if Google Sheets append fails - just log the error
-    console.error("[auth] Failed to append login data to Google Sheet:", error.message);
+    console.error("[auth] Failed to append login data to Google Sheet:");
+    console.error("[auth] Error message:", error.message);
+    console.error("[auth] Error stack:", error.stack);
+    if (error.response) {
+      console.error("[auth] Error response:", JSON.stringify(error.response.data, null, 2));
+    }
   }
 }
 
 // Helper function to update logout data in existing login row
 async function appendLogoutToGoogleSheet(user, ipAddress, userAgent) {
+  console.log("[auth] appendLogoutToGoogleSheet called for user:", user?.email);
   try {
     const spreadsheetId = process.env.LOGIN_TRACKING_SHEET_ID;
     
@@ -319,6 +344,8 @@ async function appendLogoutToGoogleSheet(user, ipAddress, userAgent) {
       console.warn("[auth] LOGIN_TRACKING_SHEET_ID not configured, skipping Google Sheet append");
       return;
     }
+    
+    console.log("[auth] Spreadsheet ID:", spreadsheetId);
 
     const logoutTime = moment().tz(TZ).format("YYYY-MM-DD HH:mm:ss");
     const logoutTimeFormatted = moment().tz(TZ).format("MMMM DD, YYYY [at] hh:mm A [Dallas Time]");
@@ -328,13 +355,28 @@ async function appendLogoutToGoogleSheet(user, ipAddress, userAgent) {
     const now = moment().tz(TZ);
     const sheetName = now.format("MMMM YYYY");
 
-    // Get Google Sheets API client
+    // Get Google Sheets API client using service account
     const sheetsScopes = ["https://www.googleapis.com/auth/spreadsheets"];
     let auth;
     try {
-      auth = getGoogleJwtClient(sheetsScopes);
+      console.log("[auth] Attempting to get Google auth client for Sheets (logout)...");
+      
+      const clientEmail = process.env.GCP_CLIENT_EMAIL;
+      const privateKey = process.env.GCP_PRIVATE_KEY;
+      
+      if (!clientEmail || !privateKey) {
+        throw new Error("GCP_CLIENT_EMAIL and GCP_PRIVATE_KEY are required for Google Sheets API");
+      }
+      
+      // Create JWT auth for Sheets (doesn't need GMAIL_IMPERSONATED_USER)
+      auth = new google.auth.JWT({
+        email: clientEmail,
+        key: privateKey.replace(/\\n/g, "\n"),
+        scopes: sheetsScopes,
+      });
     } catch (err) {
       console.error("[auth] Failed to get Google auth client for logout:", err.message);
+      console.error("[auth] Please ensure GCP_CLIENT_EMAIL and GCP_PRIVATE_KEY are set in .env");
       return;
     }
     const sheets = google.sheets({ version: "v4", auth });
@@ -393,7 +435,12 @@ async function appendLogoutToGoogleSheet(user, ipAddress, userAgent) {
     console.log(`[auth] Logout data updated in Google Sheet (${sheetName}) row ${rowIndex} for user: ${userEmail}`);
   } catch (error) {
     // Don't block logout if Google Sheets update fails - just log the error
-    console.error("[auth] Failed to update logout data in Google Sheet:", error.message);
+    console.error("[auth] Failed to update logout data in Google Sheet:");
+    console.error("[auth] Error message:", error.message);
+    console.error("[auth] Error stack:", error.stack);
+    if (error.response) {
+      console.error("[auth] Error response:", JSON.stringify(error.response.data, null, 2));
+    }
   }
 }
 
