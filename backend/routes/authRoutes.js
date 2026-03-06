@@ -8,7 +8,7 @@ import User from "../models/User.js";
 import LoggedInUser from "../models/LoggedInUser.js";
 import { validateSignup } from "../middleware/validateSignup.js";
 import { validateLogin } from "../middleware/validateLogin.js";
-import { getGoogleJwtClient } from "../services/googleAuth.js";
+// Note: We create JWT auth directly for Sheets API (doesn't need GMAIL_IMPERSONATED_USER)
 
 const router = express.Router();
 const JWT_SECRET = process.env.JWT_SECRET || "supersecretkey";
@@ -32,6 +32,49 @@ function getIpAddress(req) {
   );
 }
 
+// Helper function to get location from IP address
+async function getLocationFromIP(ipAddress) {
+  if (!ipAddress || ipAddress === "Unknown" || ipAddress === "::1" || ipAddress === "127.0.0.1") {
+    // For localhost, try to get actual location from a public IP service
+    try {
+      const response = await fetch(`http://ip-api.com/json/?fields=status,message,country,regionName,city`);
+      const data = await response.json();
+      
+      if (data.status === "success") {
+        const parts = [];
+        if (data.city) parts.push(data.city);
+        if (data.regionName) parts.push(data.regionName);
+        if (data.country) parts.push(data.country);
+        
+        return parts.length > 0 ? parts.join(", ") : "Local Development";
+      }
+    } catch (error) {
+      // Fall through to return "Local Development"
+    }
+    return "Local Development";
+  }
+
+  try {
+    // Using ip-api.com (free, no API key required for basic usage)
+    const response = await fetch(`http://ip-api.com/json/${ipAddress}?fields=status,message,country,regionName,city`);
+    const data = await response.json();
+    
+    if (data.status === "success") {
+      const parts = [];
+      if (data.city) parts.push(data.city);
+      if (data.regionName) parts.push(data.regionName);
+      if (data.country) parts.push(data.country);
+      
+      return parts.length > 0 ? parts.join(", ") : "Unknown";
+    }
+    
+    return "Unknown";
+  } catch (error) {
+    console.warn(`[auth] Failed to get location for IP ${ipAddress}:`, error.message);
+    return "Unknown";
+  }
+}
+
 // Helper function to append login data to Google Sheet
 async function appendLoginToGoogleSheet(user, ipAddress, userAgent) {
   console.log("[auth] appendLoginToGoogleSheet called for user:", user?.email);
@@ -49,6 +92,9 @@ async function appendLoginToGoogleSheet(user, ipAddress, userAgent) {
     const loginTimeFormatted = moment().tz(TZ).format("MMMM DD, YYYY [at] hh:mm A [Dallas Time]");
     const userFullName = `${user.firstName || ""} ${user.lastName || ""}`.trim() || user.email;
     
+    // Get location from IP address
+    const location = await getLocationFromIP(ipAddress);
+    
     // Get current month and year in "Month YYYY" format (e.g., "March 2026")
     const now = moment().tz(TZ);
     const sheetName = now.format("MMMM YYYY");
@@ -59,8 +105,7 @@ async function appendLoginToGoogleSheet(user, ipAddress, userAgent) {
       user.email,
       user.role || "N/A",
       user.team || "N/A",
-      ipAddress || "Unknown",
-      userAgent || "Unknown",
+      location, // Location instead of IP Address
       loginTimeFormatted,
       loginTime,
       "", // Logout Time (Dallas) - empty on login
@@ -70,16 +115,23 @@ async function appendLoginToGoogleSheet(user, ipAddress, userAgent) {
     // Get Google Sheets API client using service account
     const sheetsScopes = ["https://www.googleapis.com/auth/spreadsheets"];
     let auth;
+    
+    console.log("[auth] Attempting to get Google auth client for Sheets...");
+    console.log("[auth] GCP_CLIENT_EMAIL exists:", !!process.env.GCP_CLIENT_EMAIL);
+    console.log("[auth] GCP_PRIVATE_KEY exists:", !!process.env.GCP_PRIVATE_KEY);
+    
+    const clientEmail = process.env.GCP_CLIENT_EMAIL;
+    const privateKey = process.env.GCP_PRIVATE_KEY;
+    
+    if (!clientEmail || !privateKey) {
+      console.error("[auth] Missing required environment variables:");
+      console.error("[auth]   GCP_CLIENT_EMAIL:", clientEmail ? "✓ Set" : "✗ Missing");
+      console.error("[auth]   GCP_PRIVATE_KEY:", privateKey ? "✓ Set" : "✗ Missing");
+      console.error("[auth] Please add these to your .env file and restart the server");
+      return;
+    }
+    
     try {
-      console.log("[auth] Attempting to get Google auth client for Sheets...");
-      
-      const clientEmail = process.env.GCP_CLIENT_EMAIL;
-      const privateKey = process.env.GCP_PRIVATE_KEY;
-      
-      if (!clientEmail || !privateKey) {
-        throw new Error("GCP_CLIENT_EMAIL and GCP_PRIVATE_KEY are required for Google Sheets API");
-      }
-      
       // Create JWT auth for Sheets (doesn't need GMAIL_IMPERSONATED_USER)
       auth = new google.auth.JWT({
         email: clientEmail,
@@ -87,12 +139,10 @@ async function appendLoginToGoogleSheet(user, ipAddress, userAgent) {
         scopes: sheetsScopes,
       });
       
-      console.log("[auth] Google auth client obtained successfully");
+      console.log("[auth] Google auth client created successfully");
     } catch (err) {
-      console.error("[auth] Failed to get Google auth client:", err.message);
+      console.error("[auth] Failed to create Google auth client:", err.message);
       console.error("[auth] Error stack:", err.stack);
-      console.error("[auth] Please ensure GCP_CLIENT_EMAIL and GCP_PRIVATE_KEY are set in .env");
-      // Don't throw - just return so login can continue
       return;
     }
     const sheets = google.sheets({ version: "v4", auth });
@@ -127,7 +177,7 @@ async function appendLoginToGoogleSheet(user, ipAddress, userAgent) {
                     startRowIndex: 0,
                     endRowIndex: 1,
                     startColumnIndex: 0,
-                    endColumnIndex: 10,
+                    endColumnIndex: 9, // A to I (removed User Agent column)
                   },
                   cell: {
                     userEnteredFormat: {
@@ -179,8 +229,7 @@ async function appendLoginToGoogleSheet(user, ipAddress, userAgent) {
           "Email",
           "Role",
           "Team",
-          "IP Address",
-          "User Agent",
+          "Location",
           "Login Time (Dallas)",
           "Login Time (ISO)",
           "Logout Time (Dallas)",
@@ -188,7 +237,7 @@ async function appendLoginToGoogleSheet(user, ipAddress, userAgent) {
         ];
         await sheets.spreadsheets.values.update({
           spreadsheetId,
-          range: `${sheetName}!A1:J1`,
+          range: `${sheetName}!A1:I1`,
           valueInputOption: "USER_ENTERED",
           resource: {
             values: [headers],
@@ -221,7 +270,7 @@ async function appendLoginToGoogleSheet(user, ipAddress, userAgent) {
       try {
         const headerCheck = await sheets.spreadsheets.values.get({
           spreadsheetId,
-          range: `${sheetName}!A1:J1`,
+          range: `${sheetName}!A1:I1`,
         });
 
         // If no headers exist, add them
@@ -231,8 +280,7 @@ async function appendLoginToGoogleSheet(user, ipAddress, userAgent) {
             "Email",
             "Role",
             "Team",
-            "IP Address",
-            "User Agent",
+            "Location",
             "Login Time (Dallas)",
             "Login Time (ISO)",
             "Logout Time (Dallas)",
@@ -240,7 +288,7 @@ async function appendLoginToGoogleSheet(user, ipAddress, userAgent) {
           ];
           await sheets.spreadsheets.values.update({
             spreadsheetId,
-            range: `${sheetName}!A1:J1`,
+            range: `${sheetName}!A1:I1`,
             valueInputOption: "USER_ENTERED",
             resource: {
               values: [headers],
@@ -262,22 +310,37 @@ async function appendLoginToGoogleSheet(user, ipAddress, userAgent) {
       await formatHeader(sheetId);
     }
 
-    // Check if it's a new day - get the last row to check the date
+    // Check if user already has a row for today - if yes, update it instead of appending
+    let existingRowIndex = -1;
     let isNewDay = false;
+    const currentDate = loginTimeFormatted.split(" at ")[0] || "";
+    
     try {
       const allDataResponse = await sheets.spreadsheets.values.get({
         spreadsheetId,
-        range: `${sheetName}!A:J`,
+        range: `${sheetName}!A:I`,
       });
       const allData = allDataResponse.data.values || [];
       
       if (allData.length > 1) {
-        // Get the last row with data (skip header)
+        // Check for existing row for this user on this date
+        for (let i = allData.length - 1; i >= 1; i--) {
+          const row = allData[i];
+          const rowEmail = row[1] || ""; // Column B (index 1) is Email
+          const rowLoginTime = row[5] || ""; // Column F (index 5) is Login Time (Dallas)
+          const rowDate = rowLoginTime.split(" at ")[0] || "";
+          
+          // If same user and same date, update this row
+          if (rowEmail === user.email && rowDate === currentDate) {
+            existingRowIndex = i + 1; // +1 because Sheets is 1-indexed
+            break;
+          }
+        }
+        
+        // Check if it's a new day - get the last row to check the date
         const lastRow = allData[allData.length - 1];
-        // Column G (index 6) contains "Login Time (Dallas)" - extract date from it
-        const lastLoginTime = lastRow[6] || "";
+        const lastLoginTime = lastRow[5] || ""; // Column F (index 5) contains "Login Time (Dallas)"
         const lastDate = lastLoginTime.split(" at ")[0] || "";
-        const currentDate = loginTimeFormatted.split(" at ")[0] || "";
         
         // Compare dates (format: "MMMM DD, YYYY")
         if (lastDate !== currentDate && lastDate !== "") {
@@ -288,8 +351,28 @@ async function appendLoginToGoogleSheet(user, ipAddress, userAgent) {
         isNewDay = false; // Don't add spacing on first data entry
       }
     } catch (err) {
-      console.warn(`[auth] Could not check for new day:`, err.message);
+      console.warn(`[auth] Could not check for existing row or new day:`, err.message);
       isNewDay = false;
+    }
+
+    // If user already has a row for today, update it instead of appending
+    if (existingRowIndex > 0) {
+      try {
+        // Update login time columns (F and G, indices 5 and 6)
+        await sheets.spreadsheets.values.update({
+          spreadsheetId,
+          range: `${sheetName}!F${existingRowIndex}:G${existingRowIndex}`,
+          valueInputOption: "USER_ENTERED",
+          resource: {
+            values: [[loginTimeFormatted, loginTime]],
+          },
+        });
+        console.log(`[auth] Updated existing login row ${existingRowIndex} for user: ${user.email}`);
+        return; // Don't append, we've updated
+      } catch (err) {
+        console.warn(`[auth] Failed to update existing row, will append instead:`, err.message);
+        // Fall through to append logic
+      }
     }
 
     // If it's a new day, add 3 empty rows before appending
@@ -298,7 +381,7 @@ async function appendLoginToGoogleSheet(user, ipAddress, userAgent) {
         const emptyRows = [[], [], []];
         await sheets.spreadsheets.values.append({
           spreadsheetId,
-          range: `${sheetName}!A:J`,
+          range: `${sheetName}!A:I`,
           valueInputOption: "USER_ENTERED",
           insertDataOption: "INSERT_ROWS",
           resource: {
@@ -314,7 +397,7 @@ async function appendLoginToGoogleSheet(user, ipAddress, userAgent) {
     // Append the row to the monthly sheet
     await sheets.spreadsheets.values.append({
       spreadsheetId,
-      range: `${sheetName}!A:J`,
+      range: `${sheetName}!A:I`,
       valueInputOption: "USER_ENTERED",
       insertDataOption: "INSERT_ROWS",
       resource: {
@@ -351,6 +434,8 @@ async function appendLogoutToGoogleSheet(user, ipAddress, userAgent) {
     const logoutTimeFormatted = moment().tz(TZ).format("MMMM DD, YYYY [at] hh:mm A [Dallas Time]");
     const userEmail = user.email;
     
+    // Note: We don't need to get location again for logout, just update the logout time
+    
     // Get current month and year in "Month YYYY" format (e.g., "March 2026")
     const now = moment().tz(TZ);
     const sheetName = now.format("MMMM YYYY");
@@ -386,9 +471,10 @@ async function appendLogoutToGoogleSheet(user, ipAddress, userAgent) {
     try {
       const response = await sheets.spreadsheets.values.get({
         spreadsheetId,
-        range: `${sheetName}!A:J`,
+        range: `${sheetName}!A:I`,
       });
       allData = response.data.values || [];
+      console.log(`[auth] Retrieved ${allData.length} rows from sheet ${sheetName}`);
     } catch (err) {
       console.error(`[auth] Error reading sheet ${sheetName}:`, err.message);
       return;
@@ -396,43 +482,61 @@ async function appendLogoutToGoogleSheet(user, ipAddress, userAgent) {
 
     if (allData.length < 2) {
       // No data rows (only headers or empty sheet)
-      console.warn(`[auth] No login data found for user ${userEmail} in sheet ${sheetName}`);
+      console.warn(`[auth] No login data found for user ${userEmail} in sheet ${sheetName} (only ${allData.length} rows)`);
       return;
     }
 
     // Find the most recent login row for this user that doesn't have logout time
     // Start from the bottom (most recent) and work up
     let rowIndex = -1;
+    console.log(`[auth] Searching for user ${userEmail} in sheet ${sheetName}...`);
+    
     for (let i = allData.length - 1; i >= 1; i--) {
       const row = allData[i];
+      const rowEmail = (row[1] || "").trim().toLowerCase();
+      const searchEmail = userEmail.trim().toLowerCase();
+      const logoutTimeDallas = (row[7] || "").trim();
+      const logoutTimeISO = (row[8] || "").trim();
+      
       // Check if this row matches the user email (column B, index 1)
-      // and if logout time columns (I and J, indices 8 and 9) are empty
-      if (
-        row[1] === userEmail &&
-        (!row[8] || row[8].trim() === "") &&
-        (!row[9] || row[9].trim() === "")
-      ) {
+      // and if logout time columns (H and I, indices 7 and 8) are empty
+      if (rowEmail === searchEmail && !logoutTimeDallas && !logoutTimeISO) {
         rowIndex = i + 1; // +1 because Sheets API uses 1-based indexing
+        console.log(`[auth] Found matching row at index ${rowIndex} (sheet row ${i + 1}) for user ${userEmail}`);
         break;
       }
     }
 
     if (rowIndex === -1) {
       console.warn(`[auth] No open login session found for user ${userEmail} in sheet ${sheetName}`);
+      console.warn(`[auth] Searched through ${allData.length - 1} data rows`);
+      // Log a few sample rows for debugging
+      if (allData.length > 1) {
+        console.warn(`[auth] Sample rows (last 3):`, allData.slice(-3).map((r, idx) => ({
+          row: allData.length - 3 + idx,
+          email: r[1],
+          logoutDallas: r[7],
+          logoutISO: r[8]
+        })));
+      }
       return;
     }
 
-    // Update the logout time columns (I and J)
-    await sheets.spreadsheets.values.update({
-      spreadsheetId,
-      range: `${sheetName}!I${rowIndex}:J${rowIndex}`,
-      valueInputOption: "USER_ENTERED",
-      resource: {
-        values: [[logoutTimeFormatted, logoutTime]],
-      },
-    });
-
-    console.log(`[auth] Logout data updated in Google Sheet (${sheetName}) row ${rowIndex} for user: ${userEmail}`);
+    // Update the logout time columns (H and I)
+    try {
+      await sheets.spreadsheets.values.update({
+        spreadsheetId,
+        range: `${sheetName}!H${rowIndex}:I${rowIndex}`,
+        valueInputOption: "USER_ENTERED",
+        resource: {
+          values: [[logoutTimeFormatted, logoutTime]],
+        },
+      });
+      console.log(`[auth] Logout data updated successfully in Google Sheet (${sheetName}) row ${rowIndex} for user: ${userEmail}`);
+    } catch (updateErr) {
+      console.error(`[auth] Failed to update logout data in row ${rowIndex}:`, updateErr.message);
+      throw updateErr;
+    }
   } catch (error) {
     // Don't block logout if Google Sheets update fails - just log the error
     console.error("[auth] Failed to update logout data in Google Sheet:");
@@ -561,8 +665,14 @@ router.post("/logout", async (req, res) => {
       
       // Append logout data to Google Sheet (non-blocking)
       appendLogoutToGoogleSheet(user, ipAddress, userAgent).catch((err) => {
-        console.error("[auth] Google Sheet append error for logout (non-blocking):", err);
+        console.error("[auth] Google Sheet append error for logout (non-blocking):", err.message);
+        console.error("[auth] Error stack:", err.stack);
+        if (err.response) {
+          console.error("[auth] Error response:", JSON.stringify(err.response.data, null, 2));
+        }
       });
+    } else {
+      console.warn(`[auth] User not found for logout, ID: ${decoded.id}`);
     }
     
     await LoggedInUser.deleteOne({ userId: decoded.id });
