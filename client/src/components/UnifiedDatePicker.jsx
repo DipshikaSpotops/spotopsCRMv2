@@ -73,7 +73,8 @@ const UnifiedDatePicker = ({ onFilterChange }) => {
 
   const [lastClick, setLastClick] = useState({ date: null, time: 0 });
   const [selectedYear, setSelectedYear] = useState(() => {
-    return todayDallas.year();
+    const currentYear = todayDallas.year();
+    return currentYear > 2026 ? 2026 : currentYear;
   });
 
   useEffect(() => {
@@ -247,11 +248,26 @@ const UnifiedDatePicker = ({ onFilterChange }) => {
   };
 
   const handleLoadYear = () => {
-    // Load the currently selected year range
-    const currentRange = range?.[0];
-    if (currentRange?.startDate && currentRange?.endDate) {
-      emitRangeToBackend(currentRange.startDate, currentRange.endDate);
-    }
+    // Load the currently selected year range using selectedYear directly
+    const year = selectedYear;
+    
+    // Create the date range for the entire year (Jan 1 to Dec 31)
+    const start = moment.tz({ year, month: 0, day: 1 }, ZONE).startOf("day");
+    const lastDay = moment.tz({ year, month: 11 }, ZONE).daysInMonth();
+    const end = moment.tz({ year, month: 11, day: lastDay }, ZONE).startOf("day");
+
+    const startYear = start.year();
+    const startMonth = start.month();
+    const startDay = start.date();
+    
+    const endYear = end.year();
+    const endMonth = end.month();
+    const endDay = end.date();
+
+    const startDate = new Date(startYear, startMonth, startDay, 12, 0, 0);
+    const endDate = new Date(endYear, endMonth, endDay, 12, 0, 0);
+    
+    emitRangeToBackend(startDate, endDate);
   };
 
   const handleShortcut = (type) => {
@@ -362,10 +378,10 @@ const UnifiedDatePicker = ({ onFilterChange }) => {
             <select
               value={selectedYear}
               onChange={(e) => handleYearSelect(parseInt(e.target.value))}
-              className="text-xs border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-[#4f46e5]"
+              className="text-xs bg-gray-700 text-white border border-gray-600 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-[#4f46e5]"
             >
-              {Array.from({ length: 10 }, (_, i) => {
-                const year = todayDallas.year() - i;
+              {Array.from({ length: 17 }, (_, i) => {
+                const year = 2026 - i; // Show years from 2026 down to 2010
                 return (
                   <option key={year} value={year}>
                     {year}
