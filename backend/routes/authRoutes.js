@@ -107,9 +107,9 @@ async function appendLoginToGoogleSheet(user, ipAddress, userAgent) {
       user.team || "N/A",
       location, // Location instead of IP Address
       loginTimeFormatted,
-      loginTime,
       "", // Logout Time (Dallas) - empty on login
-      "", // Logout Time (ISO) - empty on login
+      1, // Times Logged In - starts at 1
+      0, // Times Logged Out - starts at 0
     ];
 
     // Get Google Sheets API client using service account
@@ -163,7 +163,7 @@ async function appendLoginToGoogleSheet(user, ipAddress, userAgent) {
       console.error("[auth] Error checking for existing sheets:", err.message);
     }
 
-    // Helper function to format header with light blue background
+    // Helper function to format header with dark blue background
     const formatHeader = async (sheetId) => {
       try {
         await sheets.spreadsheets.batchUpdate({
@@ -177,18 +177,26 @@ async function appendLoginToGoogleSheet(user, ipAddress, userAgent) {
                     startRowIndex: 0,
                     endRowIndex: 1,
                     startColumnIndex: 0,
-                    endColumnIndex: 9, // A to I (removed User Agent column)
+                    endColumnIndex: 9, // A to I (9 columns)
                   },
                   cell: {
                     userEnteredFormat: {
                       backgroundColor: {
-                        red: 0.85,
-                        green: 0.95,
-                        blue: 1.0,
+                        red: 0.0,
+                        green: 0.2,
+                        blue: 0.4, // Dark blue
+                      },
+                      textFormat: {
+                        bold: true,
+                        foregroundColor: {
+                          red: 1.0,
+                          green: 1.0,
+                          blue: 1.0, // White text
+                        },
                       },
                     },
                   },
-                  fields: "userEnteredFormat.backgroundColor",
+                  fields: "userEnteredFormat(backgroundColor,textFormat)",
                 },
               },
             ],
@@ -231,9 +239,9 @@ async function appendLoginToGoogleSheet(user, ipAddress, userAgent) {
           "Team",
           "Location",
           "Login Time (Dallas)",
-          "Login Time (ISO)",
           "Logout Time (Dallas)",
-          "Logout Time (ISO)",
+          "Times Logged In",
+          "Times Logged Out",
         ];
         await sheets.spreadsheets.values.update({
           spreadsheetId,
@@ -282,9 +290,9 @@ async function appendLoginToGoogleSheet(user, ipAddress, userAgent) {
             "Team",
             "Location",
             "Login Time (Dallas)",
-            "Login Time (ISO)",
             "Logout Time (Dallas)",
-            "Logout Time (ISO)",
+            "Times Logged In",
+            "Times Logged Out",
           ];
           await sheets.spreadsheets.values.update({
             spreadsheetId,
@@ -355,32 +363,43 @@ async function appendLoginToGoogleSheet(user, ipAddress, userAgent) {
       isNewDay = false;
     }
 
-    // If user already has a row for today, append login times with comma
+    // If user already has a row for today, append login times with comma and update count
     if (existingRowIndex > 0) {
       try {
-        // Get existing login times from the row
+        // Get existing login times and count from the row
         const existingRow = allData[existingRowIndex - 1]; // -1 because allData is 0-indexed
         const existingLoginTimeDallas = (existingRow[5] || "").trim();
-        const existingLoginTimeISO = (existingRow[6] || "").trim();
+        const existingLoginCount = parseInt(existingRow[7] || "0") || 0; // Column H (index 7) is Times Logged In
         
-        // Append new login times with comma separator
+        // Append new login time with comma separator (for multiple logins on same day)
+        // Example: "March 06, 2026 at 09:00 AM Dallas Time, March 06, 2026 at 02:00 PM Dallas Time"
         const updatedLoginTimeDallas = existingLoginTimeDallas 
           ? `${existingLoginTimeDallas}, ${loginTimeFormatted}`
           : loginTimeFormatted;
-        const updatedLoginTimeISO = existingLoginTimeISO
-          ? `${existingLoginTimeISO}, ${loginTime}`
-          : loginTime;
         
-        // Update login time columns (F and G, indices 5 and 6)
-        await sheets.spreadsheets.values.update({
+        // Increment login count
+        const updatedLoginCount = existingLoginCount + 1;
+        
+        console.log(`[auth] Appending login time. Existing: "${existingLoginTimeDallas}", New: "${loginTimeFormatted}", Updated: "${updatedLoginTimeDallas}"`);
+        
+        // Update login time and count columns (F and H, indices 5 and 7) using batchUpdate
+        await sheets.spreadsheets.values.batchUpdate({
           spreadsheetId,
-          range: `${sheetName}!F${existingRowIndex}:G${existingRowIndex}`,
-          valueInputOption: "USER_ENTERED",
           resource: {
-            values: [[updatedLoginTimeDallas, updatedLoginTimeISO]],
+            valueInputOption: "USER_ENTERED",
+            data: [
+              {
+                range: `${sheetName}!F${existingRowIndex}`,
+                values: [[updatedLoginTimeDallas]],
+              },
+              {
+                range: `${sheetName}!H${existingRowIndex}`,
+                values: [[updatedLoginCount]],
+              },
+            ],
           },
         });
-        console.log(`[auth] Appended login time to existing row ${existingRowIndex} for user: ${user.email}`);
+        console.log(`[auth] Appended login time to existing row ${existingRowIndex} for user: ${user.email}, count: ${updatedLoginCount}`);
         return; // Don't append new row, we've updated existing one
       } catch (err) {
         console.warn(`[auth] Failed to update existing row, will append instead:`, err.message);
@@ -530,37 +549,49 @@ async function appendLogoutToGoogleSheet(user, ipAddress, userAgent) {
           row: allData.length - 3 + idx,
           email: r[1],
           loginTime: r[5],
-          logoutDallas: r[7],
-          logoutISO: r[8]
+          logoutDallas: r[6],
+          loginCount: r[7],
+          logoutCount: r[8]
         })));
       }
       return;
     }
 
-    // Get existing logout times from the row
+    // Get existing logout times and count from the row
     const existingRow = allData[rowIndex - 1]; // -1 because allData is 0-indexed
-    const existingLogoutTimeDallas = (existingRow[7] || "").trim();
-    const existingLogoutTimeISO = (existingRow[8] || "").trim();
+    const existingLogoutTimeDallas = (existingRow[6] || "").trim(); // Column G (index 6) is Logout Time (Dallas)
+    const existingLogoutCount = parseInt(existingRow[8] || "0") || 0; // Column I (index 8) is Times Logged Out
     
-    // Append new logout times with comma separator
+    // Append new logout time with comma separator (for multiple logouts on same day)
+    // Example: "March 06, 2026 at 10:00 AM Dallas Time, March 06, 2026 at 03:00 PM Dallas Time"
     const updatedLogoutTimeDallas = existingLogoutTimeDallas 
       ? `${existingLogoutTimeDallas}, ${logoutTimeFormatted}`
       : logoutTimeFormatted;
-    const updatedLogoutTimeISO = existingLogoutTimeISO
-      ? `${existingLogoutTimeISO}, ${logoutTime}`
-      : logoutTime;
+    
+    // Increment logout count
+    const updatedLogoutCount = existingLogoutCount + 1;
+    
+    console.log(`[auth] Appending logout time. Existing: "${existingLogoutTimeDallas}", New: "${logoutTimeFormatted}", Updated: "${updatedLogoutTimeDallas}"`);
 
-    // Update the logout time columns (H and I)
+    // Update the logout time and count columns (G and I)
     try {
-      await sheets.spreadsheets.values.update({
+      await sheets.spreadsheets.values.batchUpdate({
         spreadsheetId,
-        range: `${sheetName}!H${rowIndex}:I${rowIndex}`,
-        valueInputOption: "USER_ENTERED",
         resource: {
-          values: [[updatedLogoutTimeDallas, updatedLogoutTimeISO]],
+          valueInputOption: "USER_ENTERED",
+          data: [
+            {
+              range: `${sheetName}!G${rowIndex}`,
+              values: [[updatedLogoutTimeDallas]],
+            },
+            {
+              range: `${sheetName}!I${rowIndex}`,
+              values: [[updatedLogoutCount]],
+            },
+          ],
         },
       });
-      console.log(`[auth] Logout data appended successfully in Google Sheet (${sheetName}) row ${rowIndex} for user: ${userEmail}`);
+      console.log(`[auth] Logout data appended successfully in Google Sheet (${sheetName}) row ${rowIndex} for user: ${userEmail}, count: ${updatedLogoutCount}`);
     } catch (updateErr) {
       console.error(`[auth] Failed to update logout data in row ${rowIndex}:`, updateErr.message);
       throw updateErr;
