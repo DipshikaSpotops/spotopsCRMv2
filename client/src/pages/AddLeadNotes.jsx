@@ -1055,18 +1055,6 @@ const AddLeadNotes = ({ embedded = false, prefill }) => {
               {toast}
             </p>
           )}
-
-          <div className="mt-4 flex justify-end">
-            <button
-              type="submit"
-              disabled={submitting}
-              className={`px-4 py-2 rounded-lg font-semibold shadow-md bg-[#04356d] hover:bg-[#3b89bf] text-white disabled:opacity-60 ${
-                submitting ? "cursor-not-allowed" : ""
-              }`}
-            >
-              {submitting ? "Saving..." : "Save Lead"}
-            </button>
-          </div>
         </form>
         )}
 
