@@ -1116,8 +1116,8 @@ export default function Leads() {
 
   return (
     <div className="min-h-screen p-6">
-      <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-        <div>
+      <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div className="space-y-1">
           <h1 className="text-3xl font-bold text-white underline decoration-1">Leads</h1>
           <p className="text-sm text-white/70">
             Gmail leads with parsed form data.
@@ -1135,7 +1135,24 @@ export default function Leads() {
             </p>
           )}
         </div>
-        <div className="ml-auto flex items-center gap-3">
+        <div className="ml-auto flex flex-col md:flex-row md:items-center gap-3 w-full lg:w-auto">
+          {/* Global search for Gmail leads */}
+          {viewMode === "leads" && (
+            <form
+              onSubmit={(e) => e.preventDefault()}
+              className="w-full md:w-72 lg:w-80 order-1 md:order-none"
+            >
+              <input
+                type="search"
+                placeholder="Search subject, sender, or snippet..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full rounded-lg bg-white/10 border border-white/20 text-white placeholder-white/60 px-3 py-2 outline-none focus:ring-2 focus:ring-white/30 text-sm"
+              />
+            </form>
+          )}
+
+          <div className="flex items-center gap-3 order-2">
           {/* View Mode Toggle */}
           <div className="flex rounded-lg border border-white/20 bg-white/10 p-1">
             <button
@@ -1178,6 +1195,7 @@ export default function Leads() {
               </button>
             </>
           )}
+        </div>
         </div>
       </div>
 
@@ -1690,18 +1708,6 @@ export default function Leads() {
                   </select>
                 </div>
               )}
-              <form
-                onSubmit={(e) => e.preventDefault()}
-                className="flex-1 min-w-[200px]"
-              >
-                <input
-                  type="search"
-                  placeholder="Search subject, sender, or snippet..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  className="w-full rounded-lg bg-white/10 border border-white/20 text-white placeholder-white/60 px-3 py-2 outline-none focus:ring-2 focus:ring-white/30 text-sm"
-                />
-              </form>
             </div>
 
             <div className="space-y-2 max-h-[70vh] overflow-y-auto" style={{ position: 'relative' }}>

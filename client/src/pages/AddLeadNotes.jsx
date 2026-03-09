@@ -670,56 +670,14 @@ const AddLeadNotes = ({ embedded = false }) => {
   return (
     <div className={embedded ? "h-full" : "min-h-screen p-6"}>
       {/* Header */}
-      <div className="mb-6 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
+      <div className="mt-4 mx-4 mb-6 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <h2 className="text-3xl font-bold text-white underline decoration-1">
+          <h2 className={embedded ? "text-2xl font-semibold text-white underline decoration-1" : "text-3xl font-bold text-white underline decoration-1"}>
             Add Lead Notes
           </h2>
           <UnifiedDatePicker onFilterChange={handleFilterChange} />
         </div>
         <div className="flex items-center gap-3">
-          {/* Search bar */}
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              setAppliedQuery(searchInput.trim());
-            }}
-            className="relative w-[280px]"
-          >
-            <input
-              value={searchInput}
-              onChange={(e) => {
-                const v = e.target.value;
-                setSearchInput(v);
-                if (v.trim() === "" && appliedQuery !== "") {
-                  setAppliedQuery("");
-                }
-              }}
-              onKeyDown={(e) => {
-                if (e.key === "Escape") {
-                  setSearchInput("");
-                  setAppliedQuery("");
-                }
-              }}
-              placeholder="Search… (press Enter)"
-              className="px-3 py-2 pr-9 rounded-lg bg-white/10 border border-white/20 text-white placeholder-white/60 outline-none focus:ring-2 focus:ring-white/30 w-full"
-              aria-label="Search leads"
-            />
-            {searchInput && (
-              <button
-                type="button"
-                onClick={() => {
-                  setSearchInput("");
-                  setAppliedQuery("");
-                }}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-white/60 hover:text-white"
-                aria-label="Clear search"
-              >
-                ×
-              </button>
-            )}
-            <input type="submit" hidden />
-          </form>
           <button
             onClick={() => {
               setShowAllLeads(false);
