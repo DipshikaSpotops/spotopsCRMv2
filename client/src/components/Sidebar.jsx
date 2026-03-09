@@ -64,7 +64,6 @@ export default function Sidebar() {
     { text: "Overall Escalation", to: "/overall-escalation" },
     { text: "Ongoing Escalation", to: "/ongoing-escalation" },
     { text: "Leads", to: "/leads", roles: ["Admin", "Sales"] },
-    { text: "Add Lead Notes", to: "/add-lead-notes", roles: ["Admin", "Sales"], emailAccess: "50starsauto110@gmail.com" },
     { text: "Yards", to: "/yards", adminOnly: true, emailAccess: "50starsauto110@gmail.com" },
   ];
 
