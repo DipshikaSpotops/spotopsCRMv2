@@ -37,7 +37,7 @@ function readAuthFromStorage() {
   };
 }
 
-const AddLeadNotes = ({ embedded = false }) => {
+const AddLeadNotes = ({ embedded = false, prefill }) => {
   const { role, firstName } = useMemo(() => readAuthFromStorage(), []);
   const navigate = useNavigate();
   
@@ -285,6 +285,40 @@ const AddLeadNotes = ({ embedded = false }) => {
       fetchLeads(dateFilter);
     }
   }, [showLeads, showAllLeads, dateFilter]);
+
+  // When embedded inside the Leads page, allow external prefill data
+  // (e.g. from a claimed Gmail lead) to populate the form and show the form view.
+  useEffect(() => {
+    if (!embedded || !prefill) return;
+
+    setShowLeads(false);
+    setShowAllLeads(false);
+    setEditingLeadId(null);
+
+    setForm((prev) => ({
+      ...prev,
+      name: prefill.name ?? prev.name ?? "",
+      email: prefill.email ?? prev.email ?? "",
+      phoneNo: prefill.phoneNo ?? prev.phoneNo ?? "",
+      year: prefill.year ?? prev.year ?? "",
+      make: prefill.make ?? prev.make ?? "",
+      model: prefill.model ?? prev.model ?? "",
+      partRequired: prefill.partRequired ?? prev.partRequired ?? "",
+      partDescription:
+        prefill.partDescription ?? prev.partDescription ?? "",
+      vinNo: prefill.vinNo ?? prev.vinNo ?? "",
+      partNo: prefill.partNo ?? prev.partNo ?? "",
+      warranty: prefill.warranty ?? prev.warranty ?? "",
+      warrantyField: prefill.warrantyField ?? prev.warrantyField ?? "",
+      comments:
+        prefill.comments ??
+        (prev.comments && prev.comments !== "$ with programming and 1 year"
+          ? prev.comments
+          : "$ with programming and 1 year"),
+    }));
+
+    setErrors({});
+  }, [embedded, prefill]);
 
   // Fetch sales agents for dropdown
   useEffect(() => {

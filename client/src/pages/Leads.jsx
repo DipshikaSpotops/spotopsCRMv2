@@ -232,6 +232,7 @@ export default function Leads() {
   const normalizedEmail = email?.toLowerCase();
 
   const [syncing, setSyncing] = useState(false);
+  const [leadPrefill, setLeadPrefill] = useState(null);
   
   // Initialize AudioContext on user interaction (required for autoplay)
   const audioContextRef = useRef(null);
@@ -594,6 +595,23 @@ export default function Leads() {
       console.log("[Leads] Message detail received:", data);
       if (data) {
         setSelectedMessage(data);
+
+        // Build prefill payload for AddLeadNotes from detailed message data
+        setLeadPrefill({
+          name: data.name || "",
+          email: data.email || "",
+          phoneNo: data.phone || data.phoneNo || "",
+          year: data.year || "",
+          make: data.make || "",
+          model: data.model || "",
+          partRequired: data.partRequired || "",
+          partDescription: data.partDescription || "",
+          vinNo: data.vinNo || "",
+          partNo: data.partNo || "",
+          warranty: data.warranty || "",
+          warrantyField: data.warrantyField || "",
+          comments: data.comments || "",
+        });
       } else {
         console.warn("[Leads] No data received from fetchMessageDetail");
       }
@@ -1685,7 +1703,7 @@ export default function Leads() {
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
           {/* Left: Add Lead Notes (embedded) */}
           <div className="rounded-lg border border-white/20 bg-white/10 backdrop-blur-md shadow-sm">
-            <AddLeadNotes embedded />
+            <AddLeadNotes embedded prefill={leadPrefill} />
           </div>
 
           {/* Right: Leads List */}
