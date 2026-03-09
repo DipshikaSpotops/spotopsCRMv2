@@ -6,6 +6,7 @@ import AgentDropdown from "../components/AgentDropdown";
 import moment from "moment-timezone";
 import { formatInTimeZone } from "date-fns-tz";
 import { FaEye } from "react-icons/fa";
+import { setCurrentBrand } from "../utils/brand";
 
 // Mapping from 50STARS agent firstName to PROLANE agent firstName (same as AddOrder.jsx)
 const AGENT_BRAND_MAPPING = {
@@ -593,6 +594,21 @@ const AddLeadNotes = ({ embedded = false, prefill }) => {
 
       const lead = response?.data || payload;
 
+      // After successfully saving the lead, if this came from a Gmail lead (embedded mode)
+      // and we know the Gmail message id, update Gmail labels to reflect the lead status.
+      if (embedded && prefill?.gmailMessageId && status) {
+        try {
+          const labelStatus = String(status).trim();
+          if (labelStatus) {
+            await API.patch(`/gmail/messages/${prefill.gmailMessageId}/labels`, {
+              labels: [labelStatus],
+            });
+          }
+        } catch (gmailErr) {
+          console.error("Failed to update Gmail labels for lead status:", gmailErr);
+        }
+      }
+
       if (!redirectToOrder) {
         setToast(
           status
@@ -678,8 +694,7 @@ const AddLeadNotes = ({ embedded = false, prefill }) => {
     const leadBrand = lead.brand || form.brand;
     if (leadBrand) {
       try {
-        localStorage.setItem("currentBrand", leadBrand);
-        window.dispatchEvent(new Event("brand-changed"));
+        setCurrentBrand(leadBrand);
       } catch (err) {
         console.error("Failed to update currentBrand from lead:", err);
       }

@@ -5,7 +5,7 @@ import { useDispatch } from "react-redux";
 import { logout as logoutAction } from "../store/authSlice";
 import { clearStoredAuth } from "../utils/authStorage";
 import API from "../api";
-import { getCurrentBrand, setCurrentBrand } from "../utils/brand";
+import { getCurrentBrand, setCurrentBrand, onBrandChange } from "../utils/brand";
 
 export default function Navbar() {
   const navigate = useNavigate();
@@ -48,7 +48,19 @@ export default function Navbar() {
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    // Listen for global brand changes (e.g. from AddLeadNotes "Sale" flow)
+    const unsubscribeBrand = onBrandChange((nextBrand) => {
+      if (nextBrand) {
+        setBrand(String(nextBrand).toUpperCase());
+      } else {
+        setBrand(getCurrentBrand());
+      }
+    });
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      unsubscribeBrand();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -124,7 +136,7 @@ export default function Navbar() {
               onClick={() => handleBrandChange("50STARS")}
               className={`px-2 py-1 rounded-full font-semibold transition ${
                 brand === "50STARS"
-                  ? "bg-white text-[#04356d] shadow-sm"
+                  ? "bg-[#04356d] text-white shadow-sm"
                   : "bg-transparent text-white/80 hover:bg-white/10"
               }`}
             >
@@ -135,7 +147,7 @@ export default function Navbar() {
               onClick={() => handleBrandChange("PROLANE")}
               className={`px-2 py-1 rounded-full font-semibold transition ${
                 brand === "PROLANE"
-                  ? "bg-white text-[#04356d] shadow-sm"
+                  ? "bg-[#c40505] text-white shadow-sm"
                   : "bg-transparent text-white/80 hover:bg-white/10"
               }`}
             >

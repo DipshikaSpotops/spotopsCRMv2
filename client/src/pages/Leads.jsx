@@ -607,6 +607,7 @@ export default function Leads() {
 
         // Build prefill payload for AddLeadNotes from detailed message data
         setLeadPrefill({
+          gmailMessageId: data._id || data.messageId || null,
           name: data.name || "",
           email: data.email || "",
           phoneNo: data.phone || data.phoneNo || "",
