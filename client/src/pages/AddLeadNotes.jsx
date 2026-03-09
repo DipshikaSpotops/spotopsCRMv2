@@ -295,10 +295,17 @@ const AddLeadNotes = ({ embedded = false, prefill }) => {
     setShowAllLeads(false);
     setEditingLeadId(null);
 
+    const DEFAULT_COMMENTS = "$ with programming and 1 year";
+    const hasPrefillComments =
+      typeof prefill.comments === "string" && prefill.comments.trim() !== "";
+
     setForm((prev) => ({
       ...prev,
       name: prefill.name ?? prev.name ?? "",
-      email: prefill.email ?? prev.email ?? "",
+      email:
+        (typeof prefill.email === "string" && prefill.email.trim()) ||
+        prev.email ||
+        "",
       phoneNo: prefill.phoneNo ?? prev.phoneNo ?? "",
       year: prefill.year ?? prev.year ?? "",
       make: prefill.make ?? prev.make ?? "",
@@ -310,11 +317,11 @@ const AddLeadNotes = ({ embedded = false, prefill }) => {
       partNo: prefill.partNo ?? prev.partNo ?? "",
       warranty: prefill.warranty ?? prev.warranty ?? "",
       warrantyField: prefill.warrantyField ?? prev.warrantyField ?? "",
-      comments:
-        prefill.comments ??
-        (prev.comments && prev.comments !== "$ with programming and 1 year"
-          ? prev.comments
-          : "$ with programming and 1 year"),
+      comments: hasPrefillComments
+        ? prefill.comments
+        : (prev.comments && prev.comments !== DEFAULT_COMMENTS
+            ? prev.comments
+            : DEFAULT_COMMENTS),
     }));
 
     setErrors({});

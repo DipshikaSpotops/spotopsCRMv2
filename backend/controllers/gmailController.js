@@ -1329,6 +1329,7 @@ export async function claimAndViewHandler(req, res, next) {
       gmailMessageId: savedMessage._id,
       // Only save these specific fields from the email body
       name: parsedFields.name || "",
+      email: parsedFields.email || "",
       phone: parsedFields.phone || "",
       year: parsedFields.year || "",
       make: parsedFields.make || "",

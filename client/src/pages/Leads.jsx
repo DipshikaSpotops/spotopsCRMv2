@@ -596,14 +596,23 @@ export default function Leads() {
       if (data) {
         setSelectedMessage(data);
 
+        // Derive make/model if combined (e.g. "Audi SQ7")
+        let make = data.make || "";
+        let model = data.model || "";
+        if (!make && model && model.includes(" ")) {
+          const parts = model.split(" ");
+          make = parts[0];
+          model = parts.slice(1).join(" ");
+        }
+
         // Build prefill payload for AddLeadNotes from detailed message data
         setLeadPrefill({
           name: data.name || "",
           email: data.email || "",
           phoneNo: data.phone || data.phoneNo || "",
           year: data.year || "",
-          make: data.make || "",
-          model: data.model || "",
+          make,
+          model,
           partRequired: data.partRequired || "",
           partDescription: data.partDescription || "",
           vinNo: data.vinNo || "",
