@@ -37,7 +37,7 @@ function readAuthFromStorage() {
   };
 }
 
-const AddLeadNotes = () => {
+const AddLeadNotes = ({ embedded = false }) => {
   const { role, firstName } = useMemo(() => readAuthFromStorage(), []);
   const navigate = useNavigate();
   
@@ -649,16 +649,16 @@ const AddLeadNotes = () => {
 
   // Only allow Sales, Admin roles, or specific email
   const isAdmin = role === "Admin";
-  const isAuthorizedEmail = email?.toLowerCase() === "50starsauto110@gmail.com";
+  const isAuthorizedEmail = email?.toLowerCase() === "50starsauto111@gmail.com";
   const isAuthorized = isSales || isAdmin || isAuthorizedEmail;
   
   if (!isAuthorized) {
     return (
-      <div className="min-h-screen p-6 flex items-center justify-center">
+      <div className={embedded ? "p-4 flex items-center justify-center" : "min-h-screen p-6 flex items-center justify-center"}>
         <div className="text-center">
           <h1 className="text-3xl font-bold text-red-400 mb-4">Access Denied</h1>
           <p className="text-white/70">
-            This page is only accessible to Sales and Admin users, or 50starsauto110@gmail.com.
+            This page is only accessible to Sales and Admin users, or 50starsauto111@gmail.com.
           </p>
           <p className="text-white/50 mt-2">Your current role: {role || "Not set"}</p>
           <p className="text-white/50">Your email: {email || "Not set"}</p>
@@ -668,7 +668,7 @@ const AddLeadNotes = () => {
   }
 
   return (
-    <div className="min-h-screen p-6">
+    <div className={embedded ? "h-full" : "min-h-screen p-6"}>
       {/* Header */}
       <div className="mb-6 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
