@@ -332,7 +332,8 @@ export default function AddOrder() {
         vin: prev.vin || lead.vinNo || "",
         partNo: prev.partNo || lead.partNo || "",
         warranty: prev.warranty || lead.warranty || "",
-        warrantyField: prev.warrantyField || lead.warrantyField || "days",
+        // Prefer warranty units coming from the lead; fall back to existing value or "days"
+        warrantyField: lead.warrantyField || prev.warrantyField || "days",
         // Notes
         notes: prev.notes || lead.comments || "",
         // Lead origin
