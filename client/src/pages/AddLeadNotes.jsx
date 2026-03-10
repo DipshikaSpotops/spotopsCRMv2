@@ -596,16 +596,29 @@ const AddLeadNotes = ({ embedded = false, prefill }) => {
 
       // After successfully saving the lead, if this came from a Gmail lead (embedded mode)
       // and we know the Gmail message id, update Gmail labels to reflect the lead status.
-      if (embedded && prefill?.gmailMessageId && status) {
-        try {
-          const labelStatus = String(status).trim();
-          if (labelStatus) {
-            await API.patch(`/gmail/messages/${prefill.gmailMessageId}/labels`, {
-              labels: [labelStatus],
-            });
+      if (embedded && status) {
+        const labelStatus = String(status).trim();
+        const idCandidates = [
+          prefill?.gmailMessageId,
+          prefill?.gmailDbId,
+        ].filter(Boolean);
+
+        if (labelStatus && idCandidates.length > 0) {
+          for (const msgId of idCandidates) {
+            try {
+              await API.patch(`/gmail/messages/${msgId}/labels`, {
+                labels: [labelStatus],
+              });
+              // If one succeeds, no need to try others
+              break;
+            } catch (gmailErr) {
+              console.error(
+                "Failed to update Gmail labels for lead status with id",
+                msgId,
+                gmailErr
+              );
+            }
           }
-        } catch (gmailErr) {
-          console.error("Failed to update Gmail labels for lead status:", gmailErr);
         }
       }
 

@@ -420,6 +420,16 @@ export default function Leads() {
       // Sales users will see all unclaimed leads, but only their own claimed/closed leads
       const { data } = await API.get("/gmail/messages", { params });
       let newMessages = data?.messages || [];
+
+      // Sort messages so newest (by internalDate/enteredAt) appear first
+      newMessages = [...newMessages].sort((a, b) => {
+        const getTs = (m) => {
+          if (m.internalDate) return Number(m.internalDate);
+          if (m.enteredAt) return new Date(m.enteredAt).getTime();
+          return 0;
+        };
+        return getTs(b) - getTs(a);
+      });
       
       console.log(`[Leads] Fetched ${newMessages.length} messages from API. isAdmin: ${isAdmin}, role: ${role}`);
       const claimedLeads = newMessages.filter(m => m.status === "claimed" || m.status === "closed");
@@ -607,8 +617,9 @@ export default function Leads() {
 
         // Build prefill payload for AddLeadNotes from detailed message data
         setLeadPrefill({
-          // Prefer real Gmail messageId for label updates; fall back to DB _id
-          gmailMessageId: data.messageId || data._id || null,
+          // Prefer real Gmail messageId for label updates; also keep DB _id as fallback
+          gmailMessageId: data.messageId || null,
+          gmailDbId: data._id || null,
           name: data.name || "",
           email: data.email || "",
           phoneNo: data.phone || data.phoneNo || "",
@@ -1098,7 +1109,7 @@ export default function Leads() {
     
     // NO filtering by status or claimedBy - ALL users (Admin and Sales) see ALL leads
     // This ensures Sales agents see exactly the same leads as Admin in "All Leads" section
-    return messages.filter((msg) => {
+    const filtered = messages.filter((msg) => {
       const matchesAgent =
         isSales ||
         agentFilter === "Select" ||
@@ -1114,6 +1125,20 @@ export default function Leads() {
       }`.toLowerCase();
       return haystack.includes(search.toLowerCase());
     });
+
+    // Sort filtered messages so newest are always at the top in the UI
+    const getTs = (m) => {
+      if (m.internalDate && !Number.isNaN(Number(m.internalDate))) {
+        return Number(m.internalDate);
+      }
+      if (m.enteredAt) {
+        const t = new Date(m.enteredAt).getTime();
+        if (!Number.isNaN(t)) return t;
+      }
+      return 0;
+    };
+
+    return filtered.sort((a, b) => getTs(b) - getTs(a));
   }, [messages, agentFilter, search, isSales, normalizedEmail]);
 
   const parsedFields = useMemo(() => {
@@ -1718,7 +1743,7 @@ export default function Leads() {
           </div>
 
           {/* Right: Leads List */}
-          <div className="space-y-4">
+        <div className="space-y-4">
           <div className="rounded-lg border border-white/20 bg-white/10 backdrop-blur-md p-4 shadow-sm">
             <div className="flex flex-wrap items-center gap-4 mb-4">
               {!isSales && (
@@ -1805,7 +1830,7 @@ export default function Leads() {
                         {msg.status === "closed" && (
                           <span className="text-xs text-purple-300/80 italic">Closed</span>
                         )}
-                    {msg.status === "active" && (
+                    {msg.status === "active" && (msg.labelIds || []).includes("UNREAD") && (
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
@@ -1840,10 +1865,10 @@ export default function Leads() {
             </div>
           </div>
         </div>
-      </div>
-      )}
+                </div>
+              )}
 
-    </div>
+                  </div>
   );
 }
 
