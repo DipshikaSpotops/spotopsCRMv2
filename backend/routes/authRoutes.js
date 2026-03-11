@@ -506,84 +506,8 @@ async function appendLoginToGoogleSheet(user, ipAddress, userAgent) {
 
     // Only append if no existing row was found
     if (existingRowIndex === -1) {
-      console.log(`[auth] No existing row found, appending new row for user: ${user.email}`);
-
-      // Before appending the login row, check if this date already exists in any row.
-      // If it's the first time this date appears in the sheet, add a blue separator row
-      // with the date in column A to visually separate days.
-      let dateExists = false;
-      try {
-        if (allData && allData.length > 1) {
-          for (let i = 1; i < allData.length; i++) {
-            const row = allData[i];
-            const rowLoginTime = (row[5] || "").trim(); // Column F (index 5) is Login Time (Dallas)
-            let rowDate = "";
-            if (rowLoginTime) {
-              const firstLoginTime = rowLoginTime.split(",")[0].trim();
-              rowDate = firstLoginTime.split(" at ")[0].trim() || "";
-            }
-            const normalizedRowDate = normalizeDate(rowDate);
-            if (normalizedRowDate === normalizedCurrentDate) {
-              dateExists = true;
-              break;
-            }
-          }
-        }
-      } catch (dateCheckErr) {
-        console.warn("[auth] Failed to check for existing date rows:", dateCheckErr.message);
-      }
-
-      // If this is the first row for the date, insert a blue date separator row
-      if (!dateExists) {
-        try {
-          const separatorValues = [[currentDate, "", "", "", "", "", "", "", ""]];
-          // Append separator row
-          await sheets.spreadsheets.values.append({
-            spreadsheetId,
-            range: `${sheetName}!A:I`,
-            valueInputOption: "USER_ENTERED",
-            insertDataOption: "INSERT_ROWS",
-            resource: { values: separatorValues },
-          });
-
-          // If we know the sheetId, color the separator row dark blue with white text
-          if (sheetId !== null) {
-            const separatorRowIndex = allData.length + 1; // 1-based index of newly appended separator
-            await sheets.spreadsheets.batchUpdate({
-              spreadsheetId,
-              resource: {
-                requests: [
-                  {
-                    repeatCell: {
-                      range: {
-                        sheetId,
-                        startRowIndex: separatorRowIndex - 1,
-                        endRowIndex: separatorRowIndex,
-                        startColumnIndex: 0,
-                        endColumnIndex: 9,
-                      },
-                      cell: {
-                        userEnteredFormat: {
-                          backgroundColor: { red: 0.0, green: 0.2, blue: 0.4 },
-                          textFormat: {
-                            bold: true,
-                            foregroundColor: { red: 1.0, green: 1.0, blue: 1.0 },
-                          },
-                        },
-                      },
-                      fields: "userEnteredFormat(backgroundColor,textFormat)",
-                    },
-                  },
-                ],
-              },
-            });
-          }
-        } catch (separatorErr) {
-          console.warn("[auth] Failed to append / format date separator row:", separatorErr.message);
-        }
-      }
-
-      // Append the actual login row for this user
+      console.log(`[auth] No existing row found for today, appending new row for user: ${user.email}`);
+      // Append the row to the monthly sheet (no extra date-only rows)
       await sheets.spreadsheets.values.append({
         spreadsheetId,
         range: `${sheetName}!A:I`,
