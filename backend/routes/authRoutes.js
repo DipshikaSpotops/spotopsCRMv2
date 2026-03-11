@@ -370,20 +370,23 @@ async function appendLoginToGoogleSheet(user, ipAddress, userAgent) {
       await formatHeader(sheetId);
     }
 
-    // Check if user already has a row for today - if yes, update it instead of appending
-    // ONE USER = ONE ROW PER DAY - CRITICAL: Must find existing row to prevent duplicates
+    // Check if user already has a row for TODAY in this month's sheet.
+    // RULE: ONE USER = ONE ROW PER DAY.
+    // When user logs in again on the same day, we append login time to that row.
     let existingRowIndex = -1;
     const currentDate = loginTimeFormatted.split(" at ")[0].trim() || ""; // Format: "March 06, 2026"
     const searchEmail = user.email.trim().toLowerCase();
-    
+
     // Normalize date for comparison (remove extra spaces, ensure consistent format)
     const normalizeDate = (dateStr) => {
       if (!dateStr) return "";
       return dateStr.trim().replace(/\s+/g, " "); // Normalize whitespace
     };
     const normalizedCurrentDate = normalizeDate(currentDate);
-    
-    console.log(`[auth] 🔍 DUPLICATE CHECK: Looking for user "${user.email}" on date "${currentDate}" (normalized: "${normalizedCurrentDate}")`);
+
+    console.log(
+      `[auth] 🔍 DUPLICATE CHECK: Looking for existing row for user "${user.email}" on date "${currentDate}" (normalized: "${normalizedCurrentDate}") in sheet "${sheetName}"`
+    );
     
     try {
       // Fetch ALL data to check for duplicates
@@ -396,78 +399,41 @@ async function appendLoginToGoogleSheet(user, ipAddress, userAgent) {
       console.log(`[auth] 📊 Total rows in sheet: ${allData.length} (including header)`);
       
       if (allData.length > 1) {
-        // Check for existing row for this user on this date
-        // Search ALL rows to find ANY row for this user on this date
-        // ONE USER = ONE ROW PER DAY - if we find ANY row, we MUST update it
-        let foundRowByEmail = -1; // Fallback: if date comparison fails, use email match
-        
-        for (let i = 1; i < allData.length; i++) {
+        // Search all data rows (skip header) from bottom to top so we get the most recent one.
+        for (let i = allData.length - 1; i >= 1; i--) {
           const row = allData[i];
           const rowEmail = (row[1] || "").trim().toLowerCase(); // Column B (index 1) is Email
           
-          // Check email first (faster)
-          if (rowEmail !== searchEmail) {
-            continue; // Skip if email doesn't match
-          }
-          
-          // If email matches, save this as a potential match (fallback)
-          if (foundRowByEmail === -1) {
-            foundRowByEmail = i + 1;
-          }
-          
-          // Extract date from login time (handle multiple login times separated by commas)
+          if (rowEmail !== searchEmail) continue;
+
           const rowLoginTime = (row[5] || "").trim(); // Column F (index 5) is Login Time (Dallas)
-          let rowDate = "";
-          
-          if (rowLoginTime) {
-            // If login time has multiple values (comma-separated), extract date from first one
-            const firstLoginTime = rowLoginTime.split(",")[0].trim();
-            rowDate = firstLoginTime.split(" at ")[0].trim() || "";
-          }
-          
-          // Normalize dates for comparison
-          const normalizedRowDate = normalizeDate(rowDate);
-          
-          console.log(`[auth] 🔎 Row ${i}: email="${rowEmail}" ${rowEmail === searchEmail ? "✅ MATCH" : "❌"}, date="${rowDate}" (normalized: "${normalizedRowDate}") ${normalizedRowDate === normalizedCurrentDate ? "✅ MATCH" : "❌"}`);
-          
-          // If same user and same date, update this row (ONE USER = ONE ROW PER DAY)
-          if (rowEmail === searchEmail && normalizedRowDate === normalizedCurrentDate) {
-            existingRowIndex = i + 1; // +1 because Sheets is 1-indexed
-            console.log(`[auth] ✅✅✅ FOUND EXISTING ROW at index ${existingRowIndex} (sheet row ${i + 1}) for user ${user.email} on ${currentDate} - WILL UPDATE instead of creating duplicate`);
-            break; // Found it, stop searching
-          }
-        }
-        
-        // Fallback: If date comparison failed but we found a row with matching email
-        // Try to parse dates using moment to compare (more robust)
-        if (existingRowIndex === -1 && foundRowByEmail > 0) {
-          const fallbackRow = allData[foundRowByEmail - 1];
-          const fallbackLoginTime = (fallbackRow[5] || "").trim();
-          let fallbackDate = "";
-          
-          if (fallbackLoginTime) {
-            const firstLoginTime = fallbackLoginTime.split(",")[0].trim();
-            fallbackDate = firstLoginTime.split(" at ")[0].trim() || "";
-          }
-          
-          try {
-            const currentMoment = moment.tz(currentDate, "MMMM DD, YYYY", TZ);
-            const fallbackMoment = moment.tz(fallbackDate, "MMMM DD, YYYY", TZ);
-            
-            if (currentMoment.isValid() && fallbackMoment.isValid() && currentMoment.isSame(fallbackMoment, "day")) {
-              existingRowIndex = foundRowByEmail;
-              console.log(`[auth] ✅✅✅ FOUND EXISTING ROW (via moment fallback) at index ${existingRowIndex} for user ${user.email} - dates match when parsed: "${currentDate}" === "${fallbackDate}"`);
+          if (!rowLoginTime) continue;
+
+          // There may be multiple login times separated by commas.
+          const segments = rowLoginTime
+            .split(",")
+            .map((s) => s.trim())
+            .filter(Boolean);
+
+          for (const seg of segments) {
+            const segDatePart = seg.split(" at ")[0].trim() || "";
+            const normalizedRowDate = normalizeDate(segDatePart);
+            if (normalizedRowDate === normalizedCurrentDate) {
+              existingRowIndex = i + 1; // +1 because Sheets is 1-indexed
+              console.log(
+                `[auth] ✅ FOUND EXISTING ROW at index ${existingRowIndex} (sheet row ${i + 1}) for user ${user.email} on ${currentDate} - will update instead of creating duplicate`
+              );
+              break;
             }
-          } catch (parseErr) {
-            console.warn(`[auth] Could not parse dates for comparison:`, parseErr.message);
           }
+
+          if (existingRowIndex > 0) break;
         }
-        
+
         if (existingRowIndex === -1) {
-          console.log(`[auth] ❌❌❌ NO EXISTING ROW FOUND for user ${user.email} on ${currentDate} - WILL CREATE NEW ROW`);
-          if (foundRowByEmail > 0) {
-            console.log(`[auth] ⚠️  WARNING: Found row with matching email at index ${foundRowByEmail} but date comparison failed!`);
-          }
+          console.log(
+            `[auth] ❌ NO EXISTING ROW FOUND for user ${user.email} on ${currentDate} in sheet ${sheetName} - WILL CREATE NEW ROW`
+          );
         }
       } else {
         console.log(`[auth] Only header row exists - will CREATE new row for user ${user.email}`);
@@ -478,7 +444,7 @@ async function appendLoginToGoogleSheet(user, ipAddress, userAgent) {
       // If check fails, proceed to create new row (but log the error)
     }
 
-    // If user already has a row for today, append login times with comma and update count
+    // If user already has a row, append login times with comma and update count
     if (existingRowIndex > 0) {
       try {
         // Re-fetch the row data to ensure we have the latest values (in case it was updated)
