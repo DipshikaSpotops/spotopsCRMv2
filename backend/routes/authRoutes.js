@@ -409,14 +409,13 @@ async function appendLoginToGoogleSheet(user, ipAddress, userAgent) {
           const rowLoginTime = (row[5] || "").trim(); // Column F (index 5) is Login Time (Dallas)
           if (!rowLoginTime) continue;
 
-          // There may be multiple login times separated by commas.
-          const segments = rowLoginTime
-            .split(",")
-            .map((s) => s.trim())
-            .filter(Boolean);
-
-          for (const seg of segments) {
-            const segDatePart = seg.split(" at ")[0].trim() || "";
+          // Row may contain multiple login timestamps, e.g.:
+          // "March 11, 2026 at 11:00 AM Dallas Time, March 11, 2026 at 12:00 PM Dallas Time"
+          // Extract ALL date parts like "March 11, 2026" using regex (handles internal commas).
+          const dateRegex = /([A-Za-z]+ \d{1,2}, \d{4})/g;
+          let match;
+          while ((match = dateRegex.exec(rowLoginTime)) !== null) {
+            const segDatePart = match[1] || "";
             const normalizedRowDate = normalizeDate(segDatePart);
             if (normalizedRowDate === normalizedCurrentDate) {
               existingRowIndex = i + 1; // +1 because Sheets is 1-indexed
