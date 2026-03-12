@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import API from "../../../api";
+import { extractOwn, extractYard } from "../../../utils/yards";
 
 /* ---------------------- Toast Banner ---------------------- */
 function Toast({ message, onClose }) {
@@ -30,6 +31,7 @@ const STATUS_OPTIONS = [
   "PO cancelled",
   "Part shipped",
   "Part delivered",
+  "Part Lost With Shipping Partner",
   "Escalation",
 ];
 
@@ -40,6 +42,7 @@ const ORDER_STATUS_MAP = {
   "PO cancelled": "Yard Processing",
   "Part shipped": "In Transit",
   "Part delivered": "Order Fulfilled",
+  "Part Lost With Shipping Partner": "Escalation",
   Escalation: "Escalation",
 };
 
@@ -244,6 +247,56 @@ export default function EditYardStatusModal({
 
       if (savedStatus && savedStatus !== status) {
         console.warn(`[EditYardStatusModal] Status mismatch: requested "${status}" but saved "${savedStatus}"`);
+      }
+
+      // If status indicates part lost with shipping partner, automatically flag this yard for UPS claims
+      if (status === "Part Lost With Shipping Partner") {
+        try {
+          // Helper to parse a numeric amount out of a mixed string (e.g. "Yard shipping: 255")
+          const parseAmount = (val) => {
+            if (val == null) return 0;
+            const num = parseFloat(String(val).replace(/[^\d.]/g, ""));
+            return Number.isFinite(num) ? num : 0;
+          };
+
+          // Always (re)compute default claim from current yard fields so we don't reuse stale values
+          const partPrice = parseAmount(yard?.partPrice);
+
+          // Derive yard/own shipping ONLY from shippingMethod-style strings,
+          // e.g. "Own shipping: 20" or "Yard shipping: 20". Ignore yard.yardShipping numeric.
+          const shippingSource =
+            yard?.shippingDetails || yard?.ownShipping || "";
+          const yardPart = extractYard(shippingSource);
+          const ownPart = extractOwn(shippingSource);
+          const shipping = parseAmount(yardPart || ownPart || shippingSource);
+
+          // Include any "Others" amount (extra UPS‑related cost) if present
+          const others = parseAmount(yard?.others);
+
+          const defaultClaim = partPrice + shipping + others;
+
+          const claimPayload =
+            defaultClaim > 0
+              ? { refundToCollect: defaultClaim.toFixed(2) }
+              : {};
+
+          await API.patch(
+            `/orders/${encodeURIComponent(orderNo)}/additionalInfo/${yardIndex + 1}/refundStatus`,
+            {
+              upsClaimCheckbox: "Ticked",
+              // Only set refundToCollect when we have a positive computed claim;
+              // agent can adjust exact amount later from the Refund/UPS modal.
+              ...claimPayload,
+            },
+            { params: { firstName } }
+          );
+        } catch (upsErr) {
+          console.error(
+            "[EditYardStatusModal] Failed to auto-flag UPS claim for yard",
+            yardIndex + 1,
+            upsErr
+          );
+        }
       }
 
       // Show success message

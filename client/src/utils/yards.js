@@ -15,6 +15,7 @@ export const isInactiveYard = (y) => {
     t === "po cancelled" ||
     t === "po canceled" ||
     t === "po cancel" ||
+    t === "part lost with shipping partner" ||
     t === "escalation" ||
     t === "cancelled" ||
     t === "canceled"
