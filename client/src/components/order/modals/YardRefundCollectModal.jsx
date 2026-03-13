@@ -393,6 +393,7 @@ export default function RefundModal({ open, onClose, onSubmit, orderNo, yardInde
                 <option value="">Choose</option>
                 <option value="Damaged">Damaged</option>
                 <option value="Defective">Defective</option>
+                <option value="Extra charges">Extra charges</option>
                 <option value="Incorrect">Incorrect</option>
                 <option value="Lost">Lost</option>
                 <option value="Not programming">Not programming</option>

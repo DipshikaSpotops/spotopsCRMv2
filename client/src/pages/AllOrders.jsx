@@ -271,6 +271,9 @@ const AllOrders = () => {
                   <div><b>Others:</b> ${yard.others}</div>
                 )}
                 <div><b>Phone:</b> {yard?.phone || "N/A"}</div>
+                {yard?.paymentStatus && (
+                  <div><b>Payment status:</b> {yard.paymentStatus}</div>
+                )}
                 <div><b>Status:</b> {yard?.status || "N/A"}</div>
                 <div><b>Stock #:</b> {yard?.stockNo || "N/A"}</div>
               </div>
