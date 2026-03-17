@@ -37,6 +37,40 @@ async function retry(fn, { retries = 2, delay = 400 } = {}) {
 
 const MAX_LEN = 1000;
 
+// Determine background/border/text classes based on comment content
+function getCommentColorClasses(note) {
+  if (!note || typeof note !== "string") {
+    return "bg-gray-50 border-gray-200 text-[#09325d]";
+  }
+
+  const lower = note.toLowerCase();
+
+  // Normalize label prefixes (they usually look like "Label: rest of text")
+  // We only need to key off the label anywhere in the string.
+  if (lower.includes("po cancelled")) {
+    // Brown-ish, but aligned with existing blue theme softness
+    return "bg-amber-100/80 border-amber-300 text-amber-900";
+  }
+
+  if (lower.includes("tracking")) {
+    // Orange for tracking-related updates
+    return "bg-orange-50 border-orange-300 text-orange-900";
+  }
+
+  if (lower.includes("delivery status")) {
+    // Green for delivery status
+    return "bg-emerald-50 border-emerald-300 text-emerald-900";
+  }
+
+  if (lower.includes("escalation") || lower.includes("escalation details")) {
+    // Red for escalation details
+    return "bg-rose-50 border-rose-300 text-rose-900";
+  }
+
+  // Fallback to existing neutral style
+  return "bg-gray-50 border-gray-200 text-[#09325d]";
+}
+
 export default function CommentBox({
   orderNo,
   mode = "support",
@@ -277,14 +311,17 @@ export default function CommentBox({
             ) : comments.length === 0 ? (
               <p className="text-[#09325d]/80 dark:text-white/60 italic">No comments yet.</p>
             ) : (
-              comments.map((note, i) => (
-                <div
-                  key={`${i}-${note.slice(0, 16)}`}
-                  className="p-2 rounded-lg bg-gray-50 border border-gray-200 text-sm whitespace-pre-wrap text-[#09325d] dark:bg-white/10 dark:border-white/20 dark:text-white"
-                >
-                  {note}
-                </div>
-              ))
+              comments.map((note, i) => {
+                const toneClasses = getCommentColorClasses(note);
+                return (
+                  <div
+                    key={`${i}-${note.slice(0, 16)}`}
+                    className={`p-2 rounded-lg border text-sm whitespace-pre-wrap ${toneClasses} dark:bg-white/10 dark:border-white/20 dark:text-white`}
+                  >
+                    {note}
+                  </div>
+                );
+              })
             )}
           </div>
 

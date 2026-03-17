@@ -1,6 +1,12 @@
 export default function YardActionButtons({
-  yard, index,
-  onEditStatus, onEditDetails, onCardCharged, onRefundStatus, onEscalation
+  yard,
+  index,
+  onEditStatus,
+  onEditDetails,
+  onCardCharged,
+  onRefundStatus,
+  onEscalation,
+  onAddYardImage,
 }) {
   // Base style - using hover background colors as default background with enhanced glow on hover
   const base =
@@ -23,13 +29,52 @@ export default function YardActionButtons({
   // Escalation also uses the same blue background as other buttons
   const escCls = base;
 
+  const addImageCls = base;
+
   return (
     <div className="mt-3 flex flex-wrap gap-2">
-      <button type="button" className={`edit-yard ${base}`} onClick={() => onEditStatus(index)}>Edit Status</button>
-      <button type="button" className={`edit-yard-details ${base}`} onClick={() => onEditDetails(index)}>Edit Details</button>
-      <button type="button" className={`cardcharged ${cardCls}`} onClick={() => onCardCharged(index)}>Card Charged</button>
-      <button type="button" className={`refundCollect ${refundCls}`} onClick={() => onRefundStatus(index)}>Refund Status</button>
-      <button type="button" className={`escalation ${escCls}`} onClick={() => onEscalation(index)}>Escalation</button>
+      <button
+        type="button"
+        className={`edit-yard ${base}`}
+        onClick={() => onEditStatus(index)}
+      >
+        Edit Status
+      </button>
+      <button
+        type="button"
+        className={`edit-yard-details ${base}`}
+        onClick={() => onEditDetails(index)}
+      >
+        Edit Details
+      </button>
+      <button
+        type="button"
+        className={`cardcharged ${cardCls}`}
+        onClick={() => onCardCharged(index)}
+      >
+        Card Charged
+      </button>
+      <button
+        type="button"
+        className={`refundCollect ${refundCls}`}
+        onClick={() => onRefundStatus(index)}
+      >
+        Refund Status
+      </button>
+      <button
+        type="button"
+        className={`escalation ${escCls}`}
+        onClick={() => onEscalation(index)}
+      >
+        Escalation
+      </button>
+      <button
+        type="button"
+        className={`add-yard-image ${addImageCls}`}
+        onClick={() => onAddYardImage?.(index)}
+      >
+        Add Yard Image
+      </button>
     </div>
   );
 }

@@ -66,6 +66,46 @@ export async function uploadVoidLabelScreenshotToS3(buffer, mimeType, keyBase) {
   return url;
 }
 
+// Generic helper to upload per-yard images (e.g., damage photos, tracking screenshots)
+export async function uploadYardImageToS3(buffer, mimeType, keyBase) {
+  if (!buffer || !buffer.length) {
+    throw new Error("No file data provided");
+  }
+  if (!bucket) {
+    throw new Error("S3_LABEL_VOIDED_BUCKET is not configured");
+  }
+
+  let ext = "png";
+  if (mimeType && mimeType.startsWith("image/")) {
+    const rawExt = mimeType.split("/")[1].toLowerCase();
+    if (rawExt === "jpeg" || rawExt === "jpg") {
+      ext = "jpg";
+    } else if (rawExt) {
+      ext = rawExt;
+    }
+  }
+
+  const safeBase = String(keyBase || "yard")
+    .trim()
+    .replace(/[^\w\-]/g, "_");
+  const random = crypto.randomBytes(4).toString("hex");
+  const key = `Yard_Images/${safeBase}-${random}.${ext}`;
+
+  const putCommand = new PutObjectCommand({
+    Bucket: bucket,
+    Key: key,
+    Body: buffer,
+    ContentType: mimeType || "image/png",
+  });
+
+  await s3Client.send(putCommand);
+
+  const url = `https://${bucket}.s3.${region}.amazonaws.com/${encodeURIComponent(
+    key
+  )}`;
+  return url;
+}
+
 /**
  * Upload a logo image to S3
  * @param {Buffer} buffer - Image file buffer

@@ -89,6 +89,10 @@ export default function EditYardStatusModal({
   );
   const [voidLabelFile, setVoidLabelFile] = useState(null);
 
+  // General yard images (e.g. photos per yard)
+  const [yardImages, setYardImages] = useState(Array.isArray(yard?.yardImages) ? yard.yardImages : []);
+  const yardImagesInputRef = useRef(null);
+
   const fileInputRef = useRef(null);
   const rootApiBase = useMemo(() => {
     const base = API?.defaults?.baseURL || "";
@@ -140,6 +144,9 @@ export default function EditYardStatusModal({
     // Existing void-label screenshot (if any)
     setVoidLabelScreenshot(yard?.voidLabelScreenshot || "");
     setVoidLabelFile(null);
+
+    // Existing yard images (gallery)
+    setYardImages(Array.isArray(yard?.yardImages) ? yard.yardImages : []);
 
     const st = yard?.status || "";
     setShowPO(st === "Yard PO Sent");
@@ -444,6 +451,52 @@ export default function EditYardStatusModal({
     } catch (e) {
       console.error(e);
       const message = e?.response?.data?.message || "Error voiding label. Please try again.";
+      setToast(message);
+    } finally {
+      setLoading(false);
+      setSavingAction(null);
+    }
+  };
+
+  /* ---------------------- UPLOAD YARD IMAGES ---------------------- */
+  const uploadYardImages = async () => {
+    if (savingAction) return;
+
+    const files = yardImagesInputRef.current?.files || [];
+    if (!files.length) {
+      setToast("Please choose one or more images to upload for this yard.");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setSavingAction("uploadYardImages");
+      const firstName = localStorage.getItem("firstName");
+      const orderNo = order?.orderNo;
+
+      const formData = new FormData();
+      for (let i = 0; i < files.length; i++) {
+        formData.append("images", files[i]);
+      }
+      formData.append("yardImagesUpload", "true");
+
+      const { data } = await API.put(
+        `/orders/${encodeURIComponent(orderNo)}/additionalInfo/${yardIndex + 1}`,
+        formData,
+        { params: { firstName } }
+      );
+
+      setYardImages(Array.isArray(data?.yardImages) ? data.yardImages : []);
+      // clear input selection
+      if (yardImagesInputRef.current) {
+        yardImagesInputRef.current.value = "";
+      }
+      setToast("Yard images uploaded successfully.");
+    } catch (e) {
+      console.error(e);
+      const message =
+        e?.response?.data?.message ||
+        "Error uploading yard images. Please try again.";
       setToast(message);
     } finally {
       setLoading(false);
@@ -942,6 +995,32 @@ export default function EditYardStatusModal({
               )}
             </div>
           )}
+
+          {/* Yard Images (upload only; viewing handled on Yard card) */}
+          <div className="mt-4 text-sm space-y-2">
+            <div className="font-semibold">Yard Images</div>
+            <div className="flex flex-wrap items-center gap-2">
+              <input
+                ref={yardImagesInputRef}
+                type="file"
+                multiple
+                accept="image/*"
+                className="text-xs"
+              />
+              <button
+                type="button"
+                onClick={uploadYardImages}
+                disabled={savingAction === "uploadYardImages"}
+                className={`px-3 py-1.5 rounded-md text-xs border transition ${
+                  savingAction === "uploadYardImages"
+                    ? "bg-white/70 text-[#04356d]/60 border-white/40 cursor-not-allowed"
+                    : "bg-white text-[#04356d] border-white/20 hover:bg-white/90"
+                }`}
+              >
+                {savingAction === "uploadYardImages" ? "Uploading…" : "Upload Images"}
+              </button>
+            </div>
+          </div>
 
           {/* Escalation */}
           {showEsc && (

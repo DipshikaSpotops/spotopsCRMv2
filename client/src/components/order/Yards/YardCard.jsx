@@ -227,6 +227,26 @@ export default function YardCard({
         </div>
       )}
 
+      {/* General yard images – list as Yard image 1, 2, ... */}
+      {Array.isArray(y.yardImages) && y.yardImages.length > 0 && (
+        <div className="mt-4">
+          <div className="text-sm font-semibold mb-1">Yard images</div>
+          <div className="flex flex-col gap-1">
+            {y.yardImages.map((url, idx) => (
+              <a
+                key={`${url}-${idx}`}
+                href={url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center text-xs text-blue-700 underline dark:text-blue-300 hover:text-blue-900 dark:hover:text-blue-200"
+              >
+                {`View image ${idx + 1}`}
+              </a>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="mt-4">
         <YardActionButtons
           yard={y}
@@ -236,6 +256,7 @@ export default function YardCard({
           onCardCharged={onCardCharged}
           onRefundStatus={onRefundStatus}
           onEscalation={onEscalation}
+          onAddYardImage={onEditStatus}
         />
       </div>
     </div>

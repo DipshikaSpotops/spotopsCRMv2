@@ -8,7 +8,7 @@ import { requireAuth } from "../middleware/auth.js";
 import { getDateRange } from "../utils/dateRange.js";
 import { getWhen } from "../../shared/utils/timeUtils.js";
 import multer from "multer";
-import { uploadVoidLabelScreenshotToS3 } from "../services/s3Upload.js";
+import { uploadVoidLabelScreenshotToS3, uploadYardImageToS3 } from "../services/s3Upload.js";
 
 const router = express.Router();
 const TZ = "America/Chicago";
@@ -1321,7 +1321,10 @@ const ORDER_STATUS_MAP = {
 ----------------------------------------------------------------------------- */
 router.put(
   "/:orderNo/additionalInfo/:index",
-  upload.single("voidLabelScreenshot"),
+  upload.fields([
+    { name: "voidLabelScreenshot", maxCount: 1 },
+    { name: "images", maxCount: 10 },
+  ]),
   async (req, res) => {
   console.log("REQ BODY:", JSON.stringify(req.body, null, 2));
   try {
@@ -1348,6 +1351,52 @@ router.put(
     const subdoc = order.additionalInfo[idx0];
     order.orderHistory = order.orderHistory || [];
     if (!Array.isArray(subdoc.notes)) subdoc.notes = [];
+
+    /* ---------------- YARD IMAGE UPLOAD (general images) ---------------- */
+    if (req.body.yardImagesUpload === "true" || req.body.yardImagesUpload === true) {
+      try {
+        const files = (req.files && req.files.images) || [];
+        if (!files.length) {
+          return res.status(400).json({ message: "No images provided" });
+        }
+
+        if (!Array.isArray(subdoc.yardImages)) {
+          subdoc.yardImages = [];
+        }
+
+        const uploadPromises = files.map((file) => {
+          const mimeType = file.mimetype || "image/png";
+          const safeBase = `${orderNo}-yard-${idx1}`;
+          // Reuse the same S3 logic as void label screenshots
+          return uploadVoidLabelScreenshotToS3(file.buffer, mimeType, safeBase);
+        });
+
+        const urls = await Promise.all(uploadPromises);
+        subdoc.yardImages.push(...urls);
+
+        order.markModified(`additionalInfo.${idx0}.yardImages`);
+        await order.save();
+
+        publish(req, orderNo, {
+          type: "YARD_UPDATED",
+          yardIndex: idx1,
+          status: order.orderStatus,
+        });
+        broadcastOrder(req, order);
+
+        return res.json({
+          message: "Yard images uploaded successfully",
+          yardImages: subdoc.yardImages,
+          order,
+        });
+      } catch (err) {
+        console.error("Yard images upload failed", err);
+        return res.status(500).json({
+          message: "Server error while uploading yard images",
+          error: err.message || String(err),
+        });
+      }
+    }
 
     /* ---------------- ALLOWED FIELDS ---------------- */
     const allowed = [
@@ -1669,6 +1718,8 @@ router.put(
             }),
           }
         );
+
+// (yard images are handled inside PUT /:orderNo/additionalInfo/:index via yardImagesUpload flag)
 
         if (response.ok) {
           order.orderHistory.push(
