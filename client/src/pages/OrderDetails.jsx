@@ -1380,26 +1380,28 @@ export default function OrderDetails() {
                   {(() => {
                     const customerImages = Array.isArray(order?.images) ? order.images : [];
                     const hasImages = customerImages.length > 0;
-                    const colorClass = hasImages
-                      ? "text-green-600 hover:text-green-700"
-                      : "text-black hover:text-gray-700";
                     const label = hasImages ? "Customer images present" : "No customer images";
+                    const circleBg = hasImages ? "bg-emerald-50 hover:bg-emerald-100" : "bg-blue-50 hover:bg-blue-100";
+                    const circleBorder = hasImages ? "border-emerald-200" : "border-gray-200";
+                    const circleDarkBg = hasImages ? "dark:bg-white/10" : "dark:bg-white/10";
+                    const circleDarkBorder = hasImages ? "dark:border-emerald-400/30" : "dark:border-white/20";
+                    const beforeIconUrl =
+                      "https://prolanelogo.s3.ap-south-1.amazonaws.com/beforeUpload.png";
+                    const afterIconUrl =
+                      "https://prolanelogo.s3.ap-south-1.amazonaws.com/aferUpload.png";
                     return (
                       <button
                         type="button"
                         onClick={() => setShowCustomerImagesModal(true)}
-                        className={`flex items-center justify-center w-8 h-8 rounded-full border border-gray-300 bg-white shadow-sm hover:shadow-md transition ${colorClass} dark:bg-white/10 dark:border-white/30`}
+                        className={`flex items-center justify-center w-8 h-8 border ${circleBg} ${circleBorder} shadow-sm hover:shadow-md transition-all dark:bg-white/10 dark:hover:bg-white/20 ${circleDarkBorder} ${circleDarkBg}`}
                         title={label}
                       >
-                        {/* Simple camera icon */}
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          viewBox="0 0 24 24"
-                          className="w-4 h-4"
-                          fill="currentColor"
-                        >
-                          <path d="M4 7a3 3 0 0 1 3-3h1.172a3 3 0 0 1 2.12.879l.83.83H17a3 3 0 0 1 3 3v7a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3V7zm8 9a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm0-2.5A1.5 1.5 0 1 1 12 12a1.5 1.5 0 0 1 0 3.5z" />
-                        </svg>
+                        <img
+                          src={hasImages ? afterIconUrl : beforeIconUrl}
+                          alt={label}
+                          className="w-full h-full object-contain"
+                          draggable={false}
+                        />
                       </button>
                     );
                   })()}
