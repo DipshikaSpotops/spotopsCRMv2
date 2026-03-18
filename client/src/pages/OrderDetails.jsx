@@ -350,6 +350,9 @@ export default function OrderDetails() {
     []
   );
   const [toast, setToast] = useState("");
+  const [showCustomerImagesModal, setShowCustomerImagesModal] = useState(false);
+  const customerImagesInputRef = useRef(null);
+  const [uploadingCustomerImages, setUploadingCustomerImages] = useState(false);
   const [newStatus, setNewStatus] = useState(order?.orderStatus || "");
   const [confirm, setConfirm] = useState({ open: false, title: "", message: "", onConfirm: null });
   const [reimbursementAmount, setReimbursementAmount] = useState("");
@@ -670,6 +673,54 @@ export default function OrderDetails() {
       console.error("Error recalculating Actual GP:", err);
       setToast("Failed to recalculate Actual GP.");
       throw err;
+    }
+  };
+
+  const customerImages = Array.isArray(order?.images) ? order.images : [];
+
+  const uploadCustomerImages = async () => {
+    if (!orderNo) {
+      setToast("Order number not available yet.");
+      return;
+    }
+
+    const files = customerImagesInputRef.current?.files || [];
+    if (!files.length) {
+      setToast("Please choose one or more images first.");
+      return;
+    }
+
+    try {
+      setUploadingCustomerImages(true);
+      setToast("");
+
+      const firstName = localStorage.getItem("firstName");
+
+      const formData = new FormData();
+      for (let i = 0; i < files.length; i++) {
+        formData.append("images", files[i]);
+      }
+
+      await API.post(`/orders/${orderNo}/customerImages`, formData, {
+        params: { firstName },
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+
+      // Refresh so `order.images` updates
+      await refresh();
+
+      if (customerImagesInputRef.current) {
+        customerImagesInputRef.current.value = "";
+      }
+
+      setToast("Customer images uploaded successfully!");
+    } catch (err) {
+      const message =
+        err?.response?.data?.message || err?.message || "Error uploading customer images";
+      console.error("uploadCustomerImages error:", err);
+      setToast(message);
+    } finally {
+      setUploadingCustomerImages(false);
     }
   };
 
@@ -1325,6 +1376,34 @@ export default function OrderDetails() {
 
               <div className="flex flex-col items-end gap-3">
                 <div className="flex gap-2 items-center">
+                  {/* Customer image status icon */}
+                  {(() => {
+                    const customerImages = Array.isArray(order?.images) ? order.images : [];
+                    const hasImages = customerImages.length > 0;
+                    const colorClass = hasImages
+                      ? "text-green-600 hover:text-green-700"
+                      : "text-black hover:text-gray-700";
+                    const label = hasImages ? "Customer images present" : "No customer images";
+                    return (
+                      <button
+                        type="button"
+                        onClick={() => setShowCustomerImagesModal(true)}
+                        className={`flex items-center justify-center w-8 h-8 rounded-full border border-gray-300 bg-white shadow-sm hover:shadow-md transition ${colorClass} dark:bg-white/10 dark:border-white/30`}
+                        title={label}
+                      >
+                        {/* Simple camera icon */}
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          viewBox="0 0 24 24"
+                          className="w-4 h-4"
+                          fill="currentColor"
+                        >
+                          <path d="M4 7a3 3 0 0 1 3-3h1.172a3 3 0 0 1 2.12.879l.83.83H17a3 3 0 0 1 3 3v7a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3V7zm8 9a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm0-2.5A1.5 1.5 0 1 1 12 12a1.5 1.5 0 0 1 0 3.5z" />
+                        </svg>
+                      </button>
+                    );
+                  })()}
+
                   {/* Order History Button */}
                   <button
                     onClick={() => setShowHistory(true)}
@@ -1366,6 +1445,8 @@ export default function OrderDetails() {
             {/* Top summary; passes live GP override */}
             <OrderSummaryStats order={order} actualGPOverride={actualGPView} />
           </div>
+
+          {/* Customer Images (icon opens modal; actual UI below) */}
 
           {/* 3 columns */}
           <div className="grid grid-cols-12 gap-6 2xl:gap-8 items-stretch">
@@ -1894,6 +1975,81 @@ export default function OrderDetails() {
         onConfirm={confirm.onConfirm}
         onClose={() => setConfirm((c) => ({ ...c, open: false }))}
       />
+
+      {/* Customer Images Modal */}
+      {showCustomerImagesModal && (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="w-full max-w-lg rounded-2xl bg-white text-[#09325d] shadow-xl border border-gray-200 overflow-hidden dark:bg-[#0b1c34] dark:text-white dark:border-white/10">
+            <header className="flex items-center justify-between px-5 py-3 border-b border-gray-200 dark:border-white/10">
+              <h3 className="text-lg font-semibold">Customer Images</h3>
+              <button
+                onClick={() => setShowCustomerImagesModal(false)}
+                className="h-8 w-8 grid place-items-center rounded-md bg-blue-100 hover:bg-blue-200 border border-blue-200 text-blue-900 shadow-sm hover:shadow-md transition-all dark:bg-white/10 dark:hover:bg-white/20 dark:border-white/20 dark:text-white"
+              >
+                ×
+              </button>
+            </header>
+
+            <div className="px-5 py-4 space-y-3 max-h-[60vh] overflow-y-auto">
+              <div className="text-sm space-y-2">
+                <div className="font-semibold">Add customer images</div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <input
+                    ref={customerImagesInputRef}
+                    type="file"
+                    multiple
+                    accept="image/*"
+                    className="text-xs"
+                  />
+                  <button
+                    type="button"
+                    onClick={uploadCustomerImages}
+                    disabled={uploadingCustomerImages || !orderNo}
+                    className={`px-3 py-1.5 rounded-md text-xs font-medium border transition ${
+                      uploadingCustomerImages || !orderNo
+                        ? "bg-sky-200/50 text-gray-500 border-blue-300 cursor-not-allowed"
+                        : "bg-[#04356d] hover:bg-[#021f4b] text-white border-[#04356d] shadow-sm hover:shadow-md dark:bg-[#2563eb]/40 dark:text-white dark:border-[#bfdbfe]/40"
+                    }`}
+                  >
+                    {uploadingCustomerImages ? "Uploading..." : "Upload Images"}
+                  </button>
+                </div>
+              </div>
+
+              {customerImages.length > 0 && (
+                <div className="mt-2 space-y-1">
+                  <div className="text-sm font-semibold">Existing images</div>
+                  <div className="flex flex-wrap gap-2">
+                    {customerImages.map((img, idx) => {
+                      const href = img?.url || img;
+                      return (
+                        <a
+                          key={`${href}-${idx}`}
+                          href={href}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center text-xs text-blue-700 underline dark:text-blue-300 hover:text-blue-900 dark:hover:text-blue-200"
+                        >
+                          {`View image ${idx + 1}`}
+                        </a>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <footer className="flex justify-end px-5 py-3 border-t border-gray-200 dark:border-white/10">
+              <button
+                onClick={() => setShowCustomerImagesModal(false)}
+                className="px-3 py-1.5 rounded-md text-sm bg-blue-50 hover:bg-blue-100 border border-gray-200 text-[#09325d] shadow-sm hover:shadow-md transition-all dark:bg-white/10 dark:hover:bg-white/20 dark:text-white dark:border-white/20"
+              >
+                Close
+              </button>
+            </footer>
+          </div>
+        </div>
+      )}
 
       {toast && <Toast message={toast} onClose={() => setToast("")} />}
       

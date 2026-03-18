@@ -2477,6 +2477,81 @@ router.patch("/:orderNo/additionalInfo/:index/notes", async (req, res) => {
     res.status(500).json({ message: "Internal server error." });
   }
 });
+
+/* ---------------- CUSTOMER IMAGES (per order) ----------------
+   POST /api/orders/:orderNo/customerImages
+   Body: multipart/form-data with field name "images" (multiple)
+---------------------------------------------------------------- */
+router.post(
+  "/:orderNo/customerImages",
+  upload.array("images", 10),
+  async (req, res) => {
+    try {
+      const orderNo = decodeURIComponent(req.params.orderNo).trim();
+      if (!orderNo) {
+        return res.status(400).json({ message: "orderNo is required" });
+      }
+
+      const files = req.files || [];
+      if (!Array.isArray(files) || files.length === 0) {
+        return res.status(400).json({ message: "No images provided" });
+      }
+
+      const firstName = cleanFirstName(
+        req.query.firstName || req.query.firstname || "System"
+      );
+      const when = getWhen();
+
+      const Order = getOrderModel(req);
+      const order = await Order.findOne({ orderNo });
+      if (!order) return res.status(404).json({ message: "Order not found" });
+
+      if (!Array.isArray(order.images)) order.images = [];
+
+      const uploadPromises = files.map((file, idx) => {
+        const mimeType = file.mimetype || "image/png";
+        // Reuse the same S3 upload behavior as the working void-label screenshot.
+        // (This avoids S3 public-read/policy inconsistencies across prefixes.)
+        const safeBase = `${orderNo}-customer-image-${idx + 1}`;
+        return uploadVoidLabelScreenshotToS3(
+          file.buffer,
+          mimeType,
+          safeBase
+        );
+      });
+
+      const urls = await Promise.all(uploadPromises);
+
+      for (const url of urls) {
+        order.images.push({ url });
+      }
+
+      order.orderHistory = order.orderHistory || [];
+      order.orderHistory.push(
+        `Customer images added (${urls.length} file${urls.length === 1 ? "" : "s"}) by ${firstName} on ${when}`
+      );
+
+      await order.save();
+
+      publish(req, orderNo, {
+        type: "CUSTOMER_IMAGES_UPLOADED",
+        images: urls,
+      });
+      broadcastOrder(req, order);
+
+      return res.json({
+        message: "Customer images uploaded successfully",
+        images: order.images,
+      });
+    } catch (err) {
+      console.error("POST /customerImages failed", err);
+      return res.status(500).json({
+        message: "Server error while uploading customer images",
+        error: err.message || String(err),
+      });
+    }
+  }
+);
 /* Save only — for order cancellation (no email sent)*/
 router.put("/:orderNo/cancelOnly", async (req, res) => {
   try {
