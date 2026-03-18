@@ -222,7 +222,7 @@ router.post("/order-cancel/:orderNo", async (req, res) => {
         ${order.model} ${order.pReq}</b> with <b>50 Stars Auto Parts</b>.</p>
         <p>We regret any inconvenience this may have caused you.</p>
         <p><b>We have cancelled your order and will refund you $${cancelledRefAmount}  to the same source account.</b></p>
-        <p>Please call us if you have any questions. Rest assured, any payment made for the cancelled order will be promptly refunded to your original payment method. You can expect to see the refund reflected in your account within 3-5 business days.</p>
+        <p>Please call us if you have any questions. Rest assured, any payment made for the cancelled order will be promptly refunded to your original payment method. You can expect to see the refund reflected in your account within 9-15 business days.</p>
         <p>We understand the importance of timely and efficient service, and we sincerely apologize for any inconvenience this cancellation may have caused. Our team is working diligently to prevent such occurrences in the future.</p>
         <p>If you have any questions or require further assistance, please don't hesitate to contact our customer support team at <b>+1 (866) 207-5533</b>. We are here to assist you in any way we can. Thank you for your understanding and continued support.</p>
         <p><b>Please reply to this email with a quick confirmation to acknowledge and approve this cancellation request.</b></p>
