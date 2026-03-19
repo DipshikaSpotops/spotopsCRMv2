@@ -387,14 +387,18 @@ async function appendLoginToGoogleSheet(user, ipAddress, userAgent) {
     console.log(
       `[auth] 🔍 DUPLICATE CHECK: Looking for existing row for user "${user.email}" on date "${currentDate}" (normalized: "${normalizedCurrentDate}") in sheet "${sheetName}"`
     );
-    
+
+    // Kept in outer scope so we can compute the next row for explicit A:I writes (avoids
+    // values.append "table" detection misplacing cells when the sheet has inconsistent widths).
+    let allData = [];
+
     try {
       // Fetch ALL data to check for duplicates
       const allDataResponse = await sheets.spreadsheets.values.get({
         spreadsheetId,
         range: `${sheetName}!A:I`,
       });
-      const allData = allDataResponse.data.values || [];
+      allData = allDataResponse.data.values || [];
       
       console.log(`[auth] 📊 Total rows in sheet: ${allData.length} (including header)`);
       
@@ -503,24 +507,39 @@ async function appendLoginToGoogleSheet(user, ipAddress, userAgent) {
       }
     }
 
-    // Only append if no existing row was found
+    // New row: write explicitly to A{row}:I{row} instead of values.append.
+    // append() infers a "table" inside the range; sparse/wide rows (e.g. data only in H:I)
+    // can confuse that and shift values into the wrong columns.
     if (existingRowIndex === -1) {
-      console.log(`[auth] No existing row found for today, appending new row for user: ${user.email}`);
-      // Append the row to the monthly sheet (no extra date-only rows)
-      await sheets.spreadsheets.values.append({
+      console.log(`[auth] No existing row found for today, writing new row for user: ${user.email}`);
+      let nextRow = allData.length + 1;
+      if (nextRow < 2) {
+        try {
+          const refresh = await sheets.spreadsheets.values.get({
+            spreadsheetId,
+            range: `${sheetName}!A:I`,
+          });
+          const rows = refresh.data.values || [];
+          nextRow = Math.max(rows.length + 1, 2);
+        } catch (refErr) {
+          console.error(`[auth] ⚠️ Could not refresh sheet length, using row 2:`, refErr.message);
+          nextRow = 2;
+        }
+      }
+      await sheets.spreadsheets.values.update({
         spreadsheetId,
-        range: `${sheetName}!A:I`,
+        range: `${sheetName}!A${nextRow}:I${nextRow}`,
         valueInputOption: "USER_ENTERED",
-        insertDataOption: "INSERT_ROWS",
         resource: {
           values: [rowData],
         },
       });
+      console.log(`[auth] ✅ Wrote new login row at ${sheetName}!A${nextRow}:I${nextRow}`);
     } else {
-      console.log(`[auth] Skipping append - existing row will be updated at index ${existingRowIndex}`);
+      console.log(`[auth] Skipping new row - existing row will be updated at index ${existingRowIndex}`);
     }
 
-    console.log(`[auth] ✅ Login data appended successfully to Google Sheet (${sheetName}) for user: ${user.email}`);
+    console.log(`[auth] ✅ Login data saved successfully to Google Sheet (${sheetName}) for user: ${user.email}`);
     console.log(`[auth] ========== appendLoginToGoogleSheet END (SUCCESS) ==========`);
   } catch (error) {
     // Don't block login if Google Sheets append fails - just log the error
