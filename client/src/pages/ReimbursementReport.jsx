@@ -11,6 +11,7 @@ const TZ = "America/Chicago";
 
 const columns = [
   { key: "orderNo", label: "Order No" },
+  { key: "customerInfo", label: "Customer Info" },
   { key: "orderDate", label: "Order Date" },
   { key: "refundedDate", label: "Refunded/Reimbursed Date" },
   { key: "amount", label: "Refunded/Reimbursement Amount ($)" },
@@ -26,6 +27,16 @@ function formatDateSafe(dateStr) {
   } catch {
     return "—";
   }
+}
+
+/** Name, phone, email from order document for table rows (field names match OrdersTable search) */
+function customerFieldsFromOrder(order) {
+  const nameFromParts = [order?.fName, order?.lName].filter(Boolean).join(" ").trim();
+  const name =
+    (order?.customerName && String(order.customerName).trim()) || nameFromParts || "";
+  const phone = order?.phone != null && String(order.phone).trim() ? String(order.phone).trim() : "";
+  const email = order?.email != null && String(order.email).trim() ? String(order.email).trim() : "";
+  return { customerName: name, phone, email };
 }
 
 export default function ReimbursementReport() {
@@ -75,6 +86,7 @@ export default function ReimbursementReport() {
               type: "Reimbursed",
               source: "yard",
               yardIndex: idx + 1,
+              ...customerFieldsFromOrder(order),
             });
           }
         });
@@ -90,6 +102,7 @@ export default function ReimbursementReport() {
           amount: parseFloat(order.reimbursementAmount || 0),
           type: "Reimbursed",
           source: "order",
+          ...customerFieldsFromOrder(order),
         });
       }
     });
@@ -102,6 +115,7 @@ export default function ReimbursementReport() {
       refundedDate: order.custRefundDate,
       amount: parseFloat(order.custRefAmount || 0),
       type: "Refunded",
+      ...customerFieldsFromOrder(order),
     }));
 
     const combined = [...flatReimbursed, ...flatRefunded];
@@ -130,6 +144,14 @@ export default function ReimbursementReport() {
     switch (key) {
       case "orderNo":
         return row.orderNo || "—";
+      case "customerInfo":
+        return (
+          <div className="text-left text-sm leading-snug min-w-[200px] max-w-[280px]">
+            <div className="font-medium text-white">{row.customerName || "—"}</div>
+            <div className="text-white/85">{row.phone || "—"}</div>
+            <div className="text-white/75 break-all">{row.email || "—"}</div>
+          </div>
+        );
       case "orderDate":
         return formatDateSafeFn ? formatDateSafeFn(row.orderDate) : formatDateSafe(row.orderDate);
       case "refundedDate":

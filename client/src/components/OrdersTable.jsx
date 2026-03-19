@@ -816,6 +816,7 @@ export default function OrdersTable({
 
     const toVal = (row) => {
       let v = row[key];
+      if (sortBy === "customerInfo") v = row.customerName;
       if (sortBy === "customerName") v = row._customerName;
       if (sortBy === "partName") v = row._partName;
       if (sortBy === "yardName") v = row._yardName;         // string
