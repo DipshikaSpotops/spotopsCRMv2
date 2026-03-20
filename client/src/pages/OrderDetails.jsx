@@ -880,6 +880,15 @@ export default function OrderDetails() {
     }
   }, [orderNo, reimbursementAmount, toBeReimbursed, refresh]);
 
+  const reimbursementAmountNumber = Number(reimbursementAmount);
+  const hasValidReimbursementAmount =
+    reimbursementAmount.trim() !== "" &&
+    !Number.isNaN(reimbursementAmountNumber) &&
+    reimbursementAmountNumber > 0;
+  const hasReimbursementDate = Boolean(reimbursementDate);
+  const canProceedWithReimbursement =
+    Boolean(orderNo) && hasValidReimbursementAmount && hasReimbursementDate;
+
   const handleSaveReimbursement = async ({ sendEmail = false } = {}) => {
     if (!orderNo) {
       setToast("Order number not available yet.");
@@ -891,6 +900,10 @@ export default function OrderDetails() {
 
     if (numericAmount !== null && Number.isNaN(numericAmount)) {
       setToast("Enter a valid reimbursement amount.");
+      return;
+    }
+    if (sendEmail && !reimbursementFile) {
+      setToast("Please choose a file before Save & Send Email.");
       return;
     }
 
@@ -1643,7 +1656,12 @@ export default function OrderDetails() {
                 <div className="mt-4 flex justify-end gap-2">
                   <button
                     onClick={handleSaveToBeReimbursed}
-                    disabled={savingToBeReimbursed || savingReimbursement || !orderNo}
+                    disabled={
+                      savingToBeReimbursed ||
+                      savingReimbursement ||
+                      !orderNo ||
+                      (hasValidReimbursementAmount && hasReimbursementDate)
+                    }
                     className={`px-4 py-2 rounded-md text-sm font-medium border transition shadow-sm hover:shadow-md ${
                       savingToBeReimbursed || savingReimbursement
                         ? "bg-sky-200/80 text-gray-500 border-blue-300 cursor-not-allowed dark:bg-transparent dark:text-white/50 dark:border-white/30"
@@ -1660,9 +1678,7 @@ export default function OrderDetails() {
                     disabled={
                       savingReimbursement ||
                       savingToBeReimbursed ||
-                      !orderNo ||
-                      !toBeReimbursedSaved ||
-                      !reimbursementDate
+                      !canProceedWithReimbursement
                     }
                     className={`reimbursement-reimbursed-btn px-4 py-2 rounded-md text-sm font-medium border transition shadow-sm hover:shadow-md ${
                       savingReimbursement
@@ -1684,9 +1700,8 @@ export default function OrderDetails() {
                     disabled={
                       savingReimbursement ||
                       savingToBeReimbursed ||
-                      !orderNo ||
-                      !toBeReimbursedSaved ||
-                      !reimbursementDate
+                      !canProceedWithReimbursement ||
+                      !reimbursementFile
                     }
                     className={`reimbursement-send-email-btn px-4 py-2 rounded-md text-sm font-medium border transition shadow-sm hover:shadow-md ${
                       savingReimbursement
