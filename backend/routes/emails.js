@@ -105,6 +105,37 @@ const cardCvv = process.env.CARD_CVV || "***";
 
 const router = express.Router();
 const upload = multer();
+
+// Dedicated upload middleware for reimbursement email attachments.
+// Keeps memory storage (for nodemailer buffer) with explicit type + size checks.
+const reimbursementUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 15 * 1024 * 1024, // 15 MB
+  },
+  fileFilter: (_req, file, cb) => {
+    const mime = String(file?.mimetype || "").toLowerCase();
+    const isPdf = mime === "application/pdf";
+    const isImage = mime.startsWith("image/");
+    if (isPdf || isImage) return cb(null, true);
+    return cb(new Error("Only image or PDF attachments are allowed."));
+  },
+});
+
+const handleReimbursementAttachmentUpload = (req, res, next) => {
+  reimbursementUpload.single("attachment")(req, res, (err) => {
+    if (!err) return next();
+    if (err instanceof multer.MulterError && err.code === "LIMIT_FILE_SIZE") {
+      return res
+        .status(413)
+        .json({ message: "Attachment too large. Max allowed size is 15 MB." });
+    }
+    return res.status(400).json({
+      message:
+        err?.message || "Invalid attachment. Please upload an image or PDF file.",
+    });
+  });
+};
 // quick ping so you can test mount with GET in a browser
 router.get("/_health", (req, res) => {
   console.log("[emails] /_health hit");
@@ -247,7 +278,7 @@ router.post("/order-cancel/:orderNo", async (req, res) => {
 
 // POST /emails/sendReimburseEmail/:orderNo
 // Optionally accepts a single attachment (PDF/image) under "attachment"
-router.post("/sendReimburseEmail/:orderNo", upload.single("attachment"), async (req, res) => {
+router.post("/sendReimburseEmail/:orderNo", handleReimbursementAttachmentUpload, async (req, res) => {
   console.log("[emails] sendReimburseEmail hit", req.method, req.originalUrl);
   try {
     const { orderNo } = req.params;
