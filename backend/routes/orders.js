@@ -2298,39 +2298,53 @@ router.patch("/:orderNo/additionalInfo/:yardIndex/refundStatus", async (req, res
 });
 router.put("/:orderNo/reimbursement", async (req, res) => {
   const { orderNo } = req.params;
-  const { reimbursementAmount, reimbursementDate } = req.body || {};
+  const { reimbursementAmount, reimbursementDate, toBeReimbursed } = req.body || {};
   try {
-    const amount =
-      reimbursementAmount === null ||
-      reimbursementAmount === undefined ||
-      reimbursementAmount === ""
-        ? null
-        : Number(reimbursementAmount);
-
-    if (amount !== null && Number.isNaN(amount)) {
-      return res
-        .status(400)
-        .json({ message: "Invalid reimbursementAmount value" });
+    const Order = getOrderModel(req);
+    const existing = await Order.findOne({ orderNo: String(orderNo) });
+    if (!existing) {
+      return res.status(404).json({ message: "Order not found" });
     }
 
-    let dateValue = null;
-    if (reimbursementDate) {
-      const parsed = new Date(reimbursementDate);
-      if (Number.isNaN(parsed.getTime())) {
+    const updates = {};
+
+    if (Object.prototype.hasOwnProperty.call(req.body || {}, "reimbursementAmount")) {
+      const amount =
+        reimbursementAmount === null ||
+        reimbursementAmount === undefined ||
+        reimbursementAmount === ""
+          ? null
+          : Number(reimbursementAmount);
+      if (amount !== null && Number.isNaN(amount)) {
         return res
           .status(400)
-          .json({ message: "Invalid reimbursementDate value" });
+          .json({ message: "Invalid reimbursementAmount value" });
       }
-      dateValue = parsed;
+      updates.reimbursementAmount = amount;
     }
 
-    const Order = getOrderModel(req);
+    if (Object.prototype.hasOwnProperty.call(req.body || {}, "reimbursementDate")) {
+      let dateValue = null;
+      if (reimbursementDate) {
+        const parsed = new Date(reimbursementDate);
+        if (Number.isNaN(parsed.getTime())) {
+          return res
+            .status(400)
+            .json({ message: "Invalid reimbursementDate value" });
+        }
+        dateValue = parsed;
+      }
+      updates.reimbursementDate = dateValue;
+    }
+
+    if (Object.prototype.hasOwnProperty.call(req.body || {}, "toBeReimbursed")) {
+      updates.toBeReimbursed =
+        toBeReimbursed === true || toBeReimbursed === "true";
+    }
+
     const order = await Order.findOneAndUpdate(
       { orderNo: String(orderNo) },
-      {
-        reimbursementAmount: amount,
-        reimbursementDate: dateValue,
-      },
+      updates,
       { new: true }
     );
 
@@ -2342,6 +2356,7 @@ router.put("/:orderNo/reimbursement", async (req, res) => {
       type: "REIMBURSEMENT_UPDATED",
       reimbursementAmount: order.reimbursementAmount,
       reimbursementDate: order.reimbursementDate,
+      toBeReimbursed: order.toBeReimbursed,
     });
     broadcastOrder(req, order);
 
@@ -2349,6 +2364,7 @@ router.put("/:orderNo/reimbursement", async (req, res) => {
       message: "Reimbursement details updated",
       reimbursementAmount: order.reimbursementAmount,
       reimbursementDate: order.reimbursementDate,
+      toBeReimbursed: order.toBeReimbursed,
       order,
     });
   } catch (error) {

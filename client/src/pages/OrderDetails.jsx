@@ -359,6 +359,10 @@ export default function OrderDetails() {
   const [reimbursementDate, setReimbursementDate] = useState("");
   const [savingReimbursement, setSavingReimbursement] = useState(false);
   const [reimbursementFile, setReimbursementFile] = useState(null);
+  const [toBeReimbursed, setToBeReimbursed] = useState(false);
+  const [toBeReimbursedSaved, setToBeReimbursedSaved] = useState(false);
+  const [reimbursementSaved, setReimbursementSaved] = useState(false);
+  const [savingToBeReimbursed, setSavingToBeReimbursed] = useState(false);
 
   // Initialize activeYardIndex to last yard on first load, but preserve it across refreshes
   const isInitialYardIndexSet = useRef(false);
@@ -524,7 +528,12 @@ export default function OrderDetails() {
         ? orderDate.toISOString().split("T")[0]
         : ""
     );
-  }, [order?.reimbursementAmount, order?.reimbursementDate]);
+    const tbr =
+      order?.toBeReimbursed === true || order?.toBeReimbursed === "true";
+    setToBeReimbursed(tbr);
+    setToBeReimbursedSaved(tbr);
+    setReimbursementSaved(false);
+  }, [order?.reimbursementAmount, order?.reimbursementDate, order?.toBeReimbursed]);
 
   // Track active users viewing this order - use Map for stable deduplication
   const [activeUsers, setActiveUsers] = useState([]);
@@ -834,6 +843,43 @@ export default function OrderDetails() {
     }
   };
 
+  const handleSaveToBeReimbursed = useCallback(async () => {
+    if (!orderNo) {
+      setToast("Order number not available yet.");
+      return;
+    }
+    const trimmedAmount = reimbursementAmount.trim();
+    const numericAmount =
+      trimmedAmount === "" ? null : Number(trimmedAmount);
+
+    if (
+      toBeReimbursed &&
+      (numericAmount === null || Number.isNaN(numericAmount) || numericAmount <= 0)
+    ) {
+      setToast("Please enter reimbursement amount before saving To Be Reimbursed.");
+      return;
+    }
+
+    try {
+      setSavingToBeReimbursed(true);
+      await API.put(`/orders/${orderNo}/reimbursement`, {
+        reimbursementAmount: numericAmount,
+        toBeReimbursed: !!toBeReimbursed,
+      });
+      setToBeReimbursedSaved(!!toBeReimbursed);
+      setReimbursementSaved(false);
+      setToast("To Be Reimbursed details saved.");
+      if (typeof refresh === "function") {
+        await refresh();
+      }
+    } catch (err) {
+      console.error("Error saving To Be Reimbursed:", err);
+      setToast("Failed to save To Be Reimbursed details.");
+    } finally {
+      setSavingToBeReimbursed(false);
+    }
+  }, [orderNo, reimbursementAmount, toBeReimbursed, refresh]);
+
   const handleSaveReimbursement = async ({ sendEmail = false } = {}) => {
     if (!orderNo) {
       setToast("Order number not available yet.");
@@ -853,6 +899,7 @@ export default function OrderDetails() {
       await API.put(`/orders/${orderNo}/reimbursement`, {
         reimbursementAmount: numericAmount,
         reimbursementDate: reimbursementDate || null,
+        toBeReimbursed,
       });
       const firstName = localStorage.getItem("firstName");
       if (Array.isArray(yards)) {
@@ -901,6 +948,14 @@ export default function OrderDetails() {
       } else {
         setToast("Reimbursement details saved.");
       }
+
+      // After reimbursement is saved, clear "to be reimbursed" flag.
+      await API.put(`/orders/${orderNo}/reimbursement`, {
+        toBeReimbursed: false,
+      });
+      setToBeReimbursed(false);
+      setToBeReimbursedSaved(false);
+      setReimbursementSaved(true);
     } catch (err) {
       console.error("Error saving reimbursement:", err);
       setToast("Failed to save reimbursement details.");
@@ -1186,6 +1241,44 @@ export default function OrderDetails() {
           color: #9ca3af !important;
           border-color: #d1d5db !important;
           cursor: not-allowed !important;
+        }
+        /* Keep Save & Send Email dark blue even when disabled */
+        html:not(.dark) .order-details-page .reimbursement-send-email-btn:disabled {
+          background: #04356d !important;
+          color: #ffffff !important;
+          border-color: #04356d !important;
+          opacity: 1 !important;
+        }
+        /* Preserve color state on disabled reimbursement action buttons */
+        html:not(.dark) .order-details-page .reimbursement-reimbursed-btn[data-color-state="default"]:disabled {
+          background: #2563eb !important;
+          color: #ffffff !important;
+          border-color: #1d4ed8 !important;
+          opacity: 1 !important;
+        }
+        html:not(.dark) .order-details-page .reimbursement-reimbursed-btn[data-color-state="pending"]:disabled {
+          background: #c40505 !important;
+          color: #ffffff !important;
+          border-color: #c40505 !important;
+          opacity: 1 !important;
+        }
+        html:not(.dark) .order-details-page .reimbursement-reimbursed-btn[data-color-state="saved"]:disabled {
+          background: #13a538 !important;
+          color: #ffffff !important;
+          border-color: #0a8f2a !important;
+          opacity: 1 !important;
+        }
+        html:not(.dark) .order-details-page .reimbursement-send-email-btn[data-color-state="pending"]:disabled {
+          background: #8f0404 !important;
+          color: #ffffff !important;
+          border-color: #8f0404 !important;
+          opacity: 1 !important;
+        }
+        html:not(.dark) .order-details-page .reimbursement-send-email-btn[data-color-state="saved"]:disabled {
+          background: #13a538 !important;
+          color: #ffffff !important;
+          border-color: #0a8f2a !important;
+          opacity: 1 !important;
         }
         
         /* Tab Buttons - Active state */
@@ -1484,7 +1577,26 @@ export default function OrderDetails() {
               <SaleNote orderNo={order?.orderNo} />
               <GlassCard 
                 className="dark:border-white/20 dark:bg-white/10 dark:text-white"
-                title="Reimbursement">
+                title={
+                  <div className="flex items-center gap-3">
+                    <span>Reimbursement</span>
+                    <label className="inline-flex items-center gap-2 text-sm font-normal">
+                      <span>To Be Reimbursed</span>
+                      <input
+                        type="checkbox"
+                        checked={!!toBeReimbursed}
+                        disabled={savingToBeReimbursed || savingReimbursement || !orderNo}
+                        onChange={(e) => {
+                          setToBeReimbursed(e.target.checked);
+                          setToBeReimbursedSaved(false);
+                          setReimbursementSaved(false);
+                        }}
+                        className="h-4 w-4 accent-[#04356d]"
+                      />
+                    </label>
+                  </div>
+                }
+              >
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
                   <div className="flex flex-col gap-1">
                     <span className="text-[#09325d] dark:text-white/80">Amount ($)</span>
@@ -1493,7 +1605,11 @@ export default function OrderDetails() {
                       min="0"
                       step="0.01"
                       value={reimbursementAmount}
-                      onChange={(e) => setReimbursementAmount(e.target.value)}
+                      onChange={(e) => {
+                        setReimbursementAmount(e.target.value);
+                        setToBeReimbursedSaved(false);
+                        setReimbursementSaved(false);
+                      }}
                       className="w-full rounded-md bg-gray-50 border border-gray-300 px-3 py-2 text-[#09325d] placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-white/10 dark:border-white/30 dark:text-white dark:placeholder-white/40 dark:focus:ring-white/60 dark:focus:border-white/60"
                       placeholder="Enter reimbursement amount"
                     />
@@ -1503,7 +1619,10 @@ export default function OrderDetails() {
                     <input
                       type="date"
                       value={reimbursementDate}
-                      onChange={(e) => setReimbursementDate(e.target.value)}
+                      onChange={(e) => {
+                        setReimbursementDate(e.target.value);
+                        setReimbursementSaved(false);
+                      }}
                       className="w-full rounded-md bg-gray-50 border border-gray-300 px-3 py-2 text-[#09325d] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-white/10 dark:border-white/30 dark:text-white dark:focus:ring-white/60 dark:focus:border-white/60"
                     />
                   </div>
@@ -1515,6 +1634,7 @@ export default function OrderDetails() {
                       onChange={(e) => {
                         const file = e.target.files && e.target.files[0];
                         setReimbursementFile(file || null);
+                        setReimbursementSaved(false);
                       }}
                       className="w-full rounded-md bg-gray-50 border border-gray-300 px-3 py-2 text-[#09325d] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-white/10 dark:border-white/30 dark:text-white dark:focus:ring-white/60 dark:focus:border-white/60"
                     />
@@ -1522,23 +1642,60 @@ export default function OrderDetails() {
                 </div>
                 <div className="mt-4 flex justify-end gap-2">
                   <button
-                    onClick={() => handleSaveReimbursement({ sendEmail: false })}
-                    disabled={savingReimbursement || !orderNo}
-                    className={`px-4 py-2 rounded-md text-sm font-medium border transition ${
-                      savingReimbursement
+                    onClick={handleSaveToBeReimbursed}
+                    disabled={savingToBeReimbursed || savingReimbursement || !orderNo}
+                    className={`px-4 py-2 rounded-md text-sm font-medium border transition shadow-sm hover:shadow-md ${
+                      savingToBeReimbursed || savingReimbursement
                         ? "bg-sky-200/80 text-gray-500 border-blue-300 cursor-not-allowed dark:bg-transparent dark:text-white/50 dark:border-white/30"
-                        : "bg-blue-200 hover:bg-blue-300 text-blue-800 border-blue-300 shadow-sm hover:shadow-md dark:bg-[#10b981]/10 dark:text-[#10b981] dark:border-[#10b981] dark:hover:bg-[#10b981]/15 dark:shadow-[0_0_4px_rgba(16,185,129,0.3)] dark:hover:shadow-[0_0_12px_rgba(16,185,129,0.7),0_0_20px_rgba(16,185,129,0.4)] dark:[text-shadow:0_0_2px_rgba(16,185,129,0.5)] dark:hover:[text-shadow:0_0_8px_rgba(16,185,129,0.9),0_0_12px_rgba(16,185,129,0.6)]"
+                        : "bg-blue-200 hover:bg-blue-300 text-blue-800 border-blue-300"
                     }`}
                   >
-                    {savingReimbursement ? "Saving..." : "Save"}
+                    {savingToBeReimbursed ? "Saving..." : "Save"}
+                  </button>
+                  <button
+                    onClick={() => handleSaveReimbursement({ sendEmail: false })}
+                    data-color-state={
+                      reimbursementSaved ? "saved" : toBeReimbursedSaved ? "pending" : "default"
+                    }
+                    disabled={
+                      savingReimbursement ||
+                      savingToBeReimbursed ||
+                      !orderNo ||
+                      !toBeReimbursedSaved ||
+                      !reimbursementDate
+                    }
+                    className={`reimbursement-reimbursed-btn px-4 py-2 rounded-md text-sm font-medium border transition shadow-sm hover:shadow-md ${
+                      savingReimbursement
+                        ? "bg-sky-200/80 text-gray-500 border-blue-300 cursor-not-allowed dark:bg-transparent dark:text-white/50 dark:border-white/30"
+                        : reimbursementSaved
+                        ? "text-white border-[#0a8f2a] bg-[#13a538] hover:bg-[#0f8d30]"
+                        : toBeReimbursedSaved
+                        ? "text-white border-[#c40505] bg-[#c40505] hover:bg-[#a30404]"
+                        : "text-white border-[#1d4ed8] bg-[#2563eb] hover:bg-[#1d4ed8]"
+                    }`}
+                  >
+                    {savingReimbursement ? "Saving..." : "Reimbursed"}
                   </button>
                   <button
                     onClick={() => handleSaveReimbursement({ sendEmail: true })}
-                    disabled={savingReimbursement || !orderNo}
-                    className={`px-4 py-2 rounded-md text-sm font-medium border transition ${
+                    data-color-state={
+                      reimbursementSaved ? "saved" : toBeReimbursedSaved ? "pending" : "default"
+                    }
+                    disabled={
+                      savingReimbursement ||
+                      savingToBeReimbursed ||
+                      !orderNo ||
+                      !toBeReimbursedSaved ||
+                      !reimbursementDate
+                    }
+                    className={`reimbursement-send-email-btn px-4 py-2 rounded-md text-sm font-medium border transition shadow-sm hover:shadow-md ${
                       savingReimbursement
                         ? "bg-sky-200/80 text-gray-500 border-blue-300 cursor-not-allowed dark:bg-transparent dark:text-white/50 dark:border-white/30"
-                        : "bg-[#04356d] hover:bg-[#021f4b] text-white border-[#04356d] shadow-sm hover:shadow-md dark:bg-[#2563eb]/20 dark:text-[#bfdbfe] dark:border-[#bfdbfe]/50 dark:hover:bg-[#2563eb]/30"
+                        : reimbursementSaved
+                        ? "text-white border-[#0a8f2a] bg-[#13a538] hover:bg-[#0f8d30]"
+                        : toBeReimbursedSaved
+                        ? "text-white border-[#c40505] bg-[#8f0404] hover:bg-[#760303]"
+                        : "bg-[#04356d] hover:bg-[#021f4b] text-white border-[#04356d]"
                     }`}
                   >
                     {savingReimbursement ? "Saving..." : "Save & Send Email"}

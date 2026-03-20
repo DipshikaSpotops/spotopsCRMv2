@@ -20,6 +20,7 @@ const OwnShippingOrders = lazy(() => import("./pages/OwnShippingOrders"));
 const InTransitOrders = lazy(() => import("./pages/InTransit"));
 const CancelledOrders = lazy(() => import("./pages/CancelledOrders"));
 const RefundedOrders = lazy(() => import("./pages/RefundedOrders"));
+const ToBeReimbursed = lazy(() => import("./pages/ToBeReimbursed"));
 const DisputedOrders = lazy(() => import("./pages/DisputedOrders"));
 const FulfilledOrders = lazy(() => import("./pages/FulfilledOrders"));
 const OverallEscalationOrders = lazy(() => import("./pages/OverallEscalationOrders"));
@@ -180,6 +181,14 @@ function App() {
           element={withLayout(
             <Suspense fallback={<PageLoader />}>
               <RefundedOrders />
+            </Suspense>
+          )}
+        />
+        <Route
+          path="/to-be-reimbursed"
+          element={withLayout(
+            <Suspense fallback={<PageLoader />}>
+              <ToBeReimbursed />
             </Suspense>
           )}
         />

@@ -92,19 +92,35 @@ export default function YardCard({
     return { label, value };
   };
 
+  const rawExpediteValue =
+    y?.yardExpedite !== undefined && y?.yardExpedite !== null
+      ? y.yardExpedite
+      : y?.expediteShipping;
+
+  const hasExpediteValue =
+    rawExpediteValue !== undefined &&
+    rawExpediteValue !== null &&
+    String(rawExpediteValue).trim() !== "";
+
+  const isExpediteChecked =
+    rawExpediteValue === true ||
+    rawExpediteValue === "true" ||
+    rawExpediteValue === 1 ||
+    rawExpediteValue === "1";
+
   const fields = [
     makeField("Part Price", y.partPrice),
     makeField("Exp Shipping Date", y.expShipDate),
-    // Show expedite as a checkbox (read-only here; editable in Yard Details modal)
-    {
-      label: "Expedite",
-      checked:
-        y?.yardExpedite === true ||
-        y?.yardExpedite === "true" ||
-        y?.expediteShipping === true ||
-        y?.expediteShipping === "true",
-      isCheckbox: true,
-    },
+    // Show expedite only when a value exists
+    ...(hasExpediteValue
+      ? [
+          {
+            label: "Expedite",
+            checked: isExpediteChecked,
+            isCheckbox: true,
+          },
+        ]
+      : []),
     ...(ownVal
       ? [makeField("Own Shipping ($)", ownVal)]
       : yardVal

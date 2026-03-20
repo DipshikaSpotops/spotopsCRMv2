@@ -60,6 +60,7 @@ export default function NavbarForm() {
       ["Sales Data", "/sales-data"],
       ["Cancelled Orders", "/cancelled-orders"],
       ["Refunded Orders", "/refunded-orders"],
+      ["To Be Reimbursed", "/to-be-reimbursed"],
       ["Disputed Orders", "/disputed-orders"],
       ["Fulfilled Orders", "/fulfilled-orders"],
       ["Overall Escalation", "/overall-escalation"],

@@ -205,6 +205,10 @@ cancelledRefAmount: Number,
   reimbursementDate: {
     type: Date,
   },
+  toBeReimbursed: {
+    type: Boolean,
+    default: false,
+  },
 expediteShipping: String, 
 dsCall: String,
 programmingRequired: String,

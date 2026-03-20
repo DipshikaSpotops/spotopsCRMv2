@@ -69,30 +69,10 @@ export default function ReimbursementReport() {
     const reimbursed = Array.isArray(reimbursedRes.data) ? reimbursedRes.data : [];
     const refunded = Array.isArray(refundedRes.data) ? refundedRes.data : [];
 
-    // Flatten reimbursed - BOTH OLD (per-yard) AND NEW (order-level) logic
+    // Flatten reimbursed - order-level only (must have reimbursementDate)
     const flatReimbursed = [];
 
     reimbursed.forEach((order) => {
-      // OLD LOGIC: Per-yard reimbursements from additionalInfo
-      if (order.additionalInfo && Array.isArray(order.additionalInfo)) {
-        order.additionalInfo.forEach((info, idx) => {
-          if (info.reimbursedDate) {
-            flatReimbursed.push({
-              _id: `${order.orderNo}-reimbursed-yard-${idx}`,
-              orderNo: order.orderNo,
-              orderDate: order.orderDate,
-              refundedDate: info.reimbursedDate,
-              amount: parseFloat(info.reimbursementAmount || 0),
-              type: "Reimbursed",
-              source: "yard",
-              yardIndex: idx + 1,
-              ...customerFieldsFromOrder(order),
-            });
-          }
-        });
-      }
-
-      // NEW LOGIC: Order-level reimbursement
       if (order.reimbursementDate) {
         flatReimbursed.push({
           _id: `${order.orderNo}-reimbursed-order`,

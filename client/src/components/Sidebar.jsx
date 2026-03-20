@@ -59,6 +59,7 @@ export default function Sidebar() {
     { text: "Sales Data", to: "/sales-data" },
     { text: "Cancelled Orders", to: "/cancelled-orders" },
     { text: "Refunded Orders", to: "/refunded-orders" },
+    { text: "To Be Reimbursed", to: "/to-be-reimbursed" },
     { text: "Disputed Orders", to: "/disputed-orders" },
     { text: "Fulfilled Orders", to: "/fulfilled-orders" },
     { text: "Overall Escalation", to: "/overall-escalation" },
