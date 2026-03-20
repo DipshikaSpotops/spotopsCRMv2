@@ -95,6 +95,16 @@ export default function YardCard({
   const fields = [
     makeField("Part Price", y.partPrice),
     makeField("Exp Shipping Date", y.expShipDate),
+    // Show expedite as a checkbox (read-only here; editable in Yard Details modal)
+    {
+      label: "Expedite",
+      checked:
+        y?.yardExpedite === true ||
+        y?.yardExpedite === "true" ||
+        y?.expediteShipping === true ||
+        y?.expediteShipping === "true",
+      isCheckbox: true,
+    },
     ...(ownVal
       ? [makeField("Own Shipping ($)", ownVal)]
       : yardVal
@@ -200,7 +210,18 @@ export default function YardCard({
         <div className="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-3 text-sm">
           {fields.map((f, i) => (
             <Field key={i} label={f.label}>
-              <Input readOnly value={f.value} />
+              {f.isCheckbox ? (
+                <div className="w-full rounded-lg px-3 py-2 bg-gray-50 border border-gray-300 flex items-center dark:bg-white/10 dark:border-white/30 dark:text-white">
+                  <input
+                    type="checkbox"
+                    readOnly
+                    checked={!!f.checked}
+                    className="h-4 w-4 accent-[#2b2d68] cursor-default"
+                  />
+                </div>
+              ) : (
+                <Input readOnly value={f.value} />
+              )}
             </Field>
           ))}
         </div>

@@ -74,10 +74,8 @@ function getEmailBrandConfig(req) {
   // Brand-specific company details
   const companyName =
     brand === "PROLANE" ? "American Auto Supply" : "Auto Parts Group Corp";
-  const companyAddress =
-    brand === "PROLANE"
-      ? "1722 Routh St Suite 900, Dallas, Texas, 75201"
-      : "5306 Blaney Way, Dallas, Texas, 75227";
+  // Per request: use the same address for both brands
+  const companyAddress = "5306 Blaney Way, Dallas, Texas, 75227";
 
   // Phone for PO (purchase-side):
   // - PROLANE: use PROLANE_PURCHASE_NO if set, else PROLANE_SERVICE_NO, else default

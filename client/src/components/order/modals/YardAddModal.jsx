@@ -39,6 +39,8 @@ export default function YardAddModal({ open, onClose, onSubmit, order }) {
     others: "",
     faxNo: "",
     expShipDate: "",
+    // Whether this yard should be treated as expedite
+    yardExpedite: false,
     warranty: "",
     yardWarrantyField: "days",
     stockNo: "",
@@ -936,19 +938,63 @@ export default function YardAddModal({ open, onClose, onSubmit, order }) {
             </Field>
           </div>
 
-          {/* Own + Yard + Others */}
+          {/* Shipping splits (single row: Own + Yard + Others/Expedite) */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <Field label="Own Shipping ($)">
-              <Input type="number" step="0.01" value={form.ownShipping} onChange={onOwnChange} disabled={yardSet} />
-              {errors.ownShipping && <p className="text-xs text-red-200 dark:text-red-200">{errors.ownShipping}</p>}
+              <Input
+                type="number"
+                step="0.01"
+                value={form.ownShipping}
+                onChange={onOwnChange}
+                disabled={yardSet}
+              />
+              {errors.ownShipping && (
+                <p className="text-xs text-red-200 dark:text-red-200">{errors.ownShipping}</p>
+              )}
             </Field>
+
             <Field label="Yard Shipping ($)">
-              <Input type="number" step="0.01" value={form.yardShipping} onChange={onYardChange} disabled={ownSet} />
-              {errors.yardShipping && <p className="text-xs text-red-200 dark:text-red-200">{errors.yardShipping}</p>}
+              <Input
+                type="number"
+                step="0.01"
+                value={form.yardShipping}
+                onChange={onYardChange}
+                disabled={ownSet}
+              />
+              {errors.yardShipping && (
+                <p className="text-xs text-red-200 dark:text-red-200">{errors.yardShipping}</p>
+              )}
             </Field>
-            <Field label="Other Charges ($)">
-              <Input type="number" step="0.01" value={form.others} onChange={set("others")} />
-            </Field>
+
+            {/* Remaining 3rd column: Others + Expedite (labels on top) */}
+            <div className="grid grid-cols-2 gap-2">
+              <Field label="Others ($)">
+                <Input
+                  type="number"
+                  step="0.01"
+                  value={form.others}
+                  onChange={set("others")}
+                />
+              </Field>
+
+              <Field label="Expedite">
+                <div className="relative w-full">
+                  {/* Render a real Input box so the background/border matches exactly */}
+                  <Input readOnly value="" className="pointer-events-none" />
+                  <input
+                    type="checkbox"
+                    checked={!!form.yardExpedite}
+                    onChange={(e) =>
+                      setForm((p) => ({
+                        ...p,
+                        yardExpedite: e.target.checked,
+                      }))
+                    }
+                    className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 accent-[#2b2d68]"
+                  />
+                </div>
+              </Field>
+            </div>
           </div>
         </div>
 

@@ -198,7 +198,15 @@ export default function StoreCredits() {
                       </div>
                       <div><b>Status:</b> {y.status || "N/A"}</div>
                       <div><b>Expected Ship Date:</b> {y.expShipDate || "N/A"}</div>
-                      <div><b>Expedite:</b> {y.expediteShipping ? "Yes" : "No"}</div>
+                      <div>
+                        <b>Expedite:</b>{" "}
+                        {(y?.yardExpedite === true ||
+                          y?.yardExpedite === "true" ||
+                          y?.expediteShipping === true ||
+                          y?.expediteShipping === "true")
+                          ? "Yes"
+                          : "No"}
+                      </div>
                     </div>
                   ))}
                 </div>

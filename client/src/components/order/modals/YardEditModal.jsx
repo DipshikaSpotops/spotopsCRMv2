@@ -65,6 +65,7 @@ export default function YardEditModal({ open, initial, order, orderNo, yardIndex
     others: "",
     faxNo: "",
     expShipDate: "",
+    yardExpedite: false,
     warranty: "",
     yardWarrantyField: "days",
     stockNo: "",
@@ -145,6 +146,12 @@ export default function YardEditModal({ open, initial, order, orderNo, yardIndex
       others: initial?.others || "",
       faxNo: initial?.faxNo || "",
       expShipDate: initial?.expShipDate || "",
+      yardExpedite:
+        initial?.yardExpedite === true ||
+        initial?.yardExpedite === "true" ||
+        initial?.expediteShipping === true ||
+        initial?.expediteShipping === "true" ||
+        false,
       warranty: initial?.warranty || "",
       yardWarrantyField: initial?.yardWarrantyField || "days",
       stockNo: initial?.stockNo || "",
@@ -403,6 +410,12 @@ export default function YardEditModal({ open, initial, order, orderNo, yardIndex
             others: latestYard.others || "",
             faxNo: latestYard.faxNo || "",
             expShipDate: latestYard.expShipDate || "",
+            yardExpedite:
+              latestYard?.yardExpedite === true ||
+              latestYard?.yardExpedite === "true" ||
+              latestYard?.expediteShipping === true ||
+              latestYard?.expediteShipping === "true" ||
+              false,
             warranty: latestYard.warranty || "",
             stockNo: latestYard.stockNo || "",
             trackingNo: latestYard.trackingNo || "",
@@ -648,16 +661,58 @@ export default function YardEditModal({ open, initial, order, orderNo, yardIndex
           </div>
 
           {/* Shipping splits */}
+          {/* Single row: Own + Yard + Others/Expedite */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <Field label="Own Shipping ($)">
-              <Input type="number" step="0.01" value={form.ownShipping} onChange={onOwnChange} disabled={yardSet} />
-              {errors.ownShipping && <p className="text-xs text-red-200 mt-1">{errors.ownShipping}</p>}
+              <Input
+                type="number"
+                step="0.01"
+                value={form.ownShipping}
+                onChange={onOwnChange}
+                disabled={yardSet}
+              />
+              {errors.ownShipping && (
+                <p className="text-xs text-red-200 mt-1">{errors.ownShipping}</p>
+              )}
             </Field>
+
             <Field label="Yard Shipping ($)">
-              <Input type="number" step="0.01" value={form.yardShipping} onChange={onYardChange} disabled={ownSet} />
-              {errors.yardShipping && <p className="text-xs text-red-200 mt-1">{errors.yardShipping}</p>}
+              <Input
+                type="number"
+                step="0.01"
+                value={form.yardShipping}
+                onChange={onYardChange}
+                disabled={ownSet}
+              />
+              {errors.yardShipping && (
+                <p className="text-xs text-red-200 mt-1">{errors.yardShipping}</p>
+              )}
             </Field>
-            <Field label="Other Charges ($)"><Input type="number" step="0.01" value={form.others} onChange={set("others")} /></Field>
+
+            {/* Remaining 3rd column: Others + Expedite (labels on top) */}
+            <div className="grid grid-cols-2 gap-2">
+              <Field label="Others ($)">
+                <Input
+                  type="number"
+                  step="0.01"
+                  value={form.others}
+                  onChange={set("others")}
+                />
+              </Field>
+
+              <Field label="Expedite">
+                <div className="relative w-full">
+                  {/* Render a real Input box so the background/border matches exactly */}
+                  <Input readOnly value="" className="pointer-events-none" />
+                  <input
+                    type="checkbox"
+                    checked={!!form.yardExpedite}
+                    onChange={set("yardExpedite")}
+                    className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 accent-[#2b2d68]"
+                  />
+                </div>
+              </Field>
+            </div>
           </div>
 
           {/* Status / tracking / delivery */}

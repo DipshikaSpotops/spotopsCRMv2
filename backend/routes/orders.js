@@ -1228,6 +1228,7 @@ router.post("/:orderNo/additionalInfo", async (req, res) => {
       others,
       faxNo,
       expShipDate,
+      yardExpedite,
       warranty,
       yardWarrantyField,
       stockNo,
@@ -1267,6 +1268,7 @@ router.post("/:orderNo/additionalInfo", async (req, res) => {
       yardShipping: yardSet ? yardShipping : undefined,
       shippingDetails, others, faxNo, expShipDate, warranty, yardWarrantyField, stockNo,
       trackingNo, eta, deliveredDate, status,
+      yardExpedite: yardExpedite === true || yardExpedite === "true",
     };
 
     order.additionalInfo.push(yardEntry);
@@ -1888,6 +1890,7 @@ router.patch("/:orderNo/additionalInfo/:index", async (req, res) => {
   others: "Other Charges",
   faxNo: "Fax No.",
   expShipDate: "Expected Ship Date",
+      yardExpedite: "Yard Expedite Shipping",
   warranty: "Warranty",
   yardWarrantyField: "Warranty Unit",
   stockNo: "Stock No.",
@@ -1930,7 +1933,16 @@ router.patch("/:orderNo/additionalInfo/:index", async (req, res) => {
 
       // Skip false empties or same numbers
       if (newVal === "" && oldVal === "") continue;
-      if (!isNaN(Number(newVal)) && !isNaN(Number(oldVal)) && Number(newVal) === Number(oldVal)) continue;
+      // Avoid treating booleans like numbers (false becomes 0) when checking "same values"
+      const isBoolean = typeof newVal === "boolean" || typeof oldVal === "boolean";
+      if (
+        !isBoolean &&
+        !isNaN(Number(newVal)) &&
+        !isNaN(Number(oldVal)) &&
+        Number(newVal) === Number(oldVal)
+      ) {
+        continue;
+      }
       if (newVal === oldVal) continue;
 
       // Apply change

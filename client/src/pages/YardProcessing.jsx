@@ -107,7 +107,15 @@ export default function YardProcessingOrders() {
                   <div key={`yd-${idx}`}>
                     <div><b>Status:</b> {y?.status || "N/A"}</div>
                     <div><b>Expected Ship:</b> {y?.expShipDate || "N/A"}</div>
-                    <div><b>Expedite:</b> {String(y?.expediteShipping) === "true" ? "Yes" : "No"}</div>
+                    <div>
+                      <b>Expedite:</b>{" "}
+                      {(y?.yardExpedite === true ||
+                        y?.yardExpedite === "true" ||
+                        y?.expediteShipping === true ||
+                        y?.expediteShipping === "true")
+                        ? "Yes"
+                        : "No"}
+                    </div>
                   </div>
                 ))}
               </div>
