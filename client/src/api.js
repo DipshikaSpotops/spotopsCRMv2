@@ -22,7 +22,8 @@ console.log("[API_BASE]", API_BASE);
 const API = axios.create({
   baseURL: API_BASE,
   withCredentials: true,
-  timeout: 15000,
+  // Order details and some reports can exceed 15s under load or cold DB; avoid flaky timeouts.
+  timeout: 30000,
 });
 // Attach Bearer token + brand header from localStorage if present
 API.interceptors.request.use((cfg) => {

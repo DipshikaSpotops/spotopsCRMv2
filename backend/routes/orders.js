@@ -1064,15 +1064,15 @@ router.get("/:orderNo", async (req, res) => {
     // Decode and trim the order number to handle URL encoding and whitespace
     const orderNoParam = decodeURIComponent(req.params.orderNo).trim();
     
-    // Try exact match first (most common case)
+    // Try exact match first (most common case). lean() = plain POJO; faster JSON + less memory than full Mongoose docs.
     const Order = getOrderModel(req);
-    let order = await Order.findOne({ orderNo: orderNoParam });
+    let order = await Order.findOne({ orderNo: orderNoParam }).lean();
     
     // If not found, try case-insensitive search as fallback
     if (!order) {
       order = await Order.findOne({ 
         orderNo: { $regex: new RegExp(`^${orderNoParam.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') }
-      });
+      }).lean();
     }
     
     if (!order) {
