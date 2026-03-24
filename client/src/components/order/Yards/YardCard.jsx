@@ -111,16 +111,6 @@ export default function YardCard({
   const fields = [
     makeField("Part Price", y.partPrice),
     makeField("Exp Shipping Date", y.expShipDate),
-    // Show expedite only when a value exists
-    ...(hasExpediteValue
-      ? [
-          {
-            label: "Expedite",
-            checked: isExpediteChecked,
-            isCheckbox: true,
-          },
-        ]
-      : []),
     ...(ownVal
       ? [makeField("Own Shipping ($)", ownVal)]
       : yardVal
@@ -144,9 +134,24 @@ export default function YardCard({
   return (
     <div className="text-[#09325d] dark:text-white">
      <div className="mb-3">
-  {/* Yard Name */}
-  <div className="text-base font-semibold text-[#09325d] dark:text-white/90 mb-1">
-    Yard {index + 1}: <span className="text-[#09325d] dark:text-white">{y.yardName || "—"}</span>
+  {/* Yard name (left) + Expedite - checkbox (right) */}
+  <div className="mb-1 flex w-full flex-wrap items-center justify-between gap-x-3 gap-y-1">
+    <div className="min-w-0 text-base font-semibold text-[#09325d] dark:text-white/90">
+      Yard {index + 1}:{" "}
+      <span className="text-[#09325d] dark:text-white">{y.yardName || "—"}</span>
+    </div>
+    {hasExpediteValue && (
+      <label className="ml-auto inline-flex shrink-0 items-center gap-1.5 rounded-md border border-blue-300 bg-blue-200 px-3 py-2 text-sm font-medium text-blue-800 shadow-sm dark:border-white/40 dark:bg-white/10 dark:text-white dark:backdrop-blur-sm cursor-default select-none">
+        <span>Expedite -</span>
+        <input
+          type="checkbox"
+          readOnly
+          checked={!!isExpediteChecked}
+          aria-label={`Yard ${index + 1} expedite`}
+          className="h-4 w-4 accent-green-600 cursor-default"
+        />
+      </label>
+    )}
   </div>
 
   {/* Responsive Contact Info */}
@@ -226,18 +231,7 @@ export default function YardCard({
         <div className="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-3 text-sm">
           {fields.map((f, i) => (
             <Field key={i} label={f.label}>
-              {f.isCheckbox ? (
-                <div className="w-full rounded-lg px-3 py-2 bg-gray-50 border border-gray-300 flex items-center dark:bg-white/10 dark:border-white/30 dark:text-white">
-                  <input
-                    type="checkbox"
-                    readOnly
-                    checked={!!f.checked}
-                    className="h-4 w-4 accent-[#2b2d68] cursor-default"
-                  />
-                </div>
-              ) : (
-                <Input readOnly value={f.value} />
-              )}
+              <Input readOnly value={f.value} />
             </Field>
           ))}
         </div>
