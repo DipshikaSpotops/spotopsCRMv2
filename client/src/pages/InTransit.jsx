@@ -1,8 +1,9 @@
 // /src/pages/InTransitOrders.jsx
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import OrdersTable from "../components/OrdersTable";
 import useOrdersRealtime from "../hooks/useOrdersRealtime";
 import useBrand from "../hooks/useBrand";
+import API from "../api";
 
 /* ---------- Columns (order matters) ---------- */
 const columns = [
@@ -62,10 +63,141 @@ function computeYardDerived(yard) {
   };
 }
 
+/** Yard index (0-based) with status Part shipped — same yard In Transit list is about. */
+function findPartShippedYardIndex(additionalInfo) {
+  if (!Array.isArray(additionalInfo)) return -1;
+  for (let i = additionalInfo.length - 1; i >= 0; i--) {
+    const s = String(additionalInfo[i]?.status || "").trim().toLowerCase();
+    if (s === "part shipped") return i;
+  }
+  return -1;
+}
+
+function normalizeTrackingNo(val) {
+  if (val == null) return "";
+  if (Array.isArray(val)) {
+    return val.map((t) => String(t ?? "").trim()).filter(Boolean).join(", ");
+  }
+  return String(val).trim();
+}
+
 export default function InTransitOrders() {
   // one toggle per row; used by yard details + part/customer blocks
   const [expandedIds, setExpandedIds] = useState(() => new Set());
+  const [delivering, setDelivering] = useState(false);
+  const [actionNotice, setActionNotice] = useState("");
+  const deliverLockRef = useRef(false);
   const brand = useBrand(); // 50STARS / PROLANE
+
+  const rootApiBase = useMemo(() => {
+    const base = API?.defaults?.baseURL || "";
+    return base.replace(/\/api$/, "");
+  }, []);
+
+  const markDelivered = useCallback(
+    async (row, sendEmail) => {
+      const orderNo = row?.orderNo;
+      const firstName = localStorage.getItem("firstName") || "";
+      const idx = findPartShippedYardIndex(row?.additionalInfo);
+      if (!orderNo || idx < 0) {
+        setActionNotice("No yard with status Part shipped on this order.");
+        setTimeout(() => setActionNotice(""), 5000);
+        return;
+      }
+      if (deliverLockRef.current) return;
+      const yard = row.additionalInfo[idx];
+      const body = {
+        status: "Part delivered",
+        orderStatus: "Order Fulfilled",
+        skipEmail: true,
+      };
+      const tn = normalizeTrackingNo(yard?.trackingNo);
+      if (tn) body.trackingNo = tn;
+      if (yard?.eta) body.eta = yard.eta;
+      if (yard?.shipperName) body.shipperName = yard.shipperName;
+      if (yard?.trackingLink) body.trackingLink = yard.trackingLink;
+
+      deliverLockRef.current = true;
+      setDelivering(true);
+      try {
+        await API.put(
+          `/orders/${encodeURIComponent(orderNo)}/additionalInfo/${idx + 1}`,
+          body,
+          { params: { firstName } }
+        );
+        if (sendEmail) {
+          await API.post(
+            `/emails/customer-delivered/${encodeURIComponent(orderNo)}`,
+            null,
+            {
+              baseURL: rootApiBase || undefined,
+              params: { yardIndex: idx + 1, firstName },
+            }
+          );
+        }
+        setActionNotice(
+          sendEmail
+            ? "Delivered: yard marked Part delivered, order fulfilled, email sent."
+            : "Delivered: yard marked Part delivered and order fulfilled."
+        );
+        setTimeout(() => setActionNotice(""), 5000);
+        window.__ordersTableRefs?.inTransit?.refetch?.();
+      } catch (e) {
+        const msg =
+          e?.response?.data?.message || e?.message || "Could not complete deliver action.";
+        setActionNotice(msg);
+        setTimeout(() => setActionNotice(""), 7000);
+      } finally {
+        deliverLockRef.current = false;
+        setDelivering(false);
+      }
+    },
+    [rootApiBase]
+  );
+
+  const extraActions = useCallback(
+    (row) => {
+      const idx = findPartShippedYardIndex(row?.additionalInfo);
+      const canDeliver = idx >= 0 && !!row?.orderNo;
+      return (
+        <>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              markDelivered(row, false);
+            }}
+            disabled={!canDeliver || delivering}
+            className="px-2 py-1 text-[10px] sm:text-xs rounded text-white bg-emerald-800 hover:bg-emerald-900 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+            title={
+              canDeliver
+                ? "Mark yard Part delivered & order Order Fulfilled (no email)"
+                : "No yard with status Part shipped"
+            }
+          >
+            Deliver
+          </button>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              markDelivered(row, true);
+            }}
+            disabled={!canDeliver || delivering}
+            className="px-2 py-1 text-[10px] sm:text-xs rounded text-white bg-[#04356d] hover:bg-[#021f4b] disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+            title={
+              canDeliver
+                ? "Same as Deliver, then send customer-delivered email"
+                : "No yard with status Part shipped"
+            }
+          >
+            Deliver &amp; Email
+          </button>
+        </>
+      );
+    },
+    [delivering, markDelivered]
+  );
   const toggleExpand = useCallback((row) => {
     const id = row._id || row.orderNo || `${row.orderDate || ""}-${Math.random()}`;
     setExpandedIds(prev => {
@@ -264,13 +396,23 @@ export default function InTransitOrders() {
         .in-transit-table-wrapper table td:nth-child(5) {
           width: 22% !important;
         }
-        /* Actions column - narrower */
+        /* Actions column — View + Deliver + Deliver & Email */
         .in-transit-table-wrapper table th:last-child,
         .in-transit-table-wrapper table td:last-child {
-          width: 10% !important;
-          min-width: 10% !important;
+          width: 22% !important;
+          min-width: 240px !important;
+          white-space: normal !important;
         }
       `}</style>
+      {actionNotice ? (
+        <div
+          className="fixed top-1/2 left-1/2 z-[200] w-[min(100%,26rem)] max-w-[calc(100vw-2rem)] -translate-x-1/2 -translate-y-1/2 rounded-xl border border-white/25 bg-[#0b1629]/95 px-5 py-3 text-center text-sm font-medium leading-snug text-white shadow-2xl backdrop-blur-md"
+          role="status"
+          aria-live="polite"
+        >
+          {actionNotice}
+        </div>
+      ) : null}
       <OrdersTable
         title="In Transit Orders"
         endpoint="/orders/inTransitOrders"
@@ -287,6 +429,7 @@ export default function InTransitOrders() {
         showTotalsButton={false}     // hide eye button
         rowsPerPage={25}
         tableId="inTransit"
+        extraActions={extraActions}
         paramsBuilder={({ filter, query, sortBy, sortOrder }) => {
           const params = {};
           if (filter?.start && filter?.end) {

@@ -296,6 +296,7 @@ const GlassModal = ({ title, subtitle, onClose, children, actions }) => {
    - showGP               : boolean (enables GP totals and derived _currentGP/_actualGP)
    - navigateTo           : function(row) -> path  (default `/order-details?orderNo=...`)
    - extraTotals          : optional function(sortedRows) => [{name, value}]  (for pages like Cancelled)
+   - extraActions         : optional (row) => ReactNode (after View in Actions column)
 */
 export default function OrdersTable({
   title = "Orders",
@@ -317,6 +318,7 @@ export default function OrdersTable({
   totalLabel,
   showTotalsNearPill = false,
   hideDefaultActions = false, // New prop to hide default Actions column
+  extraActions, // optional (row) => ReactNode — rendered after View in Actions column
   rowsPerPage = ROWS_PER_PAGE, // allow per-page override
   tableId, // optional: identifier so realtime hooks can trigger refetch
   customFilters, // optional: custom filter components to render next to agent filter
@@ -1164,8 +1166,8 @@ export default function OrdersTable({
                       </td>
                     ))}
                     {!hideDefaultActions && (
-                      <td className="p-2.5">
-                        <div className="flex gap-2">
+                      <td className="p-2.5 align-top">
+                        <div className="flex flex-wrap gap-1 items-center">
                           {(() => {
                             const restrictedStatuses = ["Placed", "Partially charged order"];
                             const isRestricted = restrictedStatuses.includes(row.orderStatus);
@@ -1224,6 +1226,7 @@ export default function OrdersTable({
                               </button>
                             );
                           })()}
+                          {typeof extraActions === "function" ? extraActions(row) : null}
                           {userRole === "Sales" && (
                             <button
                               onClick={(e) => {
@@ -1356,6 +1359,9 @@ export default function OrdersTable({
                       </button>
                     );
                   })()}
+                  {typeof extraActions === "function" ? (
+                    <div className="flex flex-wrap gap-2 w-full">{extraActions(row)}</div>
+                  ) : null}
                   {userRole === "Sales" && (
                     <button
                       onClick={(e) => {
