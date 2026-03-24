@@ -175,7 +175,7 @@ export default function InTransitOrders() {
                 : "No yard with status Part shipped"
             }
           >
-            Deliver
+            Delivered
           </button>
           <button
             type="button"
@@ -187,11 +187,11 @@ export default function InTransitOrders() {
             className="px-2 py-1 text-[10px] sm:text-xs rounded text-white bg-[#04356d] hover:bg-[#021f4b] disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
             title={
               canDeliver
-                ? "Same as Deliver, then send customer-delivered email"
+                ? "Same as Delivered, then send customer-delivered email"
                 : "No yard with status Part shipped"
             }
           >
-            Deliver &amp; Email
+            Delivered &amp; Send Email
           </button>
         </>
       );
@@ -276,9 +276,16 @@ export default function InTransitOrders() {
                     ? String(y.trackingNo)
                     : "N/A";
                 
+                const shipper =
+                  y?.shipperName != null && String(y.shipperName).trim()
+                    ? String(y.shipperName).trim()
+                    : "N/A";
                 return (
                   <div key={idx} className="font-medium break-words overflow-wrap-anywhere space-y-1">
                     <div className="border-b border-white/20 pb-0.5 inline-block">{y?.yardName || ""}</div>
+                    <div className="text-sm opacity-90">
+                      <b>Shipper Name:</b> {shipper}
+                    </div>
                     <div className="text-sm opacity-90">
                       <b>Tracking No:</b> {trackingNo}
                     </div>
@@ -396,11 +403,11 @@ export default function InTransitOrders() {
         .in-transit-table-wrapper table td:nth-child(5) {
           width: 22% !important;
         }
-        /* Actions column — View + Deliver + Deliver & Email */
+        /* Actions column — View + Delivered + Delivered & Send Email */
         .in-transit-table-wrapper table th:last-child,
         .in-transit-table-wrapper table td:last-child {
-          width: 22% !important;
-          min-width: 240px !important;
+          width: 24% !important;
+          min-width: 280px !important;
           white-space: normal !important;
         }
       `}</style>
