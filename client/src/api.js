@@ -33,12 +33,19 @@ API.interceptors.request.use((cfg) => {
     cfg.headers.Authorization = `Bearer ${token}`;
   }
 
-  // Brand: 50STARS (default) or PROLANE
+  // Brand: 50STARS (default) or PROLANE — do not overwrite if caller set x-brand (e.g. Add Order submit)
   try {
-    const stored = localStorage.getItem("currentBrand") || "50STARS";
-    const brand = String(stored || "50STARS").toUpperCase();
     cfg.headers = cfg.headers || {};
-    cfg.headers["x-brand"] = brand === "PROLANE" ? "PROLANE" : "50STARS";
+    const existing =
+      cfg.headers["x-brand"] ?? cfg.headers["X-Brand"] ?? cfg.headers["X-BRAND"];
+    if (existing != null && String(existing).trim() !== "") {
+      const n = String(existing).trim().toUpperCase();
+      cfg.headers["x-brand"] = n === "PROLANE" ? "PROLANE" : "50STARS";
+    } else {
+      const stored = localStorage.getItem("currentBrand") || "50STARS";
+      const brand = String(stored || "50STARS").toUpperCase();
+      cfg.headers["x-brand"] = brand === "PROLANE" ? "PROLANE" : "50STARS";
+    }
   } catch {
     // fallback: keep header off, server will default to 50STARS
   }

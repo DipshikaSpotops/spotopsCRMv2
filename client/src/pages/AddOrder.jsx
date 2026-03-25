@@ -545,6 +545,44 @@ export default function AddOrder() {
       return;
     }
 
+    const brandForApi =
+      String(getCurrentBrand() || "50STARS").toUpperCase() === "PROLANE"
+        ? "PROLANE"
+        : "50STARS";
+
+    const compactOrderNo = String(formData.orderNo ?? "")
+      .trim()
+      .toUpperCase()
+      .replace(/\s+/g, "");
+    let inferredOrderBrand = null;
+    if (compactOrderNo.startsWith("50STARS")) inferredOrderBrand = "50STARS";
+    else if (compactOrderNo.startsWith("PROLANE")) inferredOrderBrand = "PROLANE";
+
+    if (inferredOrderBrand && inferredOrderBrand !== brandForApi) {
+      setToast({
+        message: `Order number ${String(formData.orderNo).trim()} is a ${inferredOrderBrand} number, but you are on ${brandForApi}. Switch brand in the header or correct the order number.`,
+        variant: "error",
+      });
+      return;
+    }
+
+    if (brandForApi === "PROLANE" && compactOrderNo.includes("50STARS")) {
+      setToast({
+        message:
+          "Order number cannot contain 50STARS while on PROLANE. Switch to 50STARS or use a PROLANE order number.",
+        variant: "error",
+      });
+      return;
+    }
+    if (brandForApi === "50STARS" && compactOrderNo.includes("PROLANE")) {
+      setToast({
+        message:
+          "Order number cannot contain PROLANE while on 50STARS. Switch to PROLANE or use a 50STARS order number.",
+        variant: "error",
+      });
+      return;
+    }
+
     try {
       setSubmitting(true);
       const firstName = localStorage.getItem("firstName") || "";
@@ -573,13 +611,20 @@ export default function AddOrder() {
         orderStatus: orderStatus,
         attention: formData.sAttention || formData.attention || "", // Map sAttention to attention
         salesAgent: formData.salesAgent, // Save only firstName to database (for filtering compatibility)
+        // Server checks this matches x-brand / req.brand so orders cannot land in the wrong DB
+        _expectedBrand: brandForApi,
       };
       // Remove sAttention from payload since we've mapped it to attention
       delete payload.sAttention;
 
       const res = await API.post(
         `/orders/orders?firstName=${encodeURIComponent(firstName)}`,
-        payload
+        payload,
+        {
+          headers: {
+            "x-brand": brandForApi,
+          },
+        }
       );
 
       const createdOrderNo = res?.data?.orderNo || payload.orderNo || "";
@@ -690,7 +735,7 @@ export default function AddOrder() {
                 error={fieldErrors.has("bAddressCity")}
               />
 
-              {/* ✅ State Dropdown */}
+              {/*  State Dropdown */}
               <select
                 className={`w-full p-2 border rounded-md bg-white/20 text-white focus:outline-none focus:ring-2 ${
                   fieldErrors.has("bAddressState")
@@ -734,6 +779,8 @@ export default function AddOrder() {
                   "RP Payment",
                   "SA Authorized",
                   "SA Payment Link",
+                  "VP2 Authorized",
+                  "VP2 Payment Link",
                   "VPS Authorized",
                   "VPS Payment Link",
                   "Zelle",

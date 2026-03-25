@@ -14,6 +14,18 @@ const router = express.Router();
 const TZ = "America/Chicago";
 const upload = multer();
 
+/** If orderNo starts with a known brand prefix, it must be created under that brand. */
+function inferBrandFromOrderNo(orderNo) {
+  const compact = String(orderNo ?? "")
+    .trim()
+    .toUpperCase()
+    .replace(/\s+/g, "");
+  if (!compact) return null;
+  if (compact.startsWith("50STARS")) return "50STARS";
+  if (compact.startsWith("PROLANE")) return "PROLANE";
+  return null;
+}
+
 /* helper functions*/
 // publish to all clients watching this order
 const publish = (req, orderNo, payload = {}) => {
@@ -574,14 +586,48 @@ router.post("/orders", async (req, res) => {
   const formattedDateTime = central.format("D MMM, YYYY HH:mm");
 
   try {
+    // Brand guard: client sends _expectedBrand; must match header-derived req.brand (50STARS vs PROLANE DB)
+    const expectedRaw = req.body?._expectedBrand ?? req.body?.expectedBrand;
+    if (expectedRaw != null && String(expectedRaw).trim() !== "") {
+      const normalizedExpected =
+        String(expectedRaw).trim().toUpperCase() === "PROLANE" ? "PROLANE" : "50STARS";
+      if (normalizedExpected !== req.brand) {
+        return res.status(400).json({
+          message: `Brand mismatch: form expected ${normalizedExpected} but the request was routed as ${req.brand}. Switch brand in the app header and try again.`,
+        });
+      }
+    }
+
+    const { _expectedBrand, expectedBrand, ...orderBody } = req.body || {};
+
+    const orderNoStr = String(orderBody.orderNo || "").trim();
+    const inferredFromOrderNo = inferBrandFromOrderNo(orderNoStr);
+    if (inferredFromOrderNo && inferredFromOrderNo !== req.brand) {
+      return res.status(400).json({
+        message: `Order number ${orderNoStr} is a ${inferredFromOrderNo} order number, but this request is for ${req.brand}. Switch brand in the app or correct the order number.`,
+      });
+    }
+
+    const compactNo = orderNoStr.toUpperCase().replace(/\s+/g, "");
+    if (req.brand === "PROLANE" && compactNo.includes("50STARS")) {
+      return res.status(400).json({
+        message: `Order number cannot contain 50STARS on PROLANE. Switch to 50STARS or use a PROLANE order number.`,
+      });
+    }
+    if (req.brand === "50STARS" && compactNo.includes("PROLANE")) {
+      return res.status(400).json({
+        message: `Order number cannot contain PROLANE on 50STARS. Switch to PROLANE or use a 50STARS order number.`,
+      });
+    }
+
     // Get brand-specific Order model
     const Order = getOrderModel(req);
     
     // Determine orderStatus based on chargedAmount vs soldP if not explicitly provided
-    let orderStatus = req.body.orderStatus;
-    if (req.body.chargedAmount !== undefined && req.body.soldP !== undefined) {
-      const soldPNum = parseFloat(req.body.soldP) || 0;
-      const chargedNum = parseFloat(req.body.chargedAmount) || soldPNum;
+    let orderStatus = orderBody.orderStatus;
+    if (orderBody.chargedAmount !== undefined && orderBody.soldP !== undefined) {
+      const soldPNum = parseFloat(orderBody.soldP) || 0;
+      const chargedNum = parseFloat(orderBody.chargedAmount) || soldPNum;
       // Only override if orderStatus wasn't explicitly set or if it's the default "Placed"
       if (!orderStatus || orderStatus === "Placed") {
         orderStatus = chargedNum === soldPNum ? "Placed" : "Partially charged order";
@@ -590,7 +636,7 @@ router.post("/orders", async (req, res) => {
       orderStatus = "Placed"; // default
     }
 
-    const newOrder = new Order({ ...req.body, orderStatus });
+    const newOrder = new Order({ ...orderBody, orderStatus });
     newOrder.orderDate = central.toDate();
 
     newOrder.orderHistory = newOrder.orderHistory || [];
