@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useState, useMemo, useRef, useCallback } from "react";
 import API from "../api";
 import { formatInTimeZone } from "date-fns-tz";
 import { FaSort, FaSortUp, FaSortDown, FaChevronLeft, FaChevronRight, FaEdit, FaTrash } from "react-icons/fa";
@@ -23,6 +23,148 @@ function readAuthFromStorage() {
     role: localStorage.getItem("role") || undefined,
     email: localStorage.getItem("email") || undefined,
   };
+}
+
+const emptyYardForm = () => ({
+  yardName: "",
+  yardRating: "",
+  phone: "",
+  altNo: "",
+  email: "",
+  street: "",
+  city: "",
+  state: "",
+  zipcode: "",
+  country: "US",
+  agentName: "",
+  agentPhone: "",
+});
+
+/** Align zip-lookup country with yard forms (same idea as YardAddModal). */
+function normalizeYardCountry(value) {
+  const raw = String(value ?? "").trim();
+  const upper = raw.toUpperCase();
+  if (upper === "CANADA" || upper === "CA") return "Canada";
+  if (upper === "US" || upper === "USA") return "US";
+  return raw === "Canada" || raw === "US" ? raw : "US";
+}
+
+const yardFieldClass =
+  "w-full px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-white outline-none focus:ring-2 focus:ring-white/30";
+
+function YardFormFields({ form, setForm }) {
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+      <div>
+        <label className="block text-sm font-medium mb-1">Yard Name</label>
+        <input
+          type="text"
+          value={form.yardName}
+          onChange={(e) => setForm({ ...form, yardName: e.target.value })}
+          className={yardFieldClass}
+        />
+      </div>
+      <div>
+        <label className="block text-sm font-medium mb-1">Yard Rating</label>
+        <input
+          type="text"
+          value={form.yardRating}
+          onChange={(e) => setForm({ ...form, yardRating: e.target.value })}
+          className={yardFieldClass}
+        />
+      </div>
+      <div>
+        <label className="block text-sm font-medium mb-1">Phone</label>
+        <input
+          type="text"
+          value={form.phone}
+          onChange={(e) => setForm({ ...form, phone: e.target.value })}
+          className={yardFieldClass}
+        />
+      </div>
+      <div>
+        <label className="block text-sm font-medium mb-1">Alt No</label>
+        <input
+          type="text"
+          value={form.altNo}
+          onChange={(e) => setForm({ ...form, altNo: e.target.value })}
+          className={yardFieldClass}
+        />
+      </div>
+      <div>
+        <label className="block text-sm font-medium mb-1">Email</label>
+        <input
+          type="email"
+          value={form.email}
+          onChange={(e) => setForm({ ...form, email: e.target.value })}
+          className={yardFieldClass}
+        />
+      </div>
+      <div>
+        <label className="block text-sm font-medium mb-1">Street</label>
+        <input
+          type="text"
+          value={form.street}
+          onChange={(e) => setForm({ ...form, street: e.target.value })}
+          className={yardFieldClass}
+        />
+      </div>
+      <div>
+        <label className="block text-sm font-medium mb-1">City</label>
+        <input
+          type="text"
+          value={form.city}
+          onChange={(e) => setForm({ ...form, city: e.target.value })}
+          className={yardFieldClass}
+        />
+      </div>
+      <div>
+        <label className="block text-sm font-medium mb-1">State</label>
+        <input
+          type="text"
+          value={form.state}
+          onChange={(e) => setForm({ ...form, state: e.target.value })}
+          className={yardFieldClass}
+        />
+      </div>
+      <div>
+        <label className="block text-sm font-medium mb-1">Zipcode</label>
+        <input
+          type="text"
+          value={form.zipcode}
+          onChange={(e) => setForm({ ...form, zipcode: e.target.value })}
+          className={yardFieldClass}
+        />
+      </div>
+      <div>
+        <label className="block text-sm font-medium mb-1">Country</label>
+        <input
+          type="text"
+          value={form.country}
+          onChange={(e) => setForm({ ...form, country: e.target.value })}
+          className={yardFieldClass}
+        />
+      </div>
+      <div>
+        <label className="block text-sm font-medium mb-1">Agent Name</label>
+        <input
+          type="text"
+          value={form.agentName}
+          onChange={(e) => setForm({ ...form, agentName: e.target.value })}
+          className={yardFieldClass}
+        />
+      </div>
+      <div>
+        <label className="block text-sm font-medium mb-1">Agent Phone</label>
+        <input
+          type="text"
+          value={form.agentPhone}
+          onChange={(e) => setForm({ ...form, agentPhone: e.target.value })}
+          className={yardFieldClass}
+        />
+      </div>
+    </div>
+  );
 }
 
 const Yards = () => {
@@ -66,24 +208,71 @@ const Yards = () => {
   const [appliedQuery, setAppliedQuery] = useState(localStorage.getItem("yardsSearch") || "");
 
   const [editingYard, setEditingYard] = useState(null);
-  const [editForm, setEditForm] = useState({
-    yardName: "",
-    yardRating: "",
-    phone: "",
-    altNo: "",
-    email: "",
-    street: "",
-    city: "",
-    state: "",
-    zipcode: "",
-    country: "US",
-    warranty: "",
-    agentName: "",
-    agentPhone: "",
-  });
+  const [editForm, setEditForm] = useState(() => emptyYardForm());
+
+  const [addYardOpen, setAddYardOpen] = useState(false);
+  const [addForm, setAddForm] = useState(() => emptyYardForm());
+  const [addSaving, setAddSaving] = useState(false);
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
   const [showTodayOnly, setShowTodayOnly] = useState(false);
+
+  const addZipTimer = useRef(null);
+  const editZipTimer = useRef(null);
+
+  const fetchZipDetails = useCallback(async (zipRaw) => {
+    const trimmed = (zipRaw || "").trim();
+    if (!trimmed) return null;
+    try {
+      const res = await API.get("/utils/zip-lookup", { params: { zip: trimmed } });
+      return res.data || null;
+    } catch (error) {
+      console.debug("ZIP lookup skipped", error);
+      return null;
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!addYardOpen) return undefined;
+    const zip = addForm.zipcode;
+    if (addZipTimer.current) clearTimeout(addZipTimer.current);
+    if (!zip) return undefined;
+    addZipTimer.current = setTimeout(async () => {
+      const result = await fetchZipDetails(zip);
+      if (result) {
+        setAddForm((prev) => ({
+          ...prev,
+          city: result.city || prev.city,
+          state: result.state || prev.state,
+          country: normalizeYardCountry(result.country || prev.country),
+        }));
+      }
+    }, 400);
+    return () => {
+      if (addZipTimer.current) clearTimeout(addZipTimer.current);
+    };
+  }, [addYardOpen, addForm.zipcode, fetchZipDetails]);
+
+  useEffect(() => {
+    if (!editingYard) return undefined;
+    const zip = editForm.zipcode;
+    if (editZipTimer.current) clearTimeout(editZipTimer.current);
+    if (!zip) return undefined;
+    editZipTimer.current = setTimeout(async () => {
+      const result = await fetchZipDetails(zip);
+      if (result) {
+        setEditForm((prev) => ({
+          ...prev,
+          city: result.city || prev.city,
+          state: result.state || prev.state,
+          country: normalizeYardCountry(result.country || prev.country),
+        }));
+      }
+    }, 400);
+    return () => {
+      if (editZipTimer.current) clearTimeout(editZipTimer.current);
+    };
+  }, [editingYard, editForm.zipcode, fetchZipDetails]);
 
   const fetchYards = async (page = 1, q = appliedQuery, sBy = sortBy, sDir = sortOrder, todayFilter = showTodayOnly, opts = { silent: false }) => {
     try {
@@ -192,7 +381,6 @@ const Yards = () => {
       state: yard.state || "",
       zipcode: yard.zipcode || "",
       country: yard.country || "US",
-      warranty: yard.warranty || "",
       agentName: primaryAgent?.name || "",
       agentPhone: primaryAgent?.phone || "",
     });
@@ -229,6 +417,48 @@ const Yards = () => {
     setShowTodayOnly(newValue);
     setCurrentPage(1);
     fetchYards(1, appliedQuery, sortBy, sortOrder, newValue, { silent: false });
+  };
+
+  const openAddYard = () => {
+    setAddForm(emptyYardForm());
+    setAddYardOpen(true);
+  };
+
+  const handleSaveAddYard = async () => {
+    const yn = String(addForm.yardName || "").trim();
+    if (!yn) {
+      alert("Yard name is required.");
+      return;
+    }
+    try {
+      setAddSaving(true);
+      const payload = {
+        yardName: yn,
+        yardRating: addForm.yardRating || "",
+        phone: addForm.phone || "",
+        altNo: addForm.altNo || "",
+        email: addForm.email || "",
+        street: addForm.street || "",
+        city: addForm.city || "",
+        state: addForm.state || "",
+        zipcode: addForm.zipcode || "",
+        country: (addForm.country || "US").trim() || "US",
+        agentName: addForm.agentName || "",
+        agentPhone: addForm.agentPhone || "",
+      };
+      await API.post("/yards", payload);
+      setAddYardOpen(false);
+      setAddForm(emptyYardForm());
+      setCurrentPage(1);
+      fetchYards(1, appliedQuery, sortBy, sortOrder, showTodayOnly, { silent: true });
+      alert("Yard added successfully.");
+    } catch (err) {
+      console.error("Error adding yard:", err);
+      const msg = err?.response?.data?.message || err?.response?.data?.error || "Failed to add yard.";
+      alert(msg);
+    } finally {
+      setAddSaving(false);
+    }
   };
 
   if (loading) return <div className="p-6 text-center text-white">⏳ Loading Yards...</div>;
@@ -299,6 +529,13 @@ const Yards = () => {
             }`}
           >
             {showTodayOnly ? "Show All Yards" : "Today's Yards"}
+          </button>
+          <button
+            type="button"
+            onClick={openAddYard}
+            className="px-4 py-2 rounded-lg font-medium transition whitespace-nowrap bg-blue-600 hover:bg-blue-700 text-white"
+          >
+            Add Yard
           </button>
           <div className="w-full lg:w-[260px] relative">
             <input
@@ -459,125 +696,7 @@ const Yards = () => {
               </button>
             </header>
             <div className="p-5 space-y-4 max-h-[80vh] overflow-y-auto">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-sm font-medium mb-1">Yard Name</label>
-                  <input
-                    type="text"
-                    value={editForm.yardName}
-                    onChange={(e) => setEditForm({ ...editForm, yardName: e.target.value })}
-                    className="w-full px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-white outline-none focus:ring-2 focus:ring-white/30"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">Yard Rating</label>
-                  <input
-                    type="text"
-                    value={editForm.yardRating}
-                    onChange={(e) => setEditForm({ ...editForm, yardRating: e.target.value })}
-                    className="w-full px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-white outline-none focus:ring-2 focus:ring-white/30"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">Phone</label>
-                  <input
-                    type="text"
-                    value={editForm.phone}
-                    onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
-                    className="w-full px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-white outline-none focus:ring-2 focus:ring-white/30"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">Alt No</label>
-                  <input
-                    type="text"
-                    value={editForm.altNo}
-                    onChange={(e) => setEditForm({ ...editForm, altNo: e.target.value })}
-                    className="w-full px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-white outline-none focus:ring-2 focus:ring-white/30"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">Email</label>
-                  <input
-                    type="email"
-                    value={editForm.email}
-                    onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
-                    className="w-full px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-white outline-none focus:ring-2 focus:ring-white/30"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">Street</label>
-                  <input
-                    type="text"
-                    value={editForm.street}
-                    onChange={(e) => setEditForm({ ...editForm, street: e.target.value })}
-                    className="w-full px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-white outline-none focus:ring-2 focus:ring-white/30"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">City</label>
-                  <input
-                    type="text"
-                    value={editForm.city}
-                    onChange={(e) => setEditForm({ ...editForm, city: e.target.value })}
-                    className="w-full px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-white outline-none focus:ring-2 focus:ring-white/30"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">State</label>
-                  <input
-                    type="text"
-                    value={editForm.state}
-                    onChange={(e) => setEditForm({ ...editForm, state: e.target.value })}
-                    className="w-full px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-white outline-none focus:ring-2 focus:ring-white/30"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">Zipcode</label>
-                  <input
-                    type="text"
-                    value={editForm.zipcode}
-                    onChange={(e) => setEditForm({ ...editForm, zipcode: e.target.value })}
-                    className="w-full px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-white outline-none focus:ring-2 focus:ring-white/30"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">Country</label>
-                  <input
-                    type="text"
-                    value={editForm.country}
-                    onChange={(e) => setEditForm({ ...editForm, country: e.target.value })}
-                    className="w-full px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-white outline-none focus:ring-2 focus:ring-white/30"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">Warranty</label>
-                  <input
-                    type="number"
-                    value={editForm.warranty}
-                    onChange={(e) => setEditForm({ ...editForm, warranty: e.target.value })}
-                    className="w-full px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-white outline-none focus:ring-2 focus:ring-white/30"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">Agent Name</label>
-                  <input
-                    type="text"
-                    value={editForm.agentName}
-                    onChange={(e) => setEditForm({ ...editForm, agentName: e.target.value })}
-                    className="w-full px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-white outline-none focus:ring-2 focus:ring-white/30"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">Agent Phone</label>
-                  <input
-                    type="text"
-                    value={editForm.agentPhone}
-                    onChange={(e) => setEditForm({ ...editForm, agentPhone: e.target.value })}
-                    className="w-full px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-white outline-none focus:ring-2 focus:ring-white/30"
-                  />
-                </div>
-              </div>
+              <YardFormFields form={editForm} setForm={setEditForm} />
             </div>
             <footer className="flex items-center justify-end gap-2 px-5 py-3 border-t border-white/20">
               <button
@@ -591,6 +710,47 @@ const Yards = () => {
                 className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 transition"
               >
                 Save
+              </button>
+            </footer>
+          </div>
+        </div>
+      )}
+
+      {/* Add Yard Modal */}
+      {addYardOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => !addSaving && setAddYardOpen(false)} />
+          <div className="relative w-full max-w-2xl rounded-2xl border border-white/20 bg-white/10 text-white backdrop-blur-xl shadow-2xl">
+            <header className="flex items-center justify-between px-5 py-3 border-b border-white/20">
+              <h3 className="text-lg font-semibold">Add Yard</h3>
+              <button
+                type="button"
+                disabled={addSaving}
+                onClick={() => setAddYardOpen(false)}
+                className="px-2 py-1 rounded-md bg-white/10 border border-white/20 hover:bg-white/20 disabled:opacity-50"
+              >
+                ✕
+              </button>
+            </header>
+            <div className="p-5 space-y-4 max-h-[80vh] overflow-y-auto">
+              <YardFormFields form={addForm} setForm={setAddForm} />
+            </div>
+            <footer className="flex items-center justify-end gap-2 px-5 py-3 border-t border-white/20">
+              <button
+                type="button"
+                disabled={addSaving}
+                onClick={() => setAddYardOpen(false)}
+                className="px-4 py-2 rounded-lg bg-white/10 border border-white/20 hover:bg-white/20 transition disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={addSaving}
+                onClick={handleSaveAddYard}
+                className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 transition disabled:opacity-50"
+              >
+                {addSaving ? "Saving…" : "Save"}
               </button>
             </footer>
           </div>

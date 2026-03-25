@@ -10,7 +10,7 @@ router.get("/", async (req, res) => {
   try {
     const yards = await Yard.find(
       {},
-      "yardName yardRating phone altNo email street city state zipcode country warranty agents"
+      "yardName yardRating phone altNo email street city state zipcode country agents"
     );
     res.json(yards);
   } catch (err) {
@@ -215,7 +215,6 @@ router.post("/", async (req, res) => {
       state,
       zipcode,
       country = "US",
-      warranty,
       agentName,
       agentPhone,
     } = req.body;
@@ -275,7 +274,6 @@ router.post("/", async (req, res) => {
           state,
           zipcode,
           country,
-          warranty,
         },
       };
 
@@ -325,7 +323,6 @@ router.post("/", async (req, res) => {
       state,
       zipcode,
       country,
-      warranty,
       agents: agent ? [agent] : [],
     });
 
@@ -356,7 +353,6 @@ router.put("/:id", async (req, res) => {
       state,
       zipcode,
       country,
-      warranty,
       agentName,
       agentPhone,
     } = req.body;
@@ -389,7 +385,6 @@ router.put("/:id", async (req, res) => {
         state,
         zipcode,
         country,
-        warranty,
       },
     };
 

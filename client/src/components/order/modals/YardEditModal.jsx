@@ -357,7 +357,6 @@ export default function YardEditModal({ open, initial, order, orderNo, yardIndex
               state: existingYard.state,
               zipcode: existingYard.zipcode,
               country: existingYard.country,
-              warranty: existingYard.warranty,
               agentName: form.agentName || "",
               agentPhone: form.agentPhone || "",
             });

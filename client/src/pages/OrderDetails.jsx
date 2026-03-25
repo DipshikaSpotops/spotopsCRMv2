@@ -1010,7 +1010,6 @@ export default function OrderDetails() {
           state: formData.state,
           zipcode: formData.zipcode,
           country: formData.country,
-          warranty: formData.warranty,
         });
       }
 
