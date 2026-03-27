@@ -3,10 +3,10 @@ import API from "../api";
 import useBrand from "../hooks/useBrand";
 
 const money = (n) =>
-  Number(n || 0).toLocaleString(undefined, {
+  `$${Number(n || 0).toLocaleString(undefined, {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
-  });
+  })}`;
 
 const pct = (n) => `${Number(n || 0).toFixed(2)}%`;
 
@@ -131,6 +131,7 @@ export default function IncentivesReport() {
                   as of {formatAsOf(m.asOfDate)}
                 </p>
               </div>
+              <div className="mb-3 border-b border-white/30" />
 
               <div className="overflow-x-auto">
                 <table className="min-w-full border-collapse text-sm">
@@ -164,7 +165,7 @@ export default function IncentivesReport() {
                       </tr>
                     ))}
 
-                    <tr className="border-t border-white/30 font-semibold">
+                    <tr className="border-y border-white/40 font-semibold">
                       <td className="px-2 py-2 border-r border-white/20">Total</td>
                       <td className="px-2 py-2 border-r border-white/20">{m.totals?.noOfOrders || 0}</td>
                       <td className="px-2 py-2 border-r border-white/20">{money(m.totals?.salesReport)}</td>
@@ -177,18 +178,6 @@ export default function IncentivesReport() {
                         {m.totals?.individualReportCount || 0} (
                         {pct(m.totals?.individualReportPercent || 0)})
                       </td>
-                    </tr>
-
-                    <tr className="text-white/85">
-                      <td className="px-2 py-2 border-r border-white/10" />
-                      <td className="px-2 py-2 border-r border-white/10" />
-                      <td className="px-2 py-2 border-r border-white/10" />
-                      <td className="px-2 py-2 border-r border-white/10">{money(m.deltas?.actualGpMinusSales)}</td>
-                      <td className="px-2 py-2 border-r border-white/10">{money(m.deltas?.estGpMinusSales)}</td>
-                      <td className="px-2 py-2 border-r border-white/10" />
-                      <td className="px-2 py-2 border-r border-white/10" />
-                      <td className="px-2 py-2 border-r border-white/10" />
-                      <td className="px-2 py-2" />
                     </tr>
                   </tbody>
                 </table>
