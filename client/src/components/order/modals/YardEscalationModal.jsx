@@ -832,7 +832,7 @@ useEffect(() => {
     const orderNo = order.orderNo;
     const idx1 = (yardIndex ?? 0) + 1;
 
-    const payload = { ...yard };
+    const payload = {};
     if (target === "customer") {
       payload.customerTrackingNumberReplacement = "";
       payload.customerETAReplacement = "";
@@ -849,12 +849,11 @@ useEffect(() => {
 
     setActionLoading(true);
     try {
-      const endpoint =
-        target === "customer"
-          ? `/orders/voidLabelRepCust/${encodeURIComponent(orderNo)}/${idx1}`
-          : `/orders/voidLabelRepYard/${encodeURIComponent(orderNo)}/${idx1}`;
-
-      await API.put(endpoint, payload, { params: { firstName } });
+      await API.put(
+        `/orders/${encodeURIComponent(orderNo)}/additionalInfo/${idx1}`,
+        payload,
+        { params: { firstName } }
+      );
 
       if (target === "customer") {
         setState((prev) => ({
@@ -903,7 +902,7 @@ useEffect(() => {
     const orderNo = order.orderNo;
     const idx1 = (yardIndex ?? 0) + 1;
 
-    const payload = { ...yard };
+    const payload = {};
     payload.returnTrackingCust = "";
     payload.custretPartETA = "";
     payload.customerShipperReturn = "";
@@ -914,7 +913,7 @@ useEffect(() => {
     setActionLoading(true);
     try {
       await API.put(
-        `/orders/voidLabelReturn/${encodeURIComponent(orderNo)}/${idx1}`,
+        `/orders/${encodeURIComponent(orderNo)}/additionalInfo/${idx1}`,
         payload,
         { params: { firstName } }
       );
