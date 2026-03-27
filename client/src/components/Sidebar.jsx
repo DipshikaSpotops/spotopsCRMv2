@@ -90,6 +90,7 @@ export default function Sidebar() {
     { text: "Make/Model Statistics", to: "/make-statistics", adminOnly: true, emailAccess: "50starsauto110@gmail.com" },
     { text: "Card Charged", to: "/card-charged" },
     { text: "Junk Parts", to: "/junk-parts" },
+    { text: "Incentives Report", to: "/incentives-report", adminOnly: true, emailAccess: "50starsauto110@gmail.com" },
   ];
 
   // Helper function to check if a link should be shown based on role, email, and link properties
@@ -159,8 +160,11 @@ export default function Sidebar() {
     showUsersSection = false;
     usersLinks = [];
 
-    // Reports => only "Sales Report"
-    reportsLinks = reportsLinksBase.filter((l) => l.text === "Sales Report");
+    // Reports => only "Sales Report", plus any explicit email-access links user can see
+    reportsLinks = reportsLinksBase.filter((l) => {
+      if (l.text === "Sales Report") return true;
+      return shouldShowLink(l, role, email, brand);
+    });
   } else if (role === "Support") {
     // Hide "Sales Data" and "Add New Order" from Dashboards
     const hiddenForSupport = new Set(["Sales Data", "Add New Order"]);
@@ -175,8 +179,11 @@ export default function Sidebar() {
     showUsersSection = false;
     usersLinks = [];
 
-    // Reports => hide "Sales Report"
-    reportsLinks = reportsLinksBase.filter((l) => l.text !== "Sales Report");
+    // Reports => hide "Sales Report", keep any explicit email-access links user can see
+    reportsLinks = reportsLinksBase.filter((l) => {
+      if (l.text === "Sales Report") return false;
+      return shouldShowLink(l, role, email, brand);
+    });
   } else {
     // Admin: see everything (no filtering, but keep adminOnly links)
     showUsersSection = true;

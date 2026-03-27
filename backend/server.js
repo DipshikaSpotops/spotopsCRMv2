@@ -36,6 +36,7 @@ import zipLookupRouter from "./routes/zipLookup.js";
 import debugRouter from "./routes/debug.js";
 import gmailRouter from "./routes/gmail.js";
 import salesAgentsRouter from "./routes/salesAgents.js";
+import incentivesReportRouter from "./routes/incentivesReport.js";
 import { brandMiddleware } from "./middleware/brand.js";
 
 
@@ -93,6 +94,7 @@ app.use("/api/utils/zip-lookup", zipLookupRouter);
 app.use("/debug", debugRouter);
 app.use("/api/gmail", gmailRouter);
 app.use("/api/salesAgents", salesAgentsRouter);
+app.use("/api/reports/incentives", incentivesReportRouter);
 
 // Add redirect route for OAuth callback (in case credentials.json has wrong redirect URI)
 app.get("/oauth2/callback", (req, res) => {
