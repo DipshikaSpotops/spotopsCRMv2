@@ -16,6 +16,14 @@ const toNum = (v) => {
 const normalizeStatus = (status = "") => String(status || "").trim().toLowerCase();
 const INCENTIVES_ALLOWED_EMAIL = "50starsauto110@gmail.com";
 
+/** Group by first name only: "Richard Parker" and "Richard" → "Richard" */
+function agentKeyFromSalesAgent(salesAgent) {
+  const raw = String(salesAgent ?? "").trim();
+  if (!raw) return "Unassigned";
+  const first = raw.split(/\s+/)[0];
+  return first || "Unassigned";
+}
+
 router.get("/", requireAuth, async (req, res) => {
   try {
     const reqEmail = String(req.user?.email || "").trim().toLowerCase();
@@ -69,7 +77,7 @@ router.get("/", requireAuth, async (req, res) => {
       const bucket = monthMap.get(key);
       if (!bucket) continue;
 
-      const agent = String(row.salesAgent || "Unassigned").trim() || "Unassigned";
+      const agent = agentKeyFromSalesAgent(row.salesAgent);
       if (!bucket.agentMap.has(agent)) {
         bucket.agentMap.set(agent, {
           agent,
