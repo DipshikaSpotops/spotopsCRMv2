@@ -142,7 +142,7 @@ export default function IncentivesReport() {
                       <th className="px-2 py-2 border-r border-white/20">Sales Report</th>
                       <th className="px-2 py-2 border-r border-white/20">Actual GP</th>
                       <th className="px-2 py-2 border-r border-white/20">Est GP</th>
-                      <th className="px-2 py-2 border-r border-white/20">ancelled Orders</th>
+                      <th className="px-2 py-2 border-r border-white/20">Cancelled Orders</th>
                       <th className="px-2 py-2 border-r border-white/20">Refunded Orders</th>
                       <th className="px-2 py-2 border-r border-white/20">Disputes</th>
                       <th className="px-2 py-2">Individual Report</th>
