@@ -139,7 +139,6 @@ export default function IncentivesReport() {
                     <tr className="border-b border-white/20 text-left">
                       <th className="px-2 py-2 border-r border-white/20">Agents</th>
                       <th className="px-2 py-2 border-r border-white/20">No of Orders ({m.totals?.noOfOrders || 0})</th>
-                      <th className="px-2 py-2 border-r border-white/20">Sales Report</th>
                       <th className="px-2 py-2 border-r border-white/20">Actual GP</th>
                       <th className="px-2 py-2 border-r border-white/20">Est GP</th>
                       <th className="px-2 py-2 border-r border-white/20">Cancelled Orders</th>
@@ -153,7 +152,6 @@ export default function IncentivesReport() {
                       <tr key={`${m.key}-${r.agent}`} className="border-b border-white/10">
                         <td className="px-2 py-2 font-medium border-r border-white/10">{r.agent}</td>
                         <td className="px-2 py-2 border-r border-white/10">{r.noOfOrders}</td>
-                        <td className="px-2 py-2 border-r border-white/10">{money(r.salesReport)}</td>
                         <td className="px-2 py-2 border-r border-white/10">{money(r.actualGp)}</td>
                         <td className="px-2 py-2 border-r border-white/10">{money(r.estGp)}</td>
                         <td className="px-2 py-2 border-r border-white/10">{r.noOfCancellation}</td>
@@ -168,7 +166,6 @@ export default function IncentivesReport() {
                     <tr className="border-y border-white/40 font-semibold">
                       <td className="px-2 py-2 border-r border-white/20">Total</td>
                       <td className="px-2 py-2 border-r border-white/20">{m.totals?.noOfOrders || 0}</td>
-                      <td className="px-2 py-2 border-r border-white/20">{money(m.totals?.salesReport)}</td>
                       <td className="px-2 py-2 border-r border-white/20">{money(m.totals?.actualGp)}</td>
                       <td className="px-2 py-2 border-r border-white/20">{money(m.totals?.estGp)}</td>
                       <td className="px-2 py-2 border-r border-white/20">{m.totals?.noOfCancellation || 0}</td>
