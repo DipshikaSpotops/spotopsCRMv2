@@ -145,7 +145,7 @@ export default function IncentivesReport() {
                       <th className="px-2 py-2 border-r border-white/20">Cancelled Orders</th>
                       <th className="px-2 py-2 border-r border-white/20">Refunded Orders</th>
                       <th className="px-2 py-2 border-r border-white/20">Disputes</th>
-                      <th className="px-2 py-2">Individual Report</th>
+                      <th className="px-2 py-2">Cancellation Report</th>
                     </tr>
                   </thead>
                   <tbody>
