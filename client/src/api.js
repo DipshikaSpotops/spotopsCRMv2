@@ -1,5 +1,6 @@
 import axios from "axios";
 import { clearStoredAuth } from "./utils/authStorage";
+import { getCurrentBrand } from "./utils/brand";
 
 function withSingleApi(base) {
   if (!base) return "";
@@ -25,7 +26,7 @@ const API = axios.create({
   // Order details and some reports can exceed 15s under load or cold DB; avoid flaky timeouts.
   timeout: 30000,
 });
-// Attach Bearer token + brand header from localStorage if present
+// Attach Bearer token + brand header (per-tab session, via getCurrentBrand)
 API.interceptors.request.use((cfg) => {
   const token = localStorage.getItem("token");
   if (token) {
@@ -42,8 +43,7 @@ API.interceptors.request.use((cfg) => {
       const n = String(existing).trim().toUpperCase();
       cfg.headers["x-brand"] = n === "PROLANE" ? "PROLANE" : "50STARS";
     } else {
-      const stored = localStorage.getItem("currentBrand") || "50STARS";
-      const brand = String(stored || "50STARS").toUpperCase();
+      const brand = String(getCurrentBrand() || "50STARS").toUpperCase();
       cfg.headers["x-brand"] = brand === "PROLANE" ? "PROLANE" : "50STARS";
     }
   } catch {
