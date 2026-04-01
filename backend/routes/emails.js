@@ -8,6 +8,7 @@ import nodemailer from "nodemailer";
 import moment from "moment-timezone";
 import multer from "multer";
 import dotenv from "dotenv";
+import { getPurchaseBcc } from "../utils/purchaseBcc.js";
 dotenv.config();
 
 // --- Brand-aware email config helpers (50STARS / PROLANE) ---
@@ -97,7 +98,6 @@ function getEmailBrandConfig(req) {
     purchaseEmailAddress,
   };
 }
-
 
 const cardNumber = process.env.CARD_NUMBER || "**** **** **** 7195";
 const cardExpiry = process.env.CARD_EXPIRY || "**/**";
@@ -784,7 +784,7 @@ router.post("/orders/sendRefundEmail/:orderNo", upload.single("pdfFile"), async 
     const mailOptions = {
       from: fromAddress,
       to: yardEmail,
-      bcc: `dipsikha.spotopsdigital@gmail.com,purchase@auto-partsgroup.com`,
+      bcc: getPurchaseBcc(req),
       subject: `Request for Yard Refund | ${order.orderNo}`,
       html: `<div style="font-size:16px;line-height:1.7;">
         <p>Dear ${yardAgent},</p>
@@ -923,9 +923,7 @@ router.post("/orders/po-cancelled/:orderNo", async (req, res) => {
     const mailOptions = {
       from: `"${companyName}" <${purchaseEmail}>`,
       to: yardEmail,
-      bcc:
-        process.env.PURCHASE_BCC ||
-        "purchase@auto-partsgroup.com,dipsikha.spotopsdigital@gmail.com",
+      bcc: getPurchaseBcc(req),
       subject: `PO Cancellation Request | Order ${orderNo} | Stock ${stockNo}`,
       html: `<div style="font-size:16px;line-height:1.7;">
         <p>Hello ${yardAgent},</p>

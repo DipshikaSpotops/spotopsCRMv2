@@ -6,6 +6,7 @@ import moment from "moment-timezone";
 import multer from "multer";
 import dotenv from "dotenv";
 import { execSync } from "child_process";
+import { getPurchaseBcc } from "../utils/purchaseBcc.js";
 dotenv.config();
 
 /**
@@ -644,7 +645,7 @@ router.post("/sendPOEmailYard/:orderNo", upload.any(), async (req, res) => {
       from: `"${brandConfig.companyName}" <${purchaseEmail}>`,
       to: yardEmail,
       replyTo: purchaseEmail,
-      bcc: `dipsikha.spotopsdigital@gmail.com,${brandConfig.purchaseEmailAddress}`,
+      bcc: getPurchaseBcc(req),
       subject: `Purchase Order | ${order.orderNo} | ${year} ${make} ${model} | ${pReq}`,
       html: htmlContent,
       // Minimal headers to avoid spam triggers
