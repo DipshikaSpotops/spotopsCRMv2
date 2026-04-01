@@ -109,13 +109,14 @@ export default function CancelOrderModal({ open, onClose, orderNo, onSubmit }) {
               required
             >
               <option value="">Choose</option>
-              <option value="Same Day">Same Day</option>
-              <option value="Invoice Not Signed">Invoice Not Signed</option>
-              <option value="Delay">Delay</option>
-              <option value="Wrong Part">Wrong Part</option>
               <option value="Defective/Damaged">Defective/Damaged</option>
+              <option value="Delay">Delay</option>
+              <option value="Invoice Not Signed">Invoice Not Signed</option>
               <option value="Personal Reason">Personal Reason</option>
+              <option value="Programming Issue">Programming Issue</option>
               <option value="Reimbursement">Reimbursement</option>
+              <option value="Same Day">Same Day</option>
+              <option value="Wrong Part">Wrong Part</option>
             </select>
           </div>
 
