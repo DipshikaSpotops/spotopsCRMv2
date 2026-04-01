@@ -16,6 +16,15 @@ const toNum = (v) => {
 const normalizeStatus = (status = "") => String(status || "").trim().toLowerCase();
 const INCENTIVES_ALLOWED_EMAIL = "50starsauto110@gmail.com";
 
+/** Est-GP-style sum (grossProfit) but omit dispute / cancelled / refunded (and dispute variants). */
+function isExcludedFromCurrentGp(orderStatus) {
+  const s = normalizeStatus(orderStatus);
+  if (s === "order cancelled" || s === "refunded" || s === "dispute") return true;
+  if (s.startsWith("dispute")) return true;
+  if (s.includes("cancelled") && s.includes("refunded")) return true;
+  return false;
+}
+
 /** Group by first name only: "Richard Parker" and "Richard" → "Richard" */
 function agentKeyFromSalesAgent(salesAgent) {
   const raw = String(salesAgent ?? "").trim();
@@ -85,6 +94,7 @@ router.get("/", requireAuth, async (req, res) => {
           salesReport: 0,
           actualGp: 0,
           estGp: 0,
+          currentGp: 0,
           noOfCancellation: 0,
           refundedOrders: 0,
           noOfDispute: 0,
@@ -98,6 +108,9 @@ router.get("/", requireAuth, async (req, res) => {
       agg.salesReport += toNum(row.soldP);
       agg.actualGp += toNum(row.actualGP);
       agg.estGp += toNum(row.grossProfit);
+      if (!isExcludedFromCurrentGp(row.orderStatus)) {
+        agg.currentGp += toNum(row.grossProfit);
+      }
 
       const status = normalizeStatus(row.orderStatus);
       if (status === "order cancelled") agg.noOfCancellation += 1;
@@ -118,6 +131,7 @@ router.get("/", requireAuth, async (req, res) => {
             salesReport: Number(r.salesReport.toFixed(2)),
             actualGp: Number(r.actualGp.toFixed(2)),
             estGp: Number(r.estGp.toFixed(2)),
+            currentGp: Number(r.currentGp.toFixed(2)),
           };
         });
 
@@ -129,6 +143,7 @@ router.get("/", requireAuth, async (req, res) => {
             acc.salesReport += r.salesReport;
             acc.actualGp += r.actualGp;
             acc.estGp += r.estGp;
+            acc.currentGp += r.currentGp;
             acc.noOfCancellation += r.noOfCancellation;
             acc.refundedOrders += r.refundedOrders;
             acc.noOfDispute += r.noOfDispute;
@@ -140,6 +155,7 @@ router.get("/", requireAuth, async (req, res) => {
             salesReport: 0,
             actualGp: 0,
             estGp: 0,
+            currentGp: 0,
             noOfCancellation: 0,
             refundedOrders: 0,
             noOfDispute: 0,
@@ -156,6 +172,7 @@ router.get("/", requireAuth, async (req, res) => {
         totals.salesReport = Number(totals.salesReport.toFixed(2));
         totals.actualGp = Number(totals.actualGp.toFixed(2));
         totals.estGp = Number(totals.estGp.toFixed(2));
+        totals.currentGp = Number(totals.currentGp.toFixed(2));
 
         return {
           key: monthData.key,
