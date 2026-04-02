@@ -52,6 +52,7 @@ export default function NavbarForm() {
       ["Placed Orders", "/placed-orders"],
       ["Customer Approved", "/customer-approved"],
       ["View Orders- Monthly", "/monthly-orders"],
+      ["Daily Sales GP", "/daily-sales-gp"],
       ["View All Orders", "/view-all-orders"],
       ["Yard Located Orders", "/yard-located"],
       ["Yard Processing Orders", "/yard-processing"],

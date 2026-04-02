@@ -52,6 +52,7 @@ export default function Sidebar() {
     { text: "Partially Charged Orders", to: "/partially-charged-orders" },
     { text: "Customer Approved", to: "/customer-approved" },
     { text: "View Orders - Monthly", to: "/monthly-orders" },
+    { text: "Daily Sales GP", to: "/daily-sales-gp", roles: ["Admin", "Sales"] },
     { text: "View All Orders", to: "/view-all-orders" },
     { text: "Yard Processing Orders", to: "/yard-processing" },
     { text: "Own Shipping Orders", to: "/own-shipping-orders" },

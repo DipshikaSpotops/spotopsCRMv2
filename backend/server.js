@@ -14,6 +14,7 @@ import placedOrdersRoutes from "./routes/placedOrders.js";
 import partiallyChargedOrdersRoutes from "./routes/partiallyChargedOrders.js";
 import custApprovedRoutes from "./routes/customerApproved.js";
 import monthlyOrders from "./routes/monthlyOrders.js";
+import dailySalesGp from "./routes/dailySalesGp.js";
 import AllOrders from "./routes/AllOrders.js";
 import YardProcessingOrders from "./routes/yardProcessing.js";
 import OwnShippingOrders from "./routes/ownShippingOrders.js";
@@ -69,6 +70,7 @@ app.use("/parts", partsRoute); // legacy path
 app.use("/api/parts", partsRoute);
 app.use("/api/orders/customerApproved", custApprovedRoutes);
 app.use("/api/orders/monthlyOrders", monthlyOrders);
+app.use("/api/orders/dailySalesGp", dailySalesGp);
 app.use("/api/orders/ordersPerPage", AllOrders);
 app.use("/api/orders/yardProcessingOrders", YardProcessingOrders);
 app.use("/api/orders/ownShippingOrders", OwnShippingOrders);

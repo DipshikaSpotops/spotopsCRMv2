@@ -297,6 +297,7 @@ const GlassModal = ({ title, subtitle, onClose, children, actions }) => {
    - navigateTo           : function(row) -> path  (default `/order-details?orderNo=...`)
    - extraTotals          : optional function(sortedRows) => [{name, value}]  (for pages like Cancelled)
    - extraActions         : optional (row) => ReactNode (after View in Actions column)
+   - defaultFilter        : optional seed { month, year } or { start, end } if no saved filter in LS
 */
 export default function OrdersTable({
   title = "Orders",
@@ -322,6 +323,8 @@ export default function OrdersTable({
   rowsPerPage = ROWS_PER_PAGE, // allow per-page override
   tableId, // optional: identifier so realtime hooks can trigger refetch
   customFilters, // optional: custom filter components to render next to agent filter
+  /** When no saved filter in localStorage, use this (e.g. today-only for Daily Sales GP) */
+  defaultFilter = null,
 }) {
   const navigate = useNavigate();
   const brand = useBrand(); // 50STARS / PROLANE
@@ -352,8 +355,9 @@ export default function OrdersTable({
   const [badCount, setBadCount] = useState(0);
 
   // filters/search/sort/pagination
-  const initFilter = getJSON(LS_FILTER_KEY) || buildDefaultFilter();
-  const [activeFilter, setActiveFilter] = useState(initFilter);
+  const [activeFilter, setActiveFilter] = useState(() =>
+    getJSON(LS_FILTER_KEY) || defaultFilter || buildDefaultFilter()
+  );
   const [selectedAgent, setSelectedAgent] = useState(getLS(LS_AGENT_KEY, "Select"));
 
   const [searchInput, setSearchInput] = useState(getLS(LS_SEARCH_KEY, ""));
