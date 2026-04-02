@@ -1462,7 +1462,7 @@ export default function OrderDetails() {
                   return displayUsers.length > 0 && (
                     <div className="mt-2 flex items-center gap-2 text-sm text-[#09325d]/70 dark:text-white/70">
                       <span className="inline-flex items-center gap-1">
-                        <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                        <span className="w-2 h-2 bg-green-500 rounded-full shrink-0" aria-hidden />
                         <span>Also viewing:</span>
                       </span>
                       <span className="font-medium">

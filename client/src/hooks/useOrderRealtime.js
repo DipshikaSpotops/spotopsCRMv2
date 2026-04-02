@@ -29,12 +29,13 @@ export default function useOrderRealtime(
   } = {}
 ) {
   const socketRef = useRef(null);
-  const startedRef = useRef(false);
+  // Keep latest handler without re-subscribing the socket (inline callbacks from OrderDetails
+  // change every render — listing onEvent in deps caused disconnect/reconnect loops and presence flicker)
+  const onEventRef = useRef(onEvent);
+  onEventRef.current = onEvent;
 
   useEffect(() => {
     if (!enabled || !orderNo) return;
-    if (startedRef.current) return;
-    startedRef.current = true;
 
     const socket = ioClient(url, {
       transports: ["polling", "websocket"],
@@ -89,7 +90,8 @@ export default function useOrderRealtime(
       // msg should contain actorId from the server-side publish()
       const isSelf = !!msg?.actorId && msg.actorId === myActorId;
       console.log("[io] order:event", msg, "(isSelf:", isSelf, ")");
-      if (typeof onEvent === "function") onEvent(msg, { isSelf, myActorId, socket });
+      const fn = onEventRef.current;
+      if (typeof fn === "function") fn(msg, { isSelf, myActorId, socket });
     });
 
     socket.on("connect_error", (err) => {
@@ -106,9 +108,8 @@ export default function useOrderRealtime(
         socket.disconnect();
       } catch {}
       socketRef.current = null;
-      startedRef.current = false;
     };
-  }, [enabled, orderNo, url, onEvent]);
+  }, [enabled, orderNo, url]);
 
   return socketRef.current; // Return socket for typing events
 }
