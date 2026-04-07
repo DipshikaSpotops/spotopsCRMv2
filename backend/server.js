@@ -38,6 +38,7 @@ import debugRouter from "./routes/debug.js";
 import gmailRouter from "./routes/gmail.js";
 import salesAgentsRouter from "./routes/salesAgents.js";
 import incentivesReportRouter from "./routes/incentivesReport.js";
+import attendanceRouter from "./routes/attendance.js";
 import { brandMiddleware } from "./middleware/brand.js";
 
 
@@ -63,6 +64,7 @@ app.get("/api/health", (req, res) => {
 }); 
 
 app.use("/api/auth", authRoutes);
+app.use("/api/attendance", attendanceRouter);
 
 app.use("/api/orders/placed", placedOrdersRoutes);
 app.use("/api/orders/partially-charged", partiallyChargedOrdersRoutes);

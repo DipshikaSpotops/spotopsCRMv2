@@ -6,6 +6,8 @@ import { logout as logoutAction } from "../store/authSlice";
 import { clearStoredAuth } from "../utils/authStorage";
 import API from "../api";
 import { getCurrentBrand, setCurrentBrand, onBrandChange } from "../utils/brand";
+import MarkAttendanceModal from "./MarkAttendanceModal";
+import { recordAttendanceLogout } from "../utils/attendanceApi";
 
 export default function Navbar() {
   const navigate = useNavigate();
@@ -16,6 +18,7 @@ export default function Navbar() {
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [searchLoading, setSearchLoading] = useState(false);
   const [brand, setBrand] = useState(() => getCurrentBrand());
+  const [attendanceOpen, setAttendanceOpen] = useState(false);
   const dropdownRef = useRef(null);
 
   // --- Single read path for user name ---
@@ -80,6 +83,7 @@ export default function Navbar() {
   // --- Single logout that clears ALL possible keys + Redux ---
   const handleLogout = async () => {
     try {
+      await recordAttendanceLogout();
       // Call backend logout API to update Google Sheet
       const token = localStorage.getItem("token");
       if (token) {
@@ -264,6 +268,17 @@ export default function Navbar() {
             Hi {userName || "User"}
           </span>
 
+          {/* Attendance calendar */}
+          <button
+            type="button"
+            onClick={() => setAttendanceOpen(true)}
+            className="text-xl focus:outline-none hover:scale-110 transition"
+            title="Attendance"
+            aria-label="Open attendance"
+          >
+            <i className="fas fa-calendar-alt"></i>
+          </button>
+
           {/* Dark Mode Toggle */}
           <button
             onClick={toggleTheme}
@@ -306,6 +321,12 @@ export default function Navbar() {
           )}
         </div>
       </div>
+
+      <MarkAttendanceModal
+        isOpen={attendanceOpen}
+        onClose={() => setAttendanceOpen(false)}
+        isDarkMode={isDarkMode}
+      />
     </nav>
   );
 }

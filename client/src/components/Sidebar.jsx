@@ -75,6 +75,7 @@ export default function Sidebar() {
   ];
 
   const reportsLinksBase = [
+    { text: "Attendance", to: "/attendance" },
     { text: "Cancellations & Refunds", to: "/cancelled-refunded-report" },
     { text: "Card Not Charged", to: "/card-not-charged-report" },
     { text: "Collect Refunds", to: "/collect-refund" },

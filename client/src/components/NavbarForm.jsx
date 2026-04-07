@@ -4,6 +4,8 @@ import { useNavigate } from "react-router-dom";
 import { clearStoredAuth } from "../utils/authStorage";
 import API from "../api";
 import useBrand from "../hooks/useBrand";
+import MarkAttendanceModal from "./MarkAttendanceModal";
+import { recordAttendanceLogout } from "../utils/attendanceApi";
 
 export default function NavbarForm() {
   const navigate = useNavigate();
@@ -12,6 +14,7 @@ export default function NavbarForm() {
   const [dropdownOpen, setDropdownOpen] = useState(null);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [searchLoading, setSearchLoading] = useState(false);
+  const [attendanceOpen, setAttendanceOpen] = useState(false);
   const dropdownRef = useRef(null);
 
   useEffect(() => {
@@ -84,6 +87,7 @@ export default function NavbarForm() {
       ["Store Credits", "/store-credit"],
       ["Tracking Report", "/tracking-info"],
       ["Incentives Report", "/incentive-calculation"],
+      ["Attendance", "/attendance"],
     ],
   };
 
@@ -264,6 +268,16 @@ export default function NavbarForm() {
           </span>
 
           <button
+            type="button"
+            onClick={() => setAttendanceOpen(true)}
+            className="text-xl focus:outline-none hover:scale-110 transition"
+            title="Attendance"
+            aria-label="Open attendance"
+          >
+            <i className="fas fa-calendar-alt"></i>
+          </button>
+
+          <button
             onClick={toggleTheme}
             className="text-xl focus:outline-none hover:scale-110 transition"
             title="Toggle theme"
@@ -295,6 +309,7 @@ export default function NavbarForm() {
                   className="px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
                   onClick={async () => {
                     try {
+                      await recordAttendanceLogout();
                       // Call backend logout API to update Google Sheet
                       const token = localStorage.getItem("token");
                       if (token) {
@@ -323,6 +338,12 @@ export default function NavbarForm() {
           )}
         </div>
       </div>
+
+      <MarkAttendanceModal
+        isOpen={attendanceOpen}
+        onClose={() => setAttendanceOpen(false)}
+        isDarkMode={isDarkMode}
+      />
     </nav>
   );
 }
