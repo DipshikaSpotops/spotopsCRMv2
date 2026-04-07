@@ -535,7 +535,8 @@ useEffect(() => {
         setToastPersistent(false);
         setToast("Escalation details saved.");
       }
-      onSaved?.();
+      // Wait for parent refresh so `yard` prop matches DB before modal closes (avoids races / stale UI).
+      await Promise.resolve(onSaved?.());
       return payload;
     } catch (err) {
       console.error("Error saving escalation details:", err);

@@ -1640,7 +1640,13 @@ router.put(
       const mapped = ORDER_STATUS_MAP[newStatus] || order.orderStatus;
       order.orderStatus = req.body.orderStatus || mapped;
     } else if (req.body.orderStatus) {
+      const prev = order.orderStatus;
       order.orderStatus = req.body.orderStatus;
+      if (prev !== order.orderStatus) {
+        order.orderHistory.push(
+          `Order status set to ${order.orderStatus} by ${firstName} on ${when} (Yard ${idx1})`
+        );
+      }
     }
 
     /* ---------------- NON-STATUS FIELD NOTES ---------------- */
@@ -1688,6 +1694,12 @@ router.put(
       if (noteAdded) {
         publish(req, orderNo, { type: "YARD_NOTE_ADDED", yardIndex: idx1 });
       }
+
+      // Top-level orderHistory (timeline / reports) — escalation edits often don't change yard `status`,
+      // so previously nothing was appended here even though details saved.
+      order.orderHistory.push(
+        `Yard ${idx1} escalation/details updated by ${firstName} on ${when} (${nonStatusChanges.length} field(s))`
+      );
     }
 
     /* ---------------- CLEARED FIELDS (PO Cancelled) ---------------- */
