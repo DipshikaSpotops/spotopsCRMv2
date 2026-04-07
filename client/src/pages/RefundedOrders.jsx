@@ -254,8 +254,8 @@ const RefundedOrders = () => {
       columns={columns}
       renderCell={renderCell}
       showAgentFilter={true}           // Admin gets AgentDropdown; Sales/Support rules handled inside OrdersTable
-      showGP={false}
-      extraTotals={extraTotals}        // Totals modal shows total refunded amount
+      showGP={true}
+      extraTotals={extraTotals}        // Also: total refunded amount in modal
       showOrdersCountInTotals={false}
       tableId="refundedOrders"
     />

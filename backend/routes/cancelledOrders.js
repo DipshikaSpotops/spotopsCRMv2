@@ -100,6 +100,7 @@ router.get(
         email: 1, phone: 1,
         cancelledBy: 1, cancelledDate: 1, cancellationReason: 1,
         orderHistory: 1,   // <-- this was missing
+        grossProfit: 1, actualGP: 1, soldP: 1, salestax: 1, custRefundedAmount: 1,
       };
 
       const Order = getOrderModelForBrand(req.brand);

@@ -253,10 +253,7 @@ const DisputedOrders = () => {
       columns={columns}
       renderCell={renderCell}
       showAgentFilter={true}
-      showGP={false}
-      /* Hide the eye/totals button on this page */
-      showTotalsButton={false}
-      /* No custom totals for this page */
+      showGP={true}
       showOrdersCountInTotals={false}
       tableId="disputedOrders"
     />

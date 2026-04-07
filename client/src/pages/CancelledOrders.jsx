@@ -87,8 +87,7 @@ const extraTotals = (_rows, { denomCount, badCount }) => {
   const bad   = Number(badCount)   || 0;
   const rate  = denom > 0 ? ((bad / denom) * 100).toFixed(2) : "0.00";
   return [
-    { name: "Cancelled / Refunded / Disputed", value: String(bad) },
-    { name: "Total Orders (scope)",            value: String(denom) },
+    { name: "Cancelled", value: String(bad) },
     { name: "Cancellation Rate",               value: `${rate}%` },
   ];
 };
@@ -234,8 +233,8 @@ const CancelledOrders = () => {
       computeCancellationRate={true}
       denominatorEndpoint="/orders/monthlyOrders"
       extraTotals={extraTotals}
+      showGP={true}
       tableId="cancelledOrders"
-      showTotalsButton={false}
     />
   );
 };
