@@ -72,6 +72,7 @@ export default function Sidebar() {
   const usersLinksBase = [
     { text: "Create User", to: "/create-user" },
     { text: "View Users", to: "/view-users" },
+    { text: "Access codes", to: "/access-codes", adminOnly: true },
   ];
 
   const reportsLinksBase = [

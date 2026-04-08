@@ -4,7 +4,9 @@ import moment from "moment-timezone";
 import jwt from "jsonwebtoken";
 import { getOrderModelForBrand } from "../models/Order.js";
 import User from "../models/User.js";
-import { requireAuth } from "../middleware/auth.js";
+import { requireAuth, allow } from "../middleware/auth.js";
+
+const requireAuthAllRoles = [requireAuth, allow("Admin", "Sales", "Support")];
 import { getDateRange } from "../utils/dateRange.js";
 import { getWhen } from "../../shared/utils/timeUtils.js";
 import multer from "multer";
@@ -282,7 +284,7 @@ const pushUniqueNote = (notesArr, noteText) => {
 /* ---------------------------- Routes ----------------------------- */
 
 // Yearly aggregation (for bar chart)
-router.get("/yearly", async (req, res) => {
+router.get("/yearly", ...requireAuthAllRoles, async (req, res) => {
   try {
     const { year } = req.query;
     if (!year) return res.status(400).json({ message: "Year is required" });
@@ -306,7 +308,7 @@ router.get("/yearly", async (req, res) => {
 });
 
 // Dashboard aggregates for a month
-router.get("/dashboard", async (req, res) => {
+router.get("/dashboard", ...requireAuthAllRoles, async (req, res) => {
   try {
     const { month, year } = req.query;
     if (!month || !year) {
@@ -407,7 +409,7 @@ router.get("/dashboard", async (req, res) => {
 });
 
 // Cancelled-by-date
-router.get("/cancelled-by-date", async (req, res) => {
+router.get("/cancelled-by-date", ...requireAuthAllRoles, async (req, res) => {
   try {
     const { start, end, month, year } = req.query;
     const { startDate, endDate } = getDateRange({ start, end, month, year });
@@ -425,7 +427,7 @@ router.get("/cancelled-by-date", async (req, res) => {
 });
 
 // Reimbursed-by-date (includes both old per-yard and new order-level reimbursements)
-router.get("/reimbursed-by-date", async (req, res) => {
+router.get("/reimbursed-by-date", ...requireAuthAllRoles, async (req, res) => {
   try {
     const { start, end, month, year } = req.query;
     const { startDate, endDate } = getDateRange({ start, end, month, year });
@@ -449,7 +451,7 @@ router.get("/reimbursed-by-date", async (req, res) => {
 });
 
 // Refunded-by-date
-router.get("/refunded-by-date", async (req, res) => {
+router.get("/refunded-by-date", ...requireAuthAllRoles, async (req, res) => {
   try {
     const { start, end, month, year } = req.query;
     const { startDate, endDate } = getDateRange({ start, end, month, year });
@@ -467,7 +469,7 @@ router.get("/refunded-by-date", async (req, res) => {
 });
 
 // Card Charged - shows orders with card charged yards and refund details
-router.get("/card-charged", async (req, res) => {
+router.get("/card-charged", ...requireAuthAllRoles, async (req, res) => {
   try {
     const { start, end, month, year } = req.query;
     const { startDate, endDate } = getDateRange({ start, end, month, year });
@@ -559,7 +561,7 @@ router.get("/card-charged", async (req, res) => {
 });
 
 // Disputes-by-date (brand-aware)
-router.get("/disputes-by-date", async (req, res) => {
+router.get("/disputes-by-date", ...requireAuthAllRoles, async (req, res) => {
   try {
     const { start, end, month, year } = req.query;
     const { startDate, endDate } = getDateRange({ start, end, month, year });
@@ -1105,7 +1107,7 @@ router.put("/:orderNo", async (req, res) => {
 });
 
 // Get order by orderNo
-router.get("/:orderNo", async (req, res) => {
+router.get("/:orderNo", ...requireAuthAllRoles, async (req, res) => {
   try {
     // Decode and trim the order number to handle URL encoding and whitespace
     const orderNoParam = decodeURIComponent(req.params.orderNo).trim();

@@ -2,11 +2,11 @@
 import { useEffect } from "react";
 import { useDispatch } from "react-redux";
 import { setCredentials, logout } from "../store/authSlice";
+import API from "../api";
 import {
   readStoredAuth,
   persistStoredAuth,
   clearStoredAuth,
-  ensureLoginTimestamp,
   SESSION_DURATION_MS,
 } from "../utils/authStorage";
 
@@ -14,11 +14,15 @@ export default function useAuthBootstrap() {
   const dispatch = useDispatch();
 
   useEffect(() => {
-    try {
-      const stored = readStoredAuth();
-      if (stored?.user && stored?.token) {
-        const loginAt = Number(stored.loginAt || localStorage.getItem("loginAt"));
+    let cancelled = false;
 
+    (async () => {
+      try {
+        const stored = readStoredAuth();
+        const token = stored?.token || localStorage.getItem("token");
+        if (!token) return;
+
+        const loginAt = Number(stored?.loginAt || localStorage.getItem("loginAt"));
         if (!loginAt) {
           clearStoredAuth();
           dispatch(logout());
@@ -31,24 +35,58 @@ export default function useAuthBootstrap() {
           return;
         }
 
-        const ensured = ensureLoginTimestamp(stored) || stored;
-        dispatch(setCredentials(ensured));
-        persistStoredAuth({ ...ensured, loginAt }); // keep timestamp synced
-        return;
-      }
-      // legacy fallback
-      const token = localStorage.getItem("token");
-      const role = localStorage.getItem("role");
-      const firstName = localStorage.getItem("firstName");
-      if (token) {
+        let user = stored?.user;
+        try {
+          const { data } = await API.get("/auth/me");
+          if (!cancelled && data?.user) {
+            user = data.user;
+          }
+        } catch {
+          /* 401 clears storage via interceptor; otherwise keep cached user */
+        }
+
+        if (cancelled) return;
+
         const payload = {
-          user: { role: role || undefined, firstName: firstName || undefined },
+          user: user || stored?.user || {},
           token,
-          loginAt: Date.now(),
+          loginAt,
         };
-        persistStoredAuth(payload);
         dispatch(setCredentials(payload));
+        persistStoredAuth(payload);
+      } catch {
+        const token = localStorage.getItem("token");
+        const role = localStorage.getItem("role");
+        const firstName = localStorage.getItem("firstName");
+        if (token) {
+          try {
+            const { data } = await API.get("/auth/me");
+            if (!cancelled && data?.user) {
+              const payload = {
+                user: data.user,
+                token,
+                loginAt: Date.now(),
+              };
+              dispatch(setCredentials(payload));
+              persistStoredAuth(payload);
+              return;
+            }
+          } catch {
+            /* ignore */
+          }
+          const payload = {
+            user: { role: role || undefined, firstName: firstName || undefined },
+            token,
+            loginAt: Date.now(),
+          };
+          persistStoredAuth(payload);
+          dispatch(setCredentials(payload));
+        }
       }
-    } catch {}
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, [dispatch]);
 }

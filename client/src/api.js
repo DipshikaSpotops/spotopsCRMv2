@@ -1,6 +1,8 @@
 import axios from "axios";
 import { clearStoredAuth } from "./utils/authStorage";
 import { getCurrentBrand } from "./utils/brand";
+import { store } from "./store";
+import { setCredentials } from "./store/authSlice";
 
 function withSingleApi(base) {
   if (!base) return "";
@@ -63,6 +65,27 @@ API.interceptors.response.use(
       clearStoredAuth();
       if (window.location.pathname !== "/login") {
         window.location.href = "/login";
+      }
+    }
+    if (error?.response?.status === 403 && error?.response?.data?.code === "ACCESS_CODE_REQUIRED") {
+      try {
+        const raw = localStorage.getItem("auth");
+        if (raw) {
+          const o = JSON.parse(raw);
+          if (o?.user) {
+            o.user = { ...o.user, appAccessUnlocked: false };
+            localStorage.setItem("auth", JSON.stringify(o));
+            store.dispatch(
+              setCredentials({
+                user: o.user,
+                token: o.token,
+                loginAt: o.loginAt,
+              })
+            );
+          }
+        }
+      } catch {
+        /* ignore */
       }
     }
     return Promise.reject(error);

@@ -1,6 +1,7 @@
 // server/routes/users.js
 import express from "express";
-import User from "../models/User.js"; 
+import User from "../models/User.js";
+import { initialAppAccessUnlockedForNewUser } from "../utils/accessGate.js";
 const router = express.Router();
 
 // POST /api/users - create a user
@@ -20,6 +21,8 @@ router.post("/", async (req, res) => {
     //password will be hashed
     const payload = { firstName, lastName, email, password, role };
     if (team) payload.team = team;
+    const initialUnlock = initialAppAccessUnlockedForNewUser();
+    if (initialUnlock !== undefined) payload.appAccessUnlocked = initialUnlock;
     const user = new User(payload);
     const saved = await user.save();
     // never return password

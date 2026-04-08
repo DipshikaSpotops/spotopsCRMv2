@@ -1,6 +1,11 @@
 // /middleware/auth.js
 import jwt from "jsonwebtoken";
 import User from "../models/User.js";
+import {
+  isAppAccessGateEnabled,
+  computeEffectiveAppAccessUnlocked,
+  isAppAccessGateExemptRequest,
+} from "../utils/accessGate.js";
 
 const JWT_SECRET = process.env.JWT_SECRET || "supersecretkey";
 
@@ -29,6 +34,18 @@ export const requireAuth = async (req, res, next) => {
       lastName: user.lastName,
       team: user.team,
     };
+
+    if (
+      isAppAccessGateEnabled() &&
+      !isAppAccessGateExemptRequest(req) &&
+      !computeEffectiveAppAccessUnlocked(user)
+    ) {
+      return res.status(403).json({
+        message: "Enter your access code to continue.",
+        code: "ACCESS_CODE_REQUIRED",
+      });
+    }
+
     next();
   } catch (e) {
     console.error("[requireAuth] error:", e);

@@ -1,12 +1,13 @@
 import { useEffect } from "react";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
-import { logout, selectToken } from "../store/authSlice";
+import { logout, selectToken, selectUser } from "../store/authSlice";
 import {
   readStoredAuth,
   clearStoredAuth,
   SESSION_DURATION_MS,
 } from "../utils/authStorage";
+import AccessCodeModal from "./AccessCodeModal";
 
 function useSessionTimeout(token) {
   const dispatch = useDispatch();
@@ -44,11 +45,14 @@ function useSessionTimeout(token) {
 
 export default function RequireAuth({ children }) {
   const token = useSelector(selectToken);
+  const reduxUser = useSelector(selectUser);
   const location = useLocation();
 
   const stored = readStoredAuth();
   const effectiveToken = token || stored?.token || localStorage.getItem("token");
   const loginAt = Number(stored?.loginAt || localStorage.getItem("loginAt"));
+  const user = reduxUser || stored?.user;
+  const needsAccessCode = user?.appAccessUnlocked === false;
 
   useSessionTimeout(effectiveToken);
 
@@ -60,6 +64,10 @@ export default function RequireAuth({ children }) {
   if (Date.now() - loginAt > SESSION_DURATION_MS) {
     clearStoredAuth();
     return <Navigate to="/login" replace state={{ from: location }} />;
+  }
+
+  if (needsAccessCode) {
+    return <AccessCodeModal />;
   }
 
   return children;
