@@ -122,13 +122,17 @@
 // /src/pages/LoginPage.jsx
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import API from "../api"; 
+import { useDispatch } from "react-redux";
+import API from "../api";
 import { persistStoredAuth } from "../utils/authStorage";
+import { setCredentials } from "../store/authSlice";
 
 const Login = () => {
+  const dispatch = useDispatch();
   const [formData, setFormData] = useState({ email: "", password: "" });
   const [error, setError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
   const handleChange = (e) => {
@@ -137,6 +141,9 @@ const Login = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setError("");
+    if (loading) return;
+    setLoading(true);
     try {
       const res = await API.post("/auth/login", formData);
       if (res.data.token && res.data.user) {
@@ -146,12 +153,19 @@ const Login = () => {
           loginAt: Date.now(),
         };
         persistStoredAuth(authPayload);
+        dispatch(setCredentials(authPayload));
 
-        alert(`Welcome ${res.data.user.firstName}!`);
-        navigate("/dashboard");
+        if (res.data.user.appAccessUnlocked === false) {
+          navigate("/dashboard", { replace: true });
+        } else {
+          alert(`Welcome ${res.data.user.firstName}!`);
+          navigate("/dashboard", { replace: true });
+        }
       }
     } catch (err) {
       setError(err.response?.data?.message || "Login failed");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -188,8 +202,12 @@ const Login = () => {
           </span>
         </div>
 
-        <button type="submit" className="bg-accentPink w-full py-2 rounded hover:bg-pink-600 transition">
-          Login
+        <button
+          type="submit"
+          disabled={loading}
+          className="bg-accentPink w-full py-2 rounded hover:bg-pink-600 transition disabled:opacity-60 disabled:cursor-not-allowed"
+        >
+          {loading ? "Signing in…" : "Login"}
         </button>
 
         <p className="mt-4 text-sm text-center">

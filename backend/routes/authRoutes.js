@@ -20,6 +20,7 @@ import {
   toAuthSafeUser,
   initialAppAccessUnlockedForNewUser,
   isAppAccessGateEnabled,
+  computeAccessInviteExpiresAt,
 } from "../utils/accessGate.js";
 // Note: We create JWT auth directly for Sheets API (doesn't need GMAIL_IMPERSONATED_USER)
 
@@ -78,9 +79,7 @@ async function autoProvisionAccessCodeOnLogin(userDoc, req) {
 
   let code = generateAccessCode();
   let saved = null;
-  const days = Number(process.env.ACCESS_INVITE_EXPIRES_DAYS || 30);
-  const expiresAt =
-    Number.isFinite(days) && days > 0 ? new Date(Date.now() + days * 86400000) : null;
+  const expiresAt = computeAccessInviteExpiresAt();
 
   for (let attempt = 0; attempt < 5; attempt++) {
     try {
@@ -895,14 +894,12 @@ router.post("/login", validateLogin, async (req, res) => {
     );
     const safeUser = toAuthSafeUser(user);
     if (safeUser.appAccessUnlocked === false) {
-      try {
-        await autoProvisionAccessCodeOnLogin(user, req);
-      } catch (e) {
+      void autoProvisionAccessCodeOnLogin(user, req).catch((e) => {
         console.error(
           "[auth/login] access-code auto provision (non-fatal):",
           e?.message
         );
-      }
+      });
     }
 
     // Append login data to Google Sheet (non-blocking)
@@ -1021,8 +1018,7 @@ router.post("/admin/access-invites", requireAuth, allow("Admin"), async (req, re
     if (!Array.isArray(invites) || invites.length === 0) {
       return res.status(400).json({ message: "invites[] is required" });
     }
-    const days = Number(process.env.ACCESS_INVITE_EXPIRES_DAYS || 30);
-    const expiresAt = days > 0 ? new Date(Date.now() + days * 86400000) : null;
+    const expiresAt = computeAccessInviteExpiresAt();
 
     const results = [];
     for (const item of invites) {
