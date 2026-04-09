@@ -1,6 +1,15 @@
 import moment from "moment-timezone";
 
 const IST = "Asia/Kolkata";
+/** Calendar day for `dateKey` / wall range; matches client Attendance ZONE + backend Dallas shift day. */
+const DALLAS = "America/Chicago";
+
+/** Saturday or Sunday on the Dallas calendar for this `YYYY-MM-DD` key. */
+export function isWeekendAttendanceDateKey(dateKey) {
+  if (!dateKey || !/^\d{4}-\d{2}-\d{2}$/.test(String(dateKey))) return false;
+  const dow = moment.tz(String(dateKey), "YYYY-MM-DD", DALLAS).day();
+  return dow === 0 || dow === 6;
+}
 
 /** Calendar day key for attendance (must match server todayDateKeyIST). */
 export function todayDateKeyIST() {
@@ -55,23 +64,36 @@ function isHalfDayEarlyLogoutIST(logoutIso) {
   return mins <= 24 * 60 + 30;
 }
 
-/** Row background: absent (red) | half day (orange) | present without half-day rules (green). */
-export function getAttendanceRowCategory(row) {
+/**
+ * Row background: weekend (no login) | absent | half day | late | on-time / other present (green).
+ * @param {object} row
+ * @param {string} [dateKey] Dallas `YYYY-MM-DD` for this cell (month grid passes this; detail rows use row.dateKey).
+ */
+export function getAttendanceRowCategory(row, dateKey) {
+  const dk = dateKey ?? row?.dateKey;
   const loginAt = row?.loginAt;
-  if (!loginAt) return "absent";
+  if (!loginAt) {
+    if (dk && isWeekendAttendanceDateKey(dk)) return "weekend";
+    return "absent";
+  }
   if (isHalfDayArrivalIST(loginAt)) return "half_day";
   const logoutAt = row?.logoutAt;
   if (logoutAt && isHalfDayEarlyLogoutIST(logoutAt)) return "half_day";
+  if (isLateLoginIST(loginAt)) return "late";
   return "full_day";
 }
 
 /**
- * @param {{ loginAt?: string|Date|null, logoutAt?: string|Date|null }} row
- * @returns {string} Status column for the attendance table
+ * @param {{ loginAt?: string|Date|null, logoutAt?: string|Date|null, dateKey?: string }} row
+ * @param {string} [dateKey] For empty cells when `row.dateKey` is missing (month grid).
  */
-export function formatAttendanceStatus(row) {
+export function formatAttendanceStatus(row, dateKey) {
+  const dk = dateKey ?? row?.dateKey;
   const loginAt = row?.loginAt;
-  if (!loginAt) return "Absent";
+  if (!loginAt) {
+    if (dk && isWeekendAttendanceDateKey(dk)) return "Weekend";
+    return "Absent";
+  }
 
   const parts = [];
 
@@ -97,11 +119,31 @@ export function formatAttendanceStatus(row) {
 }
 
 /** Short label for month-grid cells (full detail in title / detail table). */
-export function shortAttendanceLabel(row) {
-  if (!row?.loginAt) return "Absent";
-  const cat = getAttendanceRowCategory(row);
+export function shortAttendanceLabel(row, dateKey) {
+  const dk = dateKey ?? row?.dateKey;
+  if (!row?.loginAt) {
+    if (dk && isWeekendAttendanceDateKey(dk)) return "Weekend";
+    return "Absent";
+  }
+  const cat = getAttendanceRowCategory(row, dk);
   if (cat === "half_day") return "Half day";
   if (isOnTimeLoginIST(row.loginAt)) return "On time";
   if (isLateLoginIST(row.loginAt)) return "Late";
   return "Present";
+}
+
+/**
+ * Bucket for month-overview per-user counts (one category per user × day cell).
+ * Order matches shortAttendanceLabel precedence.
+ */
+export function getMonthOverviewCellBucket(row, dateKey) {
+  const dk = dateKey ?? row?.dateKey;
+  if (!row?.loginAt) {
+    if (dk && isWeekendAttendanceDateKey(dk)) return "weekend";
+    return "absent";
+  }
+  if (getAttendanceRowCategory(row, dateKey) === "half_day") return "half_day";
+  if (isOnTimeLoginIST(row.loginAt)) return "on_time";
+  if (isLateLoginIST(row.loginAt)) return "late";
+  return "present_other";
 }

@@ -69,6 +69,13 @@ function sameDallasCalendarDay(startIso, endIso) {
   return a && b && a === b;
 }
 
+/** True when start/end fall in the same Dallas calendar month (e.g. whole April). */
+function sameDallasYearMonth(startIso, endIso) {
+  const s = moment(startIso).tz(DALLAS);
+  const e = moment(endIso).tz(DALLAS);
+  return s.isValid() && e.isValid() && s.format("YYYY-MM") === e.format("YYYY-MM");
+}
+
 /**
  * Date keys for API range: uses shift rollup (not raw IST calendar) so one Dallas “day” doesn’t duplicate Apr 9 + Apr 10 rows.
  */
@@ -92,7 +99,14 @@ function attendanceDateKeysForWallRange(startIso, endIso) {
     cur.add(6, "hours");
   }
   set.add(attendanceShiftDateKeyFromInstant(b));
-  return Array.from(set).sort();
+  let keys = Array.from(set).sort();
+  // End-of-month wall clock can roll to the next IST calendar day (e.g. May 1 key in an “April”
+  // Dallas range). For a single selected month, only include shift keys in that month (YYYY-MM).
+  if (sameDallasYearMonth(a, b)) {
+    const ym = a.clone().tz(DALLAS).format("YYYY-MM");
+    keys = keys.filter((k) => String(k).startsWith(`${ym}-`));
+  }
+  return keys;
 }
 
 function ensureChangeLog(doc) {

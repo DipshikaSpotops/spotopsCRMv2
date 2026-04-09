@@ -7,6 +7,7 @@ import { prettyFilterLabel } from "../utils/dateUtils";
 import {
   formatAttendanceStatus,
   getAttendanceRowCategory,
+  getMonthOverviewCellBucket,
   shortAttendanceLabel,
 } from "../utils/attendanceStatus";
 import {
@@ -45,8 +46,12 @@ function attendanceStatusCellClass(category) {
   switch (category) {
     case "absent":
       return `${base} bg-[#c40505] text-white font-medium`;
+    case "weekend":
+      return `${base} bg-[#475569] text-white/95 font-medium`;
     case "half_day":
       return `${base} bg-[#d97706] text-white font-medium`;
+    case "late":
+      return `${base} bg-[#ca8a04] text-white font-medium`;
     case "full_day":
     default:
       return `${base} bg-[#166534] text-white font-medium`;
@@ -151,6 +156,12 @@ export default function Attendance() {
     return m;
   }, [rows]);
 
+  /** Month overview: only calendar columns ≤ today (Central), so totals match “month so far”. */
+  const monthOverviewDateKeys = useMemo(() => {
+    const today = moment().tz(ZONE).format("YYYY-MM-DD");
+    return dateKeys.filter((dk) => dk <= today);
+  }, [dateKeys]);
+
   function formatSummaryColTitle(ymd) {
     const m = moment(ymd, "YYYY-MM-DD");
     return m.isValid() ? m.format("MMM D") : ymd;
@@ -164,7 +175,7 @@ export default function Attendance() {
     for (const firstName of names) {
       const cells = keys.map((dk) => {
         const r = rowByDateAndName.get(`${dk}|${firstName}`);
-        const status = r ? formatAttendanceStatus(r).replace(/"/g, '""') : "Absent";
+        const status = formatAttendanceStatus(r || {}, dk).replace(/"/g, '""');
         return `"${status}"`;
       });
       lines.push([`"${firstName.replace(/"/g, '""')}"`, ...cells].join(","));
@@ -260,54 +271,113 @@ export default function Attendance() {
                   <th className="text-left px-2 py-2 border-r border-white/20 sticky left-0 bg-[#1e3a5f] z-10 whitespace-nowrap">
                     User
                   </th>
-                  {dateKeys.map((dk) => (
+                  {monthOverviewDateKeys.map((dk) => (
                     <th
                       key={dk}
                       className="text-center px-1 py-2 border-r border-white/15 min-w-[4.5rem]"
                       title={dk}
                     >
                       <span className="block font-semibold">{formatSummaryColTitle(dk)}</span>
-                      <span className="block text-[10px] opacity-70 font-normal">{dk.slice(5)}</span>
                     </th>
                   ))}
+                  <th
+                    className="text-left px-2 py-2 border-l border-white/25 sticky right-0 bg-[#1e3a5f] z-20 min-w-[6.5rem] shadow-[-6px_0_12px_rgba(0,0,0,0.25)]"
+                    title="Per user: Absent / Weekend / On time / Half day / Late for the dates in this grid."
+                  >
+                    Summary
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 {rosterNames.length === 0 ? (
                   <tr>
-                    <td colSpan={Math.max(1, dateKeys.length + 1)} className="px-3 py-6 text-center opacity-80">
+                    <td
+                      colSpan={Math.max(1, monthOverviewDateKeys.length + 2)}
+                      className="px-3 py-6 text-center opacity-80"
+                    >
                       No roster for this range.
                     </td>
                   </tr>
+                ) : monthOverviewDateKeys.length === 0 ? (
+                  <tr>
+                    <td
+                      colSpan={2}
+                      className="px-3 py-6 text-center opacity-80"
+                    >
+                      No day columns for this range. Load a range that includes eligible dates, or try Detail
+                      table.
+                    </td>
+                  </tr>
                 ) : (
-                  rosterNames.map((firstName) => (
-                    <tr key={firstName} className="border-t border-white/10 bg-white/[0.03]">
-                      <td className="px-2 py-1.5 font-medium border-r border-white/10 sticky left-0 bg-[#162d4a] z-10 whitespace-nowrap">
-                        {firstName}
-                      </td>
-                      {dateKeys.map((dk) => {
-                        const cell = rowByDateAndName.get(`${dk}|${firstName}`);
-                        const cat = getAttendanceRowCategory(cell || {});
-                        return (
-                          <td
-                            key={`${firstName}-${dk}`}
-                            className={`px-1 py-1.5 text-center border-r border-white/10 align-middle ${attendanceStatusCellClass(
-                              cat
-                            )}`}
-                            title={cell ? formatAttendanceStatus(cell) : "Absent"}
-                          >
-                            {shortAttendanceLabel(cell || {})}
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  ))
+                  rosterNames.map((firstName) => {
+                    const uc = {
+                      absent: 0,
+                      weekend: 0,
+                      on_time: 0,
+                      half_day: 0,
+                      late: 0,
+                      present_other: 0,
+                    };
+                    for (const dk of monthOverviewDateKeys) {
+                      const row = rowByDateAndName.get(`${dk}|${firstName}`) || {};
+                      uc[getMonthOverviewCellBucket(row, dk)]++;
+                    }
+                    return (
+                      <tr key={firstName} className="border-t border-white/10 bg-white/[0.03]">
+                        <td className="px-2 py-1.5 font-medium border-r border-white/10 sticky left-0 bg-[#162d4a] z-10 whitespace-nowrap">
+                          {firstName}
+                        </td>
+                        {monthOverviewDateKeys.map((dk) => {
+                          const cell = rowByDateAndName.get(`${dk}|${firstName}`);
+                          const cat = getAttendanceRowCategory(cell || {}, dk);
+                          return (
+                            <td
+                              key={`${firstName}-${dk}`}
+                              className={`px-1 py-1.5 text-center border-r border-white/10 align-middle ${attendanceStatusCellClass(
+                                cat
+                              )}`}
+                              title={formatAttendanceStatus(cell || {}, dk)}
+                            >
+                              {shortAttendanceLabel(cell || {}, dk)}
+                            </td>
+                          );
+                        })}
+                        <td
+                          className="px-2 py-1.5 text-left align-top border-l border-white/25 sticky right-0 bg-[#162d4a] z-10 text-[10px] sm:text-xs shadow-[-6px_0_12px_rgba(0,0,0,0.25)]"
+                          title={`${firstName}: Abs ${uc.absent}, Weekend ${uc.weekend}, On time ${uc.on_time}, Half day ${uc.half_day}, Late ${uc.late}${uc.present_other ? `, Other ${uc.present_other}` : ""}`}
+                        >
+                          <div className="space-y-0.5 leading-snug text-white/95">
+                            <div>
+                              Abs: <strong className="tabular-nums">{uc.absent}</strong>
+                            </div>
+                            <div>
+                              Weekend: <strong className="tabular-nums">{uc.weekend}</strong>
+                            </div>
+                            <div>
+                              On time: <strong className="tabular-nums">{uc.on_time}</strong>
+                            </div>
+                            <div>
+                              Half day: <strong className="tabular-nums">{uc.half_day}</strong>
+                            </div>
+                            <div>
+                              Late: <strong className="tabular-nums">{uc.late}</strong>
+                            </div>
+                            {uc.present_other > 0 ? (
+                              <div className="text-white/80">
+                                Other: <strong className="tabular-nums">{uc.present_other}</strong>
+                              </div>
+                            ) : null}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>
             <p className="text-[11px] opacity-70 mt-2 px-1">
-              Colors: green = present / on-time • orange = half-day rules • red = absent. Headers show shift-day
-              keys; hover a cell or use CSV for full status text.
+              Colors: green = on-time / other present • yellow = late • orange = half-day • red = absent • slate
+              = weekend (Sat/Sun, no login; Dallas date). Hover a cell or use CSV for full status text.
             </p>
           </div>
         ) : (
