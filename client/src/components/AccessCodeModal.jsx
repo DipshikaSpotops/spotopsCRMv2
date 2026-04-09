@@ -64,8 +64,8 @@ export default function AccessCodeModal() {
         <p className="text-sm text-gray-400 text-center mb-4">
           You are signed in as{" "}
           <span className="text-gray-200 font-medium">{email || "this account"}</span>.
-          When you signed in, we sent an access code to that email address (check spam).
-          Enter it below to finish unlocking the app.
+          Enter the access code issued for this login (your admin/support team shares it with you).
+          This code is required to finish unlocking the app.
         </p>
 
         {error && (

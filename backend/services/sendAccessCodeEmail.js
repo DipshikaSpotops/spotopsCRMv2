@@ -11,8 +11,8 @@ import {
  *
  * Credentials follow x-brand / req.brand like customer emails (SERVICE_EMAIL vs SERVICE_EMAIL_PROLANE).
  *
- * All issue/login flows email the code to the CRM user’s login address; ACCESS_CODE_NOTIFY_TO
- * receives a separate internal copy when set (see sendAccessCodeEmailToUser).
+ * Access-code emails are internal-only: they go to ACCESS_CODE_NOTIFY_TO.
+ * The CRM user is referenced in subject/body but is not emailed directly.
  */
 
 function parseNotifyRecipients() {
@@ -54,67 +54,42 @@ function assertSmtpOnly(req) {
 }
 
 /**
- * Send access code TO the CRM user’s login email, then optional separate message to ACCESS_CODE_NOTIFY_TO.
- * Two SMTP sends so the user message has a single RCPT TO (some setups mishandle To+BCC for outside inboxes).
+ * Send access code to ACCESS_CODE_NOTIFY_TO only (internal recipients).
+ * `toEmail` is the CRM login email the code is bound to (for message context), not a mail recipient.
  */
 export async function sendAccessCodeEmailToUser({ req, toEmail, code }) {
-  const { smtpUser, smtpPass, brand } = assertSmtpOnly(req);
+  const { smtpUser, smtpPass, notifyTo, brand } = assertMailConfig(req);
   const transporter = createGmailServiceTransport(smtpUser, smtpPass);
   const to = String(toEmail || "").trim().toLowerCase();
   if (!to) throw new Error("toEmail is required");
-
-  const notifyLower = parseNotifyRecipients().map((a) => a.trim().toLowerCase());
-  const notifyOthers = [...new Set(notifyLower.filter((a) => a && a !== to))];
 
   const fromName = process.env.ACCESS_CODE_EMAIL_FROM_NAME?.trim() || "CRM Access";
   const from = `"${fromName}" <${smtpUser}>`;
 
   console.log(
-    `[access-code-mail] user inbox | brand=${brand} smtpLogin=${smtpUser} to=${to} internalNotifyCount=${notifyOthers.length}`
+    `[access-code-mail] internal-only | brand=${brand} smtpLogin=${smtpUser} notifyTo=${notifyTo.join(",")} forUser=${to}`
   );
-  console.log("[access-code-mail] ACCESS CODE (email to user):", code);
+  console.log("[access-code-mail] ACCESS CODE (internal mail only):", code);
 
   try {
     const info = await transporter.sendMail({
       from,
-      to,
-      subject: "Your CRM access code",
-      text:
-        `Your access code is: ${code}\n\n` +
-        `Return to the CRM, keep this window open, and enter the code in the popup after you signed in.\n` +
-        `This code only works for ${to}.\n`,
-      html:
-        `<p>Your access code is:</p>` +
-        `<p style="font-size:20px;font-weight:bold;letter-spacing:3px;font-family:monospace;">${code}</p>` +
-        `<p>Enter this in the CRM verification popup (you are already signed in).</p>` +
-        `<p style="color:#666;font-size:13px;">This code only works for <b>${to}</b>.</p>`,
-    });
-    console.log(`[access-code-mail] user inbox OK messageId=${info.messageId || "n/a"}`);
-  } catch (err) {
-    console.error("[access-code-mail] user inbox failed:", err?.message);
-    throw err;
-  }
-
-  if (notifyOthers.length === 0) return;
-
-  try {
-    const info2 = await transporter.sendMail({
-      from,
-      to: notifyOthers,
+      to: notifyTo,
       subject: `CRM access code for user: ${to}`,
       text:
         `This access code is for the CRM login email: ${to}\n\n` +
         `Code: ${code}\n\n` +
-        `Only that user can use it — they sign in first, then enter the code in the popup.\n`,
+        `Only that user can use it — they sign in first, then enter the code in the verification popup.\n`,
       html:
         `<p><b>CRM user (login email) this code is for:</b> ${to}</p>` +
         `<p style="font-size:20px;font-weight:bold;letter-spacing:3px;font-family:monospace;">${code}</p>` +
         `<p>That person must sign in with <b>${to}</b>, then enter this code in the verification popup.</p>` +
-        `<p style="color:#666;font-size:13px;">Internal copy — the same code was emailed directly to ${to}.</p>`,
+        `<p style="color:#666;font-size:13px;">Sent only to ACCESS_CODE_NOTIFY_TO recipients.</p>`,
     });
-    console.log(`[access-code-mail] internal notify OK messageId=${info2.messageId || "n/a"}`);
+    console.log(`[access-code-mail] internal notify OK messageId=${info.messageId || "n/a"}`);
   } catch (err) {
-    console.error("[access-code-mail] internal notify failed (user already got code):", err?.message);
+    console.error("[access-code-mail] internal notify failed:", err?.message);
+    throw err;
   }
 }
 
@@ -148,7 +123,7 @@ export async function getAccessMailDebug(req) {
     transport: startTls ? "smtp.gmail.com:587+STARTTLS" : "service:gmail (same as Order emails)",
     smtpVerified,
     verifyError,
-    note: "Invite/login sends the code to the CRM user’s email first; ACCESS_CODE_NOTIFY_TO gets a separate internal copy when set.",
+    note: "Invite/login sends code only to ACCESS_CODE_NOTIFY_TO (internal). CRM user is not emailed directly.",
   };
 }
 

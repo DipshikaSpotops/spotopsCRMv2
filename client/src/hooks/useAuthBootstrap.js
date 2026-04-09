@@ -75,7 +75,12 @@ export default function useAuthBootstrap() {
             /* ignore */
           }
           const payload = {
-            user: { role: role || undefined, firstName: firstName || undefined },
+            user: {
+              role: role || undefined,
+              firstName: firstName || undefined,
+              // Pessimistic until /auth/me succeeds (missing field used to skip the access modal).
+              appAccessUnlocked: false,
+            },
             token,
             loginAt: Date.now(),
           };

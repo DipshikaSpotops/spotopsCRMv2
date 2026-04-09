@@ -52,7 +52,9 @@ export default function RequireAuth({ children }) {
   const effectiveToken = token || stored?.token || localStorage.getItem("token");
   const loginAt = Number(stored?.loginAt || localStorage.getItem("loginAt"));
   const user = reduxUser || stored?.user;
-  const needsAccessCode = user?.appAccessUnlocked === false;
+  // Only explicit `true` from login/me/redeem counts as unlocked. undefined/null/false ⇒ modal
+  // (old bootstrap fallbacks omitted appAccessUnlocked and incorrectly saw all pages).
+  const needsAccessCode = user?.appAccessUnlocked !== true;
 
   useSessionTimeout(effectiveToken);
 

@@ -21,6 +21,7 @@ import {
   initialAppAccessUnlockedForNewUser,
   isAppAccessGateEnabled,
   computeAccessInviteExpiresAt,
+  shouldBypassAppAccessGate,
 } from "../utils/accessGate.js";
 // Note: We create JWT auth directly for Sheets API (doesn't need GMAIL_IMPERSONATED_USER)
 
@@ -865,16 +866,22 @@ router.post("/login", validateLogin, async (req, res) => {
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) return res.status(401).json({ message: "Invalid credentials" });
 
+    // Each password login requires a new access-code redeem (gated, non-bypass users only).
+    if (isAppAccessGateEnabled() && !shouldBypassAppAccessGate(user)) {
+      await User.updateOne({ _id: user._id }, { $set: { appAccessUnlocked: false } });
+      user.appAccessUnlocked = false;
+    }
+
     const token = jwt.sign(
       { id: user._id, email: user.email, role: user.role }, // keep in sync with requireAuth
       JWT_SECRET,
-      { expiresIn: "12h" }
+      { expiresIn: "10h" }
     );
 
     // Optional: clean old sessions as you do
     await LoggedInUser.deleteMany({ expiry: { $lte: new Date() } });
 
-    const expiryDate = new Date(Date.now() + 12 * 60 * 60 * 1000);
+    const expiryDate = new Date(Date.now() + 10 * 60 * 60 * 1000);
     
     // Extract IP address and user agent
     const ipAddress = getIpAddress(req);
@@ -928,6 +935,15 @@ router.post("/logout", async (req, res) => {
       // Extract IP address and user agent
       const ipAddress = getIpAddress(req);
       const userAgent = req.headers["user-agent"] || "Unknown";
+
+      // Re-lock on logout so next login requires a fresh access code for non-bypass users.
+      if (isAppAccessGateEnabled() && !shouldBypassAppAccessGate(user)) {
+        try {
+          await User.updateOne({ _id: user._id }, { $set: { appAccessUnlocked: false } });
+        } catch (lockErr) {
+          console.error("[auth/logout] failed to re-lock user:", lockErr?.message);
+        }
+      }
       
       // Append logout data to Google Sheet (non-blocking)
       appendLogoutToGoogleSheet(user, ipAddress, userAgent).catch((err) => {

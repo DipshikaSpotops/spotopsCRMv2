@@ -1,6 +1,6 @@
 const AUTH_KEYS = ["auth", "token", "firstName", "role", "loginAt"];
 
-export const SESSION_DURATION_MS = 12 * 60 * 60 * 1000; // 12 hours
+export const SESSION_DURATION_MS = 10 * 60 * 60 * 1000; // 10 hours
 
 export function readStoredAuth() {
   try {
