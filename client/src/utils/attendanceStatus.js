@@ -95,3 +95,13 @@ export function formatAttendanceStatus(row) {
 
   return parts.join(" • ");
 }
+
+/** Short label for month-grid cells (full detail in title / detail table). */
+export function shortAttendanceLabel(row) {
+  if (!row?.loginAt) return "Absent";
+  const cat = getAttendanceRowCategory(row);
+  if (cat === "half_day") return "Half day";
+  if (isOnTimeLoginIST(row.loginAt)) return "On time";
+  if (isLateLoginIST(row.loginAt)) return "Late";
+  return "Present";
+}

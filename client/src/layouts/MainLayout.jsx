@@ -25,6 +25,7 @@ export default function MainLayout({ children }) {
     "/create-user",
     "/yards",
     "/add-lead-notes",
+    "/attendance",
   ];
   const shouldShowBrandBadge = !hideBrandBadgePages.includes(location.pathname);
 

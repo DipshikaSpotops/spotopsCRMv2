@@ -37,7 +37,11 @@ const toDallasDayUTCBounds = (startLike, endLike) => {
 const sameDallasDay = (a, b) =>
   moment.tz(a, ZONE).format("YYYY-MM-DD") === moment.tz(b, ZONE).format("YYYY-MM-DD");
 
-const UnifiedDatePicker = ({ onFilterChange }) => {
+const UnifiedDatePicker = ({
+  onFilterChange,
+  persistKey = LS_RANGE,
+  syncIsoRange,
+}) => {
   const triggerRef = useRef(null);
   const popoverRef = useRef(null);
   const wrapperRef = useRef(null);
@@ -45,9 +49,12 @@ const UnifiedDatePicker = ({ onFilterChange }) => {
   const [showCalendar, setShowCalendar] = useState(false);
 
   const todayDallas = moment().tz(ZONE);
+  const shownStorageKey = `${persistKey}_shown`;
+
   const [range, setRange] = useState(() => {
+    const td = moment().tz(ZONE);
     try {
-      const saved = JSON.parse(localStorage.getItem(LS_RANGE) || "null");
+      const saved = JSON.parse(localStorage.getItem(persistKey) || "null");
       if (saved?.startDate && saved?.endDate) {
         return [{
           startDate: new Date(saved.startDate),
@@ -57,18 +64,18 @@ const UnifiedDatePicker = ({ onFilterChange }) => {
       }
     } catch {}
     return [{
-      startDate: todayDallas.startOf("day").toDate(),
-      endDate: todayDallas.endOf("day").toDate(),
+      startDate: td.clone().startOf("day").toDate(),
+      endDate: td.clone().endOf("day").toDate(),
       key: "selection",
     }];
   });
 
   const [shownDate, setShownDate] = useState(() => {
     try {
-      const saved = localStorage.getItem(LS_SHOWN);
+      const saved = localStorage.getItem(shownStorageKey);
       if (saved) return new Date(saved);
     } catch {}
-    return todayDallas.toDate();
+    return moment().tz(ZONE).toDate();
   });
 
   const [lastClick, setLastClick] = useState({ date: null, time: 0 });
@@ -81,16 +88,32 @@ const UnifiedDatePicker = ({ onFilterChange }) => {
     const r = range?.[0];
     if (!r) return;
     localStorage.setItem(
-      LS_RANGE,
+      persistKey,
       JSON.stringify({ startDate: r.startDate, endDate: r.endDate })
     );
-  }, [range]);
+  }, [range, persistKey]);
 
   useEffect(() => {
     if (shownDate) {
-      localStorage.setItem(LS_SHOWN, shownDate.toISOString());
+      localStorage.setItem(shownStorageKey, shownDate.toISOString());
     }
-  }, [shownDate]);
+  }, [shownDate, shownStorageKey]);
+
+  useEffect(() => {
+    if (!syncIsoRange?.start || !syncIsoRange?.end) return;
+    const s = moment(syncIsoRange.start).tz(ZONE);
+    const e = moment(syncIsoRange.end).tz(ZONE);
+    if (!s.isValid() || !e.isValid()) return;
+    const startDate = new Date(s.year(), s.month(), s.date(), 12, 0, 0);
+    const endDate = new Date(e.year(), e.month(), e.date(), 12, 0, 0);
+    setRange([{ startDate, endDate, key: "selection" }]);
+    setShownDate(startDate);
+    localStorage.setItem(
+      persistKey,
+      JSON.stringify({ startDate, endDate })
+    );
+    localStorage.setItem(shownStorageKey, startDate.toISOString());
+  }, [syncIsoRange?.start, syncIsoRange?.end, persistKey, shownStorageKey]);
 
   const [popoverPos, setPopoverPos] = useState({ top: 0, left: 0 });
 

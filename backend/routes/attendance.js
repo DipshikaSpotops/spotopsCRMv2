@@ -6,6 +6,7 @@ import { requireAuth } from "../middleware/auth.js";
 
 const router = express.Router();
 const IST = "Asia/Kolkata";
+const DALLAS = "America/Chicago";
 const EDITOR_EMAIL = "50starsauto110@gmail.com";
 
 /** @type {string[]} Same display order as client ACTIVE_ATTENDANCE_USER_LIST */
@@ -37,33 +38,60 @@ function canonicalFirstName(name) {
   );
 }
 
+/** Shift-attendance date key (matches mark-present / today logic). */
+function attendanceShiftDateKeyFromInstant(m) {
+  const ist = m.clone().tz(IST);
+  const mins = ist.hour() * 60 + ist.minute();
+  // After midnight through 04:30 IST → still the previous evening’s shift day.
+  if (mins < 4 * 60 + 30) return ist.clone().subtract(1, "day").format("YYYY-MM-DD");
+  return ist.format("YYYY-MM-DD");
+}
+
 function todayDateKeyIST() {
-  const now = moment.tz(IST);
-  const mins = now.hour() * 60 + now.minute();
-  // Night shift belongs to previous date until 04:30 IST.
-  if (mins < 4 * 60 + 30) return now.clone().subtract(1, "day").format("YYYY-MM-DD");
-  return now.format("YYYY-MM-DD");
+  return attendanceShiftDateKeyFromInstant(moment().tz(IST));
 }
 
 /**
- * All IST calendar YYYY-MM-DD keys touched by [startIso, endIso] (inclusive).
- * Steps the interval so we never miss an IST day when Dallas bounds span midnight in IST.
+ * One Dallas calendar day → one shift row dateKey (night 6:30 PM–4:30 AM IST rolls up to that shift’s day).
  */
-function istDateKeysInWallTimeRange(startIso, endIso) {
+function attendanceDateKeysForSingleDallasDay(startIso) {
+  const d = moment(startIso).tz(DALLAS);
+  if (!d.isValid()) return [];
+  const noonDallas = d.clone().startOf("day").hour(12).minute(0).second(0);
+  const istYmd = noonDallas.clone().tz(IST).format("YYYY-MM-DD");
+  const anchor = moment.tz(`${istYmd} 18:30`, "YYYY-MM-DD HH:mm", IST);
+  return [attendanceShiftDateKeyFromInstant(anchor)];
+}
+
+function sameDallasCalendarDay(startIso, endIso) {
+  const a = moment(startIso).tz(DALLAS).format("YYYY-MM-DD");
+  const b = moment(endIso).tz(DALLAS).format("YYYY-MM-DD");
+  return a && b && a === b;
+}
+
+/**
+ * Date keys for API range: uses shift rollup (not raw IST calendar) so one Dallas “day” doesn’t duplicate Apr 9 + Apr 10 rows.
+ */
+function attendanceDateKeysForWallRange(startIso, endIso) {
   const t0 = moment(startIso);
   const t1 = moment(endIso);
   if (!t0.isValid() || !t1.isValid()) return [];
   let a = t0.clone();
   let b = t1.clone();
   if (b.isBefore(a)) [a, b] = [b, a];
+
+  if (sameDallasCalendarDay(a, b)) {
+    return attendanceDateKeysForSingleDallasDay(a);
+  }
+
   const set = new Set();
   const endLimit = b.clone().add(1, "minute");
   let cur = a.clone();
   while (cur.isBefore(endLimit)) {
-    set.add(cur.clone().tz(IST).format("YYYY-MM-DD"));
+    set.add(attendanceShiftDateKeyFromInstant(cur));
     cur.add(6, "hours");
   }
-  set.add(b.clone().tz(IST).format("YYYY-MM-DD"));
+  set.add(attendanceShiftDateKeyFromInstant(b));
   return Array.from(set).sort();
 }
 
@@ -100,7 +128,7 @@ router.get("/", requireAuth, async (req, res) => {
     const end = String(req.query.end || "").trim();
 
     if (start && end) {
-      const dateKeys = istDateKeysInWallTimeRange(start, end);
+      const dateKeys = attendanceDateKeysForWallRange(start, end);
       if (dateKeys.length === 0) {
         return res.json({
           mode: "range",
@@ -245,31 +273,31 @@ router.patch("/logout", requireAuth, async (req, res) => {
       return res.status(200).json({ message: "No attendance roster user; skipped." });
     }
 
-    const dateKey = todayDateKeyIST();
     const now = new Date();
 
-    const doc = await Attendance.findOne({ dateKey, firstName: canonical });
+    const doc = await Attendance.findOne({
+      firstName: canonical,
+      loginAt: { $ne: null },
+    }).sort({ loginAt: -1 });
     if (!doc || !doc.loginAt) {
-      return res.status(200).json({ message: "No login record for today; nothing to update." });
+      return res.status(200).json({ message: "No login record; nothing to update." });
     }
 
-    if (!doc.logoutAt) {
-      const prevLogin = doc.loginAt;
-      const prevLogout = doc.logoutAt;
-      ensureChangeLog(doc);
-      doc.logoutAt = now;
-      doc.changeLog.push(
-        buildLogEntry(
-          req,
-          "self_logout",
-          prevLogin,
-          prevLogout,
-          doc.loginAt,
-          doc.logoutAt
-        )
-      );
-      await doc.save();
-    }
+    const prevLogin = doc.loginAt;
+    const prevLogout = doc.logoutAt;
+    ensureChangeLog(doc);
+    doc.logoutAt = now;
+    doc.changeLog.push(
+      buildLogEntry(
+        req,
+        "self_logout",
+        prevLogin,
+        prevLogout,
+        doc.loginAt,
+        doc.logoutAt
+      )
+    );
+    await doc.save();
 
     res.json({ message: "Logout time saved.", record: doc.toObject() });
   } catch (e) {

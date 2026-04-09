@@ -7,6 +7,7 @@ import { prettyFilterLabel } from "../utils/dateUtils";
 import {
   formatAttendanceStatus,
   getAttendanceRowCategory,
+  shortAttendanceLabel,
 } from "../utils/attendanceStatus";
 import {
   adminUpdateAttendanceEntry,
@@ -31,41 +32,11 @@ const ACTION_LABEL = {
   admin_clear: "Cleared times (admin)",
 };
 
-function getAttendanceDefaultFilter() {
-  try {
-    const saved = JSON.parse(localStorage.getItem("udp_range") || "null");
-    if (saved?.startDate && saved?.endDate) {
-      const startDate = new Date(saved.startDate);
-      const endDate = new Date(saved.endDate);
-      const startDallas = moment
-        .tz(
-          {
-            year: startDate.getFullYear(),
-            month: startDate.getMonth(),
-            day: startDate.getDate(),
-          },
-          ZONE
-        )
-        .startOf("day");
-      const endDallas = moment
-        .tz(
-          {
-            year: endDate.getFullYear(),
-            month: endDate.getMonth(),
-            day: endDate.getDate(),
-          },
-          ZONE
-        )
-        .endOf("day");
-      return { start: startDallas.utc().toISOString(), end: endDallas.utc().toISOString() };
-    }
-  } catch {}
+/** Dallas “today” only — Attendance always opens on current day (not shared orders month range). */
+function getAttendanceTodayFilter() {
   const now = moment().tz(ZONE);
-  const startDallas = now.clone().startOf("month").startOf("day");
-  const lastDay = now.daysInMonth();
-  const endDallas = moment
-    .tz({ year: now.year(), month: now.month(), day: lastDay }, ZONE)
-    .endOf("day");
+  const startDallas = now.clone().startOf("day");
+  const endDallas = now.clone().endOf("day");
   return { start: startDallas.utc().toISOString(), end: endDallas.utc().toISOString() };
 }
 
@@ -102,8 +73,11 @@ function formatAuditCell(log) {
 }
 
 export default function Attendance() {
-  const [activeFilter, setActiveFilter] = useState(getAttendanceDefaultFilter);
+  const [activeFilter, setActiveFilter] = useState(getAttendanceTodayFilter);
   const [rows, setRows] = useState([]);
+  const [dateKeys, setDateKeys] = useState([]);
+  const [rosterNames, setRosterNames] = useState([]);
+  const [viewMode, setViewMode] = useState("detail");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [busyKey, setBusyKey] = useState("");
@@ -138,8 +112,22 @@ export default function Attendance() {
         end: activeFilter.end,
       });
       setRows(data?.rows || []);
+      const keys =
+        data?.mode === "range" && Array.isArray(data?.dateKeys)
+          ? data.dateKeys
+          : data?.dateKey
+            ? [data.dateKey]
+            : [...new Set((data?.rows || []).map((r) => r.dateKey).filter(Boolean))].sort();
+      setDateKeys(keys);
+      setRosterNames(
+        Array.isArray(data?.activeUsers) && data.activeUsers.length
+          ? data.activeUsers
+          : [...new Set((data?.rows || []).map((r) => r.firstName).filter(Boolean))].sort()
+      );
     } catch (e) {
       setRows([]);
+      setDateKeys([]);
+      setRosterNames([]);
       setError(e?.response?.data?.message || e?.message || "Failed to load attendance");
     } finally {
       setLoading(false);
@@ -154,6 +142,41 @@ export default function Attendance() {
     () => (activeFilter ? prettyFilterLabel(activeFilter) : ""),
     [activeFilter]
   );
+
+  const rowByDateAndName = useMemo(() => {
+    const m = new Map();
+    for (const r of rows) {
+      m.set(`${r.dateKey}|${r.firstName}`, r);
+    }
+    return m;
+  }, [rows]);
+
+  function formatSummaryColTitle(ymd) {
+    const m = moment(ymd, "YYYY-MM-DD");
+    return m.isValid() ? m.format("MMM D") : ymd;
+  }
+
+  function handleExportCsv() {
+    const names = rosterNames.length ? rosterNames : [...new Set(rows.map((r) => r.firstName))].sort();
+    const keys = dateKeys.length ? dateKeys : [...new Set(rows.map((r) => r.dateKey))].sort();
+    const header = ["User", ...keys.map((k) => formatSummaryColTitle(k))];
+    const lines = [header.join(",")];
+    for (const firstName of names) {
+      const cells = keys.map((dk) => {
+        const r = rowByDateAndName.get(`${dk}|${firstName}`);
+        const status = r ? formatAttendanceStatus(r).replace(/"/g, '""') : "Absent";
+        return `"${status}"`;
+      });
+      lines.push([`"${firstName.replace(/"/g, '""')}"`, ...cells].join(","));
+    }
+    const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `attendance-${keys[0] || "export"}-to-${keys[keys.length - 1] || "export"}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
 
   const handleAdminAction = async (firstName, action, rowDateKey) => {
     const k = `${rowDateKey}:${firstName}:${action}`;
@@ -172,7 +195,7 @@ export default function Attendance() {
   return (
     <div className="p-4 sm:p-6 text-white">
       <div className="rounded-xl bg-white/10 border border-white/15 p-4 sm:p-5">
-        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-2">
           <div className="flex flex-wrap items-center gap-3">
             <h1 className="text-xl sm:text-2xl font-semibold">Attendance</h1>
             {filterSummary ? (
@@ -180,13 +203,113 @@ export default function Attendance() {
                 {filterSummary}
               </span>
             ) : null}
-            <UnifiedDatePicker onFilterChange={setActiveFilter} />
+            <UnifiedDatePicker
+              onFilterChange={setActiveFilter}
+              persistKey="udp_attendance_range"
+              syncIsoRange={activeFilter}
+            />
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs opacity-80">View:</span>
+            <button
+              type="button"
+              onClick={() => setViewMode("detail")}
+              className={`px-3 py-1 rounded-md text-xs font-medium border ${
+                viewMode === "detail"
+                  ? "bg-white/20 border-white/40"
+                  : "bg-white/5 border-white/15 hover:bg-white/10"
+              }`}
+            >
+              Detail table
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode("summary")}
+              className={`px-3 py-1 rounded-md text-xs font-medium border ${
+                viewMode === "summary"
+                  ? "bg-white/20 border-white/40"
+                  : "bg-white/5 border-white/15 hover:bg-white/10"
+              }`}
+            >
+              Month overview
+            </button>
+            <button
+              type="button"
+              onClick={handleExportCsv}
+              disabled={!rows.length}
+              className="px-3 py-1 rounded-md text-xs font-medium border border-white/20 bg-[#04356d] hover:bg-[#063a7a] disabled:opacity-40"
+            >
+              Download CSV
+            </button>
           </div>
         </div>
+        <p className="text-xs opacity-75 mb-3 max-w-3xl">
+          For a full month: open the date picker → <strong>This Month</strong> (or choose a range) →{" "}
+          <strong>Load</strong>. Use <strong>Month overview</strong> for a date × user grid; hover a cell for
+          the full status. <strong>Download CSV</strong> has the same precise status text for each day.
+        </p>
 
         {error && <div className="text-sm text-red-300 mb-3">{error}</div>}
         {loading ? (
           <div className="text-sm opacity-90">Loading...</div>
+        ) : viewMode === "summary" ? (
+          <div className="overflow-x-auto rounded-lg border border-white/20">
+            <table className="w-full text-xs sm:text-sm border-collapse min-w-[640px]">
+              <thead>
+                <tr className="bg-white/10">
+                  <th className="text-left px-2 py-2 border-r border-white/20 sticky left-0 bg-[#1e3a5f] z-10 whitespace-nowrap">
+                    User
+                  </th>
+                  {dateKeys.map((dk) => (
+                    <th
+                      key={dk}
+                      className="text-center px-1 py-2 border-r border-white/15 min-w-[4.5rem]"
+                      title={dk}
+                    >
+                      <span className="block font-semibold">{formatSummaryColTitle(dk)}</span>
+                      <span className="block text-[10px] opacity-70 font-normal">{dk.slice(5)}</span>
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {rosterNames.length === 0 ? (
+                  <tr>
+                    <td colSpan={Math.max(1, dateKeys.length + 1)} className="px-3 py-6 text-center opacity-80">
+                      No roster for this range.
+                    </td>
+                  </tr>
+                ) : (
+                  rosterNames.map((firstName) => (
+                    <tr key={firstName} className="border-t border-white/10 bg-white/[0.03]">
+                      <td className="px-2 py-1.5 font-medium border-r border-white/10 sticky left-0 bg-[#162d4a] z-10 whitespace-nowrap">
+                        {firstName}
+                      </td>
+                      {dateKeys.map((dk) => {
+                        const cell = rowByDateAndName.get(`${dk}|${firstName}`);
+                        const cat = getAttendanceRowCategory(cell || {});
+                        return (
+                          <td
+                            key={`${firstName}-${dk}`}
+                            className={`px-1 py-1.5 text-center border-r border-white/10 align-middle ${attendanceStatusCellClass(
+                              cat
+                            )}`}
+                            title={cell ? formatAttendanceStatus(cell) : "Absent"}
+                          >
+                            {shortAttendanceLabel(cell || {})}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+            <p className="text-[11px] opacity-70 mt-2 px-1">
+              Colors: green = present / on-time • orange = half-day rules • red = absent. Headers show shift-day
+              keys; hover a cell or use CSV for full status text.
+            </p>
+          </div>
         ) : (
           <div className="overflow-x-auto rounded-lg border border-white/20">
             <table className="w-full text-sm border-collapse">
