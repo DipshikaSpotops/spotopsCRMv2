@@ -51,6 +51,12 @@ function todayDateKeyIST() {
   return attendanceShiftDateKeyFromInstant(moment().tz(IST));
 }
 
+/** Admin actions-column "Mark Present" only: 6:30 PM IST on that shift day (navbar self-mark uses real time). */
+function loginAtSixThirtyPmISTForDateKey(dateKey) {
+  const m = moment.tz(`${String(dateKey).trim()} 18:30:00`, "YYYY-MM-DD HH:mm:ss", IST);
+  return m.isValid() ? m.toDate() : new Date();
+}
+
 /**
  * One Dallas calendar day → one shift row dateKey (night 6:30 PM–4:30 AM IST rolls up to that shift’s day).
  */
@@ -244,6 +250,7 @@ router.post("/mark-present", requireAuth, async (req, res) => {
     }
 
     const dateKey = todayDateKeyIST();
+    // Navbar / self "Mark Present" — actual clock-in time (not fixed 6:30 PM).
     const now = new Date();
 
     let doc = await Attendance.findOne({ dateKey, firstName: canonical });
@@ -349,7 +356,7 @@ router.patch("/admin/entry", requireAuth, async (req, res) => {
 
     let logAction = "admin_clear";
     if (action === "markPresentNow") {
-      doc.loginAt = now;
+      doc.loginAt = loginAtSixThirtyPmISTForDateKey(dateKey);
       logAction = "admin_mark_present";
     } else if (action === "markLogoutNow") {
       doc.logoutAt = now;
