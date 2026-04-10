@@ -122,7 +122,8 @@ function CustomLegend({ payload }) {
 // Status Colors
 const STATUS_COLORS = {
   "Placed": "#a0d9d3",
-  "Customer Approved": "#4d98c8",
+  "Customer approved": "#4d98c8",
+  "Customer Approved": "#4d98c8", // legacy DB spelling
   "Yard Processing": "#a264d5",
   "In Transit": "#696bb5",
   "Escalation": "#ef9a9a",

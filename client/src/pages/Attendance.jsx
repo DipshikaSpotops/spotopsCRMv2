@@ -51,7 +51,7 @@ function attendanceStatusCellClass(category) {
     case "half_day":
       return `${base} bg-[#d97706] text-white font-medium`;
     case "late":
-      return `${base} bg-[#ca8a04] text-white font-medium`;
+      return `${base} bg-[#FFFF00] text-gray-900 font-medium`;
     case "full_day":
     default:
       return `${base} bg-[#166534] text-white font-medium`;
@@ -348,7 +348,7 @@ export default function Attendance() {
                         >
                           <div className="space-y-0.5 leading-snug text-white/95">
                             <div>
-                              Abs: <strong className="tabular-nums">{uc.absent}</strong>
+                              Absent: <strong className="tabular-nums">{uc.absent}</strong>
                             </div>
                             <div>
                               Weekend: <strong className="tabular-nums">{uc.weekend}</strong>

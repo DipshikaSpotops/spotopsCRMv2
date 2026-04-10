@@ -462,7 +462,7 @@ export default function OrderDetails() {
   const STATUS_OPTIONS = [
     { label: "Placed", value: "Placed" },
     { label: "Partially Charged Order", value: "Partially charged order" },
-    { label: "Customer Approved", value: "Customer Approved" },
+    { label: "Customer Approved", value: "Customer approved" },
     { label: "Yard Processing", value: "Yard Processing" },
     { label: "In Transit", value: "In Transit" },
     { label: "Escalation", value: "Escalation" },
@@ -482,8 +482,8 @@ export default function OrderDetails() {
     if (!backendStatus) return "";
     // Map backend values to frontend values
     const statusMap = {
-      "Customer approved": "Customer Approved", // lowercase 'a' -> uppercase 'A'
-      "Customer Approved": "Customer Approved", // already correct
+      "Customer approved": "Customer approved",
+      "Customer Approved": "Customer approved", // legacy capital A -> Placed spelling
       "Dispute 2": "Dispute 2", // backend value for "Dispute after Cancellation"
       "Partially charged order": "Partially charged order",
     };
@@ -493,7 +493,7 @@ export default function OrderDetails() {
     }
     // Try case-insensitive match for "Customer approved"
     if (backendStatus.toLowerCase() === "customer approved") {
-      return "Customer Approved";
+      return "Customer approved";
     }
     // Case-insensitive match for "Partially charged order"
     if (backendStatus.toLowerCase() === "partially charged order") {
@@ -735,21 +735,22 @@ export default function OrderDetails() {
 
   /** Status change -> save, optimistic GP recalc, then modal/alert logic */
   const handleStatusChange = async (value) => {
-    setNewStatus(value);
+    const canonicalStatus = normalizeStatus(value) || value;
+    setNewStatus(canonicalStatus);
     try {
       const firstName = localStorage.getItem("firstName");
 
       await API.put(
         `/orders/${orderNo}/custRefund`,
-        { orderStatus: value },
+        { orderStatus: canonicalStatus },
         { params: { firstName } }
       );
 
       const labelMap = { "Dispute 2": "Dispute after Cancellation" };
-      const label = labelMap[value] || value;
+      const label = labelMap[canonicalStatus] || canonicalStatus;
 
-      // Optimistic GP recalc using current in-memory order with new status
-      const optimisticOrder = { ...order, orderStatus: label };
+      // Optimistic GP recalc using current in-memory order with new status (DB-shaped value)
+      const optimisticOrder = { ...order, orderStatus: canonicalStatus };
       const newGP = calcActualGP(optimisticOrder);
 
       setActualGPView(Number(newGP).toFixed(2));
@@ -770,19 +771,19 @@ export default function OrderDetails() {
         );
 
       // modal + alert timing
-      if (value === "Order Cancelled") {
+      if (canonicalStatus === "Order Cancelled") {
         setPendingAlertLabel(label);
         setShowCancelModal(true);
-      } else if (value === "Refunded") {
+      } else if (canonicalStatus === "Refunded") {
         setPendingAlertLabel(label);
         setShowRefundModal(true);
-      } else if (value === "Dispute") {
+      } else if (canonicalStatus === "Dispute") {
         setPendingAlertLabel(label);
         setShowDisputeModal(true);
       } else {
         await refresh();
         await recomputeAndPersistActualGP({ useServer: true });
-        if (value === "Dispute") {
+        if (canonicalStatus === "Dispute") {
           try {
             await refresh();
             await recomputeAndPersistActualGP({ useServer: true });

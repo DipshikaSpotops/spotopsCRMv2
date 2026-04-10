@@ -8,6 +8,7 @@ import { requireAuth, allow } from "../middleware/auth.js";
 
 const requireAuthAllRoles = [requireAuth, allow("Admin", "Sales", "Support")];
 import { getDateRange } from "../utils/dateRange.js";
+import { canonicalOrderStatus } from "../utils/canonicalOrderStatus.js";
 import { getWhen } from "../../shared/utils/timeUtils.js";
 import multer from "multer";
 import { uploadVoidLabelScreenshotToS3, uploadYardImageToS3 } from "../services/s3Upload.js";
@@ -638,6 +639,8 @@ router.post("/orders", async (req, res) => {
       orderStatus = "Placed"; // default
     }
 
+    orderStatus = canonicalOrderStatus(orderStatus) || orderStatus;
+
     const newOrder = new Order({ ...orderBody, orderStatus });
     newOrder.orderDate = central.toDate();
 
@@ -1057,6 +1060,10 @@ router.put("/:orderNo", async (req, res) => {
       }
     });
 
+    if (typeof order.orderStatus === "string" && order.orderStatus.length > 0) {
+      order.orderStatus = canonicalOrderStatus(order.orderStatus) || order.orderStatus;
+    }
+
     // If payment-related fields changed, auto-adjust orderStatus between
     // "Placed" and "Partially charged order" (but don't override explicit
     // non-payment statuses like Cancelled, Refunded, Dispute, etc.).
@@ -1177,7 +1184,10 @@ router.put("/:orderNo/custRefund", async (req, res) => {
 
     let nextStatus = orderStatus;
     if (!nextStatus && cancelledDate) nextStatus = "Order Cancelled";
-    if (nextStatus) updateFields.orderStatus = nextStatus;
+    if (nextStatus) {
+      nextStatus = canonicalOrderStatus(nextStatus) || nextStatus;
+      updateFields.orderStatus = nextStatus;
+    }
 
     const formattedDateTime = moment().tz("America/Chicago").format("D MMM, YYYY HH:mm");
 
@@ -1334,11 +1344,12 @@ router.post("/:orderNo/additionalInfo", async (req, res) => {
     );
 // Yard Name: ${yname} PP: ${pp} Shipping: ${shipTxt} Others: ${othTxt}
     if (orderStatus && String(orderStatus).trim() !== "") {
+      const normalizedYardStatus = canonicalOrderStatus(orderStatus.trim()) || orderStatus.trim();
       const prevStatus = order.orderStatus || "";
-      if (prevStatus !== orderStatus) {
-        order.orderStatus = orderStatus;
+      if (prevStatus !== normalizedYardStatus) {
+        order.orderStatus = normalizedYardStatus;
         order.orderHistory.push(
-          `Order status changed: ${prevStatus || "—"} → ${orderStatus}   by ${firstName} on ${when}`
+          `Order status changed: ${prevStatus || "—"} → ${normalizedYardStatus}   by ${firstName} on ${when}`
         );
       }
     }
@@ -1640,10 +1651,14 @@ router.put(
       );
 
       const mapped = ORDER_STATUS_MAP[newStatus] || order.orderStatus;
-      order.orderStatus = req.body.orderStatus || mapped;
+      const fromBody = req.body.orderStatus
+        ? canonicalOrderStatus(req.body.orderStatus) || req.body.orderStatus
+        : null;
+      order.orderStatus = fromBody || mapped;
     } else if (req.body.orderStatus) {
       const prev = order.orderStatus;
-      order.orderStatus = req.body.orderStatus;
+      order.orderStatus =
+        canonicalOrderStatus(req.body.orderStatus) || req.body.orderStatus;
       if (prev !== order.orderStatus) {
         order.orderHistory.push(
           `Order status set to ${order.orderStatus} by ${firstName} on ${when} (Yard ${idx1})`

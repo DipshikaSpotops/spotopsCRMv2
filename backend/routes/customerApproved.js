@@ -40,7 +40,7 @@ router.get("/", async (req, res) => {
     const { startDate, endDate } = getDateRange({ start, end, month, year });
 
     const filter = {
-      orderStatus: "Customer approved",
+      orderStatus: { $regex: /^customer approved$/i },
       orderDate: { $gte: startDate, $lt: endDate },
     };
 

@@ -53,7 +53,13 @@ router.get("/", async (req, res) => {
     const pageSize = Math.max(parseInt(limit, 10) || 25, 1);
     const skip = (Math.max(parseInt(page, 10) || 1, 1) - 1) * pageSize;
 
-    const validStatuses = ["Customer approved", "Yard Processing", "In Transit", "Escalation"];
+    const validStatuses = [
+      "Customer Approved",
+      "Customer approved",
+      "Yard Processing",
+      "In Transit",
+      "Escalation",
+    ];
 
     const filter = {
       orderDate: { $gte: startDate, $lt: endDate },
