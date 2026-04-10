@@ -30,6 +30,7 @@ export async function recordAttendanceLogout() {
   }
 }
 
+/** @param {{ dateKey: string, firstName: string, action: string, at?: string }} payload — `at` ISO 8601 for markPresentNow / markLogoutNow */
 export async function adminUpdateAttendanceEntry(payload) {
   const { data } = await API.patch("/attendance/admin/entry", payload);
   return data;

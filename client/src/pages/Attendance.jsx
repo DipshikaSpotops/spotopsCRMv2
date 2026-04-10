@@ -58,6 +58,13 @@ function attendanceStatusCellClass(category) {
   }
 }
 
+/** `datetime-local` value in the browser's local timezone */
+function dateToDatetimeLocalValue(d) {
+  if (!d || Number.isNaN(d.getTime())) return "";
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 function formatAuditCell(log) {
   if (!Array.isArray(log) || log.length === 0) return "—";
   const lines = [...log].reverse().map((e) => {
@@ -86,6 +93,8 @@ export default function Attendance() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [busyKey, setBusyKey] = useState("");
+  const [adminTimeModal, setAdminTimeModal] = useState(null);
+  const [adminTimeLocal, setAdminTimeLocal] = useState("");
 
   const roleFromRedux = useSelector(selectRole);
   const role =
@@ -195,6 +204,53 @@ export default function Attendance() {
     setError("");
     try {
       await adminUpdateAttendanceEntry({ dateKey: rowDateKey, firstName, action });
+      await load();
+    } catch (e) {
+      setError(e?.response?.data?.message || e?.message || "Update failed");
+    } finally {
+      setBusyKey("");
+    }
+  };
+
+  const openAdminMarkPresentModal = (firstName, dateKey) => {
+    const suggested = moment.tz(`${dateKey} 18:30`, "YYYY-MM-DD HH:mm", IST).toDate();
+    setAdminTimeLocal(dateToDatetimeLocalValue(suggested));
+    setAdminTimeModal({ firstName, dateKey, action: "markPresentNow" });
+    setError("");
+  };
+
+  const openAdminMarkLogoutModal = (firstName, dateKey) => {
+    setAdminTimeLocal(dateToDatetimeLocalValue(new Date()));
+    setAdminTimeModal({ firstName, dateKey, action: "markLogoutNow" });
+    setError("");
+  };
+
+  const closeAdminTimeModal = () => {
+    if (busyKey) return;
+    setAdminTimeModal(null);
+    setAdminTimeLocal("");
+  };
+
+  const submitAdminTimeModal = async () => {
+    if (!adminTimeModal) return;
+    const d = new Date(adminTimeLocal);
+    if (Number.isNaN(d.getTime())) {
+      setError("Please choose a valid date and time.");
+      return;
+    }
+    const { firstName, dateKey, action } = adminTimeModal;
+    const k = `${dateKey}:${firstName}:${action}`;
+    setBusyKey(k);
+    setError("");
+    try {
+      await adminUpdateAttendanceEntry({
+        dateKey,
+        firstName,
+        action,
+        at: d.toISOString(),
+      });
+      setAdminTimeModal(null);
+      setAdminTimeLocal("");
       await load();
     } catch (e) {
       setError(e?.response?.data?.message || e?.message || "Update failed");
@@ -436,20 +492,16 @@ export default function Attendance() {
                             <button
                               type="button"
                               className="px-2 py-1 rounded bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-60"
-                              disabled={busyKey === `${row.dateKey}:${row.firstName}:markPresentNow`}
-                              onClick={() =>
-                                handleAdminAction(row.firstName, "markPresentNow", row.dateKey)
-                              }
+                              disabled={!!busyKey}
+                              onClick={() => openAdminMarkPresentModal(row.firstName, row.dateKey)}
                             >
                               Mark Present
                             </button>
                             <button
                               type="button"
                               className="px-2 py-1 rounded bg-sky-600 hover:bg-sky-700 text-white disabled:opacity-60"
-                              disabled={busyKey === `${row.dateKey}:${row.firstName}:markLogoutNow`}
-                              onClick={() =>
-                                handleAdminAction(row.firstName, "markLogoutNow", row.dateKey)
-                              }
+                              disabled={!!busyKey}
+                              onClick={() => openAdminMarkLogoutModal(row.firstName, row.dateKey)}
                             >
                               Mark Logout
                             </button>
@@ -472,6 +524,59 @@ export default function Attendance() {
           </div>
         )}
       </div>
+
+      {adminTimeModal ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="admin-attendance-time-title"
+          onClick={(e) => {
+            if (e.target === e.currentTarget && !busyKey) closeAdminTimeModal();
+          }}
+        >
+          <div className="w-full max-w-md rounded-xl border border-white/20 bg-[#1e3a5f] p-5 text-white shadow-xl">
+            <h3 id="admin-attendance-time-title" className="text-lg font-semibold mb-1">
+              {adminTimeModal.action === "markPresentNow" ? "Set login time" : "Set logout time"}
+            </h3>
+            <p className="text-sm text-white/75 mb-4">
+              <span className="font-medium">{adminTimeModal.firstName}</span> · shift day{" "}
+              <span className="font-mono">{adminTimeModal.dateKey}</span>
+            </p>
+            <label htmlFor="admin-attendance-datetime" className="block text-xs text-white/80 mb-1">
+              Date &amp; time (your device timezone)
+            </label>
+            <input
+              id="admin-attendance-datetime"
+              type="datetime-local"
+              value={adminTimeLocal}
+              onChange={(e) => setAdminTimeLocal(e.target.value)}
+              className="w-full rounded-md border border-white/25 bg-white/10 px-3 py-2 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-sky-500"
+            />
+            <p className="text-[11px] text-white/55 mt-2 mb-4">
+              The table still shows times in IST. Adjust here to match when they actually logged in or out.
+            </p>
+            <div className="flex flex-wrap justify-end gap-2">
+              <button
+                type="button"
+                className="px-3 py-1.5 rounded-md text-sm border border-white/25 bg-white/5 hover:bg-white/10 disabled:opacity-50"
+                disabled={!!busyKey}
+                onClick={closeAdminTimeModal}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="px-3 py-1.5 rounded-md text-sm bg-[#04356d] border border-white/20 hover:bg-[#063a7a] disabled:opacity-50"
+                disabled={!!busyKey}
+                onClick={submitAdminTimeModal}
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

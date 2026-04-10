@@ -51,10 +51,18 @@ function todayDateKeyIST() {
   return attendanceShiftDateKeyFromInstant(moment().tz(IST));
 }
 
-/** Admin actions-column "Mark Present" only: 6:30 PM IST on that shift day (navbar self-mark uses real time). */
+/** Fallback when admin omits `at`: 6:30 PM IST on that shift day. */
 function loginAtSixThirtyPmISTForDateKey(dateKey) {
   const m = moment.tz(`${String(dateKey).trim()} 18:30:00`, "YYYY-MM-DD HH:mm:ss", IST);
   return m.isValid() ? m.toDate() : new Date();
+}
+
+/** Body `at` ISO string from admin UI; null if absent or empty. */
+function parseAdminAtIso(body) {
+  const raw = body?.at;
+  if (raw == null || String(raw).trim() === "") return null;
+  const d = new Date(raw);
+  return Number.isNaN(d.getTime()) ? null : d;
 }
 
 /**
@@ -346,6 +354,17 @@ router.patch("/admin/entry", requireAuth, async (req, res) => {
     }
 
     const now = new Date();
+    const atParsed = parseAdminAtIso(req.body);
+    if (
+      req.body &&
+      Object.prototype.hasOwnProperty.call(req.body, "at") &&
+      req.body.at != null &&
+      String(req.body.at).trim() !== "" &&
+      !atParsed
+    ) {
+      return res.status(400).json({ message: "Invalid at; use ISO 8601 datetime." });
+    }
+
     let doc = await Attendance.findOne({ dateKey, firstName });
     const prevLogin = doc?.loginAt ?? null;
     const prevLogout = doc?.logoutAt ?? null;
@@ -356,10 +375,10 @@ router.patch("/admin/entry", requireAuth, async (req, res) => {
 
     let logAction = "admin_clear";
     if (action === "markPresentNow") {
-      doc.loginAt = loginAtSixThirtyPmISTForDateKey(dateKey);
+      doc.loginAt = atParsed ?? loginAtSixThirtyPmISTForDateKey(dateKey);
       logAction = "admin_mark_present";
     } else if (action === "markLogoutNow") {
-      doc.logoutAt = now;
+      doc.logoutAt = atParsed ?? now;
       logAction = "admin_mark_logout";
     } else {
       doc.loginAt = null;
