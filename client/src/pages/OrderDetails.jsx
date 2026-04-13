@@ -1438,46 +1438,46 @@ export default function OrderDetails() {
                   <span className="ml-2 font-normal text-[#09325d]/80 dark:text-white/80">
                     - {orderNo || "—"}
                   </span>
-                </h1>
-                {(() => {
-                  // Final deduplication by firstName+role combination and filter out "Unknown" users
-                  const uniqueUsers = activeUsers.reduce((acc, user) => {
-                    // Skip users with "Unknown" name (likely not properly authenticated)
-                    if (user.firstName === "Unknown" || !user.firstName) {
+                  {(() => {
+                    // Final deduplication by firstName+role combination and filter out "Unknown" users
+                    const uniqueUsers = activeUsers.reduce((acc, user) => {
+                      // Skip users with "Unknown" name (likely not properly authenticated)
+                      if (user.firstName === "Unknown" || !user.firstName) {
+                        return acc;
+                      }
+                      const key = `${user.firstName}-${user.role || ''}`;
+                      if (!acc.has(key)) {
+                        acc.set(key, user);
+                      }
                       return acc;
-                    }
-                    const key = `${user.firstName}-${user.role || ''}`;
-                    if (!acc.has(key)) {
-                      acc.set(key, user);
-                    }
-                    return acc;
-                  }, new Map());
-                  // Sort alphabetically by firstName
-                  const displayUsers = Array.from(uniqueUsers.values())
-                    .sort((a, b) => {
-                      const nameA = (a.firstName || "").toLowerCase();
-                      const nameB = (b.firstName || "").toLowerCase();
-                      return nameA.localeCompare(nameB);
-                    });
-                  
-                  return displayUsers.length > 0 && (
-                    <div className="mt-2 flex items-center gap-2 text-sm text-[#09325d]/70 dark:text-white/70">
-                      <span className="inline-flex items-center gap-1">
-                        <span className="w-2 h-2 bg-green-500 rounded-full shrink-0" aria-hidden />
-                        <span>Also viewing:</span>
+                    }, new Map());
+                    // Sort alphabetically by firstName
+                    const displayUsers = Array.from(uniqueUsers.values())
+                      .sort((a, b) => {
+                        const nameA = (a.firstName || "").toLowerCase();
+                        const nameB = (b.firstName || "").toLowerCase();
+                        return nameA.localeCompare(nameB);
+                      });
+
+                    return displayUsers.length > 0 && (
+                      <span className="ml-3 inline-flex items-center gap-2 align-middle text-sm font-medium text-[#09325d]/70 dark:text-white/70">
+                        <span className="inline-flex items-center gap-1">
+                          <span className="w-2 h-2 bg-green-500 rounded-full shrink-0" aria-hidden />
+                          <span>Also viewing:</span>
+                        </span>
+                        <span>
+                          {displayUsers.map((u, i) => (
+                            <span key={u.socketId || `${u.firstName}-${u.role || ''}-${i}`}>
+                              {u.firstName}
+                              {u.role && u.role !== "User" && ` (${u.role})`}
+                              {i < displayUsers.length - 1 && ", "}
+                            </span>
+                          ))}
+                        </span>
                       </span>
-                      <span className="font-medium">
-                        {displayUsers.map((u, i) => (
-                          <span key={u.socketId || `${u.firstName}-${u.role || ''}-${i}`}>
-                            {u.firstName}
-                            {u.role && u.role !== "User" && ` (${u.role})`}
-                            {i < displayUsers.length - 1 && ", "}
-                          </span>
-                        ))}
-                      </span>
-                    </div>
-                  );
-                })()}
+                    );
+                  })()}
+                </h1>
               </div>
 
               <div className="flex flex-col items-end gap-3">

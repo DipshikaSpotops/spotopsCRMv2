@@ -186,6 +186,7 @@ const SUPPORT_AGENT_PROLANE_NAME_MAP = {
   Ashley: "Gloria Sky",
   Nik: "Noah Webster",
   Leo: "Max Williams",
+  Tony: "Kevin Wilson",
   // Handle both spellings just in case
   Dipshika: "Dips",
   Dipsikha: "Dips",
