@@ -1,5 +1,5 @@
 import { Link, useLocation } from "react-router-dom";
-import { FaHome, FaUsers, FaChartBar, FaChevronDown } from "react-icons/fa";
+import { FaHome, FaUsers, FaChartBar, FaChevronDown, FaClipboardCheck } from "react-icons/fa";
 import { useState } from "react";
 import { useSelector } from "react-redux";
 import { selectRole } from "../store/authSlice";
@@ -33,9 +33,17 @@ export default function Sidebar() {
   // Brand (50STARS / PROLANE)
   const brand = getCurrentBrand();
 
-  // all menus open by default
+  // Top-level sections open; nested groups (CX Related, Yard Related, etc.) start collapsed.
   const [openMenu, setOpenMenu] = useState({
     dashboards: true,
+    cxRelated: false,
+    yardRelated: false,
+    dashboardEscalations: false,
+    reportsPurchases: false,
+    reportsRefunds: false,
+    reportsDisputes: false,
+    reportsStatistics: false,
+    attendance: true,
     users: true,
     reports: true,
   });
@@ -46,55 +54,93 @@ export default function Sidebar() {
 
   // ====== Base link sets ======
   const dashboardLinksBase = [
-    { text: "Add New Order", to: "/add-order" },
-    { text: "Edit Order", to: "/edit-order", adminOnly: true },
-    { text: "Placed Orders", to: "/placed-orders" },
-    { text: "Partially Charged Orders", to: "/partially-charged-orders" },
-    { text: "Customer Approved", to: "/customer-approved" },
-    { text: "View Orders - Monthly", to: "/monthly-orders" },
-    { text: "Daily Sales GP", to: "/daily-sales-gp", roles: ["Admin", "Sales"] },
     { text: "View All Orders", to: "/view-all-orders" },
-    { text: "Yard Processing Orders", to: "/yard-processing" },
-    { text: "Own Shipping Orders", to: "/own-shipping-orders" },
-    { text: "In Transit Orders", to: "/in-transit" },
-    { text: "Sales Data", to: "/sales-data" },
-    { text: "Cancelled Orders", to: "/cancelled-orders" },
-    { text: "Refunded Orders", to: "/refunded-orders" },
-    { text: "To Be Reimbursed", to: "/to-be-reimbursed" },
-    { text: "Disputed Orders", to: "/disputed-orders" },
-    { text: "Fulfilled Orders", to: "/fulfilled-orders" },
-    { text: "Overall Escalation", to: "/overall-escalation" },
-    { text: "Ongoing Escalation", to: "/ongoing-escalation" },
-    { text: "Leads", to: "/leads", roles: ["Admin", "Sales"] },
-    { text: "Yards", to: "/yards", adminOnly: true, emailAccess: "50starsauto110@gmail.com" },
+    { text: "View Orders-Monthly", to: "/monthly-orders" },
+    {
+      text: "CX Related",
+      submenuKey: "cxRelated",
+      children: [
+        { text: "Placed Orders", to: "/placed-orders" },
+        { text: "Partially Charged Orders", to: "/partially-charged-orders" },
+        { text: "In-Transit Orders", to: "/in-transit" },
+        { text: "Fulfilled Orders", to: "/fulfilled-orders" },
+        { text: "Refunded Orders", to: "/refunded-orders" },
+        { text: "To Be Reimbursed", to: "/to-be-reimbursed" },
+        { text: "Cancelled Orders", to: "/cancelled-orders" },
+        { text: "Disputed Orders", to: "/disputed-orders" },
+      ],
+    },
+    {
+      text: "Yard Related",
+      submenuKey: "yardRelated",
+      children: [
+        { text: "Yard Data", to: "/yards", adminOnly: true, emailAccess: "50starsauto110@gmail.com" },
+        { text: "CX Approved Orders", to: "/customer-approved" },
+        { text: "Yard Processing Orders", to: "/yard-processing" },
+        { text: "Own Shipping", to: "/own-shipping-orders" },
+        { text: "Expedite Shipping", to: "/delivery-time" },
+        { text: "Junk Parts", to: "/junk-parts" },
+      ],
+    },
+    {
+      text: "Escalations",
+      submenuKey: "dashboardEscalations",
+      children: [
+        { text: "Overall Escalation", to: "/overall-escalation" },
+        { text: "Ongoing Escalation", to: "/ongoing-escalation" },
+      ],
+    },
+    { text: "UPS Claims", to: "/ups-claims" },
   ];
 
   const usersLinksBase = [
     { text: "Create User", to: "/create-user" },
     { text: "View Users", to: "/view-users" },
-    { text: "Access codes", to: "/access-codes", adminOnly: true },
   ];
 
   const reportsLinksBase = [
-    { text: "Attendance", to: "/attendance" },
-    { text: "Cancellations & Refunds", to: "/cancelled-refunded-report" },
-    { text: "Card Not Charged", to: "/card-not-charged-report" },
-    { text: "Collect Refunds", to: "/collect-refund" },
-    { text: "UPS Claims", to: "/ups-claims" },
-    { text: "Monthly Disputes", to: "/monthly-disputes" },
-    { text: "Sales Report", to: "/sales-report" },
-    { text: "Purchases", to: "/purchases" },
-    { text: "PO Report", to: "/po-report" },
-    { text: "Shipping Expenses", to: "/shipping-expenses" },
-    { text: "Store Credits", to: "/store-credit" },
-    { text: "Tracking Report", to: "/tracking-info" },
-    { text: "Refunds/Reimbursements", to: "/reimbursement-report" },
-    { text: "Order Statistics", to: "/order-statistics", adminOnly: true, emailAccess: "50starsauto110@gmail.com" },
-    { text: "Make/Model Statistics", to: "/make-statistics", adminOnly: true, emailAccess: "50starsauto110@gmail.com" },
-    { text: "Card Charged", to: "/card-charged" },
-    { text: "Junk Parts", to: "/junk-parts" },
-    { text: "Incentives Report", to: "/incentives-report", adminOnly: true, emailAccess: "50starsauto110@gmail.com" },
+    {
+      text: "Purchases",
+      submenuKey: "reportsPurchases",
+      children: [
+        { text: "Shipping", to: "/shipping-expenses" },
+        { text: "PO Report", to: "/po-report" },
+        { text: "Card Charged", to: "/card-charged" },
+        { text: "Card Not Charged", to: "/card-not-charged-report" },
+      ],
+    },
+    {
+      text: "Refunds",
+      submenuKey: "reportsRefunds",
+      children: [
+        { text: "Cancellations & Refunds", to: "/cancelled-refunded-report" },
+        { text: "Reimbursements", to: "/reimbursement-report" },
+        { text: "UPS Claims", to: "/ups-claims" },
+        { text: "Collect Refund", to: "/collect-refund" },
+        { text: "Store Credit", to: "/store-credit" },
+      ],
+    },
+    {
+      text: "Disputes",
+      submenuKey: "reportsDisputes",
+      children: [
+        { text: "CX Disputes", to: "/monthly-disputes" },
+        { text: "Yard Disputes", to: "/disputed-orders" },
+      ],
+    },
+    {
+      text: "Statistics",
+      submenuKey: "reportsStatistics",
+      children: [
+        { text: "Order Statistics", to: "/order-statistics", adminOnly: true, emailAccess: "50starsauto110@gmail.com" },
+        { text: "Make/Model", to: "/make-statistics", adminOnly: true, emailAccess: "50starsauto110@gmail.com" },
+        { text: "Incentives Report", to: "/incentives-report", adminOnly: true, emailAccess: "50starsauto110@gmail.com" },
+        { text: "Sales Report", to: "/sales-report", roles: ["Admin", "Sales"] },
+      ],
+    },
   ];
+
+  const attendanceLinksBase = [{ text: "Attendance", to: "/attendance" }];
 
   // Helper function to check if a link should be shown based on role, email, and link properties
   const shouldShowLink = (link, userRole, userEmail, currentBrand) => {
@@ -135,67 +181,107 @@ export default function Sidebar() {
     return true;
   };
 
+  /** Reports / nested menus: Sales always keeps Sales Report; Support hides it; leaves still use shouldShowLink. */
+  const filterNestedLinksByRole = (items, userRole, userEmail, currentBrand) => {
+    const leafVisible = (l) => {
+      if (userRole === "Sales") {
+        if (l.text === "Sales Report") return true;
+        return shouldShowLink(l, userRole, userEmail, currentBrand);
+      }
+      if (userRole === "Support") {
+        if (l.text === "Sales Report") return false;
+        return shouldShowLink(l, userRole, userEmail, currentBrand);
+      }
+      return shouldShowLink(l, userRole, userEmail, currentBrand);
+    };
+
+    return items
+      .map((item) => {
+        if (item.children?.length) {
+          const children = item.children.filter(leafVisible);
+          if (children.length === 0) return null;
+          return { ...item, children };
+        }
+        return leafVisible(item) ? item : null;
+      })
+      .filter(Boolean);
+  };
+
+  /** Filter dashboard items (flat links or `{ text, children }` groups). */
+  const filterDashboardLinks = (items, userRole, userEmail, currentBrand, hiddenFlat, hiddenNested) => {
+    const flatHidden = hiddenFlat ?? new Set();
+    const nestedHidden = hiddenNested ?? flatHidden;
+
+    return items
+      .map((item) => {
+        if (item.children?.length) {
+          const children = item.children.filter((l) => {
+            if (nestedHidden.has(l.text)) return false;
+            return shouldShowLink(l, userRole, userEmail, currentBrand);
+          });
+          if (children.length === 0) return null;
+          return { ...item, children };
+        }
+        if (flatHidden.has(item.text)) return null;
+        return shouldShowLink(item, userRole, userEmail, currentBrand) ? item : null;
+      })
+      .filter(Boolean);
+  };
+
   // ====== Role-based filtering ======
   let dashboardLinks = dashboardLinksBase;
   let showUsersSection = true;
   let usersLinks = usersLinksBase;
   let reportsLinks = reportsLinksBase;
+  let attendanceLinks = attendanceLinksBase;
 
   if (role === "Sales") {
-    // Hide these from Dashboards for Sales
     const hiddenForSales = new Set([
       "Placed Orders",
-      "Customer Approved",
+      "CX Approved Orders",
       "Yard Processing Orders",
-      "Own Shipping Orders",
-      "In Transit Orders",
+      "Own Shipping",
+      "In-Transit Orders",
       "Overall Escalation",
       "Ongoing Escalation",
     ]);
-    dashboardLinks = dashboardLinksBase.filter((l) => {
-      // Filter out hidden items
-      if (hiddenForSales.has(l.text)) return false;
-      // Use helper function to check access
-      return shouldShowLink(l, role, email, brand);
-    });
+    dashboardLinks = filterDashboardLinks(
+      dashboardLinksBase,
+      role,
+      email,
+      brand,
+      hiddenForSales,
+      hiddenForSales
+    );
 
     // Hide Users block entirely
     showUsersSection = false;
     usersLinks = [];
 
-    // Reports => only "Sales Report", plus any explicit email-access links user can see
-    reportsLinks = reportsLinksBase.filter((l) => {
-      if (l.text === "Sales Report") return true;
-      return shouldShowLink(l, role, email, brand);
-    });
+    reportsLinks = filterNestedLinksByRole(reportsLinksBase, role, email, brand);
+    attendanceLinks = attendanceLinksBase.filter((l) => shouldShowLink(l, role, email, brand));
   } else if (role === "Support") {
-    // Hide "Sales Data" and "Add New Order" from Dashboards
     const hiddenForSupport = new Set(["Sales Data", "Add New Order"]);
-    dashboardLinks = dashboardLinksBase.filter((l) => {
-      // Filter out hidden items
-      if (hiddenForSupport.has(l.text)) return false;
-      // Use helper function to check access
-      return shouldShowLink(l, role, email, brand);
-    });
+    dashboardLinks = filterDashboardLinks(
+      dashboardLinksBase,
+      role,
+      email,
+      brand,
+      hiddenForSupport,
+      hiddenForSupport
+    );
 
     // Hide Users block entirely
     showUsersSection = false;
     usersLinks = [];
 
-    // Reports => hide "Sales Report", keep any explicit email-access links user can see
-    reportsLinks = reportsLinksBase.filter((l) => {
-      if (l.text === "Sales Report") return false;
-      return shouldShowLink(l, role, email, brand);
-    });
+    reportsLinks = filterNestedLinksByRole(reportsLinksBase, role, email, brand);
+    attendanceLinks = attendanceLinksBase.filter((l) => shouldShowLink(l, role, email, brand));
   } else {
-    // Admin: see everything (no filtering, but keep adminOnly links)
     showUsersSection = true;
-    // Filter to only show links that Admin has access to (roles array includes Admin or no roles array)
-    // Also check for email-based access for specific links
-    dashboardLinks = dashboardLinksBase.filter((l) => {
-      // Use helper function to check access
-      return shouldShowLink(l, role, email, brand);
-    });
+    dashboardLinks = filterDashboardLinks(dashboardLinksBase, role, email, brand, new Set(), new Set());
+    reportsLinks = filterNestedLinksByRole(reportsLinksBase, role, email, brand);
+    attendanceLinks = attendanceLinksBase.filter((l) => shouldShowLink(l, role, email, brand));
   }
 
   return (
@@ -224,6 +310,8 @@ export default function Sidebar() {
         onClick={() => toggleMenu("dashboards")}
         links={dashboardLinks}
         location={location}
+        openSubmenus={openMenu}
+        toggleSubmenu={toggleMenu}
       />
 
       {/* USERS Section (hidden for Sales & Support) */}
@@ -246,13 +334,41 @@ export default function Sidebar() {
         onClick={() => toggleMenu("reports")}
         links={reportsLinks}
         location={location}
+        openSubmenus={openMenu}
+        toggleSubmenu={toggleMenu}
+      />
+
+      {/* ATTENDANCE Section */}
+      <SidebarItem
+        icon={<FaClipboardCheck />}
+        title="Attendance"
+        isOpen={openMenu.attendance}
+        onClick={() => toggleMenu("attendance")}
+        links={attendanceLinks}
+        location={location}
       />
     </div>
   );
 }
 
-/* SidebarItem component (unchanged) */
-function SidebarItem({ icon, title, links, isOpen, onClick, location }) {
+/* SidebarItem — supports flat `{ text, to }` or nested `{ text, children }` (e.g. CX Related). */
+function SidebarItem({
+  icon,
+  title,
+  links,
+  isOpen,
+  onClick,
+  location,
+  openSubmenus,
+  toggleSubmenu,
+}) {
+  const linkClass = (path, extraPl) =>
+    `text-sm ${extraPl} py-2 rounded-md transition ${
+      location.pathname === path
+        ? "bg-white/20 text-white font-semibold"
+        : "hover:bg-white/10 hover:text-white text-white/80"
+    }`;
+
   return (
     <div>
       <button
@@ -268,21 +384,53 @@ function SidebarItem({ icon, title, links, isOpen, onClick, location }) {
 
       {isOpen && (
         <div className="ml-2 mt-1 flex flex-col space-y-1">
-          {links.map((link, idx) => (
-            <Link
-              key={idx}
-              to={link.to}
-              className={`text-sm pl-6 py-2 rounded-md transition
-                ${
-                  location.pathname === link.to
-                    ? "bg-white/20 text-white font-semibold"
-                    : "hover:bg-white/10 hover:text-white text-white/80"
-                }
-              `}
-            >
-              {link.text}
-            </Link>
-          ))}
+          {links.map((link, idx) => {
+            if (link.children?.length) {
+              const subKey = link.submenuKey || `sub-${idx}`;
+              const subOpen = openSubmenus?.[subKey] ?? false;
+              const childActive = link.children.some((c) => c.to && location.pathname === c.to);
+              return (
+                <div key={idx} className="flex flex-col">
+                  {toggleSubmenu ? (
+                    <button
+                      type="button"
+                      onClick={() => toggleSubmenu(subKey)}
+                      className={`flex items-center justify-between text-sm pl-6 pr-2 py-2 rounded-md text-left transition w-full
+                        ${
+                          childActive && !subOpen
+                            ? "bg-white/15 text-white font-medium"
+                            : "text-white/85 hover:bg-white/10 hover:text-white"
+                        }`}
+                    >
+                      <span className="font-medium">{link.text}</span>
+                      <FaChevronDown
+                        className={`text-xs shrink-0 transition-transform ${subOpen ? "rotate-180" : ""}`}
+                      />
+                    </button>
+                  ) : (
+                    <span className="text-sm pl-6 py-1.5 text-white/85 font-medium">{link.text}</span>
+                  )}
+                  {subOpen &&
+                    link.children.map((child, cidx) =>
+                      child.to ? (
+                        <Link
+                          key={`${idx}-${cidx}`}
+                          to={child.to}
+                          className={linkClass(child.to, "pl-10")}
+                        >
+                          {child.text}
+                        </Link>
+                      ) : null
+                    )}
+                </div>
+              );
+            }
+            return link.to ? (
+              <Link key={idx} to={link.to} className={linkClass(link.to, "pl-6")}>
+                {link.text}
+              </Link>
+            ) : null;
+          })}
         </div>
       )}
     </div>
