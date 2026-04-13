@@ -52,8 +52,14 @@ function isLateLoginIST(loginIso) {
   return mins > 18 * 60 + 40 && mins < 22 * 60;
 }
 
-/** From 10:00 PM IST onward */
+/** True when IST wall clock is before shift start (6:30 PM). Same instant must not use half-day-after-10PM rules (shift math adds +24h and misclassifies ~6 PM as “after 10 PM”). */
+function isEarlyLoginIST(loginIso) {
+  return istMinutesFromMidnight(loginIso) < 18 * 60 + 30;
+}
+
+/** From 10:00 PM IST onward (same calendar evening / night of the shift, not pre–6:30 PM same day). */
 function isHalfDayArrivalIST(loginIso) {
+  if (isEarlyLoginIST(loginIso)) return false;
   const mins = shiftRelativeMinutes(loginIso);
   return mins >= 22 * 60;
 }
@@ -99,6 +105,8 @@ export function formatAttendanceStatus(row, dateKey) {
 
   if (isOnTimeLoginIST(loginAt)) {
     parts.push(`Logged In — ${timeStrIST(loginAt)} IST`);
+  } else if (isEarlyLoginIST(loginAt)) {
+    parts.push(`Early login — ${timeStrIST(loginAt)} IST`);
   } else if (isLateLoginIST(loginAt)) {
     parts.push(`Late Login — ${timeStrIST(loginAt)} IST`);
   } else if (isHalfDayArrivalIST(loginAt)) {
@@ -128,6 +136,7 @@ export function shortAttendanceLabel(row, dateKey) {
   const cat = getAttendanceRowCategory(row, dk);
   if (cat === "half_day") return "Half day";
   if (isOnTimeLoginIST(row.loginAt)) return "On time";
+  if (isEarlyLoginIST(row.loginAt)) return "Early";
   if (isLateLoginIST(row.loginAt)) return "Late";
   return "Present";
 }

@@ -432,8 +432,9 @@ export default function Attendance() {
               </tbody>
             </table>
             <p className="text-[11px] opacity-70 mt-2 px-1">
-              Colors: green = on-time / other present • yellow = late • orange = half-day • red = absent • slate
-              = weekend (Sat/Sun, no login; Dallas date). Hover a cell or use CSV for full status text.
+              Colors: green = on-time / early login / other present • yellow = late • orange = half-day • red =
+              absent • slate = weekend (Sat/Sun, no login; Dallas date). Hover a cell or use CSV for full status
+              text.
             </p>
           </div>
         ) : (
