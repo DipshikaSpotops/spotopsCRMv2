@@ -269,6 +269,7 @@ export default function CancelOrderModal({ open, onClose, orderNo, onSubmit }) {
               <option value="Defective/Damaged">Defective/Damaged</option>
               <option value="Part Not Available">Part Not Available</option>
               <option value="Personal Reason">Personal Reason</option>
+              <option value="Progamming Issue">Progamming Issue</option>
               <option value="Reimbursement">Reimbursement</option>
             </select>
           </div>
