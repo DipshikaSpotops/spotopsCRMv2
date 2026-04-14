@@ -16,20 +16,30 @@ const SIDEBAR_SUBMENU_KEYS = [
   "reportsStatistics",
 ];
 
+const normalizeRole = (value) => {
+  if (!value) return undefined;
+  const normalized = String(value).trim().toLowerCase();
+  if (normalized === "admin") return "Admin";
+  if (normalized === "sales") return "Sales";
+  if (normalized === "support") return "Support";
+  return String(value).trim();
+};
+
 export default function Sidebar() {
   const location = useLocation();
 
   // Role from Redux with robust fallback to localStorage
   const roleFromRedux = useSelector(selectRole);
-  const role =
+  const role = normalizeRole(
     roleFromRedux ??
-    (function () {
-      try {
-        const raw = localStorage.getItem("auth");
-        if (raw) return JSON.parse(raw)?.user?.role || undefined;
-      } catch {}
-      return localStorage.getItem("role") || undefined; // legacy key
-    })();
+      (function () {
+        try {
+          const raw = localStorage.getItem("auth");
+          if (raw) return JSON.parse(raw)?.user?.role || undefined;
+        } catch {}
+        return localStorage.getItem("role") || undefined; // legacy key
+      })()
+  );
 
   // Email from Redux with robust fallback to localStorage
   const email =
@@ -83,6 +93,10 @@ export default function Sidebar() {
 
   // ====== Base link sets ======
   const dashboardLinksBase = [
+    { text: "Add New Order", to: "/add-order", roles: ["Admin", "Sales"] },
+    { text: "Daily Sales GP", to: "/daily-sales-gp", roles: ["Admin", "Sales"] },
+    { text: "Sales Data", to: "/sales-data", roles: ["Admin", "Sales"] },
+    { text: "Leads", to: "/leads", roles: ["Admin", "Sales"] },
     { text: "View All Orders", to: "/view-all-orders" },
     { text: "View Orders-Monthly", to: "/monthly-orders" },
     {
@@ -128,6 +142,7 @@ export default function Sidebar() {
   ];
 
   const reportsLinksBase = [
+    { text: "Sales Report", to: "/sales-report", roles: ["Admin", "Sales"] },
     {
       text: "Purchases",
       submenuKey: "reportsPurchases",
@@ -164,7 +179,6 @@ export default function Sidebar() {
         { text: "Order Statistics", to: "/order-statistics", adminOnly: true, emailAccess: "50starsauto110@gmail.com" },
         { text: "Make/Model", to: "/make-statistics", adminOnly: true, emailAccess: "50starsauto110@gmail.com" },
         { text: "Incentives Report", to: "/incentives-report", adminOnly: true, emailAccess: "50starsauto110@gmail.com" },
-        { text: "Sales Report", to: "/sales-report", roles: ["Admin", "Sales"] },
       ],
     },
   ];
@@ -173,6 +187,8 @@ export default function Sidebar() {
 
   // Helper function to check if a link should be shown based on role, email, and link properties
   const shouldShowLink = (link, userRole, userEmail, currentBrand) => {
+    const isAdmin = normalizeRole(userRole) === "Admin";
+
     // Brand-specific visibility
     if (link.brandOnly && String(currentBrand || "").toUpperCase() !== link.brandOnly) {
       return false;
@@ -180,7 +196,7 @@ export default function Sidebar() {
     // Special case: If link has both adminOnly and emailAccess, show only for Admin OR authorized email
     if (link.adminOnly && link.emailAccess) {
       // Admin can always see
-      if (userRole === "Admin") return true;
+      if (isAdmin) return true;
       // Check if email matches (works for ANY role)
       const isAuthorizedEmail = userEmail === link.emailAccess.toLowerCase();
       if (isAuthorizedEmail) return true;
@@ -197,14 +213,15 @@ export default function Sidebar() {
     // Check adminOnly restriction
     if (link.adminOnly) {
       // Admin can always see adminOnly links
-      if (userRole === "Admin") return true;
+      if (isAdmin) return true;
       // Non-admin users can only see if they have email access (checked above)
       return false;
     }
 
     // Check roles array
-    if (link.roles && !link.roles.includes(userRole)) {
-      return false;
+    if (link.roles) {
+      const allowedRoles = link.roles.map(normalizeRole);
+      if (!allowedRoles.includes(normalizeRole(userRole))) return false;
     }
 
     return true;
@@ -267,12 +284,15 @@ export default function Sidebar() {
   if (role === "Sales") {
     const hiddenForSales = new Set([
       "Placed Orders",
+      "CX Related",
       "CX Approved Orders",
+      "Yard Related",
       "Yard Processing Orders",
       "Own Shipping",
       "In-Transit Orders",
       "Overall Escalation",
       "Ongoing Escalation",
+      "UPS Claims",
     ]);
     dashboardLinks = filterDashboardLinks(
       dashboardLinksBase,
@@ -287,7 +307,9 @@ export default function Sidebar() {
     showUsersSection = false;
     usersLinks = [];
 
-    reportsLinks = filterNestedLinksByRole(reportsLinksBase, role, email, brand);
+    reportsLinks = reportsLinksBase.filter(
+      (l) => l.text === "Sales Report" && shouldShowLink(l, role, email, brand)
+    );
     attendanceLinks = attendanceLinksBase.filter((l) => shouldShowLink(l, role, email, brand));
   } else if (role === "Support") {
     const hiddenForSupport = new Set(["Sales Data", "Add New Order"]);
