@@ -1,11 +1,16 @@
 import { useEffect, useMemo, useState } from "react";
 import moment from "moment-timezone";
+import { useDispatch } from "react-redux";
+import { useNavigate } from "react-router-dom";
 import {
   canonicalAttendanceName,
   isActiveAttendanceUser,
 } from "../constants/activeAttendanceUsers";
 import { todayDateKeyIST } from "../utils/attendanceStatus";
-import { fetchAttendance, markMyAttendancePresent } from "../utils/attendanceApi";
+import { fetchAttendance, markMyAttendancePresent, recordAttendanceLogout } from "../utils/attendanceApi";
+import API from "../api";
+import { logout as logoutAction } from "../store/authSlice";
+import { clearStoredAuth } from "../utils/authStorage";
 
 const IST = "Asia/Kolkata";
 
@@ -17,8 +22,11 @@ function formatLoginHint(loginAt) {
 }
 
 export default function MarkAttendanceModal({ isOpen, onClose, isDarkMode }) {
+  const dispatch = useDispatch();
+  const navigate = useNavigate();
   const [currentFirstName, setCurrentFirstName] = useState("");
   const [busy, setBusy] = useState(false);
+  const [logoutBusy, setLogoutBusy] = useState(false);
   const [status, setStatus] = useState("");
   const [error, setError] = useState("");
   const [myRow, setMyRow] = useState(null);
@@ -114,6 +122,34 @@ export default function MarkAttendanceModal({ isOpen, onClose, isDarkMode }) {
     }
   };
 
+  const handleLogout = async () => {
+    if (logoutBusy) return;
+    try {
+      setLogoutBusy(true);
+      await recordAttendanceLogout();
+      const token = localStorage.getItem("token");
+      if (token) {
+        try {
+          await API.post("/auth/logout");
+        } catch (apiErr) {
+          console.warn("[MarkAttendanceModal] Logout API failed (non-blocking):", apiErr?.message);
+        }
+      }
+      clearStoredAuth();
+      dispatch(logoutAction());
+      onClose?.();
+      navigate("/login", { replace: true });
+    } catch (e) {
+      console.error("[MarkAttendanceModal] Logout error:", e);
+      clearStoredAuth();
+      dispatch(logoutAction());
+      onClose?.();
+      navigate("/login", { replace: true });
+    } finally {
+      setLogoutBusy(false);
+    }
+  };
+
   if (!isOpen) return null;
   return (
       <div
@@ -157,6 +193,16 @@ export default function MarkAttendanceModal({ isOpen, onClose, isDarkMode }) {
               </p>
             </div>
           )}
+          <div className="mt-4 pt-3 border-t border-black/10 dark:border-white/10">
+            <button
+              type="button"
+              onClick={handleLogout}
+              disabled={logoutBusy}
+              className="px-4 py-2 rounded-md text-sm font-medium text-white bg-[#8b0000] hover:bg-[#a40000] disabled:opacity-60"
+            >
+              {logoutBusy ? "Logging out..." : "Logout"}
+            </button>
+          </div>
         </div>
       </div>
   );
