@@ -545,57 +545,16 @@ async function appendLoginToGoogleSheet(user, ipAddress, userAgent) {
       // If check fails, proceed to create new row (but log the error)
     }
 
-    // If user already has a row, append login times with comma and update count
+    // If user already has a row for today, keep the original first-login value.
+    // Do not append/overwrite login time for repeated logins.
     if (existingRowIndex > 0) {
       try {
-        // Re-fetch the row data to ensure we have the latest values (in case it was updated)
-        const rowDataResponse = await sheets.spreadsheets.values.get({
-          spreadsheetId,
-          range: `${sheetName}!F${existingRowIndex}:H${existingRowIndex}`,
-        });
-        const rowValues = rowDataResponse.data.values?.[0] || [];
-        
-        // Get existing login times and count from the row
-        const existingLoginTimeDallas = (rowValues[0] || "").trim(); // Column F (index 0 in this range)
-        const existingLoginCount = parseInt(rowValues[2] || "0") || 0; // Column H (index 2 in this range)
-        
-        console.log(`[auth] Current row data - LoginTime: "${existingLoginTimeDallas}", Count: ${existingLoginCount}`);
-        
-        // Append new login time with comma separator (for multiple logins on same day)
-        // Example: "March 06, 2026 at 09:00 AM Dallas Time, March 06, 2026 at 02:00 PM Dallas Time"
-        const updatedLoginTimeDallas = existingLoginTimeDallas 
-          ? `${existingLoginTimeDallas}, ${loginTimeFormatted}`
-          : loginTimeFormatted;
-        
-        // Increment login count
-        const updatedLoginCount = existingLoginCount + 1;
-        
-        console.log(`[auth] 📝 Appending login time. Existing: "${existingLoginTimeDallas}", New: "${loginTimeFormatted}", Updated: "${updatedLoginTimeDallas}"`);
-        console.log(`[auth] 📊 Count: ${existingLoginCount} → ${updatedLoginCount}`);
-        
-        // Update login time and count columns (F and H, indices 5 and 7) using batchUpdate
-        const updateResult = await sheets.spreadsheets.values.batchUpdate({
-          spreadsheetId,
-          resource: {
-            valueInputOption: "USER_ENTERED",
-            data: [
-              {
-                range: `${sheetName}!F${existingRowIndex}`,
-                values: [[updatedLoginTimeDallas]],
-              },
-              {
-                range: `${sheetName}!H${existingRowIndex}`,
-                values: [[updatedLoginCount]],
-              },
-            ],
-          },
-        });
-        
-        console.log(`[auth] ✅ Successfully updated row ${existingRowIndex}`);
-        console.log(`[auth] ✅ Appended login time to existing row ${existingRowIndex} for user: ${user.email}, count: ${updatedLoginCount}`);
-        return; // Don't append new row, we've updated existing one
+        console.log(
+          `[auth] ✅ Keeping first login time from existing row ${existingRowIndex} for user ${user.email}; repeated login ignored for sheet time columns`
+        );
+        return; // Keep first-login value; do not append a new row
       } catch (err) {
-        console.error(`[auth] ❌ Failed to update existing row ${existingRowIndex}:`, err.message);
+        console.error(`[auth] ❌ Failed to process existing row ${existingRowIndex}:`, err.message);
         console.error(`[auth] Error stack:`, err.stack);
         if (err.response) {
           console.error(`[auth] Error response:`, JSON.stringify(err.response.data, null, 2));
@@ -763,21 +722,18 @@ async function appendLogoutToGoogleSheet(user, ipAddress, userAgent) {
       return;
     }
 
-    // Get existing logout times and count from the row
+    // Get existing logout state from the row
     const existingRow = allData[rowIndex - 1]; // -1 because allData is 0-indexed
     const existingLogoutTimeDallas = (existingRow[6] || "").trim(); // Column G (index 6) is Logout Time (Dallas)
     const existingLogoutCount = parseInt(existingRow[8] || "0") || 0; // Column I (index 8) is Times Logged Out
     
-    // Append new logout time with comma separator (for multiple logouts on same day)
-    // Example: "March 06, 2026 at 10:00 AM Dallas Time, March 06, 2026 at 03:00 PM Dallas Time"
-    const updatedLogoutTimeDallas = existingLogoutTimeDallas 
-      ? `${existingLogoutTimeDallas}, ${logoutTimeFormatted}`
-      : logoutTimeFormatted;
+    // Always keep only the latest logout timestamp for the day/user.
+    const updatedLogoutTimeDallas = logoutTimeFormatted;
+    const updatedLogoutCount = 1;
     
-    // Increment logout count
-    const updatedLogoutCount = existingLogoutCount + 1;
-    
-    console.log(`[auth] Appending logout time. Existing: "${existingLogoutTimeDallas}", New: "${logoutTimeFormatted}", Updated: "${updatedLogoutTimeDallas}"`);
+    console.log(
+      `[auth] Updating last logout time. Existing: "${existingLogoutTimeDallas}", New: "${logoutTimeFormatted}", Updated: "${updatedLogoutTimeDallas}"`
+    );
 
     // Update the logout time and count columns (G and I)
     try {
@@ -797,7 +753,7 @@ async function appendLogoutToGoogleSheet(user, ipAddress, userAgent) {
           ],
         },
       });
-      console.log(`[auth] ✅ Logout data appended successfully in Google Sheet (${sheetName}) row ${rowIndex} for user: ${userEmail}, count: ${updatedLogoutCount}`);
+      console.log(`[auth] ✅ Logout data updated successfully in Google Sheet (${sheetName}) row ${rowIndex} for user: ${userEmail}, count: ${updatedLogoutCount}`);
       console.log(`[auth] ========== appendLogoutToGoogleSheet END (SUCCESS) ==========`);
     } catch (updateErr) {
       console.error(`[auth] Failed to update logout data in row ${rowIndex}:`, updateErr.message);
@@ -875,13 +831,13 @@ router.post("/login", validateLogin, async (req, res) => {
     const token = jwt.sign(
       { id: user._id, email: user.email, role: user.role }, // keep in sync with requireAuth
       JWT_SECRET,
-      { expiresIn: "10h" }
+      { expiresIn: "630m" }
     );
 
     // Optional: clean old sessions as you do
     await LoggedInUser.deleteMany({ expiry: { $lte: new Date() } });
 
-    const expiryDate = new Date(Date.now() + 10 * 60 * 60 * 1000);
+    const expiryDate = new Date(Date.now() + 10.5 * 60 * 60 * 1000);
     
     // Extract IP address and user agent
     const ipAddress = getIpAddress(req);
@@ -1021,6 +977,71 @@ router.post("/access-redeem", requireAuth, async (req, res) => {
     return res.json({ user: toAuthSafeUser(user) });
   } catch (e) {
     console.error("[access-redeem]", e);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+router.post("/access-resend", requireAuth, async (req, res) => {
+  try {
+    if (!isAppAccessGateEnabled()) {
+      return res.status(400).json({ message: "Access gate is not enabled" });
+    }
+
+    const user = await User.findById(req.user.id).lean();
+    if (!user) return res.status(401).json({ message: "Invalid user" });
+
+    const email = String(user.email || "").toLowerCase().trim();
+    if (!email) return res.status(400).json({ message: "User email missing" });
+
+    const now = new Date();
+    let invite = await AccessInvite.findOne({
+      allowedEmail: email,
+      usedAt: null,
+      $or: [{ expiresAt: null }, { expiresAt: { $gt: now } }],
+    }).sort({ createdAt: -1 });
+
+    if (!invite) {
+      await AccessInvite.deleteMany({ allowedEmail: email, usedAt: null });
+      let code = generateAccessCode();
+      const expiresAt = computeAccessInviteExpiresAt();
+
+      for (let attempt = 0; attempt < 5; attempt++) {
+        try {
+          invite = await AccessInvite.create({
+            code,
+            allowedEmail: email,
+            expiresAt,
+          });
+          break;
+        } catch (err) {
+          if (err?.code === 11000) {
+            code = generateAccessCode();
+            continue;
+          }
+          throw err;
+        }
+      }
+    }
+
+    if (!invite) {
+      return res.status(500).json({ message: "Could not issue access code" });
+    }
+
+    try {
+      await sendAccessCodeEmailToUser({ req, toEmail: email, code: invite.code });
+    } catch (mailErr) {
+      return res.status(500).json({
+        message: mailErr?.message || "Could not send access code email",
+        code: invite.code,
+      });
+    }
+
+    return res.json({
+      message: "Access code sent",
+      sentFor: email,
+    });
+  } catch (e) {
+    console.error("[access-resend]", e);
     return res.status(500).json({ message: "Internal server error" });
   }
 });

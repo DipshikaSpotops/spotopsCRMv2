@@ -496,7 +496,7 @@ export default function Attendance() {
                               disabled={!!busyKey}
                               onClick={() => openAdminMarkPresentModal(row.firstName, row.dateKey)}
                             >
-                              Mark Present
+                              Present
                             </button>
                             <button
                               type="button"
@@ -504,7 +504,7 @@ export default function Attendance() {
                               disabled={!!busyKey}
                               onClick={() => openAdminMarkLogoutModal(row.firstName, row.dateKey)}
                             >
-                              Mark Logout
+                              Logout
                             </button>
                             <button
                               type="button"

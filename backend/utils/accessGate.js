@@ -39,6 +39,8 @@ export function isAppAccessGateExemptRequest(req) {
   return (
     path.endsWith("/auth/access-redeem") ||
     path.includes("/api/auth/access-redeem") ||
+    path.endsWith("/auth/access-resend") ||
+    path.includes("/api/auth/access-resend") ||
     path.endsWith("/auth/me") ||
     path.includes("/api/auth/me")
   );
