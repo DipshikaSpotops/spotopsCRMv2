@@ -5,17 +5,6 @@ import { useSelector } from "react-redux";
 import { selectRole } from "../store/authSlice";
 import { getCurrentBrand } from "../utils/brand";
 
-/** Nested sidebar groups: only one may be open at a time (accordion). */
-const SIDEBAR_SUBMENU_KEYS = [
-  "cxRelated",
-  "yardRelated",
-  "dashboardEscalations",
-  "reportsPurchases",
-  "reportsRefunds",
-  "reportsDisputes",
-  "reportsStatistics",
-];
-
 const normalizeRole = (value) => {
   if (!value) return undefined;
   const normalized = String(value).trim().toLowerCase();
@@ -73,22 +62,9 @@ export default function Sidebar() {
     setOpenMenu((prev) => ({ ...prev, [menu]: !prev[menu] }));
   };
 
-  /** Open one nested dropdown or close it; opening closes every other nested dropdown. */
-  const toggleSubmenuExclusive = (key) => {
-    setOpenMenu((prev) => {
-      if (prev[key]) {
-        return { ...prev, [key]: false };
-      }
-      const out = { ...prev };
-      for (const k of SIDEBAR_SUBMENU_KEYS) {
-        out[k] = false;
-      }
-      for (const k of Object.keys(prev)) {
-        if (k.startsWith("sub-")) out[k] = false;
-      }
-      out[key] = true;
-      return out;
-    });
+  /** Nested dropdowns are independently toggleable; keep others open. */
+  const toggleSubmenu = (key) => {
+    setOpenMenu((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
   // ====== Base link sets ======
@@ -362,7 +338,7 @@ export default function Sidebar() {
         links={dashboardLinks}
         location={location}
         openSubmenus={openMenu}
-        toggleSubmenu={toggleSubmenuExclusive}
+        toggleSubmenu={toggleSubmenu}
       />
 
       {/* USERS Section (hidden for Sales & Support) */}
@@ -386,7 +362,7 @@ export default function Sidebar() {
         links={reportsLinks}
         location={location}
         openSubmenus={openMenu}
-        toggleSubmenu={toggleSubmenuExclusive}
+        toggleSubmenu={toggleSubmenu}
       />
 
       {/* ATTENDANCE Section */}
