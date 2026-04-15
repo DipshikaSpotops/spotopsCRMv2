@@ -689,8 +689,10 @@ export default function OrderDetails() {
 
   const uploadCustomerImages = async () => {
     const MAX_UPLOADABLE_IMAGE_BYTES = 10 * 1024 * 1024; // keep in sync with backend limit
-    const TARGET_COMPRESSED_BYTES = 4.5 * 1024 * 1024;
-    const HARD_FALLBACK_TARGET_BYTES = 850 * 1024; // retry target for strict proxies/gateways
+    // Production gateway appears to reject around ~1MB request bodies. Keep payload well below that.
+    const REQUEST_SAFE_IMAGE_BYTES = 700 * 1024;
+    const TARGET_COMPRESSED_BYTES = 650 * 1024;
+    const HARD_FALLBACK_TARGET_BYTES = 450 * 1024; // retry target for strict proxies/gateways
     const CHUNK_SIZE = 1; // safest for strict request-size limits
 
     const compressImage = async (file, targetBytes = TARGET_COMPRESSED_BYTES) => {
@@ -717,7 +719,7 @@ export default function OrderDetails() {
         bitmap.close();
 
         let quality = 0.84;
-        blob = await new Promise((resolve) =>
+        let blob = await new Promise((resolve) =>
           canvas.toBlob(resolve, "image/jpeg", quality)
         );
         while (blob && blob.size > targetBytes && quality > 0.48) {
@@ -735,8 +737,8 @@ export default function OrderDetails() {
       }
     };
     const compressImageIfNeeded = async (file) => {
-      if (file.size <= MAX_UPLOADABLE_IMAGE_BYTES) return file;
-      return compressImage(file, TARGET_COMPRESSED_BYTES);
+      if (file.size <= REQUEST_SAFE_IMAGE_BYTES) return file;
+      return compressImage(file, REQUEST_SAFE_IMAGE_BYTES);
     };
 
     if (!orderNo) {
