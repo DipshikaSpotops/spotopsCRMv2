@@ -690,11 +690,11 @@ export default function OrderDetails() {
   const uploadCustomerImages = async () => {
     const MAX_UPLOADABLE_IMAGE_BYTES = 10 * 1024 * 1024; // keep in sync with backend limit
     const TARGET_COMPRESSED_BYTES = 4.5 * 1024 * 1024;
-    const CHUNK_SIZE = 3; // send a few files/request to avoid large payload spikes
+    const HARD_FALLBACK_TARGET_BYTES = 850 * 1024; // retry target for strict proxies/gateways
+    const CHUNK_SIZE = 1; // safest for strict request-size limits
 
-    const compressImageIfNeeded = async (file) => {
+    const compressImage = async (file, targetBytes = TARGET_COMPRESSED_BYTES) => {
       if (!String(file?.type || "").startsWith("image/")) return file;
-      if (file.size <= MAX_UPLOADABLE_IMAGE_BYTES) return file;
       if (typeof createImageBitmap !== "function") return file;
 
       try {
@@ -720,7 +720,7 @@ export default function OrderDetails() {
         blob = await new Promise((resolve) =>
           canvas.toBlob(resolve, "image/jpeg", quality)
         );
-        while (blob && blob.size > TARGET_COMPRESSED_BYTES && quality > 0.56) {
+        while (blob && blob.size > targetBytes && quality > 0.48) {
           quality = Number((quality - 0.08).toFixed(2));
           blob = await new Promise((resolve) =>
             canvas.toBlob(resolve, "image/jpeg", quality)
@@ -733,6 +733,10 @@ export default function OrderDetails() {
       } catch {
         return file;
       }
+    };
+    const compressImageIfNeeded = async (file) => {
+      if (file.size <= MAX_UPLOADABLE_IMAGE_BYTES) return file;
+      return compressImage(file, TARGET_COMPRESSED_BYTES);
     };
 
     if (!orderNo) {
@@ -770,20 +774,32 @@ export default function OrderDetails() {
 
       for (let start = 0; start < preparedFiles.length; start += CHUNK_SIZE) {
         const chunk = preparedFiles.slice(start, start + CHUNK_SIZE);
-        const formData = new FormData();
-        for (const file of chunk) {
-          formData.append("images", file);
-        }
-
-        await API.post(
-          `/orders/${encodeURIComponent(orderNo)}/customerImages`,
-          formData,
-          {
-            params: { firstName },
-            headers: { "Content-Type": "multipart/form-data" },
-            timeout: 120000,
+        const uploadChunk = async (filesToSend) => {
+          const formData = new FormData();
+          for (const file of filesToSend) {
+            formData.append("images", file);
           }
-        );
+          return API.post(
+            `/orders/${encodeURIComponent(orderNo)}/customerImages`,
+            formData,
+            {
+              params: { firstName },
+              headers: { "Content-Type": "multipart/form-data" },
+              timeout: 120000,
+            }
+          );
+        };
+
+        try {
+          await uploadChunk(chunk);
+        } catch (err) {
+          if (err?.response?.status !== 413) throw err;
+          const fallbackFiles = [];
+          for (const f of chunk) {
+            fallbackFiles.push(await compressImage(f, HARD_FALLBACK_TARGET_BYTES));
+          }
+          await uploadChunk(fallbackFiles);
+        }
       }
 
       // Refresh so `order.images` updates
