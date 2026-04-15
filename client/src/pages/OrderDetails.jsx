@@ -688,6 +688,53 @@ export default function OrderDetails() {
   const customerImages = Array.isArray(order?.images) ? order.images : [];
 
   const uploadCustomerImages = async () => {
+    const MAX_UPLOADABLE_IMAGE_BYTES = 10 * 1024 * 1024; // keep in sync with backend limit
+    const TARGET_COMPRESSED_BYTES = 4.5 * 1024 * 1024;
+    const CHUNK_SIZE = 3; // send a few files/request to avoid large payload spikes
+
+    const compressImageIfNeeded = async (file) => {
+      if (!String(file?.type || "").startsWith("image/")) return file;
+      if (file.size <= MAX_UPLOADABLE_IMAGE_BYTES) return file;
+      if (typeof createImageBitmap !== "function") return file;
+
+      try {
+        const bitmap = await createImageBitmap(file);
+        const maxSide = 1920;
+        let width = bitmap.width;
+        let height = bitmap.height;
+        if (Math.max(width, height) > maxSide) {
+          const scale = maxSide / Math.max(width, height);
+          width = Math.max(1, Math.round(width * scale));
+          height = Math.max(1, Math.round(height * scale));
+        }
+
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return file;
+        ctx.drawImage(bitmap, 0, 0, width, height);
+        bitmap.close();
+
+        let quality = 0.84;
+        blob = await new Promise((resolve) =>
+          canvas.toBlob(resolve, "image/jpeg", quality)
+        );
+        while (blob && blob.size > TARGET_COMPRESSED_BYTES && quality > 0.56) {
+          quality = Number((quality - 0.08).toFixed(2));
+          blob = await new Promise((resolve) =>
+            canvas.toBlob(resolve, "image/jpeg", quality)
+          );
+        }
+        if (!blob) return file;
+
+        const baseName = String(file.name || "customer-image").replace(/\.[^.]+$/, "");
+        return new File([blob], `${baseName}.jpg`, { type: "image/jpeg" });
+      } catch {
+        return file;
+      }
+    };
+
     if (!orderNo) {
       setToast("Order number not available yet.");
       return;
@@ -704,16 +751,40 @@ export default function OrderDetails() {
       setToast("");
 
       const firstName = localStorage.getItem("firstName");
-
-      const formData = new FormData();
+      const preparedFiles = [];
       for (let i = 0; i < files.length; i++) {
-        formData.append("images", files[i]);
+        const f = files[i];
+        if (!String(f?.type || "").startsWith("image/")) {
+          setToast("Only image files are allowed for customer uploads.");
+          return;
+        }
+        const normalized = await compressImageIfNeeded(f);
+        if (normalized.size > MAX_UPLOADABLE_IMAGE_BYTES) {
+          setToast(
+            `Image "${f.name}" is too large. Keep each image under 10 MB.`
+          );
+          return;
+        }
+        preparedFiles.push(normalized);
       }
 
-      await API.post(`/orders/${orderNo}/customerImages`, formData, {
-        params: { firstName },
-        headers: { "Content-Type": "multipart/form-data" },
-      });
+      for (let start = 0; start < preparedFiles.length; start += CHUNK_SIZE) {
+        const chunk = preparedFiles.slice(start, start + CHUNK_SIZE);
+        const formData = new FormData();
+        for (const file of chunk) {
+          formData.append("images", file);
+        }
+
+        await API.post(
+          `/orders/${encodeURIComponent(orderNo)}/customerImages`,
+          formData,
+          {
+            params: { firstName },
+            headers: { "Content-Type": "multipart/form-data" },
+            timeout: 120000,
+          }
+        );
+      }
 
       // Refresh so `order.images` updates
       await refresh();
@@ -724,6 +795,20 @@ export default function OrderDetails() {
 
       setToast("Customer images uploaded successfully!");
     } catch (err) {
+      if (err?.response?.status === 413) {
+        setToast(
+          err?.response?.data?.message ||
+            "Image upload too large. Please use smaller images."
+        );
+        return;
+      }
+      if (err?.response?.status === 403) {
+        setToast(
+          err?.response?.data?.message ||
+            "Upload blocked (403). Please re-login and try again."
+        );
+        return;
+      }
       const message =
         err?.response?.data?.message || err?.message || "Error uploading customer images";
       console.error("uploadCustomerImages error:", err);

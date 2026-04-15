@@ -16,6 +16,41 @@ import { uploadVoidLabelScreenshotToS3, uploadYardImageToS3 } from "../services/
 const router = express.Router();
 const TZ = "America/Chicago";
 const upload = multer();
+const CUSTOMER_IMAGE_MAX_BYTES = 10 * 1024 * 1024; // 10 MB per image
+const customerImagesUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: CUSTOMER_IMAGE_MAX_BYTES,
+    files: 10,
+  },
+  fileFilter: (_req, file, cb) => {
+    if (!String(file?.mimetype || "").startsWith("image/")) {
+      return cb(new Error("Only image files are allowed."));
+    }
+    cb(null, true);
+  },
+}).array("images", 10);
+
+function handleCustomerImagesUpload(req, res, next) {
+  customerImagesUpload(req, res, (err) => {
+    if (!err) return next();
+
+    if (err instanceof multer.MulterError && err.code === "LIMIT_FILE_SIZE") {
+      return res.status(413).json({
+        message: `Each image must be 10 MB or smaller.`,
+      });
+    }
+    if (err instanceof multer.MulterError && err.code === "LIMIT_FILE_COUNT") {
+      return res.status(413).json({
+        message: "You can upload up to 10 images at a time.",
+      });
+    }
+    if (err?.message) {
+      return res.status(400).json({ message: err.message });
+    }
+    return res.status(400).json({ message: "Invalid image upload request." });
+  });
+}
 
 /** If orderNo starts with a known brand prefix, it must be created under that brand. */
 function inferBrandFromOrderNo(orderNo) {
@@ -2587,7 +2622,7 @@ router.patch("/:orderNo/additionalInfo/:index/notes", async (req, res) => {
 ---------------------------------------------------------------- */
 router.post(
   "/:orderNo/customerImages",
-  upload.array("images", 10),
+  handleCustomerImagesUpload,
   async (req, res) => {
     try {
       const orderNo = decodeURIComponent(req.params.orderNo).trim();
