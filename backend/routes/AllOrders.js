@@ -3,6 +3,14 @@ import express from "express";
 import { getOrderModelForBrand } from "../models/Order.js";
 
 const router = express.Router();
+const toDoubleOrZero = (field) => ({
+  $convert: {
+    input: `$${field}`,
+    to: "double",
+    onError: 0,
+    onNull: 0,
+  },
+});
 
 router.get("/", async (req, res) => {
   try {
@@ -81,6 +89,8 @@ router.get("/", async (req, res) => {
       make: 1,
       model: 1,
       orderStatus: 1,
+      grossProfit: 1,
+      actualGP: 1,
     };
 
     // default sort (by date, newest first)
@@ -148,13 +158,28 @@ router.get("/", async (req, res) => {
       ];
     }
 
-    const orders = await Order.aggregate(pipeline).collation({ locale: "en", strength: 2 });
+    const [orders, totalsArr] = await Promise.all([
+      Order.aggregate(pipeline).collation({ locale: "en", strength: 2 }),
+      Order.aggregate([
+        { $match: query },
+        {
+          $group: {
+            _id: null,
+            totalEstGP: { $sum: toDoubleOrZero("grossProfit") },
+            totalActualGP: { $sum: toDoubleOrZero("actualGP") },
+          },
+        },
+      ]),
+    ]);
+    const totals = totalsArr?.[0] || {};
 
     res.status(200).json({
       orders,
       totalPages: Math.ceil(totalCount / limit),
       totalCount,
       currentPage: page,
+      totalEstGP: Number(totals.totalEstGP) || 0,
+      totalActualGP: Number(totals.totalActualGP) || 0,
     });
   } catch (err) {
     console.error("Error fetching paginated orders:", err);

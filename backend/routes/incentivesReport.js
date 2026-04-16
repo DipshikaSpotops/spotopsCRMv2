@@ -42,8 +42,8 @@ router.get("/", requireAuth, async (req, res) => {
       return res.status(403).json({ message: "Forbidden" });
     }
 
-    const monthsRequestedRaw = Number(req.query.months ?? 3);
-    const monthsRequested = Math.min(Math.max(monthsRequestedRaw || 3, 1), 12);
+    const monthsRequestedRaw = Number(req.query.months ?? 5);
+    const monthsRequested = Math.min(Math.max(monthsRequestedRaw || 5, 1), 12);
 
     const now = moment.tz(TZ);
     const earliestStart = now.clone().startOf("month").subtract(monthsRequested - 1, "months");

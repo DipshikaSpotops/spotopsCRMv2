@@ -93,38 +93,13 @@ function computeGrandCardChargedUSD(rows) {
 }
 
 /* ---------- Multi-page fetch (Fix 1) ---------- */
-async function fetchAllMonthlyOrders(params, headers) {
-  // 1) first page (to get totalPages)
-  const first = await API.get(`/orders/monthlyOrders`, {
-    params: { ...params, page: 1 },
-    headers,
-  });
-
-  const { orders: firstOrders = [], totalPages = 1 } = first.data || {};
-  let allOrders = [...firstOrders];
-
-  // 2) remaining pages
-  if (totalPages > 1) {
-    const reqs = [];
-    for (let p = 2; p <= totalPages; p++) {
-      reqs.push(
-        API.get(`/orders/monthlyOrders`, {
-          params: { ...params, page: p },
-          headers,
-        })
-      );
-    }
-    const results = await Promise.all(reqs);
-    results.forEach((res) => {
-      const arr = Array.isArray(res.data?.orders) ? res.data.orders : [];
-      allOrders = allOrders.concat(arr);
-    });
-  }
-
-  // 3) shape rows for the table
-  return allOrders
+async function fetchMonthlyOrdersPage(params, headers) {
+  const res = await API.get(`/orders/monthlyOrders`, { params, headers });
+  const rawOrders = Array.isArray(res.data?.orders) ? res.data.orders : [];
+  const rows = rawOrders
     .filter((o) => Array.isArray(o.additionalInfo) && o.additionalInfo.length > 0)
     .map(buildRow);
+  return { rows, meta: res.data || {} };
 }
 
 /* ---------- Extra totals for the modal ---------- */
@@ -207,7 +182,7 @@ export default function POReport() {
                             {ai.phone || "—"} {ai.phone && ai.email ? "|" : ""} {ai.email || ""}
                           </div>
                         )}
-                        <div><b>Payment Status:</b> {ai.paymentStatus || "—"}</div>
+                        <div><b>Payment Status:</b> {ai?.pamentStatus || ai?.paymentStatus || ""}</div>
                         <div className="text-xs">
                           <b>Part:</b> ${parseMoney(ai.partPrice).toFixed(2)} {" | "}
                           <b>{type || "Shipping"}:</b> ${amount.toFixed(2)} {" | "}
@@ -259,12 +234,36 @@ export default function POReport() {
 
   /* Fix 1: fetch all pages and return rows for OrdersTable */
   const fetchOverride = useCallback(
-    async ({ filter }) => {
+    async ({ filter, page, limit, query, sortBy, sortOrder, selectedAgent, userRole }) => {
       const token = localStorage.getItem("token");
       const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
-      const params = paramsBuilder({ filter });
-      const rows = await fetchAllMonthlyOrders(params, headers);
-      return rows;
+      const params = {
+        ...paramsBuilder({ filter }),
+        page,
+        limit,
+        q: query || undefined,
+        sortBy: sortBy || undefined,
+        sortOrder: sortOrder || undefined,
+        hasYards: "true",
+      };
+      if (
+        (userRole || "").toLowerCase() === "admin" &&
+        selectedAgent &&
+        selectedAgent !== "Select" &&
+        selectedAgent !== "All"
+      ) {
+        params.salesAgent = selectedAgent;
+      }
+      const { rows, meta } = await fetchMonthlyOrdersPage(params, headers);
+      return {
+        orders: rows,
+        meta: {
+          ...meta,
+          totalOrders: Number(meta?.totalOrders) || 0,
+          totalPages: Number(meta?.totalPages) || 1,
+          currentPage: Number(meta?.currentPage) || Number(page) || 1,
+        },
+      };
     },
     [paramsBuilder, brand]
   );

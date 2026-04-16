@@ -33,24 +33,9 @@ function parseAmountAfterColon(s) {
 }
 
 /* ---------- Fetch override ---------- */
-async function fetchCollectRefund(params, headers) {
-  const first = await API.get(`/orders/monthlyOrders`, { params: { ...params, page: 1 }, headers });
-  const { orders: firstOrders = [], totalPages = 1 } = first.data || {};
-  let allOrders = [...firstOrders];
-
-  // fetch remaining pages
-  if (totalPages > 1) {
-    const requests = [];
-    for (let p = 2; p <= totalPages; p++) {
-      requests.push(API.get(`/orders/monthlyOrders`, { params: { ...params, page: p }, headers }));
-    }
-    const results = await Promise.all(requests);
-    results.forEach(r => {
-      const arr = Array.isArray(r.data?.orders) ? r.data.orders : [];
-      allOrders = allOrders.concat(arr);
-    });
-  }
-
+async function fetchCollectRefundPage(params, headers) {
+  const res = await API.get(`/orders/monthlyOrders`, { params, headers });
+  const allOrders = Array.isArray(res.data?.orders) ? res.data.orders : [];
   // --- filter those with collectRefundCheckbox === "Ticked"
   const filtered = [];
   allOrders.forEach((order) => {
@@ -75,7 +60,7 @@ async function fetchCollectRefund(params, headers) {
     });
   });
 
-  return filtered;
+  return { rows: filtered, meta: res.data || {} };
 }
 
 /* ---------- Extra totals for modal ---------- */
@@ -140,7 +125,7 @@ export default function CollectRefund() {
                       <div><b>Refund to Collect:</b> ${Number(y.refundToCollect || 0).toFixed(2)}</div>
                       <div><b>Refunded:</b> ${Number(y.refundedAmount || 0).toFixed(2)}</div>
                       <div><b>Return Tracking:</b> {y.returnTrackingCust || "—"}</div>
-                      <div><b>Payment Status:</b> {y.paymentStatus || "—"}</div>
+                      <div><b>Payment Status:</b> {y?.pamentStatus || y?.paymentStatus || ""}</div>
                     </div>
                   ))}
                 </div>
@@ -169,12 +154,36 @@ export default function CollectRefund() {
   }, []);
 
   const fetchOverride = useCallback(
-    async ({ filter }) => {
+    async ({ filter, page, limit, query, sortBy, sortOrder, selectedAgent, userRole }) => {
       const token = localStorage.getItem("token");
       const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
-      const params = paramsBuilder({ filter });
-      const merged = await fetchCollectRefund(params, headers);
-      return merged;
+      const params = {
+        ...paramsBuilder({ filter }),
+        page,
+        limit,
+        q: query || undefined,
+        sortBy: sortBy || undefined,
+        sortOrder: sortOrder || undefined,
+        collectRefundPendingOnly: "true",
+      };
+      if (
+        (userRole || "").toLowerCase() === "admin" &&
+        selectedAgent &&
+        selectedAgent !== "Select" &&
+        selectedAgent !== "All"
+      ) {
+        params.salesAgent = selectedAgent;
+      }
+      const { rows, meta } = await fetchCollectRefundPage(params, headers);
+      return {
+        orders: rows,
+        meta: {
+          ...meta,
+          totalOrders: Number(meta?.totalOrders) || 0,
+          totalPages: Number(meta?.totalPages) || 1,
+          currentPage: Number(meta?.currentPage) || Number(page) || 1,
+        },
+      };
     },
     [paramsBuilder, brand]
   );

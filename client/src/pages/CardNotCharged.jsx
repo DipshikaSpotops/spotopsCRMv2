@@ -40,31 +40,10 @@ const yardQualifies = (info) => {
   return (!ps || ps === "card not charged") && st !== "po cancelled";
 };
 
-/* ---------- Multi-page Fetch ---------- */
-async function fetchCardNotChargedOrders(params, headers) {
-  // 1️⃣ First page
-  const first = await API.get(`/orders/monthlyOrders`, {
-    params: { ...params, page: 1 },
-    headers,
-  });
-  const { orders: firstOrders = [], totalPages = 1 } = first.data || {};
-  let allOrders = [...firstOrders];
-
-  // 2️⃣ Fetch remaining pages if any
-  if (totalPages > 1) {
-    const requests = [];
-    for (let p = 2; p <= totalPages; p++) {
-      requests.push(
-        API.get(`/orders/monthlyOrders`, { params: { ...params, page: p }, headers })
-      );
-    }
-    const results = await Promise.all(requests);
-    results.forEach((r) => {
-      const arr = Array.isArray(r.data?.orders) ? r.data.orders : [];
-      allOrders = allOrders.concat(arr);
-    });
-  }
-
+/* ---------- One-page Fetch ---------- */
+async function fetchCardNotChargedPage(params, headers) {
+  const res = await API.get(`/orders/monthlyOrders`, { params, headers });
+  const allOrders = Array.isArray(res.data?.orders) ? res.data.orders : [];
   // 3️⃣ Filter and calculate approx. charge
   const filtered = [];
 
@@ -94,7 +73,7 @@ async function fetchCardNotChargedOrders(params, headers) {
     });
   });
 
-  return filtered;
+  return { rows: filtered, meta: res.data || {} };
 }
 
 /* ---------- Extra totals for modal ---------- */
@@ -157,7 +136,7 @@ export default function CardNotCharged() {
                         <b>Status:</b> {y.status || "—"}
                       </div>
                       <div>
-                        <b>Payment:</b> {y.paymentStatus || "—"}
+                        <b>Payment:</b> {y?.pamentStatus || y?.paymentStatus || ""}
                       </div>
                       <div>
                         <b>Stock No:</b> {y.stockNo || "—"}
@@ -199,12 +178,36 @@ export default function CardNotCharged() {
   }, []);
 
   const fetchOverride = useCallback(
-    async ({ filter }) => {
+    async ({ filter, page, limit, query, sortBy, sortOrder, selectedAgent, userRole }) => {
       const token = localStorage.getItem("token");
       const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
-      const params = paramsBuilder({ filter });
-      const merged = await fetchCardNotChargedOrders(params, headers);
-      return merged;
+      const params = {
+        ...paramsBuilder({ filter }),
+        page,
+        limit,
+        q: query || undefined,
+        sortBy: sortBy || undefined,
+        sortOrder: sortOrder || undefined,
+        cardNotChargedOnly: "true",
+      };
+      if (
+        (userRole || "").toLowerCase() === "admin" &&
+        selectedAgent &&
+        selectedAgent !== "Select" &&
+        selectedAgent !== "All"
+      ) {
+        params.salesAgent = selectedAgent;
+      }
+      const { rows, meta } = await fetchCardNotChargedPage(params, headers);
+      return {
+        orders: rows,
+        meta: {
+          ...meta,
+          totalOrders: Number(meta?.totalOrders) || 0,
+          totalPages: Number(meta?.totalPages) || 1,
+          currentPage: Number(meta?.currentPage) || Number(page) || 1,
+        },
+      };
     },
     [paramsBuilder, brand]
   );

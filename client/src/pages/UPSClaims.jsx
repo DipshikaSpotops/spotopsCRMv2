@@ -25,23 +25,9 @@ function formatDateSafe(dateStr) {
 }
 
 /* ---------- Fetch override ---------- */
-async function fetchUpsClaims(params, headers) {
-  const first = await API.get(`/orders/monthlyOrders`, { params: { ...params, page: 1 }, headers });
-  const { orders: firstOrders = [], totalPages = 1 } = first.data || {};
-  let allOrders = [...firstOrders];
-
-  if (totalPages > 1) {
-    const requests = [];
-    for (let p = 2; p <= totalPages; p++) {
-      requests.push(API.get(`/orders/monthlyOrders`, { params: { ...params, page: p }, headers }));
-    }
-    const results = await Promise.all(requests);
-    results.forEach((r) => {
-      const arr = Array.isArray(r.data?.orders) ? r.data.orders : [];
-      allOrders = allOrders.concat(arr);
-    });
-  }
-
+async function fetchUpsClaimsPage(params, headers) {
+  const res = await API.get(`/orders/monthlyOrders`, { params, headers });
+  const allOrders = Array.isArray(res.data?.orders) ? res.data.orders : [];
   const filtered = [];
   allOrders.forEach((order) => {
     const infos = Array.isArray(order.additionalInfo)
@@ -63,7 +49,7 @@ async function fetchUpsClaims(params, headers) {
     });
   });
 
-  return filtered;
+  return { rows: filtered, meta: res.data || {} };
 }
 
 /* ---------- Extra totals for modal ---------- */
@@ -131,7 +117,7 @@ export default function UPSClaims() {
                         <b>Return Tracking:</b> {y.returnTrackingCust || "—"}
                       </div>
                       <div>
-                        <b>Payment Status:</b> {y.paymentStatus || "—"}
+                        <b>Payment Status:</b> {y?.pamentStatus || y?.paymentStatus || ""}
                       </div>
                     </div>
                   ))}
@@ -161,11 +147,36 @@ export default function UPSClaims() {
   }, []);
 
   const fetchOverride = useCallback(
-    async ({ filter }) => {
+    async ({ filter, page, limit, query, sortBy, sortOrder, selectedAgent, userRole }) => {
       const token = localStorage.getItem("token");
       const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
-      const params = paramsBuilder({ filter });
-      return fetchUpsClaims(params, headers);
+      const params = {
+        ...paramsBuilder({ filter }),
+        page,
+        limit,
+        q: query || undefined,
+        sortBy: sortBy || undefined,
+        sortOrder: sortOrder || undefined,
+        upsClaimTicked: "true",
+      };
+      if (
+        (userRole || "").toLowerCase() === "admin" &&
+        selectedAgent &&
+        selectedAgent !== "Select" &&
+        selectedAgent !== "All"
+      ) {
+        params.salesAgent = selectedAgent;
+      }
+      const { rows, meta } = await fetchUpsClaimsPage(params, headers);
+      return {
+        orders: rows,
+        meta: {
+          ...meta,
+          totalOrders: Number(meta?.totalOrders) || 0,
+          totalPages: Number(meta?.totalPages) || 1,
+          currentPage: Number(meta?.currentPage) || Number(page) || 1,
+        },
+      };
     },
     [paramsBuilder, brand]
   );

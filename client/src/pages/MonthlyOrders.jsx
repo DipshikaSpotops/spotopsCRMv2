@@ -1,6 +1,5 @@
 // /src/pages/MonthlyOrders.jsx
 import React, { useCallback, useEffect, useState } from "react";
-import API from "../api";
 import OrdersTable from "../components/OrdersTable";
 import useOrdersRealtime from "../hooks/useOrdersRealtime";
 import useBrand from "../hooks/useBrand";
@@ -89,33 +88,6 @@ function computeYardDerived(yard) {
     yardSpendTotal,
     escSpending,
   };
-}
-
-/* ---------- Multi-page fetch ---------- */
-async function fetchAllMonthlyOrders(params, headers) {
-  // 1️⃣ first request
-  const first = await API.get(`/orders/monthlyOrders`, {
-    params: { ...params, page: 1 },
-    headers,
-  });
-
-  const { orders: firstOrders = [], totalPages = 1 } = first.data || {};
-  let allOrders = [...firstOrders];
-
-  // 2️⃣ remaining pages
-  if (totalPages > 1) {
-    const requests = [];
-    for (let p = 2; p <= totalPages; p++) {
-      requests.push(API.get(`/orders/monthlyOrders`, { params: { ...params, page: p }, headers }));
-    }
-    const results = await Promise.all(requests);
-    results.forEach((r) => {
-      const arr = Array.isArray(r.data?.orders) ? r.data.orders : [];
-      allOrders = allOrders.concat(arr);
-    });
-  }
-
-  return allOrders;
 }
 
 /* ---------- Page ---------- */
@@ -254,7 +226,10 @@ export default function MonthlyOrders() {
               <div className="flex-1 text-white">
                 {yards.map((y, idx) => (
                   <div key={idx} className="font-medium whitespace-nowrap">
-                    {y?.yardName || ""}
+                    <div>{y?.yardName || ""}</div>
+                    <div className="text-xs text-white/80">
+                      <b>Payment status:</b> {y?.pamentStatus || y?.paymentStatus || ""}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -330,17 +305,6 @@ export default function MonthlyOrders() {
     return params;
   }, []);
 
-  const fetchOverride = useCallback(
-    async ({ filter }) => {
-      const token = localStorage.getItem("token");
-      const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
-      const params = paramsBuilder({ filter });
-      const all = await fetchAllMonthlyOrders(params, headers);
-      return all;
-    },
-    [paramsBuilder, brand]
-  );
-
   // Realtime: when orders change, refetch monthly data with the current filter.
   useOrdersRealtime({
     enabled: true,
@@ -366,35 +330,42 @@ export default function MonthlyOrders() {
     }
   }, [brand]);
 
-  // Totals for eye-icon modal: sum Sale Price (soldP) by paymentSource
-  const paymentSourceTotals = useCallback((rows = []) => {
-    if (!Array.isArray(rows) || rows.length === 0) return [];
+  // Totals for eye-icon modal
+  const paymentSourceTotals = useCallback((rows = [], ctx = {}) => {
+    const meta = ctx?.responseMeta || {};
+    const backendRows = Array.isArray(meta?.paymentSourceTotals)
+      ? meta.paymentSourceTotals
+      : [];
 
-    const bySource = rows.reduce((acc, row) => {
-      const rawSource = (row?.paymentSource || "").toString().trim();
-      const key = rawSource || "Unknown / Not Set";
-      const sold = parseFloat(row?.soldP) || 0;
-      acc[key] = (acc[key] || 0) + sold;
-      return acc;
-    }, {});
+    if (backendRows.length > 0) {
+      const totalEstGP = Number(meta?.totalEstGP) || 0;
+      const totalActualGP = Number(meta?.totalActualGP) || 0;
+      const grandTotal = Number(meta?.totalPaymentSourceAmount) || 0;
+      const totalCount = Number(meta?.totalOrders) || 0;
 
-    const rowsBySource = Object.entries(bySource).map(([source, total]) => ({
-      name: `Payment Source — ${source}`,
-      value: `$${total.toFixed(2)}`,
-    }));
+      return [
+        { name: "Total Est GP", value: `$${totalEstGP.toFixed(2)}` },
+        { name: "Total Actual GP", value: `$${totalActualGP.toFixed(2)}` },
+        ...backendRows.map((item) => ({
+          name: `Payment Source — ${item.source || "Unknown / Not Set"}`,
+          value: `$${(Number(item.totalSoldP) || 0).toFixed(2)}`,
+          count: Number(item.count) || 0,
+        })),
+        {
+          name: "Total — All Payment Sources",
+          value: `$${grandTotal.toFixed(2)}`,
+          count: totalCount,
+          isTotal: true,
+        },
+      ];
+    }
 
-    const grandTotal = Object.values(bySource).reduce(
-      (sum, val) => sum + (Number(val) || 0),
-      0
-    );
-
+    // Fallback to current rows only if backend totals are unavailable.
+    const totalEstGP = rows.reduce((sum, row) => sum + (parseFloat(row?.grossProfit) || 0), 0);
+    const totalActualGP = rows.reduce((sum, row) => sum + (parseFloat(row?.actualGP) || 0), 0);
     return [
-      ...rowsBySource,
-      {
-        name: "Total — All Payment Sources",
-        value: `$${grandTotal.toFixed(2)}`,
-        isTotal: true,
-      },
+      { name: "Total Est GP", value: `$${totalEstGP.toFixed(2)}` },
+      { name: "Total Actual GP", value: `$${totalActualGP.toFixed(2)}` },
     ];
   }, []);
 
@@ -415,7 +386,6 @@ export default function MonthlyOrders() {
       showTotalsButton={true}
       extraTotals={paymentSourceTotals}
       paramsBuilder={paramsBuilder}
-      fetchOverride={fetchOverride}
       tableId="monthlyOrders"
     />
   );

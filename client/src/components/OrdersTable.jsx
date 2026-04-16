@@ -348,8 +348,13 @@ export default function OrdersTable({
 
   // raw data
   const [orders, setOrders] = useState([]);
+  const [responseMeta, setResponseMeta] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const requestedRowsPerPage =
+    typeof rowsPerPage === "number" && rowsPerPage > 0
+      ? rowsPerPage
+      : ROWS_PER_PAGE;
   // denominator (all orders for same window/filters)
   const [denomCount, setDenomCount] = useState(0);
   const [badCount, setBadCount] = useState(0);
@@ -472,11 +477,29 @@ export default function OrdersTable({
             firstName,
           })
           : defaultBuildParams(baseFilter);
+        params.page = currentPage;
+        params.limit = requestedRowsPerPage;
+        if (appliedQuery) {
+          if (params.q == null) params.q = appliedQuery;
+          if (params.searchTerm == null) params.searchTerm = appliedQuery;
+        }
+        if (sortBy && params.sortBy == null) params.sortBy = sortBy;
+        if (sortOrder && params.sortOrder == null) params.sortOrder = sortOrder;
+        if (
+          (userRole || "").toLowerCase() === "admin" &&
+          selectedAgent &&
+          selectedAgent !== "Select" &&
+          selectedAgent !== "All" &&
+          params.salesAgent == null
+        ) {
+          params.salesAgent = selectedAgent;
+        }
 
         let data = [];
+        let meta = {};
         if (typeof fetchOverride === "function") {
           // Let the parent fully control how rows are fetched (e.g., merge 2 endpoints)
-          data = await fetchOverride({
+          const result = await fetchOverride({
             filter: baseFilter,
             query: appliedQuery,
             sortBy,
@@ -484,17 +507,29 @@ export default function OrdersTable({
             selectedAgent,
             userRole,
             firstName,
+            page: currentPage,
+            limit: requestedRowsPerPage,
           });
+          if (Array.isArray(result)) {
+            data = result;
+          } else if (result && Array.isArray(result.orders)) {
+            data = result.orders;
+            meta = result.meta || result;
+          } else {
+            data = [];
+          }
         } else {
           console.log("[OrdersTable] GET", endpointURL, params);
           const res = await API.get(endpointURL, { params });
-          data = Array.isArray(res.data)
-            ? res.data
-            : Array.isArray(res.data?.orders)
-              ? res.data.orders
-              : [];
+          if (Array.isArray(res.data)) {
+            data = res.data;
+          } else {
+            data = Array.isArray(res.data?.orders) ? res.data.orders : [];
+            meta = res.data || {};
+          }
         }
         setOrders(data);
+        setResponseMeta(meta);
         
         // Restore scroll position and highlight after background refresh
         if (background && tableScrollRef.current) {
@@ -527,6 +562,7 @@ export default function OrdersTable({
         }
         if (!background) {
           setOrders([]);
+          setResponseMeta({});
         }
       } finally {
         if (!background) {
@@ -534,7 +570,7 @@ export default function OrdersTable({
         }
       }
     },
-    [activeFilter, endpointURL, appliedQuery, sortBy, sortOrder, selectedAgent, userRole, firstName, fetchOverride, paramsBuilder, highlightedOrderNo]
+    [activeFilter, endpointURL, appliedQuery, sortBy, sortOrder, selectedAgent, userRole, firstName, fetchOverride, paramsBuilder, highlightedOrderNo, currentPage, requestedRowsPerPage]
   );
 
   // Optional: expose a simple global refetch handle for realtime integrations
@@ -681,6 +717,11 @@ export default function OrdersTable({
       };
     });
   }, [orders, showGP]);
+  const isServerPaginated = useMemo(() => {
+    const tp = Number(responseMeta?.totalPages);
+    const tc = Number(responseMeta?.totalCount ?? responseMeta?.totalOrders);
+    return tp > 0 || tc > 0;
+  }, [responseMeta]);
 
   // agent options
   const agentOptions = useMemo(() => {
@@ -695,6 +736,9 @@ export default function OrdersTable({
 
   // agent filter
   const filteredByRole = useMemo(() => {
+    if (isServerPaginated) {
+      return rowsWithDerived;
+    }
     if ((userRole || "").toLowerCase() === "sales") {
       const me = firstName.toLowerCase();
       // Get mapped agent name for PROLANE brand
@@ -717,20 +761,22 @@ export default function OrdersTable({
     }
     // Admin & Support see everything
     return rowsWithDerived;
-  }, [rowsWithDerived, userRole, firstName, brand]);
+  }, [rowsWithDerived, userRole, firstName, brand, isServerPaginated]);
 
   // 2) Admin-only agent narrowing (Select/All=no narrowing)
   const agentFiltered = useMemo(() => {
+    if (isServerPaginated) return filteredByRole;
     if ((userRole || "").toLowerCase() !== "admin") return filteredByRole;
     if (selectedAgent === "Select" || selectedAgent === "All") return filteredByRole;
     const needle = (selectedAgent || "").toLowerCase();
     return filteredByRole.filter(
       (o) => (o?.salesAgent || "").toLowerCase().includes(needle)
     );
-  }, [filteredByRole, userRole, selectedAgent]);
+  }, [filteredByRole, userRole, selectedAgent, isServerPaginated]);
 
   // search filter - optimized with early returns
   const searchedRows = useMemo(() => {
+    if (isServerPaginated) return agentFiltered;
     const value = (appliedQuery || "").trim().toLowerCase();
     if (!value) return agentFiltered;
     if (agentFiltered.length === 0) return agentFiltered;
@@ -792,7 +838,7 @@ export default function OrdersTable({
 
       return false;
     });
-  }, [agentFiltered, appliedQuery]);
+  }, [agentFiltered, appliedQuery, isServerPaginated]);
 
   // sorting
   const handleSort = (columnKey) => {
@@ -817,6 +863,7 @@ export default function OrdersTable({
   );
 
   const sortedRows = useMemo(() => {
+    if (isServerPaginated) return searchedRows;
     if (!sortBy) return searchedRows;
     const key = sortBy;
 
@@ -848,24 +895,41 @@ export default function OrdersTable({
         : String(B).localeCompare(String(A));
     });
     return arr;
-  }, [searchedRows, sortBy, sortOrder]);
+  }, [searchedRows, sortBy, sortOrder, isServerPaginated]);
   // NEW: notify parent whenever the visible, sorted rows change
   useEffect(() => {
     if (typeof onRowsChange === "function") onRowsChange(sortedRows);
   }, [sortedRows, onRowsChange]);
+  useEffect(() => {
+    if (!isServerPaginated || !activeFilter) return;
+    fetchOrders(activeFilter);
+  }, [
+    isServerPaginated,
+    activeFilter,
+    currentPage,
+    appliedQuery,
+    sortBy,
+    sortOrder,
+    selectedAgent,
+    userRole,
+    firstName,
+    fetchOrders,
+  ]);
   // pagination
-  const effectiveRowsPerPage =
-    typeof rowsPerPage === "number" && rowsPerPage > 0
-      ? rowsPerPage
-      : ROWS_PER_PAGE;
-  const totalRows = sortedRows.length;
-  const totalPages = Math.max(1, Math.ceil(totalRows / effectiveRowsPerPage));
-  const safePage = Math.min(currentPage, totalPages);
+  const effectiveRowsPerPage = requestedRowsPerPage;
+  const totalRows = isServerPaginated
+    ? Number(responseMeta?.totalCount ?? responseMeta?.totalOrders) || sortedRows.length
+    : sortedRows.length;
+  const totalPages = isServerPaginated
+    ? Math.max(1, Number(responseMeta?.totalPages) || 1)
+    : Math.max(1, Math.ceil(totalRows / effectiveRowsPerPage));
+  const safePage = isServerPaginated
+    ? Math.min(Math.max(1, Number(responseMeta?.currentPage) || currentPage), totalPages)
+    : Math.min(currentPage, totalPages);
   const pageStart = (safePage - 1) * effectiveRowsPerPage;
-  const pageRows = sortedRows.slice(
-    pageStart,
-    pageStart + effectiveRowsPerPage
-  );
+  const pageRows = isServerPaginated
+    ? sortedRows
+    : sortedRows.slice(pageStart, pageStart + effectiveRowsPerPage);
 
   // totals (for the modal)
   const totals = useMemo(() => {
@@ -881,6 +945,14 @@ export default function OrdersTable({
     }
     return { totalEstGP: est, totalCurrentGP: cur, totalActualGP: act };
   }, [sortedRows, showGP]);
+  const computedExtraTotals = useMemo(() => {
+    if (typeof extraTotals !== "function") return [];
+    return extraTotals(sortedRows, { denomCount, badCount, responseMeta }) || [];
+  }, [extraTotals, sortedRows, denomCount, badCount, responseMeta]);
+  const hasExtraCountColumn = useMemo(
+    () => computedExtraTotals.some((item) => item?.count !== undefined && item?.count !== null),
+    [computedExtraTotals]
+  );
   useEffect(() => {
     // count cancelled + refunded + dispute in the current view
     const bad = sortedRows.reduce((acc, row) => {
@@ -1055,7 +1127,7 @@ export default function OrdersTable({
           ) : (
             // For all other pages
             <p className="text-sm text-white/80">
-              Total Orders: <strong>{sortedRows.length}</strong>
+              Total Orders: <strong>{totalRows}</strong>
             </p>
           )}
 
@@ -1404,20 +1476,21 @@ export default function OrdersTable({
               onClick={() => {
                 const lines = [];
                 if (showOrdersCountInTotals) {
-                  lines.push(["Orders", String(sortedRows.length)]);
+                  lines.push(["Orders", String(sortedRows.length), ""]);
                 }
                 if (showGP) {
                   lines.push(
-                    ["Est GP", currency(totals.totalEstGP)],
-                    ["Current GP", currency(totals.totalCurrentGP)],
-                    ["Actual GP", currency(totals.totalActualGP)]
+                    ["Est GP", currency(totals.totalEstGP), ""],
+                    ["Current GP", currency(totals.totalCurrentGP), ""],
+                    ["Actual GP", currency(totals.totalActualGP), ""]
                   );
                 }
-                if (typeof extraTotals === "function") {
-                  const extra = extraTotals(sortedRows, { denomCount, badCount }) || [];
-                  extra.forEach((e) => lines.push([e.name, e.value]));
-                }
-                const text = lines.map(([k, v]) => `${k}: ${v}`).join("\n");
+                computedExtraTotals.forEach((e) => {
+                  lines.push([e.name, e.value, e?.count ?? ""]);
+                });
+                const text = lines
+                  .map(([k, v, c]) => `${k}: ${v}${c !== "" ? ` | Count: ${c}` : ""}`)
+                  .join("\n");
                 navigator.clipboard?.writeText(text).catch(() => { });
               }}
               className="px-3 py-2 rounded border border-white/20 hover:bg-white/10"
@@ -1434,6 +1507,11 @@ export default function OrdersTable({
                   <th className="text-right px-3 py-2 border-l border-white/25">
                     Value
                   </th>
+                  {hasExtraCountColumn && (
+                    <th className="text-right px-3 py-2 border-l border-white/25">
+                      Count
+                    </th>
+                  )}
                 </tr>
               </thead>
               <tbody>
@@ -1443,6 +1521,11 @@ export default function OrdersTable({
                     <td className="px-3 py-2 text-right font-semibold border-l border-white/15">
                       {sortedRows.length}
                     </td>
+                    {hasExtraCountColumn && (
+                      <td className="px-3 py-2 text-right font-semibold border-l border-white/15">
+                        —
+                      </td>
+                    )}
                   </tr>
                 )}
 
@@ -1453,38 +1536,57 @@ export default function OrdersTable({
                       <td className="px-3 py-2 text-right font-semibold border-l border-white/15">
                         {currency(totals.totalEstGP)}
                       </td>
+                      {hasExtraCountColumn && (
+                        <td className="px-3 py-2 text-right font-semibold border-l border-white/15">
+                          —
+                        </td>
+                      )}
                     </tr>
                     <tr className="bg-white/5 border-b border-white/10">
                       <td className="px-3 py-2">Current GP</td>
                       <td className="px-3 py-2 text-right font-semibold border-l border-white/15">
                         {currency(totals.totalCurrentGP)}
                       </td>
+                      {hasExtraCountColumn && (
+                        <td className="px-3 py-2 text-right font-semibold border-l border-white/15">
+                          —
+                        </td>
+                      )}
                     </tr>
                     <tr className="bg-white/5 border-b border-white/10">
                       <td className="px-3 py-2">Actual GP</td>
                       <td className="px-3 py-2 text-right font-semibold border-l border-white/15">
                         {currency(totals.totalActualGP)}
                       </td>
+                      {hasExtraCountColumn && (
+                        <td className="px-3 py-2 text-right font-semibold border-l border-white/15">
+                          —
+                        </td>
+                      )}
                     </tr>
                   </>
                 )}
 
                 {/* Extra totals (e.g., cancellation rate, counts, etc.) */}
-                {typeof extraTotals === "function" &&
-                  (extraTotals(sortedRows, { denomCount, badCount }) || []).map((item) => {
-                    const baseBg = item.isTotal ? "bg-[#0b1726]" : "bg-white/5";
-                    const borderClass = item.isTotal
-                      ? "border-b border-white/20"
-                      : "border-b border-white/10";
-                    return (
-                      <tr key={item.name} className={`${baseBg} ${borderClass}`}>
-                        <td className="px-3 py-2">{item.name}</td>
+                {computedExtraTotals.map((item) => {
+                  const baseBg = item.isTotal ? "bg-[#0b1726]" : "bg-white/5";
+                  const borderClass = item.isTotal
+                    ? "border-b border-white/20"
+                    : "border-b border-white/10";
+                  return (
+                    <tr key={item.name} className={`${baseBg} ${borderClass}`}>
+                      <td className="px-3 py-2">{item.name}</td>
+                      <td className="px-3 py-2 text-right font-semibold border-l border-white/15">
+                        {item.value}
+                      </td>
+                      {hasExtraCountColumn && (
                         <td className="px-3 py-2 text-right font-semibold border-l border-white/15">
-                          {item.value}
+                          {item?.count ?? "—"}
                         </td>
-                      </tr>
-                    );
-                  })}
+                      )}
+                    </tr>
+                  );
+                })}
 
               </tbody>
             </table>

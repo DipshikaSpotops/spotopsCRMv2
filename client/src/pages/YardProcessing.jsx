@@ -99,13 +99,19 @@ export default function YardProcessingOrders() {
         return (
           <div className="space-y-2 max-w-full">
             {yards.map((y, idx) => (
-              <div key={idx} className="font-medium break-words overflow-wrap-anywhere">{y?.yardName || "N/A"}</div>
+              <div key={idx} className="font-medium break-words overflow-wrap-anywhere">
+                <div>{y?.yardName || "N/A"}</div>
+                <div className="text-xs text-white/80">
+                  <b>Payment status:</b> {y?.pamentStatus || y?.paymentStatus || ""}
+                </div>
+              </div>
             ))}
             {open && (
               <div className="mt-2 border-t border-white/20 pt-2 text-xs space-y-2">
                 {yards.map((y, idx) => (
                   <div key={`yd-${idx}`}>
                     <div><b>Status:</b> {y?.status || "N/A"}</div>
+                    <div><b>Payment status:</b> {y?.pamentStatus || y?.paymentStatus || ""}</div>
                     <div><b>Expected Ship:</b> {y?.expShipDate || "N/A"}</div>
                     <div>
                       <b>Expedite:</b>{" "}
@@ -256,7 +262,6 @@ export default function YardProcessingOrders() {
         showGP={false}
         showTotalsButton={false}
         rowsPerPage={25}
-        // 👇 Fetch all orders, then paginate client-side
         paramsBuilder={({ filter, query, sortBy, sortOrder }) => {
           const params = {};
           if (filter?.start && filter?.end) {
@@ -266,9 +271,6 @@ export default function YardProcessingOrders() {
             params.month = filter.month;
             params.year  = filter.year;
           }
-          // Send a very large limit to fetch all orders (backend defaults to 25)
-          params.limit = 10000;
-          params.page = 1; // Always get first page from backend, then paginate client-side
           if (query) params.q = query;
           if (sortBy) params.sortBy = sortBy;
           if (sortOrder) params.sortOrder = sortOrder;

@@ -1,7 +1,6 @@
 // Daily Sales GP — same table UX as Monthly Orders; Admin & Sales only; defaults to today (Chicago).
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { formatInTimeZone } from "date-fns-tz";
-import API from "../api";
 import OrdersTable from "../components/OrdersTable";
 import useOrdersRealtime from "../hooks/useOrdersRealtime";
 import useBrand from "../hooks/useBrand";
@@ -29,30 +28,6 @@ function buildDailyDefaultFilter() {
   return { start: day, end: day, limit: "all" };
 }
 
-async function fetchAllDailySalesGp(params, headers) {
-  const first = await API.get(`/orders/dailySalesGp`, {
-    params: { ...params, page: 1 },
-    headers,
-  });
-
-  const { orders: firstOrders = [], totalPages = 1 } = first.data || {};
-  let allOrders = [...firstOrders];
-
-  if (totalPages > 1) {
-    const requests = [];
-    for (let p = 2; p <= totalPages; p++) {
-      requests.push(API.get(`/orders/dailySalesGp`, { params: { ...params, page: p }, headers }));
-    }
-    const results = await Promise.all(requests);
-    results.forEach((r) => {
-      const arr = Array.isArray(r.data?.orders) ? r.data.orders : [];
-      allOrders = allOrders.concat(arr);
-    });
-  }
-
-  return allOrders;
-}
-
 export default function DailySalesGP() {
   const brand = useBrand();
   const [totalLabel, setTotalLabel] = useState(
@@ -70,16 +45,6 @@ export default function DailySalesGP() {
     }
     return params;
   }, []);
-
-  const fetchOverride = useCallback(
-    async ({ filter }) => {
-      const token = localStorage.getItem("token");
-      const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
-      const params = paramsBuilder({ filter });
-      return fetchAllDailySalesGp(params, headers);
-    },
-    [paramsBuilder]
-  );
 
   useOrdersRealtime({
     enabled: true,
@@ -174,7 +139,6 @@ export default function DailySalesGP() {
       showTotalsButton={true}
       extraTotals={gpTotals}
       paramsBuilder={paramsBuilder}
-      fetchOverride={fetchOverride}
       onRowsChange={onRowsChange}
       totalLabel={totalLabel}
       showTotalsNearPill={true}

@@ -997,6 +997,8 @@ export default function EditOrder() {
                   "Zelle",
                   "VPS Authorized and VPS Payment Link",
                   "SA Authorized and SA Payment Link",
+                  "SSP Autorized",
+                  "SSP Payment Link",
                 ]}
                 value={formData.paymentSource}
                 onChange={(e) => handleFieldChange("paymentSource", e.target.value)}

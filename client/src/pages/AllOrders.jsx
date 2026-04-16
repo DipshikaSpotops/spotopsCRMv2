@@ -1,7 +1,7 @@
-import React, { useEffect, useRef, useState, useCallback } from "react";
+import React, { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import API from "../api";
 import { formatInTimeZone } from "date-fns-tz";
-import { FaSort, FaSortUp, FaSortDown, FaChevronLeft, FaChevronRight } from "react-icons/fa";
+import { FaSort, FaSortUp, FaSortDown, FaChevronLeft, FaChevronRight, FaEye } from "react-icons/fa";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import StickyXScrollbar from "../components/StickyXScrollbar";
 import useOrdersRealtime from "../hooks/useOrdersRealtime";
@@ -45,6 +45,11 @@ const AllOrders = () => {
 
   const [sortBy, setSortBy] = useState(null);
   const [sortOrder, setSortOrder] = useState("asc");
+  const [showTotalsModal, setShowTotalsModal] = useState(false);
+  const [allPagesTotals, setAllPagesTotals] = useState({
+    totalEstGP: 0,
+    totalActualGP: 0,
+  });
 
   // search: input (what user is typing) vs applied (what query is in effect)
   const [searchInput, setSearchInput] = useState(localStorage.getItem("viewAllOrdersSearch") || "");
@@ -98,6 +103,10 @@ const AllOrders = () => {
       setOrders(data.orders || []);
       setTotalPages(data.totalPages || 1);
       setTotalOrders(data.totalCount || 0);
+      setAllPagesTotals({
+        totalEstGP: Number(data.totalEstGP) || 0,
+        totalActualGP: Number(data.totalActualGP) || 0,
+      });
       setCurrentPage(data.currentPage || page);
       localStorage.setItem("viewAllOrdersPage", String(data.currentPage || page));
       
@@ -255,7 +264,10 @@ const AllOrders = () => {
         <div className="flex-1 text-white">
           {yards.map((y, idx) => (
             <div key={idx} className="font-medium whitespace-nowrap">
-              {y?.yardName || ""}
+              <div>{y?.yardName || ""}</div>
+              <div className="text-xs text-white/80">
+                <b>Payment status:</b> {y?.pamentStatus || y?.paymentStatus || ""}
+              </div>
             </div>
           ))}
         </div>
@@ -271,9 +283,9 @@ const AllOrders = () => {
                   <div><b>Others:</b> ${yard.others}</div>
                 )}
                 <div><b>Phone:</b> {yard?.phone || "N/A"}</div>
-                {yard?.paymentStatus && (
-                  <div><b>Payment status:</b> {yard.paymentStatus}</div>
-                )}
+                <div>
+                  <b>Payment status:</b> {yard?.pamentStatus || yard?.paymentStatus || ""}
+                </div>
                 <div><b>Status:</b> {yard?.status || "N/A"}</div>
                 <div><b>Stock #:</b> {yard?.stockNo || "N/A"}</div>
               </div>
@@ -285,6 +297,14 @@ const AllOrders = () => {
   }, []);
 
   const tableScrollRef = useRef(null);
+
+  const totals = useMemo(
+    () => ({
+      totalEstGP: allPagesTotals.totalEstGP,
+      totalActualGP: allPagesTotals.totalActualGP,
+    }),
+    [allPagesTotals]
+  );
 
   // Realtime updates: whenever an order is created or updated anywhere,
   // silently refetch the current page with the active sort/search in the background.
@@ -345,26 +365,36 @@ const AllOrders = () => {
         </div>
 
         {/* Search */}
-        <div className="w-full lg:w-[260px] relative">
-          <input
-            type="text"
-            value={searchInput}
-            onChange={onSearchChange}
-            onKeyDown={onSearchKeyDown}
-            placeholder="Search… (press Enter)"
-            className="px-3 py-2 pr-9 rounded-lg bg-white/10 border border-white/20 text-white placeholder-white/60 outline-none focus:ring-2 focus:ring-white/30 w-full"
-              aria-label="Search yard processing orders"
-          />
-          {searchInput && (
-            <button
-              type="button"
-              onClick={clearSearch}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-600 hover:text-black"
-              aria-label="Clear search"
-            >
-              ✕
-            </button>
-          )}
+        <div className="w-full lg:w-[320px] flex items-center gap-2">
+          <div className="relative flex-1">
+            <input
+              type="text"
+              value={searchInput}
+              onChange={onSearchChange}
+              onKeyDown={onSearchKeyDown}
+              placeholder="Search… (press Enter)"
+              className="px-3 py-2 pr-9 rounded-lg bg-white/10 border border-white/20 text-white placeholder-white/60 outline-none focus:ring-2 focus:ring-white/30 w-full"
+                aria-label="Search yard processing orders"
+            />
+            {searchInput && (
+              <button
+                type="button"
+                onClick={clearSearch}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-600 hover:text-black"
+                aria-label="Clear search"
+              >
+                ✕
+              </button>
+            )}
+          </div>
+          <button
+            onClick={() => setShowTotalsModal(true)}
+            className="inline-flex items-center gap-2 rounded-lg px-3 py-2 bg-[#1f4c74] hover:bg-[#215784] text-white border border-white/15"
+            title="View totals"
+            aria-label="View totals"
+          >
+            <FaEye />
+          </button>
         </div>
       </div>
 
@@ -529,6 +559,68 @@ const AllOrders = () => {
         </table>
       </div>
       <StickyXScrollbar targetRef={tableScrollRef} bottom={0} height={14} />
+
+      {showTotalsModal && (
+        <div
+          className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
+          onClick={() => setShowTotalsModal(false)}
+        >
+          <div
+            className="w-full max-w-2xl rounded-2xl bg-[#0d1b2a] text-white border border-white/20 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between p-4 border-b border-white/15">
+              <div>
+                <h3 className="text-lg font-semibold">Totals - View All Orders</h3>
+                {appliedQuery ? (
+                  <p className="text-xs text-white/70 mt-1">
+                    Search: "{appliedQuery}"
+                  </p>
+                ) : null}
+              </div>
+              <button
+                onClick={() => setShowTotalsModal(false)}
+                className="px-2 py-1 rounded border border-white/20 hover:bg-white/10 text-sm"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="p-4">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm rounded-lg overflow-hidden border-collapse">
+                  <thead>
+                    <tr className="bg-white/10">
+                      <th className="text-left px-3 py-2">Metric</th>
+                      <th className="text-right px-3 py-2 border-l border-white/25">Value</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr className="bg-white/5 border-b border-white/10">
+                      <td className="px-3 py-2">Orders (All Pages)</td>
+                      <td className="px-3 py-2 text-right font-semibold border-l border-white/15">
+                        {totalOrders}
+                      </td>
+                    </tr>
+                    <tr className="bg-white/5 border-b border-white/10">
+                      <td className="px-3 py-2">Total Est GP</td>
+                      <td className="px-3 py-2 text-right font-semibold border-l border-white/15">
+                        ${totals.totalEstGP.toFixed(2)}
+                      </td>
+                    </tr>
+                    <tr className="bg-[#0b1726] border-b border-white/20">
+                      <td className="px-3 py-2">Total Actual GP</td>
+                      <td className="px-3 py-2 text-right font-semibold border-l border-white/15">
+                        ${totals.totalActualGP.toFixed(2)}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

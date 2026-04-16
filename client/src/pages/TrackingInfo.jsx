@@ -130,28 +130,12 @@ function projectTrackingRows(order) {
 }
 
 /* ---------- Full multi-page fetch ---------- */
-async function fetchAllMonthlyOrders(params, headers) {
-  const first = await API.get(`/orders/monthlyOrders`, {
-    params: { ...params, page: 1 },
-    headers,
-  });
-
-  const { orders: firstOrders = [], totalPages = 1 } = first.data || {};
-  let allOrders = [...firstOrders];
-
-  if (totalPages > 1) {
-    const reqs = [];
-    for (let p = 2; p <= totalPages; p++) {
-      reqs.push(API.get(`/orders/monthlyOrders`, { params: { ...params, page: p }, headers }));
-    }
-    const results = await Promise.all(reqs);
-    results.forEach((r) => {
-      const arr = Array.isArray(r.data?.orders) ? r.data.orders : [];
-      allOrders = allOrders.concat(arr);
-    });
-  }
-
-  return allOrders;
+async function fetchMonthlyOrdersPage(params, headers) {
+  const res = await API.get(`/orders/monthlyOrders`, { params, headers });
+  return {
+    orders: Array.isArray(res.data?.orders) ? res.data.orders : [],
+    meta: res.data || {},
+  };
 }
 
 /* ---------- Totals for modal ---------- */
@@ -199,15 +183,36 @@ export default function TrackingInfo() {
   }, []);
 
   const fetchOverride = useCallback(
-    async ({ filter }) => {
+    async ({ filter, page, limit, query, sortBy, sortOrder, selectedAgent, userRole }) => {
       const token = localStorage.getItem("token");
       const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
-      const params = paramsBuilder({ filter });
-      const allOrders = await fetchAllMonthlyOrders(params, headers);
-
-      // Flatten orders to tracking rows
-      const rows = allOrders.flatMap(projectTrackingRows);
-      return rows;
+      const params = {
+        ...paramsBuilder({ filter }),
+        page,
+        limit,
+        q: query || undefined,
+        sortBy: sortBy || undefined,
+        sortOrder: sortOrder || undefined,
+      };
+      if (
+        (userRole || "").toLowerCase() === "admin" &&
+        selectedAgent &&
+        selectedAgent !== "Select" &&
+        selectedAgent !== "All"
+      ) {
+        params.salesAgent = selectedAgent;
+      }
+      const { orders: pageOrders, meta } = await fetchMonthlyOrdersPage(params, headers);
+      const rows = pageOrders.flatMap(projectTrackingRows);
+      return {
+        orders: rows,
+        meta: {
+          ...meta,
+          totalOrders: Number(meta?.totalOrders) || 0,
+          totalPages: Number(meta?.totalPages) || 1,
+          currentPage: Number(meta?.currentPage) || Number(page) || 1,
+        },
+      };
     },
     [paramsBuilder, brand]
   );

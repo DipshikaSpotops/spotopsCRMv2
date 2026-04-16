@@ -58,7 +58,7 @@ export default function IncentivesReport() {
       setError("");
       try {
         const { data } = await API.get("/reports/incentives", {
-          params: { months: 3 },
+          params: { months: 5 },
         });
         if (!cancelled) {
           setMonths(Array.isArray(data?.months) ? data.months : []);
@@ -103,7 +103,7 @@ export default function IncentivesReport() {
           </button>
         </div>
         <p className="text-sm text-white/80">
-          Latest 3 months including current month-to-date. Current GP is estimated GP
+          Latest 5 months including current month-to-date. Current GP is estimated GP
           (gross profit) excluding Dispute, Order Cancelled, and Refunded orders.
         </p>
 
@@ -188,7 +188,7 @@ export default function IncentivesReport() {
 
         {!loading && !error && !months.length && (
           <div className="rounded-xl border border-white/20 bg-white/10 p-4 text-sm">
-            No incentives data found for the latest 3 months.
+            No incentives data found for the latest 5 months.
           </div>
         )}
       </div>

@@ -41,10 +41,9 @@ function hasNumeric(value) {
 }
 
 /* ---------- Fetch all store credits (no date filtering) ---------- */
-async function fetchAllStoreCredits(headers) {
-  // Fetch directly from storeCredits endpoint - returns all orders with storeCredit
-  const response = await API.get(`/orders/storeCredits`, { headers });
-  const allOrders = Array.isArray(response.data) ? response.data : [];
+async function fetchStoreCreditsPage(params, headers) {
+  const response = await API.get(`/orders/storeCredits`, { params, headers });
+  const allOrders = Array.isArray(response.data?.orders) ? response.data.orders : [];
 
   // Filter and transform orders
   const filtered = [];
@@ -110,7 +109,7 @@ async function fetchAllStoreCredits(headers) {
     });
   });
 
-  return filtered;
+  return { rows: filtered, meta: response.data || {} };
 }
 
 /* ---------- Extra totals for modal ---------- */
@@ -188,6 +187,7 @@ export default function StoreCredits() {
                   {row.yardDetails.map((y, i) => (
                     <div key={i} className="pb-1 border-b border-white/10 last:border-0">
                       <div><b>Yard:</b> {y.yardName}</div>
+                      <div><b>Payment status:</b> {y?.pamentStatus || y?.paymentStatus || ""}</div>
                       <div><b>Store Credit:</b> ${y.storeCredit.toFixed(2)}</div>
                       {Number(y.usedAmount || 0) > 0 && (
                         <div><b>Used Amount:</b> ${Number(y.usedAmount || 0).toFixed(2)}</div>
@@ -284,11 +284,33 @@ export default function StoreCredits() {
 
   // Fetch from storeCredits endpoint - no date filtering
   const fetchOverride = useCallback(
-    async ({ filter, query, sortBy, sortOrder, selectedAgent, userRole, firstName }) => {
+    async ({ filter, query, sortBy, sortOrder, selectedAgent, userRole, firstName, page, limit }) => {
       const token = localStorage.getItem("token");
       const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
-      const merged = await fetchAllStoreCredits(headers);
-      return merged;
+      const params = {
+        page,
+        limit,
+        q: query || undefined,
+        searchTerm: query || undefined,
+      };
+      if (
+        (userRole || "").toLowerCase() === "admin" &&
+        selectedAgent &&
+        selectedAgent !== "Select" &&
+        selectedAgent !== "All"
+      ) {
+        params.salesAgent = selectedAgent;
+      }
+      const { rows, meta } = await fetchStoreCreditsPage(params, headers);
+      return {
+        orders: rows,
+        meta: {
+          ...meta,
+          totalOrders: Number(meta?.totalOrders) || 0,
+          totalPages: Number(meta?.totalPages) || 1,
+          currentPage: Number(meta?.currentPage) || Number(page) || 1,
+        },
+      };
     },
     [brand]
   );

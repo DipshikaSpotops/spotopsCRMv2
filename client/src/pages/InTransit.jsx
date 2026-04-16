@@ -284,6 +284,9 @@ export default function InTransitOrders() {
                   <div key={idx} className="font-medium break-words overflow-wrap-anywhere space-y-1">
                     <div className="border-b border-white/20 pb-0.5 inline-block">{y?.yardName || ""}</div>
                     <div className="text-sm opacity-90">
+                      <b>Payment status:</b> {y?.pamentStatus || y?.paymentStatus || ""}
+                    </div>
+                    <div className="text-sm opacity-90">
                       <b>Shipper Name:</b> {shipper}
                     </div>
                     <div className="text-sm opacity-90">
@@ -446,9 +449,6 @@ export default function InTransitOrders() {
             params.month = filter.month;
             params.year  = filter.year;
           }
-          // Send a very large limit to fetch all orders (backend defaults to 25)
-          params.limit = 10000;
-          params.page = 1; // Always get first page from backend, then paginate client-side
           if (query) params.q = query;
           if (sortBy) params.sortBy = sortBy;
           if (sortOrder) params.sortOrder = sortOrder;

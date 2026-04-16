@@ -779,6 +779,8 @@ export default function AddOrder() {
                   "RP Payment",
                   "SA Authorized",
                   "SA Payment Link",
+                  "SSP Autorized",
+                  "SSP Payment Link",
                   "VP2 Authorized",
                   "VP2 Payment Link",
                   "VPS Authorized",

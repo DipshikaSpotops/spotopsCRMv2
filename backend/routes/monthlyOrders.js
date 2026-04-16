@@ -6,6 +6,14 @@ import { requireAuth, allow } from '../middleware/auth.js';
 
 const router = express.Router();
 const TZ = 'America/Chicago';
+const toDoubleOrZero = (field) => ({
+  $convert: {
+    input: `$${field}`,
+    to: "double",
+    onError: 0,
+    onNull: 0,
+  },
+});
 
 // Mapping from 50STARS agent firstName to PROLANE agent firstName
 const AGENT_BRAND_MAPPING = {
@@ -66,6 +74,13 @@ router.get('/', requireAuth, allow('Admin', 'Sales', 'Support'), async (req, res
       sortBy,
       sortOrder = 'asc',
       salesAgent, // optional query param (Admin only)
+      hasYards,
+      anyYardPaymentStatus,
+      toBeReimbursed,
+      upsClaimTicked,
+      collectRefundTicked,
+      collectRefundPendingOnly,
+      cardNotChargedOnly,
       start,
       end,
       month,
@@ -104,6 +119,73 @@ router.get('/', requireAuth, allow('Admin', 'Sales', 'Support'), async (req, res
         or.push({ year: q.trim() }); // if stored as string
       }
       query.$or = or;
+    }
+    let additionalInfoElemMatch = null;
+    if (String(hasYards || "").toLowerCase() === "true") {
+      query["additionalInfo.0"] = { $exists: true };
+    }
+    if (anyYardPaymentStatus && String(anyYardPaymentStatus).trim()) {
+      additionalInfoElemMatch = {
+        ...(additionalInfoElemMatch || {}),
+        paymentStatus: String(anyYardPaymentStatus).trim(),
+      };
+    }
+    if (String(toBeReimbursed || "").toLowerCase() === "true") {
+      query.toBeReimbursed = { $in: [true, "true"] };
+    }
+    if (String(upsClaimTicked || "").toLowerCase() === "true") {
+      additionalInfoElemMatch = {
+        ...(additionalInfoElemMatch || {}),
+        upsClaimCheckbox: "Ticked",
+      };
+    }
+    if (String(collectRefundTicked || "").toLowerCase() === "true") {
+      additionalInfoElemMatch = {
+        ...(additionalInfoElemMatch || {}),
+        collectRefundCheckbox: "Ticked",
+      };
+    }
+    if (String(collectRefundPendingOnly || "").toLowerCase() === "true") {
+      additionalInfoElemMatch = {
+        ...(additionalInfoElemMatch || {}),
+        collectRefundCheckbox: "Ticked",
+        $and: [
+          ...((additionalInfoElemMatch && additionalInfoElemMatch.$and) || []),
+          { refundToCollect: { $gt: 0 } },
+          {
+            $or: [
+              { refundedAmount: { $exists: false } },
+              { refundedAmount: null },
+              { refundedAmount: 0 },
+              { refundedAmount: "0" },
+              { refundedAmount: "0.00" },
+            ],
+          },
+        ],
+      };
+    }
+    if (String(cardNotChargedOnly || "").toLowerCase() === "true") {
+      additionalInfoElemMatch = {
+        ...(additionalInfoElemMatch || {}),
+        $and: [
+          ...((additionalInfoElemMatch && additionalInfoElemMatch.$and) || []),
+          { status: { $ne: "PO cancelled" } },
+          {
+            $or: [
+              { paymentStatus: { $exists: false } },
+              { paymentStatus: null },
+              { paymentStatus: "" },
+              { paymentStatus: /^card not charged$/i },
+            ],
+          },
+        ],
+      };
+    }
+    if (additionalInfoElemMatch) {
+      query.additionalInfo = {
+        ...(query.additionalInfo || {}),
+        $elemMatch: additionalInfoElemMatch,
+      };
     }
 
     // 4) RBAC — enforce row-level access
@@ -206,7 +288,58 @@ router.get('/', requireAuth, allow('Admin', 'Sales', 'Support'), async (req, res
 
     const Order = getOrderModelForBrand(req.brand);
 
-    const totalOrders = await Order.countDocuments(query);
+    const [totalOrders, totalsAgg] = await Promise.all([
+      Order.countDocuments(query),
+      Order.aggregate([
+        { $match: query },
+        {
+          $facet: {
+            gp: [
+              {
+                $group: {
+                  _id: null,
+                  totalEstGP: { $sum: toDoubleOrZero("grossProfit") },
+                  totalActualGP: { $sum: toDoubleOrZero("actualGP") },
+                },
+              },
+            ],
+            paymentSources: [
+              {
+                $group: {
+                  _id: {
+                    $trim: {
+                      input: { $ifNull: ["$paymentSource", ""] },
+                    },
+                  },
+                  totalSoldP: { $sum: toDoubleOrZero("soldP") },
+                  count: { $sum: 1 },
+                },
+              },
+              {
+                $project: {
+                  _id: 0,
+                  source: {
+                    $cond: [{ $eq: ["$_id", ""] }, "Unknown / Not Set", "$_id"],
+                  },
+                  totalSoldP: 1,
+                  count: 1,
+                },
+              },
+              { $sort: { source: 1 } },
+            ],
+          },
+        },
+      ]),
+    ]);
+    const totalsDoc = totalsAgg?.[0] || {};
+    const gpDoc = totalsDoc?.gp?.[0] || {};
+    const paymentSourceTotals = Array.isArray(totalsDoc?.paymentSources)
+      ? totalsDoc.paymentSources
+      : [];
+    const totalPaymentSourceAmount = paymentSourceTotals.reduce(
+      (sum, row) => sum + (Number(row?.totalSoldP) || 0),
+      0
+    );
 
     // 7) Special sort: full customer name
     if (sortBy === 'customerName') {
@@ -239,6 +372,10 @@ router.get('/', requireAuth, allow('Admin', 'Sales', 'Support'), async (req, res
         currentPage: pageNum,
         totalPages: Math.ceil(totalOrders / limitNum),
         orders,
+        totalEstGP: Number(gpDoc.totalEstGP) || 0,
+        totalActualGP: Number(gpDoc.totalActualGP) || 0,
+        paymentSourceTotals,
+        totalPaymentSourceAmount,
       });
     }
 
@@ -259,6 +396,10 @@ router.get('/', requireAuth, allow('Admin', 'Sales', 'Support'), async (req, res
       currentPage: pageNum,
       totalPages: Math.ceil(totalOrders / limitNum),
       orders,
+      totalEstGP: Number(gpDoc.totalEstGP) || 0,
+      totalActualGP: Number(gpDoc.totalActualGP) || 0,
+      paymentSourceTotals,
+      totalPaymentSourceAmount,
     });
   } catch (err) {
     console.error('Error fetching monthly orders:', err);

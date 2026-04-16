@@ -134,7 +134,10 @@ const CancelledOrders = () => {
           <div className="flex-1 text-white">
             {yards.map((y, idx) => (
               <div key={idx} className="font-medium whitespace-nowrap">
-                {y?.yardName || ""}
+                <div>{y?.yardName || ""}</div>
+                <div className="text-xs text-white/80">
+                  <b>Payment status:</b> {y?.pamentStatus || y?.paymentStatus || ""}
+                </div>
               </div>
             ))}
           </div>
@@ -163,6 +166,7 @@ const CancelledOrders = () => {
                   return (
                     <div key={i} className="border-t border-white/15 pt-2">
                       <div><b>Yard:</b> {yard?.yardName || "N/A"}</div>
+                      <div><b>Payment status:</b> {yard?.pamentStatus || yard?.paymentStatus || ""}</div>
                       <div><b>Part Price:</b> ${d.partPrice.toFixed(2)}</div>
                       <div><b>Shipping:</b> ${d.shippingCost.toFixed(2)}</div>
                       <div><b>Others:</b> ${d.others.toFixed(2)}</div>

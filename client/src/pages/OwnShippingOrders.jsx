@@ -122,6 +122,9 @@ export default function OwnShippingOrders() {
               return (
                 <div key={idx} className="break-words overflow-wrap-anywhere space-y-1">
                   <div className="font-medium text-white">{yardName}</div>
+                  <div className="text-sm text-white/80">
+                    <b>Payment status:</b> {y?.pamentStatus || y?.paymentStatus || ""}
+                  </div>
                   {address ? (
                     <div className="text-sm text-white/80">{address}</div>
                   ) : (
@@ -277,7 +280,6 @@ export default function OwnShippingOrders() {
         showGP={false}
         showTotalsButton={false}
         rowsPerPage={25}
-        // 👇 Fetch all orders, then paginate client-side
         paramsBuilder={({ filter, query, sortBy, sortOrder }) => {
           const params = {};
           if (filter?.start && filter?.end) {
@@ -287,9 +289,6 @@ export default function OwnShippingOrders() {
             params.month = filter.month;
             params.year  = filter.year;
           }
-          // Send a very large limit to fetch all orders (backend defaults to 25)
-          params.limit = 10000;
-          params.page = 1; // Always get first page from backend, then paginate client-side
           if (query) params.q = query;
           if (sortBy) params.sortBy = sortBy;
           if (sortOrder) params.sortOrder = sortOrder;

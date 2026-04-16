@@ -45,30 +45,13 @@ function isYardShipping(field) {
   return typeof field === "string" && /Yard shipping:/i.test(field);
 }
 
-/* ---------- Multi-page Fetch (Fix 1) ---------- */
-async function fetchAllShippingExpenses(params, headers) {
-  const first = await API.get(`/orders/monthlyOrders`, {
-    params: { ...params, page: 1 },
-    headers,
-  });
-
-  const { orders: firstOrders = [], totalPages = 1 } = first.data || {};
-  let allOrders = [...firstOrders];
-
-  if (totalPages > 1) {
-    const requests = [];
-    for (let p = 2; p <= totalPages; p++) {
-      requests.push(API.get(`/orders/monthlyOrders`, { params: { ...params, page: p }, headers }));
-    }
-    const results = await Promise.all(requests);
-    results.forEach((r) => {
-      const arr = Array.isArray(r.data?.orders) ? r.data.orders : [];
-      allOrders = allOrders.concat(arr);
-    });
-  }
+/* ---------- One-page Fetch ---------- */
+async function fetchShippingExpensesPage(params, headers) {
+  const res = await API.get(`/orders/monthlyOrders`, { params, headers });
+  const pageOrders = Array.isArray(res.data?.orders) ? res.data.orders : [];
 
   // derive shipping expenses
-  const processed = allOrders.map((order) => {
+  const processed = pageOrders.map((order) => {
     const infos = Array.isArray(order.additionalInfo) ? order.additionalInfo : [];
 
     const yards = infos.map((ai, i) => ({
@@ -95,7 +78,7 @@ async function fetchAllShippingExpenses(params, headers) {
     };
   });
 
-  return processed;
+  return { rows: processed, meta: res.data || {} };
 }
 
 /* ---------- Extra totals for modal ---------- */
@@ -196,7 +179,7 @@ export default function ShippingExpenses() {
                         <b>Shipping:</b> {y.shippingDetails || "—"}
                       </div>
                       <div>
-                        <b>Payment:</b> {y.paymentStatus || "—"}
+                        <b>Payment:</b> {y?.pamentStatus || y?.paymentStatus || ""}
                       </div>
                       {(y.phone || y.email) && (
                         <div>
@@ -232,12 +215,36 @@ export default function ShippingExpenses() {
   }, []);
 
   const fetchOverride = useCallback(
-    async ({ filter }) => {
+    async ({ filter, page, limit, query, sortBy, sortOrder, selectedAgent, userRole }) => {
       const token = localStorage.getItem("token");
       const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
-      const params = paramsBuilder({ filter });
-      const all = await fetchAllShippingExpenses(params, headers);
-      return all;
+      const params = {
+        ...paramsBuilder({ filter }),
+        page,
+        limit,
+        q: query || undefined,
+        sortBy: sortBy || undefined,
+        sortOrder: sortOrder || undefined,
+        anyYardPaymentStatus: "Card charged",
+      };
+      if (
+        (userRole || "").toLowerCase() === "admin" &&
+        selectedAgent &&
+        selectedAgent !== "Select" &&
+        selectedAgent !== "All"
+      ) {
+        params.salesAgent = selectedAgent;
+      }
+      const { rows, meta } = await fetchShippingExpensesPage(params, headers);
+      return {
+        orders: rows,
+        meta: {
+          ...meta,
+          totalOrders: Number(meta?.totalOrders) || 0,
+          totalPages: Number(meta?.totalPages) || 1,
+          currentPage: Number(meta?.currentPage) || Number(page) || 1,
+        },
+      };
     },
     [paramsBuilder, brand]
   );

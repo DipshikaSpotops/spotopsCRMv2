@@ -1,6 +1,5 @@
 // /src/pages/PartiallyChargedOrders.jsx
 import React, { useCallback, useState } from "react";
-import API from "../api";
 import OrdersTable from "../components/OrdersTable";
 
 /* ---------- Columns (order matters) ---------- */
@@ -64,33 +63,6 @@ function computeYardDerived(yard) {
     yardSpendTotal,
     escSpending,
   };
-}
-
-/* ---------- Multi-page fetch ---------- */
-async function fetchAllPartiallyChargedOrders(params, headers) {
-  // 1️⃣ first request
-  const first = await API.get(`/orders/partially-charged`, {
-    params: { ...params, page: 1 },
-    headers,
-  });
-
-  const { orders: firstOrders = [], totalPages = 1 } = first.data || {};
-  let allOrders = [...firstOrders];
-
-  // 2️⃣ remaining pages
-  if (totalPages > 1) {
-    const requests = [];
-    for (let p = 2; p <= totalPages; p++) {
-      requests.push(API.get(`/orders/partially-charged`, { params: { ...params, page: p }, headers }));
-    }
-    const results = await Promise.all(requests);
-    results.forEach((r) => {
-      const arr = Array.isArray(r.data?.orders) ? r.data.orders : [];
-      allOrders = allOrders.concat(arr);
-    });
-  }
-
-  return allOrders;
 }
 
 /* ---------- Page ---------- */
@@ -230,17 +202,6 @@ export default function PartiallyChargedOrders() {
     return params;
   }, []);
 
-  const fetchOverride = useCallback(
-    async ({ filter }) => {
-      const token = localStorage.getItem("token");
-      const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
-      const params = paramsBuilder({ filter });
-      const all = await fetchAllPartiallyChargedOrders(params, headers);
-      return all;
-    },
-    [paramsBuilder]
-  );
-
   return (
     <OrdersTable
       title="Partially Charged Orders"
@@ -257,7 +218,6 @@ export default function PartiallyChargedOrders() {
       showGP={false}
       showTotalsButton={false}
       paramsBuilder={paramsBuilder}
-      fetchOverride={fetchOverride}
     />
   );
 }

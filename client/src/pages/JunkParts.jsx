@@ -107,7 +107,10 @@ export default function JunkParts() {
               <div className="flex-1 text-white">
                 {junkYards.map((y, idx) => (
                   <div key={idx} className="font-medium whitespace-nowrap">
-                    {y?.yardName || ""}
+                    <div>{y?.yardName || ""}</div>
+                    <div className="text-xs text-white/80">
+                      <b>Payment status:</b> {y?.pamentStatus || y?.paymentStatus || ""}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -169,6 +172,9 @@ export default function JunkParts() {
 
                   return (
                     <div key={i} className="border-t border-white/15 pt-2 space-y-1">
+                      <div>
+                        <b>Payment status:</b> {yard?.pamentStatus || yard?.paymentStatus || ""}
+                      </div>
                       {primaryLineParts.length > 0 && (
                         <div>
                           {primaryLineParts.map((seg, idx) => (

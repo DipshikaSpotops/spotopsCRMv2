@@ -20,6 +20,8 @@ const PROJECTION = {
   make: 1,
   model: 1,
   partNo: 1,
+  grossProfit: 1,
+  actualGP: 1,
   warranty: 1,
   warrantyField: 1,
   programmingRequired: 1,
@@ -54,6 +56,15 @@ function escapeRegex(str) {
   return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+const toDoubleOrZero = (field) => ({
+  $convert: {
+    input: `$${field}`,
+    to: "double",
+    onError: 0,
+    onNull: 0,
+  },
+});
+
 router.get("/ordersPerPage", async (req, res) => {
   try {
     const { page, limit, skip } = getPaging(req);
@@ -67,7 +78,7 @@ router.get("/ordersPerPage", async (req, res) => {
 
     // No search term → normal paginate (fast path)
     if (searchTerm.length < 2) {
-      const [orders, totalCount] = await Promise.all([
+      const [orders, totalCount, totalsArr] = await Promise.all([
         coll
           .find({})
           .project(PROJECTION)
@@ -76,10 +87,28 @@ router.get("/ordersPerPage", async (req, res) => {
           .limit(limit)
           .toArray(),
         coll.countDocuments({}),
+        coll
+          .aggregate([
+            {
+              $group: {
+                _id: null,
+                totalEstGP: { $sum: toDoubleOrZero("grossProfit") },
+                totalActualGP: { $sum: toDoubleOrZero("actualGP") },
+              },
+            },
+          ])
+          .toArray(),
       ]);
 
       const totalPages = Math.max(1, Math.ceil(totalCount / limit));
-      return res.json({ orders, totalPages, totalCount });
+      const totals = totalsArr?.[0] || {};
+      return res.json({
+        orders,
+        totalPages,
+        totalCount,
+        totalEstGP: Number(totals.totalEstGP) || 0,
+        totalActualGP: Number(totals.totalActualGP) || 0,
+      });
     }
 
     // With search term → Atlas Search (fuzzy + autocomplete)
@@ -161,31 +190,57 @@ router.get("/ordersPerPage", async (req, res) => {
       },
       { $project: { total: "$count.total" } },
     ];
+    const totalsPipeline = [
+      searchStage,
+      {
+        $group: {
+          _id: null,
+          totalEstGP: { $sum: toDoubleOrZero("grossProfit") },
+          totalActualGP: { $sum: toDoubleOrZero("actualGP") },
+        },
+      },
+    ];
 
     try {
-      const [orders, metaArr] = await Promise.all([
+      const [orders, metaArr, totalsArr] = await Promise.all([
         coll.aggregate(makeResultsPipeline(true)).toArray(),
         coll.aggregate(metaPipeline).toArray(),
+        coll.aggregate(totalsPipeline).toArray(),
       ]);
 
       const totalCount = metaArr?.[0]?.total ?? 0;
       const totalPages = Math.max(1, Math.ceil(totalCount / limit));
+      const totals = totalsArr?.[0] || {};
 
-      return res.json({ orders, totalPages, totalCount });
+      return res.json({
+        orders,
+        totalPages,
+        totalCount,
+        totalEstGP: Number(totals.totalEstGP) || 0,
+        totalActualGP: Number(totals.totalActualGP) || 0,
+      });
     } catch (aggregateError) {
       if (aggregateError?.code === 224) {
         console.warn(
           "ordersPerPage: falling back to non-searchScore sort (FCV < 7.0)"
         );
-        const [orders, metaArr] = await Promise.all([
+        const [orders, metaArr, totalsArr] = await Promise.all([
           coll.aggregate(makeResultsPipeline(false)).toArray(),
           coll.aggregate(metaPipeline).toArray(),
+          coll.aggregate(totalsPipeline).toArray(),
         ]);
 
         const totalCount = metaArr?.[0]?.total ?? 0;
         const totalPages = Math.max(1, Math.ceil(totalCount / limit));
+        const totals = totalsArr?.[0] || {};
 
-        return res.json({ orders, totalPages, totalCount });
+        return res.json({
+          orders,
+          totalPages,
+          totalCount,
+          totalEstGP: Number(totals.totalEstGP) || 0,
+          totalActualGP: Number(totals.totalActualGP) || 0,
+        });
       }
 
       console.warn(
@@ -216,7 +271,7 @@ router.get("/ordersPerPage", async (req, res) => {
       });
       const filter = { $or: orClauses };
 
-      const [orders, totalCount] = await Promise.all([
+      const [orders, totalCount, totalsArr] = await Promise.all([
         coll
           .find(filter)
           .project(PROJECTION)
@@ -225,10 +280,29 @@ router.get("/ordersPerPage", async (req, res) => {
           .limit(limit)
           .toArray(),
         coll.countDocuments(filter),
+        coll
+          .aggregate([
+            { $match: filter },
+            {
+              $group: {
+                _id: null,
+                totalEstGP: { $sum: toDoubleOrZero("grossProfit") },
+                totalActualGP: { $sum: toDoubleOrZero("actualGP") },
+              },
+            },
+          ])
+          .toArray(),
       ]);
 
       const totalPages = Math.max(1, Math.ceil((totalCount || 0) / limit));
-      return res.json({ orders, totalPages, totalCount });
+      const totals = totalsArr?.[0] || {};
+      return res.json({
+        orders,
+        totalPages,
+        totalCount,
+        totalEstGP: Number(totals.totalEstGP) || 0,
+        totalActualGP: Number(totals.totalActualGP) || 0,
+      });
     }
   } catch (e) {
     console.error("ordersPerPage error:", e);

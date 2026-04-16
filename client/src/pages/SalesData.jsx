@@ -1,6 +1,5 @@
 // src/pages/SalesData.jsx
 import React, { useCallback, useEffect } from "react";
-import API from "../api";
 import OrdersTable from "../components/OrdersTable";
 import useOrdersRealtime from "../hooks/useOrdersRealtime";
 import useBrand from "../hooks/useBrand";
@@ -70,33 +69,6 @@ const extraTotals = (rows) => {
   ];
 };
 
-/* ---------- Multi-page fetch ---------- */
-async function fetchAllMonthlyOrders(params, headers) {
-  // 1️⃣ first request
-  const first = await API.get(`/orders/monthlyOrders`, {
-    params: { ...params, page: 1 },
-    headers,
-  });
-
-  const { orders: firstOrders = [], totalPages = 1 } = first.data || {};
-  let allOrders = [...firstOrders];
-
-  // 2️⃣ remaining pages
-  if (totalPages > 1) {
-    const requests = [];
-    for (let p = 2; p <= totalPages; p++) {
-      requests.push(API.get(`/orders/monthlyOrders`, { params: { ...params, page: p }, headers }));
-    }
-    const results = await Promise.all(requests);
-    results.forEach((r) => {
-      const arr = Array.isArray(r.data?.orders) ? r.data.orders : [];
-      allOrders = allOrders.concat(arr);
-    });
-  }
-
-  return allOrders;
-}
-
 const SalesData = () => {
   const brand = useBrand(); // 50STARS / PROLANE
   /* ---------- Params + Fetch override ---------- */
@@ -111,17 +83,6 @@ const SalesData = () => {
     }
     return params;
   }, []);
-
-  const fetchOverride = useCallback(
-    async ({ filter }) => {
-      const token = localStorage.getItem("token");
-      const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
-      const params = paramsBuilder({ filter });
-      const all = await fetchAllMonthlyOrders(params, headers);
-      return all;
-    },
-    [paramsBuilder, brand]
-  );
 
   // Realtime: refetch sales data when orders change
   useOrdersRealtime({
@@ -160,7 +121,6 @@ const SalesData = () => {
       showAgentFilter={true}   // Admin-only inside component
       showGP={true}
       paramsBuilder={paramsBuilder}
-      fetchOverride={fetchOverride}
       tableId="salesDataMonthly"
     />
   );
