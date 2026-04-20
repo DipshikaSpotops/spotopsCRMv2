@@ -120,12 +120,12 @@
 // src/pages/LoginPage.jsx
 
 // /src/pages/LoginPage.jsx
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useDispatch } from "react-redux";
 import API from "../api";
-import { persistStoredAuth } from "../utils/authStorage";
-import { setCredentials } from "../store/authSlice";
+import { clearStoredAuth, persistStoredAuth } from "../utils/authStorage";
+import { logout as logoutAction, setCredentials } from "../store/authSlice";
 
 const Login = () => {
   const dispatch = useDispatch();
@@ -134,6 +134,12 @@ const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    // Always start login from a clean client session so users don't need manual cache clears.
+    clearStoredAuth();
+    dispatch(logoutAction());
+  }, [dispatch]);
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });

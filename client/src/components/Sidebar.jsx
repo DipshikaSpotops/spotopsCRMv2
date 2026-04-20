@@ -70,6 +70,7 @@ export default function Sidebar() {
   // ====== Base link sets ======
   const dashboardLinksBase = [
     { text: "Add New Order", to: "/add-order", roles: ["Admin", "Sales"] },
+    { text: "Edit Order", to: "/edit-order", roles: ["Admin", "Sales"] },
     { text: "Daily Sales GP", to: "/daily-sales-gp", roles: ["Admin", "Sales"] },
     { text: "Sales Data", to: "/sales-data", roles: ["Admin", "Sales"] },
     { text: "Leads", to: "/leads", roles: ["Admin", "Sales"] },
