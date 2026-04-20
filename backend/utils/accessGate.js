@@ -14,9 +14,22 @@ export function getAppAccessBypassRoles() {
     .filter(Boolean);
 }
 
+export function getAppAccessBypassEmails() {
+  // Default bypass for explicitly trusted operational account(s).
+  const raw =
+    process.env.APP_ACCESS_GATE_BYPASS_EMAILS ?? "spotops.digital12@gmail.com";
+  return String(raw)
+    .split(",")
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean);
+}
+
 export function shouldBypassAppAccessGate(user) {
-  if (!user?.role) return false;
-  return getAppAccessBypassRoles().includes(user.role);
+  const role = String(user?.role || "").trim();
+  const email = String(user?.email || "").trim().toLowerCase();
+  if (email && getAppAccessBypassEmails().includes(email)) return true;
+  if (!role) return false;
+  return getAppAccessBypassRoles().includes(role);
 }
 
 /**
