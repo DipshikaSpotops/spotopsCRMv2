@@ -1895,7 +1895,6 @@ router.put(
 
     order.additionalInfo.forEach(sanitizeYardDateFields);
     order.markModified(`additionalInfo.${idx0}`);
-    order.markModified(`additionalInfo.${i}`);
     await order.save();
     publish(req, orderNo, {
       type: changed.includes("status") ? "STATUS_CHANGED" : "YARD_UPDATED",
