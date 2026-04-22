@@ -19,6 +19,7 @@ const additionalInfoSchema = new mongoose.Schema(
     country: String,
     partPrice: Number,
     shippingDetails: String,
+    yardExpedite: Boolean,
     others: String,
     status: String,
     paymentStatus: String,

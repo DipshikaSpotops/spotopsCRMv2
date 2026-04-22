@@ -99,6 +99,14 @@ const broadcastOrder = (req, order) => {
 
 // Helper to get the correct Order model for this request
 const getOrderModel = (req) => getOrderModelForBrand(req.brand);
+const parseOptionalBooleanFlag = (value) => {
+  if (value === undefined || value === null || value === "") return undefined;
+  if (typeof value === "boolean") return value;
+  const normalized = String(value).trim().toLowerCase();
+  if (["true", "1", "yes", "on", "checked"].includes(normalized)) return true;
+  if (["false", "0", "no", "off", "unchecked"].includes(normalized)) return false;
+  return undefined;
+};
 const coerceDate = (value) => {
   if (value === null || value === undefined || value === "") return null;
   
@@ -1352,6 +1360,8 @@ router.post("/:orderNo/additionalInfo", async (req, res) => {
     order.additionalInfo = order.additionalInfo || [];
     const nextIndex = order.additionalInfo.length + 1;
 
+    const parsedExpedite = parseOptionalBooleanFlag(yardExpedite);
+    const expediteFlag = parsedExpedite === undefined ? false : parsedExpedite;
     const yardEntry = {
       yardName, agentName, agentPhone, yardRating, phone, altPhone, ext, email,
       street, city, state, zipcode,
@@ -1361,7 +1371,7 @@ router.post("/:orderNo/additionalInfo", async (req, res) => {
       yardShipping: yardSet ? yardShipping : undefined,
       shippingDetails, others, faxNo, expShipDate, warranty, yardWarrantyField, stockNo,
       trackingNo, eta, deliveredDate, status,
-      yardExpedite: yardExpedite === true || yardExpedite === "true",
+      yardExpedite: expediteFlag,
     };
 
     order.additionalInfo.push(yardEntry);
@@ -1885,6 +1895,7 @@ router.put(
 
     order.additionalInfo.forEach(sanitizeYardDateFields);
     order.markModified(`additionalInfo.${idx0}`);
+    order.markModified(`additionalInfo.${i}`);
     await order.save();
     publish(req, orderNo, {
       type: changed.includes("status") ? "STATUS_CHANGED" : "YARD_UPDATED",
@@ -2000,7 +2011,7 @@ router.patch("/:orderNo/additionalInfo/:index", async (req, res) => {
   others: "Other Charges",
   faxNo: "Fax No.",
   expShipDate: "Expected Ship Date",
-      yardExpedite: "Yard Expedite Shipping",
+  yardExpedite: "Yard Expedite Shipping",
   warranty: "Warranty",
   yardWarrantyField: "Warranty Unit",
   stockNo: "Stock No.",
@@ -2037,7 +2048,7 @@ router.patch("/:orderNo/additionalInfo/:index", async (req, res) => {
 
     // 3️Detect changed fields
     for (const [key, newValRaw] of Object.entries(updates)) {
-      if (["address", "shippingDetails"].includes(key)) continue; // skip derived
+      if (["address", "shippingDetails", "expediteShipping"].includes(key)) continue; // skip derived / legacy
       const newVal = normalize(newValRaw);
       const oldVal = normalize(yard[key]);
 
@@ -2059,6 +2070,20 @@ router.patch("/:orderNo/additionalInfo/:index", async (req, res) => {
       yard[key] = newVal;
       const label = FIELD_LABELS[key] || key;
       changes.push(`${label} ${oldVal || "—"} → ${newVal || "—"}`);
+    }
+
+    if (updates.yardExpedite !== undefined) {
+      const source = updates.yardExpedite;
+      const parsedExpedite = parseOptionalBooleanFlag(source);
+      // Only mutate when request explicitly carries a valid boolean-like value.
+      // This preserves the stored value for empty/invalid payloads.
+      if (parsedExpedite !== undefined) {
+        yard.yardExpedite = parsedExpedite;
+      }
+    }
+    // Yard-level source of truth is `yardExpedite` only.
+    if (Object.prototype.hasOwnProperty.call(yard.toObject?.() || {}, "expediteShipping")) {
+      yard.expediteShipping = undefined;
     }
 
     // 4️ Only rebuild address if components changed

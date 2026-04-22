@@ -78,7 +78,7 @@ export default function NavbarForm() {
       ["Card not Charged", "/card-not-charged-report"],
       ["Collect Refunds", "/collect-refund"],
       ["UPS Claims", "/ups-claims"],
-      ["Delivery Report", "/delivery-time"],
+      ["Yard Expedite", "/yard-expedite"],
       ["Monthly Disputes", "/monthly-disputes"],
       ["My Sales Report", "/my-sales-report"],
       ["Shipping Expenses", "/shipping-expenses"],

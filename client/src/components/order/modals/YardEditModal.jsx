@@ -552,13 +552,6 @@ export default function YardEditModal({ open, initial, order, orderNo, yardIndex
             Desc: {order?.desc || order?.description || "—"}
           </div>
         </header>
-        {canAddNewYard === false && (
-          <div className="px-5 pt-3 pb-2 border-b border-yellow-700/30 bg-yellow-900/20">
-            <div className="px-3 py-2 text-xs text-yellow-200 bg-yellow-900/30 border border-yellow-700/50 rounded-md">
-              Finish the current yard first. Status must be PO Cancelled or Escalation (Return/Junk) before adding a new yard.
-            </div>
-          </div>
-        )}
         <div
           className="p-5 space-y-4 max-h-[80vh] overflow-y-auto"
           onKeyDown={(e) => {

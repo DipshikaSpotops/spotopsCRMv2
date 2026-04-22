@@ -98,7 +98,7 @@ export default function Sidebar() {
         { text: "CX Approved Orders", to: "/customer-approved" },
         { text: "Yard Processing Orders", to: "/yard-processing" },
         { text: "Own Shipping", to: "/own-shipping-orders" },
-        { text: "Expedite Shipping", to: "/delivery-time" },
+        { text: "Expedite Shipping", to: "/yard-expedite" },
         { text: "Junk Parts", to: "/junk-parts" },
       ],
     },

@@ -76,6 +76,7 @@ router.get('/', requireAuth, allow('Admin', 'Sales', 'Support'), async (req, res
       salesAgent, // optional query param (Admin only)
       hasYards,
       anyYardPaymentStatus,
+      yardExpediteOnly,
       toBeReimbursed,
       upsClaimTicked,
       collectRefundTicked,
@@ -128,6 +129,17 @@ router.get('/', requireAuth, allow('Admin', 'Sales', 'Support'), async (req, res
       additionalInfoElemMatch = {
         ...(additionalInfoElemMatch || {}),
         paymentStatus: String(anyYardPaymentStatus).trim(),
+      };
+    }
+    if (String(yardExpediteOnly || "").toLowerCase() === "true") {
+      additionalInfoElemMatch = {
+        ...(additionalInfoElemMatch || {}),
+        $and: [
+          ...((additionalInfoElemMatch && additionalInfoElemMatch.$and) || []),
+          {
+            $or: [{ yardExpedite: true }, { yardExpedite: "true" }],
+          },
+        ],
       };
     }
     if (String(toBeReimbursed || "").toLowerCase() === "true") {

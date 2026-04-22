@@ -1018,6 +1018,7 @@ export default function YardAddModal({ open, onClose, onSubmit, order }) {
                 const normalizedCountry = normalizeCountry(form.country);
                 await onSubmit({
                   ...form,
+                  yardExpedite: !!form.yardExpedite,
                   country: normalizedCountry,
                   ownShipping: ownTrim,
                   yardShipping: yardTrim,

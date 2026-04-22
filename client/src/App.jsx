@@ -309,7 +309,7 @@ function App() {
           )}
         />
         <Route
-        path="/delivery-time"
+        path="/yard-expedite"
           element={withLayout(
             <Suspense fallback={<PageLoader />}>
               <DeliveryTimeReport />
