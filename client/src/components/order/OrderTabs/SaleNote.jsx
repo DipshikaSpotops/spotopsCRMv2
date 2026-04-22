@@ -49,8 +49,25 @@ export default function SaleNote({ orderNo, className = "" }) {
     fetchSaleNotes();
   }, [orderNo]);
 
+  const isExpediteYes =
+    String(noteData?.expediteShipping || "").trim().toLowerCase() === "yes";
+
   return (
     <GlassCard title="Sale Notes" className={className}>
+      <style>{`
+        html:not(.dark) .order-details-page input.sale-note-expedite-input {
+          background: #16a34a !important;
+          border: 1px solid #15803d !important;
+          color: #ffffff !important;
+          font-weight: 600 !important;
+        }
+        html.dark .order-details-page input.sale-note-expedite-input {
+          background: #16a34a !important;
+          border: 1px solid #22c55e !important;
+          color: #ffffff !important;
+          font-weight: 600 !important;
+        }
+      `}</style>
       {loading && <p className="text-[#09325d]/80 dark:text-white/70 text-sm">Loading sale notes...</p>}
       {error && <p className="text-red-600 dark:text-red-300 text-sm">{error}</p>}
 
@@ -67,7 +84,16 @@ export default function SaleNote({ orderNo, className = "" }) {
             />
           </Field>
           <Field label="Expedite Shipping">
-            <Input readOnly value={noteData.expediteShipping} />
+            {isExpediteYes ? (
+              <input
+                type="text"
+                readOnly
+                value={noteData.expediteShipping}
+                className="sale-note-expedite-input w-full rounded-lg px-3 py-2 outline-none"
+              />
+            ) : (
+              <Input readOnly value={noteData.expediteShipping} />
+            )}
           </Field>
         </div>
       )}

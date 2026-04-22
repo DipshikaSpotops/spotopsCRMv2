@@ -110,13 +110,84 @@ export default function DeliveryReport() {
             </div>
           );
         case "pReq":
-          return row.pReq || row.partName || "—";
+          return (
+            <div>
+              <div>{row.pReq || row.partName || "—"}</div>
+              {open && (
+                <div className="mt-2 border-t border-white/20 pt-2 text-xs space-y-1">
+                  <b>
+                    {row.year} {row.make} {row.model}
+                  </b>
+                  <div>
+                    <b>Desc:</b> {row.desc}
+                  </div>
+                  <div>
+                    <b>Part No:</b> {row.partNo}
+                  </div>
+                  <div>
+                    <b>VIN:</b> {row.vin}
+                  </div>
+                  <div>
+                    <b>Warranty:</b>{" "}
+                    {(() => {
+                      const warrantyField = (row?.warrantyField || "days")
+                        .toString()
+                        .toLowerCase()
+                        .trim();
+                      const warrantyValue = Number(row?.warranty) || 0;
+                      let displayUnit;
+                      if (warrantyField === "month" || warrantyField === "months") {
+                        displayUnit = warrantyValue === 1 ? "Month" : "Months";
+                      } else if (warrantyField === "year" || warrantyField === "years") {
+                        displayUnit = warrantyValue === 1 ? "Year" : "Years";
+                      } else {
+                        displayUnit = warrantyValue === 1 ? "Day" : "Days";
+                      }
+                      return `${row.warranty || 0} ${displayUnit}`;
+                    })()}
+                  </div>
+                  <div>
+                    <b>Programming:</b> {row.programmingRequired ? "Yes" : "No"}
+                  </div>
+                </div>
+              )}
+            </div>
+          );
         case "salesAgent":
           return getSalesAgentFirstName(row.salesAgent);
         case "customerName":
-          return row.fName && row.lName
-            ? `${row.fName} ${row.lName}`
-            : row.customerName || "—";
+          return (
+            <div>
+              <div>
+                {row.fName && row.lName
+                  ? `${row.fName} ${row.lName}`
+                  : row.customerName || "—"}
+              </div>
+              {open && (
+                <div className="mt-2 border-t border-white/20 pt-2 text-xs space-y-1">
+                  <div>
+                    <b>Email:</b> {row.email}
+                  </div>
+                  <div>
+                    <b>Phone:</b> {row.phone}
+                  </div>
+                  <div>
+                    <b>Address:</b>{" "}
+                    {(() => {
+                      const addressParts = [
+                        row.sAddressStreet,
+                        row.sAddressCity,
+                        row.sAddressState,
+                        row.sAddressZip,
+                        row.sAddressAcountry,
+                      ].filter((part) => part && String(part).trim().length > 0);
+                      return addressParts.length > 0 ? addressParts.join(", ") : "—";
+                    })()}
+                  </div>
+                </div>
+              )}
+            </div>
+          );
         case "yardName": {
           const yards = Array.isArray(row.additionalInfo)
             ? row.additionalInfo.filter(
