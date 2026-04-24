@@ -38,10 +38,25 @@ export default function CancelOrderModal({ open, onClose, orderNo, onSubmit }) {
   if (!open) return null;
 
   const validate = () => {
-    if (!reason || !refundAmount) {
-      setToast("All fields are required.");
+    const trimmedReason = String(reason || "").trim();
+    const trimmedAmount = String(refundAmount || "").trim();
+    const parsedAmount = Number(trimmedAmount);
+
+    if (!trimmedReason) {
+      setToast("Reason for cancellation is required.");
       return false;
     }
+
+    if (!trimmedAmount) {
+      setToast("Amount to be refunded is required.");
+      return false;
+    }
+
+    if (Number.isNaN(parsedAmount)) {
+      setToast("Enter a valid refund amount.");
+      return false;
+    }
+
     return true;
   };
 
