@@ -310,7 +310,16 @@ router.post("/sendReimburseEmail/:orderNo", handleReimbursementAttachmentUpload,
     if (!toEmail)
       return res.status(400).json({ message: "No customer email on file" });
 
-    const { serviceEmail, servicePass, supportBcc, logoUrl } = getEmailBrandConfig(req);
+    const {
+      serviceEmail,
+      servicePass,
+      supportBcc,
+      logoUrl,
+      companyName,
+      phoneNumber,
+      serviceEmailAddress,
+      websiteUrl,
+    } = getEmailBrandConfig(req);
 
     const transporter = nodemailer.createTransport({
       service: "gmail",
