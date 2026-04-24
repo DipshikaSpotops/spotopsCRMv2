@@ -839,6 +839,26 @@ export default function OrderDetails() {
   /** Status change -> save, optimistic GP recalc, then modal/alert logic */
   const handleStatusChange = async (value) => {
     const canonicalStatus = normalizeStatus(value) || value;
+    const labelMap = { "Dispute 2": "Dispute after Cancellation" };
+    const label = labelMap[canonicalStatus] || canonicalStatus;
+
+    // For statuses that require extra details, open modal first.
+    // Do NOT change orderStatus until modal save succeeds.
+    if (canonicalStatus === "Order Cancelled") {
+      setPendingAlertLabel(label);
+      setShowCancelModal(true);
+      return;
+    }
+    if (canonicalStatus === "Refunded") {
+      setPendingAlertLabel(label);
+      setShowRefundModal(true);
+      return;
+    }
+    if (canonicalStatus === "Dispute") {
+      setShowDisputeModal(true);
+      return;
+    }
+
     setNewStatus(canonicalStatus);
     try {
       const firstName = localStorage.getItem("firstName");
@@ -848,9 +868,6 @@ export default function OrderDetails() {
         { orderStatus: canonicalStatus },
         { params: { firstName } }
       );
-
-      const labelMap = { "Dispute 2": "Dispute after Cancellation" };
-      const label = labelMap[canonicalStatus] || canonicalStatus;
 
       // Optimistic GP recalc using current in-memory order with new status (DB-shaped value)
       const optimisticOrder = { ...order, orderStatus: canonicalStatus };
@@ -873,29 +890,9 @@ export default function OrderDetails() {
           console.error("Failed to persist Actual GP (optimistic)", e)
         );
 
-      // modal + alert timing
-      if (canonicalStatus === "Order Cancelled") {
-        setPendingAlertLabel(label);
-        setShowCancelModal(true);
-      } else if (canonicalStatus === "Refunded") {
-        setPendingAlertLabel(label);
-        setShowRefundModal(true);
-      } else if (canonicalStatus === "Dispute") {
-        setPendingAlertLabel(label);
-        setShowDisputeModal(true);
-      } else {
-        await refresh();
-        await recomputeAndPersistActualGP({ useServer: true });
-        if (canonicalStatus === "Dispute") {
-          try {
-            await refresh();
-            await recomputeAndPersistActualGP({ useServer: true });
-          } catch (e) {
-            console.warn("GP recompute after dispute failed:", e);
-          }
-        }
-        setToast(`Order status updated to ${label}`);
-      }
+      await refresh();
+      await recomputeAndPersistActualGP({ useServer: true });
+      setToast(`Order status updated to ${label}`);
     } catch (err) {
       const message =
         err?.response?.data?.message ||
@@ -2208,9 +2205,12 @@ export default function OrderDetails() {
 
       <CancelOrderModal
         open={showCancelModal}
-        onClose={() => setShowCancelModal(false)}
+        onClose={() => {
+          setShowCancelModal(false);
+          setPendingAlertLabel(null);
+        }}
         orderNo={orderNo}
-        refresh={async () => {
+        onSubmit={async () => {
           await refresh();
           await recomputeAndPersistActualGP({ useServer: true, showAlert: false });
           if (pendingAlertLabel) {
@@ -2222,9 +2222,12 @@ export default function OrderDetails() {
 
       <RefundOrderModal
         open={showRefundModal}
-        onClose={() => setShowRefundModal(false)}
+        onClose={() => {
+          setShowRefundModal(false);
+          setPendingAlertLabel(null);
+        }}
         orderNo={orderNo}
-        refresh={async () => {
+        onSubmit={async () => {
           await refresh();
           await recomputeAndPersistActualGP({ useServer: true, showAlert: false });
           if (pendingAlertLabel) {
@@ -2236,7 +2239,10 @@ export default function OrderDetails() {
 
       <DisputeOrderModal
         open={showDisputeModal}
-        onClose={() => setShowDisputeModal(false)}
+        onClose={() => {
+          setShowDisputeModal(false);
+          setPendingAlertLabel(null);
+        }}
         orderNo={orderNo}
         onSubmit={async () => {
           await refresh();
