@@ -513,6 +513,16 @@ export default function OrderDetails() {
     }
   }, [order]);
 
+  const statusDetailsStatus = normalizeStatus(newStatus || order?.orderStatus || "");
+  const statusDetailsButtonLabelMap = {
+    "Order Cancelled": "Edit Cancellation Details",
+    Refunded: "Edit Refund Details",
+    Dispute: "Edit Dispute Details",
+  };
+  const statusDetailsButtonLabel =
+    statusDetailsButtonLabelMap[statusDetailsStatus] || "";
+  const showStatusDetailsButton = Boolean(statusDetailsButtonLabel);
+
   useEffect(() => {
     const amount =
       order?.reimbursementAmount !== undefined && order?.reimbursementAmount !== null
@@ -1694,14 +1704,16 @@ export default function OrderDetails() {
                     ))}
                   </select>
 
-                  <button
-                    type="button"
-                    onClick={openStatusDetailsEditor}
-                    className="px-3 py-1 rounded-md text-sm bg-blue-50 hover:bg-blue-100 border border-gray-200 text-[#09325d] shadow-sm hover:shadow-md transition-all dark:bg-white/10 dark:hover:bg-white/20 dark:text-white dark:border-white/20"
-                    title="Edit status details for Order Cancelled, Refunded, or Dispute"
-                  >
-                    Edit Status Details
-                  </button>
+                  {showStatusDetailsButton && (
+                    <button
+                      type="button"
+                      onClick={openStatusDetailsEditor}
+                      className="px-3 py-1 rounded-md text-sm bg-blue-50 hover:bg-blue-100 border border-gray-200 text-[#09325d] shadow-sm hover:shadow-md transition-all dark:bg-white/10 dark:hover:bg-white/20 dark:text-white dark:border-white/20"
+                      title={statusDetailsButtonLabel}
+                    >
+                      {statusDetailsButtonLabel}
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
