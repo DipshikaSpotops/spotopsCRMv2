@@ -234,7 +234,16 @@ router.post("/order-cancel/:orderNo", async (req, res) => {
     if (!toEmail)
       return res.status(400).json({ message: "No customer email on file" });
 
-    const { serviceEmail, servicePass, supportBcc, logoUrl } = getEmailBrandConfig(req);
+    const {
+      serviceEmail,
+      servicePass,
+      supportBcc,
+      logoUrl,
+      companyName,
+      phoneNumber,
+      serviceEmailAddress,
+      websiteUrl,
+    } = getEmailBrandConfig(req);
 
     const transporter = nodemailer.createTransport({
       service: "gmail",
@@ -340,8 +349,17 @@ router.post("/sendReimburseEmail/:orderNo", handleReimbursementAttachmentUpload,
       });
     }
 
+    const year = String(order.year ?? "").trim();
+    const make = String(order.make ?? "").trim();
+    const model = String(order.model ?? "").trim();
+    const partName = String(
+      order.partName || order.productName || order.part || "part"
+    ).trim();
+    const vehicleText = [year, make, model].filter(Boolean).join(" ");
+    const reimbursementContext = [vehicleText, partName].filter(Boolean).join(" ");
+
     await transporter.sendMail({
-      from: `"50 Stars Auto Parts" <${serviceEmail}>`,
+      from: `"${companyName}" <${serviceEmail}>`,
       to: toEmail,
       bcc:
         supportBcc ||
@@ -349,15 +367,13 @@ router.post("/sendReimburseEmail/:orderNo", handleReimbursementAttachmentUpload,
       subject: `Goodwill Reimbursement Confirmation || Order No. ${orderNo}`,
       html: `<div style="font-size:16px;line-height:1.7;">
   <p>Dear ${customerName},</p>
-  <p>We are sorry to hear that the ABS module did not meet your expectations, and we are committed to providing a satisfactory resolution.</p>
-  <p>As discussed, we're glad to hear that you've resolved the issue! We are reimbursing you $${amount.toFixed(
+  <p>This email is regarding reimbursement for ${reimbursementContext}.</p>
+  <p>As discussed and agreed during our call, we will be reimbursing you $${amount.toFixed(
     2
-  )} as a goodwill gesture, and we hope this reflects our commitment to supporting our customers. Once the refund is processed, we will share the refund receipt with you.</p>
-  <p>It's been a pleasure interacting with you, and we look forward to assisting you with more orders in the future.</p>
-  <p>Thank you again, and please don't hesitate to reach out anytime.</p>
-  <p>If you have any questions or need further assistance, please feel free to reach out.</p>
+  )} toward the issue you faced.</p>
+  <p>Please note that in the event of a future order cancellation, any reimbursement amount already issued will be deducted from the refund. Additionally, we do not provide any guarantee or warranty on labor-related work.</p>
   <p><img src="cid:logo" alt="logo" style="width: 180px; height: 100px;"></p>
-  <p>${firstName}<br/>Customer Service Team<br/>50 STARS AUTO PARTS<br/>+1 (866) 207-5533<br/>service@50starsautoparts.com<br/>www.50starsautoparts.com</p>
+  <p>${firstName}<br/>Customer Service Team<br/>${companyName}<br/>${phoneNumber}<br/>${serviceEmailAddress}<br/>${websiteUrl}</p>
 </div>`,
       attachments,
     });
@@ -368,6 +384,92 @@ router.post("/sendReimburseEmail/:orderNo", handleReimbursementAttachmentUpload,
     res.status(500).json({ message: "Server error", error: String(err) });
   }
 });
+
+// POST /emails/sendToBeReimbursedEmail/:orderNo
+// Notify customer that reimbursement is planned (no attachment required).
+router.post("/sendToBeReimbursedEmail/:orderNo", async (req, res) => {
+  console.log("[emails] sendToBeReimbursedEmail hit", req.method, req.originalUrl);
+  try {
+    const { orderNo } = req.params;
+    const reimburesementValue = req.query.reimburesementValue ?? "0";
+    const firstName = getSupportDisplayName(req.query.firstName ?? "", req);
+
+    const Order = getOrderModel(req);
+    const order = await Order.findOne({ orderNo });
+    if (!order) return res.status(404).json({ message: "Order not found" });
+
+    const amount = Number(reimburesementValue) || 0;
+    const customerName = cleanCustomerName(
+      order.customerName ||
+        [order.fName, order.lName].filter(Boolean).join(" ") ||
+        "Customer"
+    );
+    const toEmail = (order.email || "").trim();
+    if (!toEmail) {
+      return res.status(400).json({ message: "No customer email on file" });
+    }
+
+    const {
+      serviceEmail,
+      servicePass,
+      supportBcc,
+      logoUrl,
+      companyName,
+      phoneNumber,
+      serviceEmailAddress,
+      websiteUrl,
+    } = getEmailBrandConfig(req);
+
+    const transporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: {
+        user: serviceEmail,
+        pass: servicePass,
+      },
+    });
+
+    const year = String(order.year ?? "").trim();
+    const make = String(order.make ?? "").trim();
+    const model = String(order.model ?? "").trim();
+    const partName = String(
+      order.partName || order.productName || order.part || "part"
+    ).trim();
+    const vehicleText = [year, make, model].filter(Boolean).join(" ");
+    const reimbursementContext = [vehicleText, partName].filter(Boolean).join(" ");
+
+    await transporter.sendMail({
+      from: `"${companyName}" <${serviceEmail}>`,
+      to: toEmail,
+      bcc:
+        supportBcc ||
+        "service@50starsautoparts.com,dipsikha.spotopsdigital@gmail.com",
+      subject: `To Be Reimbursed Update || Order No. ${orderNo}`,
+      html: `<div style="font-size:16px;line-height:1.7;">
+  <p>Dear ${customerName},</p>
+  <p>This email is regarding reimbursement for ${reimbursementContext}.</p>
+  <p>As discussed and agreed during our call, we will be reimbursing you $${amount.toFixed(
+    2
+  )} toward the issue you faced.</p>
+  <p>Please note that in the event of a future order cancellation, any reimbursement amount already issued will be deducted from the refund. Additionally, we do not provide any guarantee or warranty on labor-related work.</p>
+  <p><img src="cid:logo" alt="logo" style="width: 180px; height: 100px;"></p>
+  <p>${firstName}<br/>Customer Service Team<br/>${companyName}<br/>${phoneNumber}<br/>${serviceEmailAddress}<br/>${websiteUrl}</p>
+</div>`,
+      attachments: [
+        {
+          filename: "logo.png",
+          path: logoUrl,
+          cid: "logo",
+        },
+      ],
+    });
+
+    return res.json({ message: "To Be Reimbursed email sent successfully" });
+  } catch (err) {
+    console.error("[emails] sendToBeReimbursedEmail error:", err);
+    return res.status(500).json({ message: "Server error", error: String(err) });
+  }
+});
+
 router.post("/orders/sendRefundConfirmation/:orderNo", upload.single("pdfFile"), async (req, res) => {
   console.log("[emails] sendRefundConfirmation hit");
   try {

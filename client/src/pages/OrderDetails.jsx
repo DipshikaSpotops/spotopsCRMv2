@@ -904,8 +904,8 @@ export default function OrderDetails() {
     }
   };
 
-  // Send reimbursement confirmation email; let caller decide what toast to show
-  const sendReimbursementEmail = async ({ amount, file }) => {
+  // Send reimbursement-related email; let caller decide what toast to show
+  const sendReimbursementEmail = async ({ amount, file, endpoint = "sendReimburseEmail" }) => {
     if (!orderNo) return;
     try {
       const firstName = localStorage.getItem("firstName") || "";
@@ -919,7 +919,7 @@ export default function OrderDetails() {
         const formData = new FormData();
         formData.append("attachment", file);
         await API.post(
-          `/emails/sendReimburseEmail/${orderNo}`,
+          `/emails/${endpoint}/${orderNo}`,
           formData,
           {
             params,
@@ -930,7 +930,7 @@ export default function OrderDetails() {
         );
       } else {
         await API.post(
-          `/emails/sendReimburseEmail/${orderNo}`,
+          `/emails/${endpoint}/${orderNo}`,
           null,
           {
             params,
@@ -967,6 +967,30 @@ export default function OrderDetails() {
         reimbursementAmount: numericAmount,
         toBeReimbursed: !!toBeReimbursed,
       });
+
+      if (toBeReimbursed && numericAmount !== null && numericAmount > 0) {
+        setSendingReimbursementEmail(true);
+        try {
+          await sendReimbursementEmail({
+            amount: numericAmount,
+            file: null,
+            endpoint: "sendToBeReimbursedEmail",
+          });
+          setReimbursementEmailToast({
+            message: "To Be Reimbursed email sent successfully!",
+            variant: "success",
+          });
+        } catch (emailErr) {
+          const errorMsg =
+            emailErr?.response?.data?.message ||
+            emailErr?.message ||
+            "Failed to send reimbursement email.";
+          setReimbursementEmailToast({ message: errorMsg, variant: "error" });
+        } finally {
+          setSendingReimbursementEmail(false);
+        }
+      }
+
       setToBeReimbursedSaved(!!toBeReimbursed);
       setReimbursementSaved(false);
       setToast("To Be Reimbursed details saved.");
@@ -979,7 +1003,13 @@ export default function OrderDetails() {
     } finally {
       setSavingToBeReimbursed(false);
     }
-  }, [orderNo, reimbursementAmount, toBeReimbursed, refresh]);
+  }, [
+    orderNo,
+    reimbursementAmount,
+    toBeReimbursed,
+    refresh,
+    sendReimbursementEmail,
+  ]);
 
   const reimbursementAmountNumber = Number(reimbursementAmount);
   const hasValidReimbursementAmount =
