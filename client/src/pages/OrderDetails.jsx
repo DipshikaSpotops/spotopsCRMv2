@@ -904,6 +904,23 @@ export default function OrderDetails() {
     }
   };
 
+  const openStatusDetailsEditor = () => {
+    const currentStatus = normalizeStatus(newStatus || order?.orderStatus || "");
+    if (currentStatus === "Order Cancelled") {
+      setShowCancelModal(true);
+      return;
+    }
+    if (currentStatus === "Refunded") {
+      setShowRefundModal(true);
+      return;
+    }
+    if (currentStatus === "Dispute") {
+      setShowDisputeModal(true);
+      return;
+    }
+    setToast("Status details popup is available for Order Cancelled, Refunded, or Dispute.");
+  };
+
   // Send reimbursement-related email; let caller decide what toast to show
   const sendReimbursementEmail = async ({ amount, file, endpoint = "sendReimburseEmail" }) => {
     if (!orderNo) return;
@@ -1676,6 +1693,15 @@ export default function OrderDetails() {
                       </option>
                     ))}
                   </select>
+
+                  <button
+                    type="button"
+                    onClick={openStatusDetailsEditor}
+                    className="px-3 py-1 rounded-md text-sm bg-blue-50 hover:bg-blue-100 border border-gray-200 text-[#09325d] shadow-sm hover:shadow-md transition-all dark:bg-white/10 dark:hover:bg-white/20 dark:text-white dark:border-white/20"
+                    title="Edit status details for Order Cancelled, Refunded, or Dispute"
+                  >
+                    Edit Status Details
+                  </button>
                 </div>
               </div>
             </div>
