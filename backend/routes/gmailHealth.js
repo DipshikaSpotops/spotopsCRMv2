@@ -8,6 +8,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { getAuthUrl } from '../services/googleAuth.js';
+import { getGmailTokenMonitorState, runGmailTokenHealthCheck } from '../services/gmailTokenMonitor.js';
 
 const router = express.Router();
 const __filename = fileURLToPath(import.meta.url);
@@ -96,12 +97,39 @@ router.get('/health', async (req, res) => {
       health.needsReauth = true;
     }
 
+    health.monitor = getGmailTokenMonitorState();
     res.json(health);
   } catch (error) {
     res.status(500).json({
       status: 'error',
       message: error.message,
       needsReauth: true,
+    });
+  }
+});
+
+/**
+ * GET /api/gmail/health/live
+ * Returns live monitor state and can optionally run an immediate check.
+ * Query: ?checkNow=true
+ */
+router.get('/health/live', async (req, res) => {
+  try {
+    const checkNow = String(req.query.checkNow || '').toLowerCase() === 'true';
+    let checkResult = null;
+    if (checkNow) {
+      checkResult = await runGmailTokenHealthCheck('manual-http');
+    }
+    return res.json({
+      ok: true,
+      checkResult,
+      monitor: getGmailTokenMonitorState(),
+    });
+  } catch (error) {
+    return res.status(500).json({
+      ok: false,
+      error: error.message,
+      monitor: getGmailTokenMonitorState(),
     });
   }
 });

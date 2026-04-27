@@ -350,84 +350,12 @@ server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
 import { startWatch } from "./services/gmailPubSubService.js";
 import GmailSyncState from "./models/GmailSyncState.js";
 
-// Import refresh function
-import { getGmailClient, refreshAccessTokenIfNeeded } from "./services/googleAuth.js";
+// Import token monitor and Gmail auth helpers
+import { getGmailClient } from "./services/googleAuth.js";
+import { startGmailTokenMonitor } from "./services/gmailTokenMonitor.js";
 
-// Refresh token on startup (with graceful error handling)
-setTimeout(async () => {
-  try {
-    console.log("[Token Refresh] Starting initial token check...");
-    await refreshAccessTokenIfNeeded();
-    console.log("[Token Refresh] Initial token check completed successfully");
-  } catch (err) {
-    // Don't log errors for missing token.json (expected if not configured)
-    if (err.message?.includes("Missing token.json")) {
-      console.log("[Token Refresh] No token.json found - Gmail not configured yet");
-      return;
-    }
-    // Check for RAPT error first (most specific)
-    if (err.message?.includes("RAPT required") || err.message?.includes("invalid_rapt") || err.message?.includes("rapt_required")) {
-      console.error("[Token Refresh] RAPT (Risk-Aware Protection Token) required by Google");
-      console.error("[Token Refresh] This requires manual re-authorization - automatic refresh is blocked");
-      console.error("[Token Refresh] ACTION REQUIRED:");
-      console.error("[Token Refresh]   1. Delete token.json: rm backend/token.json");
-      console.error("[Token Refresh]   2. Reauthorize at: /api/gmail/oauth2/url");
-      console.error("[Token Refresh]   3. Gmail will not work until reauthorized");
-      return;
-    }
-    
-    // For invalid_grant, just warn - email will still work from id_token
-    if (err.message?.includes("invalid_grant") || err.message?.includes("refresh token") || err.message?.includes("re-authorize")) {
-      console.error("[Token Refresh] Refresh token invalid - Gmail API will not work");
-      console.error("[Token Refresh] Please delete token.json and re-authorize at /api/gmail/oauth2/url");
-      console.error("[Token Refresh] This is likely because:");
-      console.error("[Token Refresh]   1. RAPT required (Google security policy)");
-      console.error("[Token Refresh]   2. App is in 'Testing' mode (refresh tokens expire after 7 days)");
-      console.error("[Token Refresh]   3. Refresh token was revoked");
-      console.error("[Token Refresh]   4. OAuth credentials changed");
-      return;
-    }
-    console.error("[Token Refresh] Initial check error:", err.message);
-  }
-}, 5000); // Wait 5 seconds after server starts
-
-// Periodic refresh job - runs every 20 minutes to proactively refresh tokens
-// Google access tokens expire after 1 hour, but refresh tokens can expire if not used
-// Checking every 20 minutes ensures we actively use the refresh token, keeping it alive
-setInterval(async () => {
-  try {
-    const timestamp = new Date().toISOString();
-    console.log(`[Token Refresh Job] [${timestamp}] Running scheduled token refresh...`);
-    await refreshAccessTokenIfNeeded();
-    console.log(`[Token Refresh Job] [${timestamp}] Token refresh check completed successfully`);
-  } catch (err) {
-    const timestamp = new Date().toISOString();
-    // Don't log errors for missing token.json (expected if not configured)
-    if (err.message?.includes("Missing token.json")) {
-      return;
-    }
-    // Check for RAPT error first (most specific)
-    if (err.message?.includes("RAPT required") || err.message?.includes("invalid_rapt") || err.message?.includes("rapt_required")) {
-      console.error(`[Token Refresh Job] [${timestamp}] RAPT (Risk-Aware Protection Token) required by Google`);
-      console.error(`[Token Refresh Job] [${timestamp}] This requires manual re-authorization - automatic refresh is blocked`);
-      console.error(`[Token Refresh Job] [${timestamp}] ACTION REQUIRED:`);
-      console.error(`[Token Refresh Job] [${timestamp}]   1. Delete token.json: rm backend/token.json`);
-      console.error(`[Token Refresh Job] [${timestamp}]   2. Reauthorize at: /api/gmail/oauth2/url`);
-      console.error(`[Token Refresh Job] [${timestamp}]   3. Gmail will not work until reauthorized`);
-      return;
-    }
-    
-    // For invalid_grant, log as error so it's visible
-    if (err.message?.includes("invalid_grant") || err.message?.includes("refresh token") || err.message?.includes("re-authorize")) {
-      console.error(`[Token Refresh Job] [${timestamp}] Refresh token invalid - Gmail API will not work`);
-      console.error(`[Token Refresh Job] [${timestamp}] Please delete token.json and re-authorize at /api/gmail/oauth2/url`);
-      console.error(`[Token Refresh Job] [${timestamp}] Error: ${err.message}`);
-      console.error(`[Token Refresh Job] [${timestamp}] Common causes: RAPT required, token revoked, or app in Testing mode`);
-      return;
-    }
-    console.error(`[Token Refresh Job] [${timestamp}] Error:`, err.message);
-  }
-}, 20 * 60 * 1000); // Run every 20 minutes (more frequent to keep refresh token alive)
+// Start proactive Gmail token monitor (startup check + scheduled checks)
+startGmailTokenMonitor();
 
 // Gmail Watch Management: Auto-start and auto-renew watch
 async function initializeGmailWatch() {

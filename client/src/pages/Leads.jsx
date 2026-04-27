@@ -513,7 +513,7 @@ export default function Leads() {
                 <li>Open: <a href={helpUrl} target="_blank" rel="noopener noreferrer" className="text-blue-300 underline">{helpUrl}</a></li>
                 <li>Click "Authorize Gmail Access"</li>
                 <li>Sign in and grant permissions</li>
-                <li>Then refresh this page</li>
+                <li>Leads will refresh automatically after success</li>
               </ol>
             </div>
           );
@@ -1279,13 +1279,37 @@ export default function Leads() {
                       "width=600,height=700,scrollbars=yes,resizable=yes"
                     );
                     
+                    if (!popup) {
+                      setIsReauthorizing(false);
+                      setError("Popup was blocked by the browser. Please allow popups and try again.");
+                      return;
+                    }
+                    
+                    let handledSuccess = false;
+                    const handleOAuthMessage = async (event) => {
+                      if (!event?.data || event.data.type !== "gmail-oauth-success") return;
+                      handledSuccess = true;
+                      window.removeEventListener("message", handleOAuthMessage);
+                      clearInterval(checkClosed);
+                      setIsReauthorizing(false);
+                      setError("");
+                      setErrorType(null);
+                      await fetchMessages();
+                    };
+                    window.addEventListener("message", handleOAuthMessage);
+                    
                     // 4. Poll for popup to close (OAuth complete)
                     const checkClosed = setInterval(() => {
                       if (popup.closed) {
                         clearInterval(checkClosed);
+                        window.removeEventListener("message", handleOAuthMessage);
                         setIsReauthorizing(false);
-                        // Refresh the page to reload leads
-                        window.location.reload();
+                        // Fallback: refresh leads even if postMessage was missed
+                        if (!handledSuccess) {
+                          setError("");
+                          setErrorType(null);
+                          fetchMessages();
+                        }
                       }
                     }, 500);
                     
@@ -1294,6 +1318,7 @@ export default function Leads() {
                       if (!popup.closed) {
                         popup.close();
                         clearInterval(checkClosed);
+                        window.removeEventListener("message", handleOAuthMessage);
                         setIsReauthorizing(false);
                         alert("Authorization timed out. Please try again.");
                       }

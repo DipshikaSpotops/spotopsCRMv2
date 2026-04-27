@@ -987,11 +987,16 @@ export async function oauth2CallbackHandler(req, res, next) {
             <h1 style="color: #4CAF50;">✅ Gmail Connected Successfully!</h1>
             <p>Email: <strong>${userEmail || "N/A"}</strong></p>
             <p style="color: #4CAF50; margin-top: 20px;">✅ Token saved and active. You can now use Gmail features.</p>
-            <p>Closing window and refreshing...</p>
+            <p>Closing window and updating leads...</p>
             <script>
               if (window.opener) {
-                // Refresh the parent window (Leads page)
-                window.opener.location.reload();
+                // Notify parent window so it can refresh data without full page reload
+                try {
+                  window.opener.postMessage(
+                    { type: "gmail-oauth-success", email: "${userEmail || ""}" },
+                    "*"
+                  );
+                } catch (e) {}
                 window.close();
               } else {
                 // Fallback: redirect to Leads page
