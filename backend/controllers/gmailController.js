@@ -20,225 +20,14 @@ import {
   reportingDayBoundsMs,
   bucketInternalMsToReportingDay,
 } from "../services/gmailInboundStats.js";
+import { extractStructuredFields } from "../utils/extractStructuredFields.js";
+import { getGmailClient, getAuthUrl, setTokensFromCode, getUserEmail, clearTokenCache } from "../services/googleAuth.js";
 
 // Get SALES_AGENT_EMAILS from environment
 const SALES_AGENT_EMAILS = (process.env.SALES_AGENT_EMAILS || "")
   .split(",")
   .map((email) => email.trim().toLowerCase())
   .filter(Boolean);
-
-// Extract structured fields from email body HTML (name, email, phone, year, make, model, part required)
-function extractStructuredFields(html) {
-  if (!html) return {};
-  
-  const fields = {};
-  
-  // Remove HTML tags for text extraction, decode HTML entities
-  let textContent = html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
-  // Decode common HTML entities
-  textContent = textContent.replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'");
-  
-  // Clean up common patterns that might interfere
-  textContent = textContent.replace(/@media[^}]*}/g, ""); // Remove CSS media queries
-  
-  // Patterns to extract fields - stop at next field label or ending phrase
-  const patterns = {
-    // Name: stop at Email, Phone, Year, etc.
-    name: /(?:Name|Full Name|Customer Name)[\s:]+([^:]*?)(?=\s*(?:Email|Phone|Phone Number|Year|Make|Model|Part|Good Luck|©|50 Stars)|$)/i,
-    // Email: extract email address, stop at Phone, Year, etc.
-    email: /(?:Email|Email Address)[\s:]+([^\s:<>]+@[^\s:<>]+(?:\.[^\s:<>]+)*)(?=\s*(?:Phone|Phone Number|Year|Make|Model|Part|Good Luck|©|50 Stars)|$)/i,
-    // Phone: stop at Year, Make, Model, etc.
-    phone: /(?:Phone|Telephone|Phone Number)[\s:]+([+\d\s\-()]+?)(?=\s*(?:Year|Make|Model|Part|Email|Good Luck|©|50 Stars)|$)/i,
-    // Year: 4 digits, stop at Make, Model, etc.
-    year: /(?:Year)[\s:]+(\d{4})(?=\s*(?:Make|Model|Part|Email|Phone|Good Luck|©|50 Stars)|$)/i,
-    // Make & Model: stop at Part Required, Part, etc.
-    makeAndModel: /(?:Make\s*[&]?\s*Model|Make and Model)[\s:]+([^:]*?)(?=\s*(?:Part Required|Part|Year|Email|Phone|Good Luck|©|50 Stars)|$)/i,
-    // Make: stop at Model, Part, etc.
-    make: /(?:^|\s)(?:Make)[\s:]+([^:&]*?)(?=\s*(?:Model|Part|Year|Email|Phone|Good Luck|©|50 Stars)|$)/i,
-    // Model: stop at Part, Year, etc.
-    model: /(?:^|\s)(?:Model)[\s:]+([^:]*?)(?=\s*(?:Part|Year|Make|Email|Phone|Good Luck|©|50 Stars)|$)/i,
-    // Part Required: Find the LAST occurrence (to avoid matching email header), stop at Offer, Good Luck, etc.
-    // Use a more specific pattern that looks for the actual part field in the body
-    partRequired: /(?:Part Required|Part Needed)[\s:]+([^:]*?)(?=\s*(?:Offer|Offer Selected|Good Luck|©|50 Stars|@media|\n\n|\r\n\r\n)|$)/i,
-  };
-  
-  // Try to extract each field using patterns
-  for (const [key, pattern] of Object.entries(patterns)) {
-    // For partRequired, find ALL matches and use the LAST one (to avoid email header)
-    if (key === "partRequired") {
-      const allMatches = [...textContent.matchAll(new RegExp(pattern.source, pattern.flags + "g"))];
-      if (allMatches.length > 0) {
-        // Use the last match (most likely the actual field in the email body)
-        const match = allMatches[allMatches.length - 1];
-        if (match && match[1]) {
-          let value = match[1].trim();
-          // Stop at common ending phrases
-          const endPhrases = ["Offer", "Offer Selected", "Good Luck", "©", "50 Stars", "Auto Parts", "@media"];
-          for (const phrase of endPhrases) {
-            const idx = value.toLowerCase().indexOf(phrase.toLowerCase());
-            if (idx > 0) {
-              value = value.substring(0, idx).trim();
-            }
-          }
-          // Remove trailing punctuation and extra spaces
-          value = value.replace(/\s+/g, " ").replace(/[.\s]+$/, "").trim();
-          // Additional cleanup: remove anything that looks like it's part of the email header
-          // (e.g., "s 50 Stars Auto Parts - New Lead")
-          if (value.toLowerCase().includes("50 stars auto parts") || value.toLowerCase().includes("new lead")) {
-            // Try to extract just the part name after the last "Part Required:" in the value itself
-            const lastPartRequired = value.toLowerCase().lastIndexOf("part required:");
-            if (lastPartRequired > 0) {
-              value = value.substring(lastPartRequired + "part required:".length).trim();
-            }
-            // If it still contains email header text, try to find the actual part
-            const actualPartMatch = value.match(/([^:]+?)(?:\s*(?:Email|Phone|Year|Make|Model|Offer|Good Luck|©|50 Stars))/i);
-            if (actualPartMatch) {
-              value = actualPartMatch[1].trim();
-            }
-          }
-          if (value) {
-            fields[key] = value;
-          }
-        }
-      }
-    } else {
-      // For other fields, use first match as before
-      const match = textContent.match(pattern);
-      if (match && match[1]) {
-        // Clean up the extracted value - remove extra spaces and stop at common ending phrases
-        let value = match[1].trim();
-        // Stop at common ending phrases
-        const endPhrases = ["Offer", "Offer Selected", "Good Luck", "©", "50 Stars", "Auto Parts", "@media"];
-        for (const phrase of endPhrases) {
-          const idx = value.toLowerCase().indexOf(phrase.toLowerCase());
-          if (idx > 0) {
-            value = value.substring(0, idx).trim();
-          }
-        }
-        // Remove trailing punctuation and extra spaces
-        value = value.replace(/\s+/g, " ").replace(/[.\s]+$/, "").trim();
-        if (value) {
-          fields[key] = value;
-        }
-      }
-    }
-  }
-  
-  // Handle "Make & Model" - split into make and model if not already extracted separately
-  if (fields.makeAndModel && !fields.make && !fields.model) {
-    // Try to split "AMC AMX" into make="AMC" and model="AMX"
-    const parts = fields.makeAndModel.trim().split(/\s+/);
-    if (parts.length >= 2) {
-      fields.make = parts[0]; // First word is make
-      fields.model = parts.slice(1).join(" "); // Rest is model
-    } else {
-      // If only one word, use it as make
-      fields.make = fields.makeAndModel;
-    }
-    delete fields.makeAndModel; // Remove the combined field
-  }
-  
-  // Helper function to clean extracted values
-  function cleanFieldValue(value) {
-    if (!value) return "";
-    let cleaned = value.trim();
-    // Stop at next field label or ending phrase
-    const stopPatterns = [
-      /\s*(?:Email|Phone|Phone Number|Year|Make|Model|Part Required|Part|Offer|Offer Selected|Good Luck|©|50 Stars|@media)/i,
-      /\s+Email\s*:/i,
-      /\s+Phone\s*:/i,
-      /\s+Year\s*:/i,
-      /\s+Make/i,
-      /\s+Model\s*:/i,
-      /\s+Part\s+Required\s*:/i,
-      /\s+Offer\s*(?:Selected)?\s*:/i,
-      /\s+Good\s+Luck/i,
-      /\s*©/i,
-      /\s*50\s+Stars/i,
-      /\s*@media/i,
-    ];
-    
-    for (const pattern of stopPatterns) {
-      const match = cleaned.match(pattern);
-      if (match && match.index > 0) {
-        cleaned = cleaned.substring(0, match.index).trim();
-      }
-    }
-    
-    // Remove trailing punctuation, extra spaces, and HTML entities
-    cleaned = cleaned.replace(/\s+/g, " ").replace(/[.\s]+$/, "").trim();
-    return cleaned;
-  }
-  
-  // Also try to extract from HTML structure (if fields are in labels/strong tags)
-  // Look for patterns like <strong>Name:</strong> Dipsikha Pradhan
-  const labelValuePattern = /<(?:strong|b|label|td|th)[^>]*>([^<]+)<\/\w+>[\s:]*([^<\n]+)/gi;
-  let match;
-  while ((match = labelValuePattern.exec(html)) !== null) {
-    const label = match[1].toLowerCase().trim();
-    let value = cleanFieldValue(match[2]);
-    
-    if (label.includes("name") && !fields.name && value) fields.name = value;
-    if ((label.includes("email") || label.includes("email address")) && !fields.email && value) {
-      // Extract just the email address
-      const emailMatch = value.match(/([^\s<>]+@[^\s<>]+(?:\.[^\s<>]+)*)/);
-      if (emailMatch) fields.email = emailMatch[1];
-    }
-    if (label.includes("phone") && !fields.phone && value) fields.phone = value;
-    if (label.includes("year") && !fields.year && value) fields.year = value;
-    if ((label.includes("make") && label.includes("model")) || label.includes("make & model")) {
-      if (!fields.makeAndModel && value) fields.makeAndModel = value;
-    } else if (label.includes("make") && !label.includes("model") && !fields.make && value) {
-      fields.make = value;
-    } else if (label.includes("model") && !label.includes("make") && !fields.model && value) {
-      fields.model = value;
-    }
-    if (label.includes("part") && label.includes("required") && !fields.partRequired && value) {
-      fields.partRequired = value;
-    }
-  }
-  
-  // Also try table structure (td pairs)
-  const tableRowPattern = /<td[^>]*>([^<]+)<\/td>\s*<td[^>]*>([^<]+)<\/td>/gi;
-  while ((match = tableRowPattern.exec(html)) !== null) {
-    const label = match[1].toLowerCase().trim();
-    let value = cleanFieldValue(match[2]);
-    
-    if (label.includes("name") && !fields.name && value) fields.name = value;
-    if ((label.includes("email") || label.includes("email address")) && !fields.email && value) {
-      // Extract just the email address
-      const emailMatch = value.match(/([^\s<>]+@[^\s<>]+(?:\.[^\s<>]+)*)/);
-      if (emailMatch) fields.email = emailMatch[1];
-    }
-    if (label.includes("phone") && !fields.phone && value) fields.phone = value;
-    if (label.includes("year") && !fields.year && value) fields.year = value;
-    if ((label.includes("make") && label.includes("model")) || label.includes("make & model")) {
-      if (!fields.makeAndModel && value) fields.makeAndModel = value;
-    } else if (label.includes("make") && !label.includes("model") && !fields.make && value) {
-      fields.make = value;
-    } else if (label.includes("model") && !label.includes("make") && !fields.model && value) {
-      fields.model = value;
-    }
-    if (label.includes("part") && label.includes("required") && !fields.partRequired && value) {
-      fields.partRequired = value;
-    }
-  }
-  
-  // Final processing: split makeAndModel if needed
-  if (fields.makeAndModel && !fields.make && !fields.model) {
-    const parts = fields.makeAndModel.trim().split(/\s+/);
-    if (parts.length >= 2) {
-      fields.make = parts[0];
-      fields.model = parts.slice(1).join(" ");
-    } else {
-      fields.make = fields.makeAndModel;
-    }
-    delete fields.makeAndModel;
-  }
-  
-  return fields;
-}
-import { getGmailClient, getAuthUrl, setTokensFromCode, getUserEmail, clearTokenCache } from "../services/googleAuth.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -1875,6 +1664,7 @@ export async function getDailyStatisticsHandler(req, res, next) {
           dailyStats: [],
           totalLeads: 0,
           totalInboundFromGmail: 0,
+          partWiseReceived: {},
           agentStats: [],
           debug: { message: `No user found with email: ${emailToFilter}` },
         });
@@ -2194,10 +1984,19 @@ export async function getDailyStatisticsHandler(req, res, next) {
     }
     dailyStatsWithInbound.sort((a, b) => b.date.localeCompare(a.date));
 
+    const partWiseReceivedMap = inboundPack.partWiseReceived;
+    const partWiseReceived =
+      partWiseReceivedMap instanceof Map
+        ? Object.fromEntries(partWiseReceivedMap)
+        : partWiseReceivedMap && typeof partWiseReceivedMap === "object"
+          ? partWiseReceivedMap
+          : {};
+
     return res.json({
       dailyStats: dailyStatsWithInbound,
       totalLeads: leadsWithPartRequired.length,
       totalInboundFromGmail,
+      partWiseReceived,
       agentStats,
       dateRange: {
         start: start.toISOString(),

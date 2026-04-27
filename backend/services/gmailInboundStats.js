@@ -1,5 +1,7 @@
 import moment from "moment-timezone";
 import GmailMessage from "../models/GmailMessage.js";
+import Lead from "../models/Lead.js";
+import { extractStructuredFields } from "../utils/extractStructuredFields.js";
 import { getGmailClient } from "./googleAuth.js";
 import { detectAgent } from "./gmailPubSubService.js";
 
@@ -36,6 +38,104 @@ export function bucketInternalMsToReportingDay(
 }
 
 const LIST_CONCURRENCY = Number(process.env.GMAIL_INBOUND_LIST_CONCURRENCY || 20);
+const PART_FULL_PARSE_MAX = Number(process.env.GMAIL_PART_PARSE_FULL_MAX || 200);
+
+function extractHtmlFromGmailPayload(payload) {
+  if (!payload) return "";
+  function findHtmlPart(part) {
+    if (!part) return null;
+    if (part.mimeType === "text/html" && part.body?.data) {
+      const raw = part.body.data.replace(/-/g, "+").replace(/_/g, "/");
+      return Buffer.from(raw, "base64").toString("utf-8");
+    }
+    if (part.parts) {
+      for (const p of part.parts) {
+        const found = findHtmlPart(p);
+        if (found) return found;
+      }
+    }
+    return null;
+  }
+  return findHtmlPart(payload) || "";
+}
+
+function partFromParsed(htmlOrSnippet) {
+  if (!htmlOrSnippet) return "";
+  const p = String(extractStructuredFields(htmlOrSnippet).partRequired || "").trim();
+  return p;
+}
+
+/**
+ * Per-part "Received" counts: Lead.partRequired, else parse GmailMessage body/snippet,
+ * else optional Gmail API full message (for ids not in DB yet).
+ */
+async function buildPartWiseReceivedFromMessageIds(messageIds, options = {}) {
+  const { gmail } = options;
+  const partWiseReceived = new Map();
+  if (!messageIds?.length) return partWiseReceived;
+
+  const uniq = [...new Set(messageIds)];
+  const resolved = new Map();
+
+  const leads = await Lead.find({ messageId: { $in: uniq } })
+    .select("messageId partRequired")
+    .lean();
+  for (const l of leads) {
+    const p = String(l.partRequired || "").trim();
+    if (p) resolved.set(l.messageId, p);
+  }
+
+  let missing = uniq.filter((id) => !resolved.has(id));
+  if (missing.length) {
+    const gdocs = await GmailMessage.find({ messageId: { $in: missing } })
+      .select("messageId bodyHtml snippet")
+      .lean();
+    for (const g of gdocs) {
+      let p = partFromParsed(g.bodyHtml || "");
+      if (!p) p = partFromParsed(g.snippet || "");
+      if (p) resolved.set(g.messageId, p);
+    }
+    missing = uniq.filter((id) => !resolved.has(id));
+  }
+
+  if (gmail && missing.length > 0) {
+    let fullFetchesDone = 0;
+    const conc = Math.min(LIST_CONCURRENCY, 15);
+    for (let i = 0; i < missing.length && fullFetchesDone < PART_FULL_PARSE_MAX; i += conc) {
+      const room = PART_FULL_PARSE_MAX - fullFetchesDone;
+      const chunk = missing.slice(i, i + conc).slice(0, room);
+      if (chunk.length === 0) break;
+      const rows = await Promise.all(
+        chunk.map(async (id) => {
+          try {
+            const { data } = await gmail.users.messages.get({
+              userId: "me",
+              id,
+              format: "full",
+            });
+            const html = extractHtmlFromGmailPayload(data.payload);
+            const p = partFromParsed(html);
+            return { id, p };
+          } catch {
+            return { id, p: "" };
+          }
+        })
+      );
+      fullFetchesDone += chunk.length;
+      for (const row of rows) {
+        if (row.p) resolved.set(row.id, row.p);
+      }
+    }
+  }
+
+  for (const mid of uniq) {
+    const part = resolved.get(mid);
+    if (!part) continue;
+    partWiseReceived.set(part, (partWiseReceived.get(part) || 0) + 1);
+  }
+
+  return partWiseReceived;
+}
 
 /**
  * Live Gmail API: list messages in a loose date window, then filter by internalDate
@@ -79,6 +179,7 @@ export async function fetchInboundCountsFromGmailApi({
   const uniqueIds = [...new Set(ids)];
   const inboundByDate = new Map();
   let totalInboundFromGmail = 0;
+  const acceptedMessageIds = [];
 
   const lowerFilter = agentEmailFilter
     ? String(agentEmailFilter).toLowerCase()
@@ -97,7 +198,7 @@ export async function fetchInboundCountsFromGmailApi({
           });
           const internalMs = data.internalDate != null ? Number(data.internalDate) : null;
           const headers = data.payload?.headers || [];
-          return { internalMs, headers };
+          return { id, internalMs, headers };
         } catch {
           return null;
         }
@@ -122,10 +223,15 @@ export async function fetchInboundCountsFromGmailApi({
       if (!dayKey) continue;
       inboundByDate.set(dayKey, (inboundByDate.get(dayKey) || 0) + 1);
       totalInboundFromGmail += 1;
+      acceptedMessageIds.push(row.id);
     }
   }
 
-  return { inboundByDate, totalInboundFromGmail };
+  const partWiseReceived = await buildPartWiseReceivedFromMessageIds(acceptedMessageIds, {
+    gmail,
+  });
+
+  return { inboundByDate, totalInboundFromGmail, partWiseReceived };
 }
 
 /** DB fallback using GmailMessage + same IST windows (internalDate / createdAt). */
@@ -164,11 +270,12 @@ export async function fetchInboundCountsFromMongoIst({
       },
     },
     { $match: rangeMatch },
-    { $project: { arrivalAt: 1 } },
+    { $project: { arrivalAt: 1, messageId: 1 } },
   ]);
 
   const inboundByDate = new Map();
   let totalInboundFromGmail = 0;
+  const acceptedMessageIds = [];
 
   for (const doc of rows) {
     const internalMs = doc.arrivalAt ? new Date(doc.arrivalAt).getTime() : null;
@@ -183,7 +290,18 @@ export async function fetchInboundCountsFromMongoIst({
     if (!dayKey) continue;
     inboundByDate.set(dayKey, (inboundByDate.get(dayKey) || 0) + 1);
     totalInboundFromGmail += 1;
+    if (doc.messageId) acceptedMessageIds.push(doc.messageId);
   }
 
-  return { inboundByDate, totalInboundFromGmail };
+  let gmailForParts = null;
+  try {
+    gmailForParts = await getGmailClient();
+  } catch {
+    /* optional */
+  }
+  const partWiseReceived = await buildPartWiseReceivedFromMessageIds(acceptedMessageIds, {
+    gmail: gmailForParts,
+  });
+
+  return { inboundByDate, totalInboundFromGmail, partWiseReceived };
 }

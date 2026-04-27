@@ -1133,6 +1133,23 @@ export default function Leads() {
       .sort((a, b) => b.count - a.count || a.partRequired.localeCompare(b.partRequired));
   }, [statistics]);
 
+  const partWiseRows = useMemo(() => {
+    const claimedMap = new Map(partWiseLeadTotals.map((r) => [r.partRequired, r.count]));
+    const receivedObj = statistics?.partWiseReceived || {};
+    const parts = new Set([...claimedMap.keys(), ...Object.keys(receivedObj)]);
+    return Array.from(parts)
+      .map((partRequired) => ({
+        partRequired,
+        claimed: claimedMap.get(partRequired) ?? 0,
+        received: Number(receivedObj[partRequired]) || 0,
+      }))
+      .sort(
+        (a, b) =>
+          Math.max(b.claimed, b.received) - Math.max(a.claimed, a.received) ||
+          a.partRequired.localeCompare(b.partRequired)
+      );
+  }, [partWiseLeadTotals, statistics?.partWiseReceived]);
+
   const filteredMessages = useMemo(() => {
     console.log(`[Leads] filteredMessages - isAdmin: ${isAdmin}, total messages: ${messages.length}`);
     const claimedLeads = messages.filter(m => m.status === "claimed" || m.status === "closed");
@@ -1530,8 +1547,12 @@ export default function Leads() {
 
               {/* Part-wise lead count */}
               <div className="rounded-lg border border-white/20 bg-white/10 backdrop-blur-md p-4">
-                <h2 className="text-xl font-bold text-white mb-4">Part-wise Leads</h2>
-                {partWiseLeadTotals.length === 0 ? (
+                <h2 className="text-xl font-bold text-white mb-2">Part-wise Leads</h2>
+                <p className="text-xs text-white/55 mb-3">
+                  Received per part comes from Lead data when present; otherwise parsed from stored Gmail HTML/snippet
+                  or a limited live Gmail fetch (same IST window as the totals card).
+                </p>
+                {partWiseRows.length === 0 ? (
                   <div className="text-white/70 text-sm">No part data found for this range.</div>
                 ) : (
                   <div className="max-h-64 overflow-y-auto rounded-lg border border-white/10">
@@ -1539,14 +1560,16 @@ export default function Leads() {
                       <thead className="sticky top-0 bg-white/10">
                         <tr>
                           <th className="text-left px-3 py-2 border-r border-white/20">Part Required</th>
-                          <th className="text-right px-3 py-2">Leads</th>
+                          <th className="text-right px-3 py-2 border-r border-white/20">Claimed</th>
+                          <th className="text-right px-3 py-2 text-emerald-300">Received</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {partWiseLeadTotals.map((row) => (
+                        {partWiseRows.map((row) => (
                           <tr key={row.partRequired} className="even:bg-white/5 odd:bg-white/0">
                             <td className="px-3 py-2 border-r border-white/10">{row.partRequired}</td>
-                            <td className="px-3 py-2 text-right font-semibold">{row.count}</td>
+                            <td className="px-3 py-2 text-right font-semibold border-r border-white/10">{row.claimed}</td>
+                            <td className="px-3 py-2 text-right font-semibold text-emerald-300">{row.received}</td>
                           </tr>
                         ))}
                       </tbody>
