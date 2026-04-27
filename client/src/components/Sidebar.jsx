@@ -73,7 +73,7 @@ export default function Sidebar() {
     { text: "Edit Order", to: "/edit-order", roles: ["Admin", "Sales"] },
     { text: "Daily Sales GP", to: "/daily-sales-gp", roles: ["Admin", "Sales"] },
     { text: "Sales Data", to: "/sales-data", roles: ["Admin", "Sales"] },
-    { text: "Leads", to: "/leads", roles: ["Admin", "Sales"] },
+    { text: "Leads", to: "/leads", roles: ["Admin", "Sales"], emailAccess: "50starsauto110@gmail.com" },
     { text: "View All Orders", to: "/view-all-orders" },
     { text: "View Orders-Monthly", to: "/monthly-orders" },
     {
