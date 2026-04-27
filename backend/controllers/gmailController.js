@@ -1881,9 +1881,14 @@ export async function getDailyStatisticsHandler(req, res, next) {
       .lean();
     
     console.log("[getDailyStatistics] Found leads:", leads.length);
-    
-    // Get all unique user IDs from leads
-    const userIds = [...new Set(leads.map(l => l.claimedBy).filter(Boolean))];
+
+    const leadsWithPartRequired = leads.filter((lead) =>
+      String(lead.partRequired || "").trim().length > 0
+    );
+    console.log("[getDailyStatistics] Leads with partRequired:", leadsWithPartRequired.length);
+
+    // Get all unique user IDs from leads (must have partRequired for statistics)
+    const userIds = [...new Set(leadsWithPartRequired.map(l => l.claimedBy).filter(Boolean))];
     console.log("[getDailyStatistics] Unique user IDs:", userIds);
     
     // Fetch user details for all claimedBy IDs
@@ -1895,7 +1900,7 @@ export async function getDailyStatisticsHandler(req, res, next) {
     const dailyMap = new Map();
     const agentMap = new Map();
     
-    leads.forEach((lead) => {
+    leadsWithPartRequired.forEach((lead) => {
       // Use enteredAt (when lead came in) if available, otherwise fallback to claimedAt
       const leadDate = lead.enteredAt || lead.claimedAt || lead.createdAt;
       const dateKey = moment(leadDate).tz("America/Chicago").format("YYYY-MM-DD"); // Use Dallas timezone
@@ -2125,7 +2130,7 @@ export async function getDailyStatisticsHandler(req, res, next) {
     
     return res.json({
       dailyStats,
-      totalLeads: leads.length,
+      totalLeads: leadsWithPartRequired.length,
       agentStats,
       dateRange: {
         start: start.toISOString(),
