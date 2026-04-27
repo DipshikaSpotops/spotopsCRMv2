@@ -47,6 +47,8 @@ const leadSchema = new mongoose.Schema(
 leadSchema.index({ claimedBy: 1, claimedAt: -1 });
 leadSchema.index({ status: 1, claimedAt: -1 });
 leadSchema.index({ salesAgent: 1, status: 1, claimedAt: -1 }); // For querying user's closed leads
+leadSchema.index({ status: 1, enteredAt: -1 });
+leadSchema.index({ status: 1, claimedAt: -1 });
 
 const Lead = mongoose.models.Lead || mongoose.model("Lead", leadSchema);
 

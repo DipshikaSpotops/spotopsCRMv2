@@ -13,6 +13,13 @@ import {
   syncHistory,
 } from "../services/gmailPubSubService.js";
 import { detectAgent, buildMessageDoc, persistMessage } from "../services/gmailPubSubService.js";
+import {
+  fetchInboundCountsFromGmailApi,
+  fetchInboundCountsFromMongoIst,
+  GMAIL_INBOUND_STATS_ZONE,
+  reportingDayBoundsMs,
+  bucketInternalMsToReportingDay,
+} from "../services/gmailInboundStats.js";
 
 // Get SALES_AGENT_EMAILS from environment
 const SALES_AGENT_EMAILS = (process.env.SALES_AGENT_EMAILS || "")
@@ -1808,33 +1815,35 @@ export async function getDailyStatisticsHandler(req, res, next) {
     const userEmail = user?.email || "";
     
     console.log("[getDailyStatistics] Query params:", { startDate, endDate, agentEmail, userRole, userEmail });
-    
-    // Parse dates in Dallas timezone (America/Chicago)
-    let start, end;
-    if (startDate) {
-      // Parse the date string and interpret it in Dallas timezone
-      start = moment.tz(startDate, "America/Chicago").startOf("day").toDate();
-    } else {
-      start = moment.tz("America/Chicago").startOf("day").toDate();
-    }
-    
-    if (endDate) {
-      // Parse the date string and interpret it in Dallas timezone
-      end = moment.tz(endDate, "America/Chicago").endOf("day").toDate();
-    } else {
-      end = moment.tz("America/Chicago").endOf("day").toDate();
-    }
-    
-    console.log("[getDailyStatistics] Date range:", { start: start.toISOString(), end: end.toISOString() });
-    
-    // Build query - Query directly from Lead collection
-    // Include both "claimed" and "closed" leads
-    // Filter by enteredAt (when lead came in) if available, otherwise use claimedAt
+
+    // Calendar dates from the client (YYYY-MM-DD) — for stats we use IST "reporting days":
+    // day D = 16:30 IST on D through 06:00 IST on D+1 (for inbound from Gmail + daily buckets).
+    const inboundStartStr = startDate
+      ? String(startDate).split("T")[0]
+      : moment.tz(GMAIL_INBOUND_STATS_ZONE).format("YYYY-MM-DD");
+    const inboundEndStr = endDate
+      ? String(endDate).split("T")[0]
+      : inboundStartStr;
+
+    const istWindowStartMs = reportingDayBoundsMs(inboundStartStr).startMs;
+    const istWindowEndMs = reportingDayBoundsMs(inboundEndStr).endMs;
+    const start = new Date(istWindowStartMs);
+    const end = new Date(istWindowEndMs);
+
+    console.log("[getDailyStatistics] IST stats window:", {
+      zone: GMAIL_INBOUND_STATS_ZONE,
+      inboundStartStr,
+      inboundEndStr,
+      utcStart: start.toISOString(),
+      utcEnd: end.toISOString(),
+    });
+
+    // Build query - Lead rows overlapping the IST wall-clock window [start, end]
     const query = {
       status: { $in: ["claimed", "closed"] },
       $or: [
         { enteredAt: { $gte: start, $lte: end } },
-        { enteredAt: { $exists: false }, claimedAt: { $gte: start, $lte: end } }, // Fallback for old leads without enteredAt
+        { enteredAt: { $exists: false }, claimedAt: { $gte: start, $lte: end } },
       ],
     };
     
@@ -1865,6 +1874,7 @@ export async function getDailyStatisticsHandler(req, res, next) {
         return res.json({
           dailyStats: [],
           totalLeads: 0,
+          totalInboundFromGmail: 0,
           agentStats: [],
           debug: { message: `No user found with email: ${emailToFilter}` },
         });
@@ -1874,12 +1884,32 @@ export async function getDailyStatisticsHandler(req, res, next) {
     }
     
     console.log("[getDailyStatistics] Final query:", JSON.stringify(query, null, 2));
-    
-    // Query directly from Lead collection instead of GmailMessage
-    const leads = await Lead.find(query)
+
+    const inboundPromise = fetchInboundCountsFromGmailApi({
+      startDateStr: inboundStartStr,
+      endDateStr: inboundEndStr,
+      agentEmailFilter: emailToFilter,
+    }).catch((err) => {
+      console.error(
+        "[getDailyStatistics] Gmail API inbound failed, using DB fallback:",
+        err?.message || err
+      );
+      return fetchInboundCountsFromMongoIst({
+        startDateStr: inboundStartStr,
+        endDateStr: inboundEndStr,
+        agentEmailFilter: emailToFilter,
+      });
+    });
+
+    const leadsPromise = Lead.find(query)
+      .select(
+        "messageId gmailMessageId enteredAt claimedAt createdAt claimedBy salesAgent subject from name email phone year make model partRequired labels status"
+      )
       .sort({ claimedAt: -1 })
       .lean();
-    
+
+    const [leads, inboundPack] = await Promise.all([leadsPromise, inboundPromise]);
+
     console.log("[getDailyStatistics] Found leads:", leads.length);
 
     const leadsWithPartRequired = leads.filter((lead) =>
@@ -1903,7 +1933,17 @@ export async function getDailyStatisticsHandler(req, res, next) {
     leadsWithPartRequired.forEach((lead) => {
       // Use enteredAt (when lead came in) if available, otherwise fallback to claimedAt
       const leadDate = lead.enteredAt || lead.claimedAt || lead.createdAt;
-      const dateKey = moment(leadDate).tz("America/Chicago").format("YYYY-MM-DD"); // Use Dallas timezone
+      const ts = moment(leadDate).valueOf();
+      let dateKey = bucketInternalMsToReportingDay(
+        ts,
+        inboundStartStr,
+        inboundEndStr,
+        GMAIL_INBOUND_STATS_ZONE
+      );
+      if (!dateKey && ts >= istWindowStartMs && ts <= istWindowEndMs) {
+        dateKey = moment(ts).tz(GMAIL_INBOUND_STATS_ZONE).format("YYYY-MM-DD");
+      }
+      if (!dateKey) return;
       
       const user = userMap.get(String(lead.claimedBy));
       const agentId = lead.claimedBy || "unknown";
@@ -2127,14 +2167,44 @@ export async function getDailyStatisticsHandler(req, res, next) {
         };
       })
       .sort((a, b) => b.totalLeads - a.totalLeads);
-    
+
+    const inboundByDate = inboundPack.inboundByDate;
+    const totalInboundFromGmail = inboundPack.totalInboundFromGmail;
+    console.log(
+      "[getDailyStatistics] Inbound Gmail (live API or DB fallback):",
+      `totalMsgs=${totalInboundFromGmail}`,
+      `zone=${GMAIL_INBOUND_STATS_ZONE}`,
+      `labels=${inboundStartStr}–${inboundEndStr}`
+    );
+
+    const claimedDates = new Set(dailyStats.map((d) => d.date));
+    const dailyStatsWithInbound = dailyStats.map((day) => ({
+      ...day,
+      inboundFromGmail: inboundByDate.get(day.date) || 0,
+    }));
+    for (const [dateStr, cnt] of inboundByDate) {
+      if (!claimedDates.has(dateStr)) {
+        dailyStatsWithInbound.push({
+          date: dateStr,
+          total: 0,
+          inboundFromGmail: cnt,
+          agents: [],
+        });
+      }
+    }
+    dailyStatsWithInbound.sort((a, b) => b.date.localeCompare(a.date));
+
     return res.json({
-      dailyStats,
+      dailyStats: dailyStatsWithInbound,
       totalLeads: leadsWithPartRequired.length,
+      totalInboundFromGmail,
       agentStats,
       dateRange: {
         start: start.toISOString(),
         end: end.toISOString(),
+        inboundReportingZone: GMAIL_INBOUND_STATS_ZONE,
+        inboundReportingDayNote:
+          "Each calendar date D uses 16:30 IST on D through 06:00 IST on D+1 (inclusive).",
       },
     });
   } catch (err) {

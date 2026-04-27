@@ -662,19 +662,13 @@ export default function Leads() {
     try {
       console.log("[Leads] fetchStatistics called with dateFilter:", dateFilter);
       const params = {};
+      const ZONE = "America/Chicago";
       if (dateFilter?.start) {
-        // UnifiedDatePicker sends UTC ISO strings representing Dallas day boundaries
-        // Extract the date part (YYYY-MM-DD) from the UTC ISO string
-        // The UTC string represents the start of day in Dallas timezone
-        const startDateStr = dateFilter.start.split("T")[0]; // Extract YYYY-MM-DD
-        params.startDate = startDateStr;
-        console.log("[Leads] Extracted startDate:", startDateStr);
+        // Interpret stored ISO bounds in Dallas calendar days (avoid UTC date-string bugs)
+        params.startDate = moment(dateFilter.start).tz(ZONE).format("YYYY-MM-DD");
       }
       if (dateFilter?.end) {
-        // Extract the date part (YYYY-MM-DD) from the UTC ISO string
-        const endDateStr = dateFilter.end.split("T")[0]; // Extract YYYY-MM-DD
-        params.endDate = endDateStr;
-        console.log("[Leads] Extracted endDate:", endDateStr);
+        params.endDate = moment(dateFilter.end).tz(ZONE).format("YYYY-MM-DD");
       }
       // For Admin: use selectedAgentForStats if set (from dropdown filter)
       // For Sales: don't send agentEmail - backend will automatically filter to their own stats
@@ -686,7 +680,10 @@ export default function Leads() {
       console.log("[Leads] Selected agent for stats:", selectedAgentForStats);
       console.log("[Leads] Is Admin:", isAdmin, "Is Sales:", isSales);
       console.log("[Leads] Date filter:", dateFilter);
-      const { data } = await API.get("/gmail/statistics/daily", { params });
+      const { data } = await API.get("/gmail/statistics/daily", {
+        params,
+        timeout: 180000,
+      });
       console.log("[Leads] Statistics response:", data);
       console.log("[Leads] Daily stats count:", data?.dailyStats?.length || 0);
       console.log("[Leads] Agent stats count:", data?.agentStats?.length || 0);
@@ -694,26 +691,23 @@ export default function Leads() {
       setStatistics(data);
     } catch (err) {
       console.error("[Leads] fetch statistics error", err);
-      const message =
+      let message =
         err?.response?.data?.message ||
         err?.message ||
         "Failed to load statistics.";
+      if (err?.code === "ECONNABORTED" || /timeout/i.test(err?.message || "")) {
+        message =
+          "Statistics request timed out. Try a shorter date range (use Today), or retry after a moment.";
+      }
       setError(message);
     } finally {
       setLoadingStats(false);
     }
-  }, [dateFilter, isSales, normalizedEmail, email, selectedAgentForStats]);
+  }, [dateFilter, isAdmin, selectedAgentForStats]);
 
   useEffect(() => {
     fetchMessages();
   }, [fetchMessages]);
-
-  useEffect(() => {
-    if (viewMode === "statistics") {
-      // Always auto-fetch when entering statistics view (dateFilter defaults to today)
-      fetchStatistics();
-    }
-  }, [viewMode, fetchStatistics]);
 
   // Fetch all sales agents for admin users (so dropdown shows even before statistics load)
   useEffect(() => {
@@ -746,15 +740,12 @@ export default function Leads() {
     fetchSalesAgents();
   }, [isAdmin]);
 
-  // Auto-refresh statistics when date filter or agent selection changes (only when in statistics view)
+  // Load statistics when Statistics view is active (defaults to today) or when range/agent changes
   useEffect(() => {
     if (viewMode !== "statistics") return;
-    
-    // Only auto-fetch if we have a date filter set
-    if (dateFilter?.start || dateFilter?.end) {
-      fetchStatistics();
-    }
-  }, [dateFilter, selectedAgentForStats, viewMode, fetchStatistics]);
+    if (!dateFilter?.start || !dateFilter?.end) return;
+    fetchStatistics();
+  }, [viewMode, dateFilter, selectedAgentForStats, fetchStatistics]);
 
   // Fetch the source email address - try API first, then messages
   useEffect(() => {
@@ -1111,10 +1102,12 @@ export default function Leads() {
       .map((day) => ({
         date: day.date,
         total: Number(day.total) || 0,
+        inboundFromGmail: Number(day.inboundFromGmail) || 0,
       }))
       .sort((a, b) => b.date.localeCompare(a.date));
     const grandTotal = rows.reduce((sum, row) => sum + row.total, 0);
-    return { rows, grandTotal };
+    const grandInbound = rows.reduce((sum, row) => sum + row.inboundFromGmail, 0);
+    return { rows, grandTotal, grandInbound };
   }, [statistics]);
 
   const partWiseLeadTotals = useMemo(() => {
@@ -1422,7 +1415,8 @@ export default function Leads() {
                 </div>
               )}
               <UnifiedDatePicker
-                value={dateFilter}
+                syncIsoRange={dateFilter}
+                persistKey="leads_statistics_range"
                 onFilterChange={(filter) => {
                   setDateFilter(filter);
                 }}
@@ -1509,10 +1503,20 @@ export default function Leads() {
           ) : statistics ? (
             <div className="space-y-6">
               {/* Summary Cards */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
                 <div className="rounded-lg border border-white/20 bg-white/10 backdrop-blur-md p-4">
-                  <div className="text-sm text-white/70">Total Leads</div>
+                  <div className="text-sm text-white/70">Claimed (with part)</div>
                   <div className="text-3xl font-bold text-white mt-2">{statistics.totalLeads || 0}</div>
+                  <div className="text-xs text-white/50 mt-1">
+                    Bucketed by IST reporting day (same windows as Received)
+                  </div>
+                </div>
+                <div className="rounded-lg border border-white/20 bg-white/10 backdrop-blur-md p-4">
+                  <div className="text-sm text-white/70">Received in Gmail</div>
+                  <div className="text-3xl font-bold text-emerald-300 mt-2">{statistics.totalInboundFromGmail ?? 0}</div>
+                  <div className="text-xs text-white/50 mt-1">
+                    Live Gmail counts (Asia/Kolkata): From 4:30 PM IST to  6:00 AM IST
+                  </div>
                 </div>
                 <div className="rounded-lg border border-white/20 bg-white/10 backdrop-blur-md p-4">
                   <div className="text-sm text-white/70">Active Agents</div>
@@ -1704,7 +1708,7 @@ export default function Leads() {
                   {statistics.dailyStats && statistics.dailyStats.length > 0 ? (
                     statistics.dailyStats.map((day) => (
                       <div key={day.date} className="rounded-lg border border-white/20 bg-white/5 p-4">
-                        <div className="flex items-center justify-between mb-3">
+                        <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
                           <div className="font-semibold text-white">
                             {new Date(day.date).toLocaleDateString("en-US", {
                               weekday: "long",
@@ -1713,10 +1717,15 @@ export default function Leads() {
                               day: "numeric",
                             })}
                           </div>
-                          <div className="text-lg font-bold text-blue-400">{day.total} leads</div>
+                          <div className="flex flex-wrap items-center gap-3 text-right">
+                            <div className="text-lg font-bold text-blue-400">{day.total} claimed</div>
+                            <div className="text-sm font-semibold text-emerald-300">
+                              {(day.inboundFromGmail ?? 0)} in Gmail
+                            </div>
+                          </div>
                         </div>
                         <div className="space-y-3">
-                          {day.agents.map((agent) => (
+                          {(day.agents || []).map((agent) => (
                             <div key={agent.agentId} className="rounded-lg border border-white/10 bg-white/5 p-3">
                               <div className="flex items-center justify-between mb-2">
                                 <div className="text-sm font-semibold text-white/90">{agent.agentName}</div>
@@ -1989,14 +1998,15 @@ export default function Leads() {
             {!statistics ? (
               <p className="text-sm text-white/70">Load statistics first to view totals.</p>
             ) : statsSummaryRows.rows.length === 0 ? (
-              <p className="text-sm text-white/70">No leads in selected date range.</p>
+              <p className="text-sm text-white/70">No statistics for the selected date range.</p>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm rounded-lg overflow-hidden">
                   <thead>
                     <tr className="bg-white/10">
                       <th className="text-left px-3 py-2 border-r border-white/20">Date</th>
-                      <th className="text-right px-3 py-2">Leads</th>
+                      <th className="text-right px-3 py-2 border-r border-white/20">Claimed (part)</th>
+                      <th className="text-right px-3 py-2">Gmail arrivals</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -2010,12 +2020,14 @@ export default function Leads() {
                             year: "numeric",
                           })}
                         </td>
-                        <td className="px-3 py-2 text-right font-semibold">{row.total}</td>
+                        <td className="px-3 py-2 text-right font-semibold border-r border-white/10">{row.total}</td>
+                        <td className="px-3 py-2 text-right font-semibold text-emerald-300">{row.inboundFromGmail}</td>
                       </tr>
                     ))}
                     <tr className="bg-white/10">
                       <td className="px-3 py-2 font-semibold border-r border-white/20">Grand Total</td>
-                      <td className="px-3 py-2 text-right font-bold">{statsSummaryRows.grandTotal}</td>
+                      <td className="px-3 py-2 text-right font-bold border-r border-white/10">{statsSummaryRows.grandTotal}</td>
+                      <td className="px-3 py-2 text-right font-bold text-emerald-300">{statsSummaryRows.grandInbound}</td>
                     </tr>
                   </tbody>
                 </table>

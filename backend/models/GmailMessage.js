@@ -49,6 +49,9 @@ const gmailMessageSchema = new mongoose.Schema(
   }
 );
 
+gmailMessageSchema.index({ internalDate: 1 });
+gmailMessageSchema.index({ internalDate: 1, agentEmail: 1 });
+
 const GmailMessage =
   mongoose.models.GmailMessage ||
   mongoose.model("GmailMessage", gmailMessageSchema);

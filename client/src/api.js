@@ -25,8 +25,8 @@ console.log("[API_BASE]", API_BASE);
 const API = axios.create({
   baseURL: API_BASE,
   withCredentials: true,
-  // Order details and some reports can exceed 15s under load or cold DB; avoid flaky timeouts.
-  timeout: 30000,
+  // Gmail list, statistics, order details often exceed 30s under load or large mailboxes.
+  timeout: 180000,
 });
 // Attach Bearer token + brand header (per-tab session, via getCurrentBrand)
 API.interceptors.request.use((cfg) => {
