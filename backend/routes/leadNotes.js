@@ -105,6 +105,12 @@ router.post(
         });
       }
 
+      if (!leadOrigin || !String(leadOrigin).trim()) {
+        return res.status(400).json({
+          message: "Lead Origin is required",
+        });
+      }
+
       // Determine / generate Lead No for today (per user, brand, Dallas date)
       let finalLeadNo = (leadNo || "").trim();
       if (!finalLeadNo) {
@@ -240,6 +246,10 @@ router.put(
           lead[field] = req.body[field] ?? "";
         }
       });
+
+      if (!lead.leadOrigin || !String(lead.leadOrigin).trim()) {
+        return res.status(400).json({ message: "Lead Origin is required" });
+      }
 
       await lead.save();
 

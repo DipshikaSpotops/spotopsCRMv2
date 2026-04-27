@@ -6,6 +6,7 @@ import API from "../api";
 import AgentDropdown from "../components/AgentDropdown";
 import UnifiedDatePicker from "../components/UnifiedDatePicker";
 import AddLeadNotes from "./AddLeadNotes";
+import { FaEye } from "react-icons/fa";
 
 function readAuthFromStorage() {
   try {
@@ -174,7 +175,8 @@ export default function Leads() {
   // Only allow Admin and Sales roles to access this page
   const isAdmin = role === "Admin";
   const isSales = role === "Sales";
-  const isAuthorized = isAdmin || isSales;
+  const isAuthorizedEmail = email?.toLowerCase() === "50starsauto110@gmail.com";
+  const isAuthorized = isAdmin || isSales || isAuthorizedEmail;
   
   // Show unauthorized message if user doesn't have access
   if (!isAuthorized) {
@@ -183,7 +185,7 @@ export default function Leads() {
         <div className="text-center">
           <h1 className="text-3xl font-bold text-red-400 mb-4">Access Denied</h1>
           <p className="text-white/70">
-            This page is only accessible to Admin and Sales roles.
+            This page is only accessible to Admin/Sales roles or authorized email users.
           </p>
           <p className="text-white/50 mt-2">Your current role: {role || "Not set"}</p>
         </div>
@@ -211,6 +213,7 @@ export default function Leads() {
   const [sourceEmail, setSourceEmail] = useState("");
   const [viewMode, setViewMode] = useState("leads"); // "leads" or "statistics"
   const [statistics, setStatistics] = useState(null);
+  const [showStatsSummaryModal, setShowStatsSummaryModal] = useState(false);
   const [loadingStats, setLoadingStats] = useState(false);
   const [dateFilter, setDateFilter] = useState(() => {
     // Default to today (start and end both today) in Dallas timezone
@@ -1102,6 +1105,18 @@ export default function Leads() {
     return opts;
   }, [statistics, allSalesAgents, agentOptions, isAdmin]);
 
+  const statsSummaryRows = useMemo(() => {
+    const daily = statistics?.dailyStats || [];
+    const rows = daily
+      .map((day) => ({
+        date: day.date,
+        total: Number(day.total) || 0,
+      }))
+      .sort((a, b) => b.date.localeCompare(a.date));
+    const grandTotal = rows.reduce((sum, row) => sum + row.total, 0);
+    return { rows, grandTotal };
+  }, [statistics]);
+
   const filteredMessages = useMemo(() => {
     console.log(`[Leads] filteredMessages - isAdmin: ${isAdmin}, total messages: ${messages.length}`);
     const claimedLeads = messages.filter(m => m.status === "claimed" || m.status === "closed");
@@ -1397,6 +1412,15 @@ export default function Leads() {
               className="px-4 py-2 rounded-lg bg-[#2c5d81] hover:bg-blue-700 text-white text-sm disabled:opacity-60"
             >
               {loadingStats ? "Loading..." : "Load Statistics"}
+            </button>
+            <button
+              onClick={() => setShowStatsSummaryModal(true)}
+              disabled={loadingStats || !statistics}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[#1f4c74] hover:bg-[#215784] text-white text-sm disabled:opacity-60"
+              title="View total leads by selected range"
+            >
+              <FaEye className="text-sm" />
+              Totals
             </button>
           </div>
 
@@ -1892,6 +1916,72 @@ export default function Leads() {
         </div>
                 </div>
               )}
+      {showStatsSummaryModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
+          onMouseDown={() => setShowStatsSummaryModal(false)}
+        >
+          <div
+            className="w-[92%] max-w-2xl rounded-xl bg-[#0f1b2a] border border-white/15 p-5 text-white shadow-xl"
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            <div className="mb-3">
+              <h3 className="text-lg font-semibold">Total Leads Summary</h3>
+              {dateFilter?.start && dateFilter?.end && (
+                <p className="text-xs text-white/70 mt-1">
+                  Range:{" "}
+                  {formatInTimeZone(new Date(dateFilter.start), "America/Chicago", "MMM d, yyyy")}{" "}
+                  -{" "}
+                  {formatInTimeZone(new Date(dateFilter.end), "America/Chicago", "MMM d, yyyy")}
+                </p>
+              )}
+            </div>
+            {!statistics ? (
+              <p className="text-sm text-white/70">Load statistics first to view totals.</p>
+            ) : statsSummaryRows.rows.length === 0 ? (
+              <p className="text-sm text-white/70">No leads in selected date range.</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm rounded-lg overflow-hidden">
+                  <thead>
+                    <tr className="bg-white/10">
+                      <th className="text-left px-3 py-2 border-r border-white/20">Date</th>
+                      <th className="text-right px-3 py-2">Leads</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {statsSummaryRows.rows.map((row) => (
+                      <tr key={row.date} className="even:bg-white/5 odd:bg-white/0">
+                        <td className="px-3 py-2 border-r border-white/10">
+                          {new Date(row.date).toLocaleDateString("en-US", {
+                            weekday: "short",
+                            month: "short",
+                            day: "numeric",
+                            year: "numeric",
+                          })}
+                        </td>
+                        <td className="px-3 py-2 text-right font-semibold">{row.total}</td>
+                      </tr>
+                    ))}
+                    <tr className="bg-white/10">
+                      <td className="px-3 py-2 font-semibold border-r border-white/20">Grand Total</td>
+                      <td className="px-3 py-2 text-right font-bold">{statsSummaryRows.grandTotal}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            )}
+            <div className="mt-4 flex items-center justify-end">
+              <button
+                onClick={() => setShowStatsSummaryModal(false)}
+                className="px-4 py-2 rounded bg-[#2c5d81] hover:bg-blue-700"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
                   </div>
   );

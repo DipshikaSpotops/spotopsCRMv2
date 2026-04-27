@@ -718,7 +718,10 @@ const AddLeadNotes = ({ embedded = false, prefill }) => {
 
   // Only allow Sales, Admin roles, or specific email
   const isAdmin = role === "Admin";
-  const isAuthorizedEmail = email?.toLowerCase() === "50starsauto111@gmail.com";
+  const normalizedEmail = email?.toLowerCase();
+  const isAuthorizedEmail =
+    normalizedEmail === "50starsauto111@gmail.com" ||
+    normalizedEmail === "50starsauto110@gmail.com";
   const isAuthorized = isSales || isAdmin || isAuthorizedEmail;
   
   if (!isAuthorized) {
@@ -727,7 +730,7 @@ const AddLeadNotes = ({ embedded = false, prefill }) => {
         <div className="text-center">
           <h1 className="text-3xl font-bold text-red-400 mb-4">Access Denied</h1>
           <p className="text-white/70">
-            This page is only accessible to Sales and Admin users, or 50starsauto111@gmail.com.
+            This page is only accessible to Sales/Admin users, or authorized 50starsauto email users.
           </p>
           <p className="text-white/50 mt-2">Your current role: {role || "Not set"}</p>
           <p className="text-white/50">Your email: {email || "Not set"}</p>
@@ -898,7 +901,7 @@ const AddLeadNotes = ({ embedded = false, prefill }) => {
               </div>
               <div>
                 <label className="block text-sm font-medium text-white mb-1">
-                  Lead Origin
+                  Lead Origin *
                 </label>
                 <AgentDropdown
                   options={["Select", "Chat", "Call", "Lead"]}

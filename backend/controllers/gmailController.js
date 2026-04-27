@@ -366,8 +366,48 @@ export async function manualSyncHandler(req, res, next) {
     }
 
     // If we have historyId, use normal sync
-    const result = await syncHistory({ userEmail: finalUserEmail, startHistoryId });
-    return res.json({ ...result, method: "history_sync" });
+    try {
+      const result = await syncHistory({ userEmail: finalUserEmail, startHistoryId });
+      return res.json({ ...result, method: "history_sync" });
+    } catch (syncErr) {
+      // Gmail History API can return 404 "Requested entity was not found"
+      // when startHistoryId is too old/invalid. Auto-reset baseline so sync can continue.
+      const isHistoryNotFound =
+        syncErr?.response?.status === 404 ||
+        syncErr?.status === 404 ||
+        syncErr?.code === 404 ||
+        syncErr?.message?.includes("Requested entity was not found") ||
+        syncErr?.errors?.some((e) => e?.reason === "notFound");
+
+      if (!isHistoryNotFound) {
+        throw syncErr;
+      }
+
+      console.warn(`[manualSync] Invalid/expired historyId (${startHistoryId}). Resetting sync baseline...`);
+      const gmail = await getGmailClient();
+      const profile = await gmail.users.getProfile({ userId: "me" });
+      const latestHistoryId = profile.data.historyId;
+
+      await GmailSyncState.findOneAndUpdate(
+        { userEmail: finalUserEmail },
+        {
+          $set: {
+            historyId: latestHistoryId,
+            lastSyncedAt: new Date(),
+            userEmail: finalUserEmail,
+          },
+        },
+        { upsert: true }
+      );
+
+      return res.json({
+        message:
+          "Previous Gmail history cursor expired and was reset automatically. Sync baseline has been re-established.",
+        method: "history_reset",
+        previousHistoryId: startHistoryId,
+        latestHistoryId,
+      });
+    }
   } catch (err) {
     console.error("[manualSync] Error:", err);
     return next(err);
