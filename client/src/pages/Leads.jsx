@@ -222,6 +222,10 @@ const CANONICAL_LEAD_LABELS = [
   "wrong Number",
   "Others",
 ];
+const BRAND_SALES_AGENTS = {
+  "50STARS": ["Mark", "Richard", "Nick", "Charlie"],
+  "PROLANE": ["Victor", "Sam", "Noah", "Michael"],
+};
 
 function normalizePartRequiredLabel(partRequired = "") {
   const normalized = String(partRequired).trim().replace(/\s+/g, " ");
@@ -802,9 +806,11 @@ export default function Leads() {
     }
   }, []);
 
-  const fetchStatistics = useCallback(async () => {
-    setLoadingStats(true);
-    setError("");
+  const fetchStatistics = useCallback(async ({ silent = false } = {}) => {
+    if (!silent) {
+      setLoadingStats(true);
+      setError("");
+    }
     try {
       console.log("[Leads] fetchStatistics called with dateFilter:", dateFilter);
       const params = {};
@@ -845,9 +851,13 @@ export default function Leads() {
         message =
           "Statistics request timed out. Try a shorter date range (use Today), or retry after a moment.";
       }
-      setError(message);
+      if (!silent) {
+        setError(message);
+      }
     } finally {
-      setLoadingStats(false);
+      if (!silent) {
+        setLoadingStats(false);
+      }
     }
   }, [dateFilter, isAdmin, selectedAgentForStats]);
 
@@ -890,15 +900,15 @@ export default function Leads() {
   useEffect(() => {
     if (viewMode !== "statistics") return;
     if (!dateFilter?.start || !dateFilter?.end) return;
-    fetchStatistics();
+    fetchStatistics({ silent: false });
   }, [viewMode, dateFilter, selectedAgentForStats, fetchStatistics]);
 
-  // Auto-refresh statistics while viewing the Statistics tab.
+  // Auto-refresh statistics in the background while keeping current UI visible.
   useEffect(() => {
     if (viewMode !== "statistics") return;
     const interval = setInterval(() => {
-      fetchStatistics();
-    }, 120000);
+      fetchStatistics({ silent: true });
+    }, 60000);
     return () => clearInterval(interval);
   }, [viewMode, fetchStatistics]);
 
@@ -1414,34 +1424,21 @@ export default function Leads() {
     });
   }, [statistics]);
 
-  const salesAgentLabelRowsByBrand = useMemo(() => {
-    const defaultRows = {
-      "50STARS": [
-        { name: "Mark", count: 0 },
-        { name: "Richard", count: 0 },
-        { name: "Nick", count: 0 },
-        { name: "Charlie", count: 0 },
-      ],
-      "PROLANE": [
-        { name: "Victor", count: 0 },
-        { name: "Sam", count: 0 },
-        { name: "Noah", count: 0 },
-        { name: "Michael", count: 0 },
-      ],
-    };
-
-    const payload = statistics?.salesAgentLabelCountsByBrand;
-    if (!payload || typeof payload !== "object") return defaultRows;
-
-    const mapRows = (brand) =>
-      defaultRows[brand].map((row) => ({
-        ...row,
-        count: Number(payload?.[brand]?.[row.name]) || 0,
-      }));
-
+  const salesAgentLabelMatrixByBrand = useMemo(() => {
+    const payload = statistics?.salesAgentLabelMatrixByBrand;
     return {
-      "50STARS": mapRows("50STARS"),
-      "PROLANE": mapRows("PROLANE"),
+      "50STARS": CANONICAL_LEAD_LABELS.map((label) => ({
+        label,
+        counts: Object.fromEntries(
+          BRAND_SALES_AGENTS["50STARS"].map((agent) => [agent, Number(payload?.["50STARS"]?.[label]?.[agent]) || 0])
+        ),
+      })),
+      "PROLANE": CANONICAL_LEAD_LABELS.map((label) => ({
+        label,
+        counts: Object.fromEntries(
+          BRAND_SALES_AGENTS["PROLANE"].map((agent) => [agent, Number(payload?.["PROLANE"]?.[label]?.[agent]) || 0])
+        ),
+      })),
     };
   }, [statistics]);
 
@@ -1810,7 +1807,7 @@ export default function Leads() {
           </div>
           */}
 
-          {loadingStats ? (
+          {loadingStats && !statistics ? (
             <div className="text-center py-8 text-white/80">⏳ Loading statistics...</div>
           ) : statistics ? (
             <div className="space-y-6">
@@ -1917,27 +1914,63 @@ export default function Leads() {
               {/* Agent Statistics */}
               <div className="rounded-lg border border-white/20 bg-white/10 backdrop-blur-md p-4">
                 <h2 className="text-xl font-bold text-white mb-4">Agent Statistics</h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-5">
+                <div className="space-y-4 mb-5">
                   <div className="rounded-lg border border-white/10 bg-white/5 p-3">
-                    <div className="font-semibold text-white mb-2">50STARS (label-based)</div>
-                    <div className="space-y-1">
-                      {salesAgentLabelRowsByBrand["50STARS"].map((row) => (
-                        <div key={row.name} className="flex items-center justify-between text-sm">
-                          <span className="text-white/80">{row.name}</span>
-                          <span className="text-blue-300 font-semibold">{row.count}</span>
-                        </div>
-                      ))}
+                    <div className="font-semibold text-white mb-2">50STARS (label-wise by sales agent)</div>
+                    <div className="max-h-64 overflow-y-auto rounded border border-white/10">
+                      <table className="w-full text-xs">
+                        <thead className="sticky top-0 bg-white/10">
+                          <tr>
+                            <th className="text-left px-2 py-2 border-r border-white/20">Label</th>
+                            {BRAND_SALES_AGENTS["50STARS"].map((agent) => (
+                              <th key={`50-${agent}`} className="text-right px-2 py-2 border-r border-white/20 last:border-r-0">
+                                {agent}
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {salesAgentLabelMatrixByBrand["50STARS"].map((row) => (
+                            <tr key={`50-${row.label}`} className="even:bg-white/5">
+                              <td className="px-2 py-1.5 border-r border-white/10">{row.label}</td>
+                              {BRAND_SALES_AGENTS["50STARS"].map((agent) => (
+                                <td key={`50-${row.label}-${agent}`} className="px-2 py-1.5 text-right border-r border-white/10 last:border-r-0 font-semibold text-blue-300">
+                                  {row.counts[agent]}
+                                </td>
+                              ))}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
                     </div>
                   </div>
                   <div className="rounded-lg border border-white/10 bg-white/5 p-3">
-                    <div className="font-semibold text-white mb-2">PROLANE (label-based)</div>
-                    <div className="space-y-1">
-                      {salesAgentLabelRowsByBrand["PROLANE"].map((row) => (
-                        <div key={row.name} className="flex items-center justify-between text-sm">
-                          <span className="text-white/80">{row.name}</span>
-                          <span className="text-blue-300 font-semibold">{row.count}</span>
-                        </div>
-                      ))}
+                    <div className="font-semibold text-white mb-2">PROLANE (label-wise by sales agent)</div>
+                    <div className="max-h-64 overflow-y-auto rounded border border-white/10">
+                      <table className="w-full text-xs">
+                        <thead className="sticky top-0 bg-white/10">
+                          <tr>
+                            <th className="text-left px-2 py-2 border-r border-white/20">Label</th>
+                            {BRAND_SALES_AGENTS["PROLANE"].map((agent) => (
+                              <th key={`pro-${agent}`} className="text-right px-2 py-2 border-r border-white/20 last:border-r-0">
+                                {agent}
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {salesAgentLabelMatrixByBrand["PROLANE"].map((row) => (
+                            <tr key={`pro-${row.label}`} className="even:bg-white/5">
+                              <td className="px-2 py-1.5 border-r border-white/10">{row.label}</td>
+                              {BRAND_SALES_AGENTS["PROLANE"].map((agent) => (
+                                <td key={`pro-${row.label}-${agent}`} className="px-2 py-1.5 text-right border-r border-white/10 last:border-r-0 font-semibold text-blue-300">
+                                  {row.counts[agent]}
+                                </td>
+                              ))}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
                     </div>
                   </div>
                 </div>

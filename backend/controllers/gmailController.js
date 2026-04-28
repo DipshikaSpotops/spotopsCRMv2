@@ -117,6 +117,17 @@ function createSalesAgentLabelCountsSeed() {
   };
 }
 
+function createSalesAgentLabelMatrixSeed() {
+  const out = {};
+  Object.entries(BRAND_SALES_LABELS).forEach(([brand, agents]) => {
+    out[brand] = {};
+    CANONICAL_STATS_LABELS.forEach((label) => {
+      out[brand][label] = Object.fromEntries(agents.map((agent) => [agent, 0]));
+    });
+  });
+  return out;
+}
+
 function incrementSalesAgentLabelCount(counts, brand, labels = []) {
   if (!counts?.[brand]) return;
   const brandAgents = BRAND_SALES_LABELS[brand] || [];
@@ -132,6 +143,40 @@ function incrementSalesAgentLabelCount(counts, brand, labels = []) {
       counts[brand][canonical] = (counts[brand][canonical] || 0) + 1;
     }
   }
+}
+
+function incrementSalesAgentLabelMatrix(matrix, brand, labels = []) {
+  if (!matrix?.[brand]) return;
+  const brandAgents = BRAND_SALES_LABELS[brand] || [];
+  const lowerToAgent = new Map(brandAgents.map((name) => [name.toLowerCase(), name]));
+  const rawLowerSet = new Set(
+    labels
+      .map((label) => String(label || "").trim().toLowerCase())
+      .filter(Boolean)
+  );
+
+  const agentNames = new Set();
+  rawLowerSet.forEach((lower) => {
+    const agent = lowerToAgent.get(lower);
+    if (agent) agentNames.add(agent);
+  });
+  if (agentNames.size === 0) return;
+
+  const labelNames = new Set();
+  labels.forEach((rawLabel) => {
+    const lower = String(rawLabel || "").trim().toLowerCase();
+    if (!lower) return;
+    if (lowerToAgent.has(lower)) return;
+    const normalized = normalizeStatsLabel(rawLabel);
+    if (normalized) labelNames.add(normalized);
+  });
+
+  labelNames.forEach((label) => {
+    if (!matrix[brand][label]) return;
+    agentNames.forEach((agent) => {
+      matrix[brand][label][agent] = (matrix[brand][label][agent] || 0) + 1;
+    });
+  });
 }
 
 const __filename = fileURLToPath(import.meta.url);
@@ -2108,6 +2153,7 @@ export async function getDailyStatisticsHandler(req, res, next) {
       CANONICAL_STATS_LABELS.map((label) => [label, { "50STARS": 0, PROLANE: 0, overall: 0 }])
     );
     const salesAgentLabelCountsByBrand = createSalesAgentLabelCountsSeed();
+    const salesAgentLabelMatrixByBrand = createSalesAgentLabelMatrixSeed();
     let gmailLabelNameById = new Map();
     try {
       const gmail = await getGmailClient();
@@ -2140,6 +2186,7 @@ export async function getDailyStatisticsHandler(req, res, next) {
         .filter((name) => Boolean(name) && !isSystemGmailLabel(name));
       const combinedLabels = [...labels, ...labelsFromIds];
       incrementSalesAgentLabelCount(salesAgentLabelCountsByBrand, brand, combinedLabels);
+      incrementSalesAgentLabelMatrix(salesAgentLabelMatrixByBrand, brand, combinedLabels);
       const normalizedLabels = new Set(
         combinedLabels.map((label) => normalizeStatsLabel(label)).filter((label) => Boolean(label))
       );
@@ -2161,6 +2208,7 @@ export async function getDailyStatisticsHandler(req, res, next) {
       partWiseReceivedByBrand,
       labelWiseByBrand,
       salesAgentLabelCountsByBrand,
+      salesAgentLabelMatrixByBrand,
       agentStats,
       dateRange: {
         start: start.toISOString(),
