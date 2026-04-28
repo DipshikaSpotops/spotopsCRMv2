@@ -204,6 +204,25 @@ const CANONICAL_PART_REQUIRED_LABELS = [
   "Window Regulator",
 ];
 
+const CANONICAL_LEAD_LABELS = [
+  "Voice Mail",
+  "Quoted",
+  "Sale",
+  "Not in Service",
+  "Call not connected",
+  "Duplicate",
+  "Expensive",
+  "Invalid",
+  "Need New",
+  "No Part",
+  "No Number",
+  "Spanish customer",
+  "VIN",
+  "Wrong description",
+  "wrong Number",
+  "Others",
+];
+
 function normalizePartRequiredLabel(partRequired = "") {
   const normalized = String(partRequired).trim().replace(/\s+/g, " ");
   if (!normalized) return "";
@@ -256,6 +275,42 @@ function normalizePartRequiredLabel(partRequired = "") {
   if (exactCanonical) return exactCanonical;
 
   return "Others";
+}
+
+function detectBrandFromFromEntry(rawFrom = "") {
+  const lower = String(rawFrom || "").toLowerCase();
+  if (lower.includes("50stars")) return "50STARS";
+  if (lower.includes("prolane")) return "PROLANE";
+  return null;
+}
+
+function normalizeLeadLabel(rawLabel = "") {
+  const normalized = String(rawLabel || "").trim().toLowerCase();
+  if (!normalized) return null;
+
+  const aliasMap = new Map([
+    ["voice mail", "Voice Mail"],
+    ["voicemail", "Voice Mail"],
+    ["quoted", "Quoted"],
+    ["sale", "Sale"],
+    ["sold", "Sale"],
+    ["not in service", "Not in Service"],
+    ["call not connected", "Call not connected"],
+    ["duplicate", "Duplicate"],
+    ["expensive", "Expensive"],
+    ["invalid", "Invalid"],
+    ["need new", "Need New"],
+    ["no part", "No Part"],
+    ["no number", "No Number"],
+    ["wrong number", "wrong Number"],
+    ["wrong no", "wrong Number"],
+    ["spanish customer", "Spanish customer"],
+    ["vin", "VIN"],
+    ["wrong description", "Wrong description"],
+    ["others", "Others"],
+  ]);
+
+  return aliasMap.get(normalized) || "Others";
 }
 
 export default function Leads() {
@@ -838,6 +893,15 @@ export default function Leads() {
     fetchStatistics();
   }, [viewMode, dateFilter, selectedAgentForStats, fetchStatistics]);
 
+  // Auto-refresh statistics while viewing the Statistics tab.
+  useEffect(() => {
+    if (viewMode !== "statistics") return;
+    const interval = setInterval(() => {
+      fetchStatistics();
+    }, 120000);
+    return () => clearInterval(interval);
+  }, [viewMode, fetchStatistics]);
+
   // Fetch the source email address - try API first, then messages
   useEffect(() => {
     // Skip if already set
@@ -1203,6 +1267,7 @@ export default function Leads() {
 
   const partWiseLeadTotals = useMemo(() => {
     const partMap = new Map();
+    const partClaimedByBrandMap = new Map();
     const seenLeadKeys = new Set();
     const agentStats = statistics?.agentStats || [];
 
@@ -1217,37 +1282,168 @@ export default function Leads() {
 
         seenLeadKeys.add(leadKey);
         partMap.set(normalizedPart, (partMap.get(normalizedPart) || 0) + 1);
+
+        const brand = detectBrandFromFromEntry(lead?.from);
+        if (brand === "50STARS" || brand === "PROLANE") {
+          if (!partClaimedByBrandMap.has(normalizedPart)) {
+            partClaimedByBrandMap.set(normalizedPart, { "50STARS": 0, PROLANE: 0 });
+          }
+          const claimedByBrand = partClaimedByBrandMap.get(normalizedPart);
+          claimedByBrand[brand] = (claimedByBrand[brand] || 0) + 1;
+          partClaimedByBrandMap.set(normalizedPart, claimedByBrand);
+        }
       });
     });
 
     return Array.from(partMap.entries())
-      .map(([partRequired, count]) => ({ partRequired, count }))
+      .map(([partRequired, count]) => ({
+        partRequired,
+        count,
+        claimedByBrand: partClaimedByBrandMap.get(partRequired) || { "50STARS": 0, PROLANE: 0 },
+      }))
       .sort((a, b) => b.count - a.count || a.partRequired.localeCompare(b.partRequired));
   }, [statistics]);
 
   const partWiseRows = useMemo(() => {
     const claimedMap = new Map(partWiseLeadTotals.map((r) => [r.partRequired, r.count]));
+    const claimed50StarsMap = new Map(partWiseLeadTotals.map((r) => [r.partRequired, Number(r.claimedByBrand?.["50STARS"]) || 0]));
+    const claimedProlaneMap = new Map(partWiseLeadTotals.map((r) => [r.partRequired, Number(r.claimedByBrand?.["PROLANE"]) || 0]));
     const receivedObj = statistics?.partWiseReceived || {};
+    const receivedByBrandObj = statistics?.partWiseReceivedByBrand || {};
     const receivedMap = new Map();
+    const received50StarsMap = new Map();
+    const receivedProlaneMap = new Map();
     Object.entries(receivedObj).forEach(([rawPart, count]) => {
       const normalizedPart = normalizePartRequiredLabel(rawPart);
       if (!normalizedPart) return;
       receivedMap.set(normalizedPart, (receivedMap.get(normalizedPart) || 0) + (Number(count) || 0));
     });
+    Object.entries(receivedByBrandObj).forEach(([rawPart, counts]) => {
+      const normalizedPart = normalizePartRequiredLabel(rawPart);
+      if (!normalizedPart) return;
+      const stars = Number(counts?.["50STARS"]) || 0;
+      const prolane = Number(counts?.["PROLANE"]) || 0;
+      received50StarsMap.set(normalizedPart, (received50StarsMap.get(normalizedPart) || 0) + stars);
+      receivedProlaneMap.set(normalizedPart, (receivedProlaneMap.get(normalizedPart) || 0) + prolane);
+    });
 
-    const parts = new Set([...claimedMap.keys(), ...receivedMap.keys()]);
+    const parts = new Set([
+      ...claimedMap.keys(),
+      ...receivedMap.keys(),
+      ...received50StarsMap.keys(),
+      ...receivedProlaneMap.keys(),
+    ]);
     return Array.from(parts)
-      .map((partRequired) => ({
-        partRequired,
-        claimed: claimedMap.get(partRequired) ?? 0,
-        received: receivedMap.get(partRequired) ?? 0,
-      }))
+      .map((partRequired) => {
+        const received50Stars = received50StarsMap.get(partRequired) ?? 0;
+        const receivedProlane = receivedProlaneMap.get(partRequired) ?? 0;
+        const receivedOverall = receivedMap.get(partRequired) ?? received50Stars + receivedProlane;
+        return {
+          partRequired,
+          claimed: claimedMap.get(partRequired) ?? 0,
+          claimed50Stars: claimed50StarsMap.get(partRequired) ?? 0,
+          claimedProlane: claimedProlaneMap.get(partRequired) ?? 0,
+          received50Stars,
+          receivedProlane,
+          receivedOverall,
+        };
+      })
       .sort(
         (a, b) =>
-          Math.max(b.claimed, b.received) - Math.max(a.claimed, a.received) ||
+          Math.max(b.claimed, b.receivedOverall) - Math.max(a.claimed, a.receivedOverall) ||
           a.partRequired.localeCompare(b.partRequired)
       );
-  }, [partWiseLeadTotals, statistics?.partWiseReceived]);
+  }, [partWiseLeadTotals, statistics?.partWiseReceived, statistics?.partWiseReceivedByBrand]);
+
+  const labelWiseRows = useMemo(() => {
+    const apiLabelWiseByBrand = statistics?.labelWiseByBrand;
+    if (apiLabelWiseByBrand && typeof apiLabelWiseByBrand === "object") {
+      return CANONICAL_LEAD_LABELS.map((label) => {
+        const counts = apiLabelWiseByBrand[label] || {};
+        return {
+          label,
+          stars: Number(counts["50STARS"]) || 0,
+          prolane: Number(counts["PROLANE"]) || 0,
+          overall: Number(counts.overall) || 0,
+        };
+      });
+    }
+
+    const seenLeadKeys = new Set();
+    const labelBrandMap = new Map(
+      CANONICAL_LEAD_LABELS.map((label) => [label, { "50STARS": 0, PROLANE: 0, overall: 0 }])
+    );
+    const agentStats = statistics?.agentStats || [];
+
+    agentStats.forEach((agent) => {
+      (agent?.leads || []).forEach((lead) => {
+        const leadKey = lead?._id || lead?.messageId;
+        if (!leadKey || seenLeadKeys.has(leadKey)) return;
+        seenLeadKeys.add(leadKey);
+
+        const brand = detectBrandFromFromEntry(lead?.from);
+        const leadLabels = Array.isArray(lead?.labels) ? lead.labels : [];
+        const normalizedLabels = new Set(
+          leadLabels
+            .map((label) => normalizeLeadLabel(label))
+            .filter((label) => Boolean(label))
+        );
+
+        normalizedLabels.forEach((label) => {
+          if (!labelBrandMap.has(label)) {
+            labelBrandMap.set(label, { "50STARS": 0, PROLANE: 0, overall: 0 });
+          }
+          const current = labelBrandMap.get(label);
+          if (brand === "50STARS" || brand === "PROLANE") {
+            current[brand] = (current[brand] || 0) + 1;
+          }
+          current.overall = (current.overall || 0) + 1;
+          labelBrandMap.set(label, current);
+        });
+      });
+    });
+
+    return CANONICAL_LEAD_LABELS.map((label) => {
+      const counts = labelBrandMap.get(label) || { "50STARS": 0, PROLANE: 0, overall: 0 };
+      return {
+        label,
+        stars: counts["50STARS"] || 0,
+        prolane: counts["PROLANE"] || 0,
+        overall: counts.overall || 0,
+      };
+    });
+  }, [statistics]);
+
+  const salesAgentLabelRowsByBrand = useMemo(() => {
+    const defaultRows = {
+      "50STARS": [
+        { name: "Mark", count: 0 },
+        { name: "Richard", count: 0 },
+        { name: "Nick", count: 0 },
+        { name: "Charlie", count: 0 },
+      ],
+      "PROLANE": [
+        { name: "Victor", count: 0 },
+        { name: "Sam", count: 0 },
+        { name: "Noah", count: 0 },
+        { name: "Michael", count: 0 },
+      ],
+    };
+
+    const payload = statistics?.salesAgentLabelCountsByBrand;
+    if (!payload || typeof payload !== "object") return defaultRows;
+
+    const mapRows = (brand) =>
+      defaultRows[brand].map((row) => ({
+        ...row,
+        count: Number(payload?.[brand]?.[row.name]) || 0,
+      }));
+
+    return {
+      "50STARS": mapRows("50STARS"),
+      "PROLANE": mapRows("PROLANE"),
+    };
+  }, [statistics]);
 
   const filteredMessages = useMemo(() => {
     console.log(`[Leads] filteredMessages - isAdmin: ${isAdmin}, total messages: ${messages.length}`);
@@ -1659,16 +1855,57 @@ export default function Leads() {
                       <thead className="sticky top-0 bg-white/10">
                         <tr>
                           <th className="text-left px-3 py-2 border-r border-white/20">Part Required</th>
-                          <th className="text-right px-3 py-2 border-r border-white/20">Claimed</th>
-                          <th className="text-right px-3 py-2 text-emerald-300">Received</th>
+                          <th className="text-right px-3 py-2 border-r border-white/20">50STARS (received)</th>
+                          <th className="text-right px-3 py-2 border-r border-white/20">Claimed 50STARS</th>
+                          <th className="text-right px-3 py-2 border-r border-white/20">PROLANE (received)</th>
+                          <th className="text-right px-3 py-2 border-r border-white/20">Claimed PROLANE</th>
+                          <th className="text-right px-3 py-2 border-r border-white/20">Overall Claimed</th>
+                          <th className="text-right px-3 py-2 text-emerald-300">Overall Received</th>
                         </tr>
                       </thead>
                       <tbody>
                         {partWiseRows.map((row) => (
                           <tr key={row.partRequired} className="even:bg-white/5 odd:bg-white/0">
                             <td className="px-3 py-2 border-r border-white/10">{row.partRequired}</td>
+                            <td className="px-3 py-2 text-right font-semibold border-r border-white/10">{row.received50Stars}</td>
+                            <td className="px-3 py-2 text-right font-semibold border-r border-white/10">{row.claimed50Stars}</td>
+                            <td className="px-3 py-2 text-right font-semibold border-r border-white/10">{row.receivedProlane}</td>
+                            <td className="px-3 py-2 text-right font-semibold border-r border-white/10">{row.claimedProlane}</td>
                             <td className="px-3 py-2 text-right font-semibold border-r border-white/10">{row.claimed}</td>
-                            <td className="px-3 py-2 text-right font-semibold text-emerald-300">{row.received}</td>
+                            <td className="px-3 py-2 text-right font-semibold text-emerald-300">{row.receivedOverall}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+
+              <div className="rounded-lg border border-white/20 bg-white/10 backdrop-blur-md p-4">
+                <h2 className="text-xl font-bold text-white mb-2">Label-wise Leads</h2>
+                <p className="text-xs text-white/55 mb-3">
+                  Counts are based on lead labels, split by brand from the lead email From entry.
+                </p>
+                {labelWiseRows.length === 0 ? (
+                  <div className="text-white/70 text-sm">No label data found for this range.</div>
+                ) : (
+                  <div className="max-h-64 overflow-y-auto rounded-lg border border-white/10">
+                    <table className="w-full text-sm">
+                      <thead className="sticky top-0 bg-white/10">
+                        <tr>
+                          <th className="text-left px-3 py-2 border-r border-white/20">Label</th>
+                          <th className="text-right px-3 py-2 border-r border-white/20">50STARS</th>
+                          <th className="text-right px-3 py-2 border-r border-white/20">PROLANE</th>
+                          <th className="text-right px-3 py-2 text-emerald-300">Overall</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {labelWiseRows.map((row) => (
+                          <tr key={row.label} className="even:bg-white/5 odd:bg-white/0">
+                            <td className="px-3 py-2 border-r border-white/10">{row.label}</td>
+                            <td className="px-3 py-2 text-right font-semibold border-r border-white/10">{row.stars}</td>
+                            <td className="px-3 py-2 text-right font-semibold border-r border-white/10">{row.prolane}</td>
+                            <td className="px-3 py-2 text-right font-semibold text-emerald-300">{row.overall}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -1680,6 +1917,30 @@ export default function Leads() {
               {/* Agent Statistics */}
               <div className="rounded-lg border border-white/20 bg-white/10 backdrop-blur-md p-4">
                 <h2 className="text-xl font-bold text-white mb-4">Agent Statistics</h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-5">
+                  <div className="rounded-lg border border-white/10 bg-white/5 p-3">
+                    <div className="font-semibold text-white mb-2">50STARS (label-based)</div>
+                    <div className="space-y-1">
+                      {salesAgentLabelRowsByBrand["50STARS"].map((row) => (
+                        <div key={row.name} className="flex items-center justify-between text-sm">
+                          <span className="text-white/80">{row.name}</span>
+                          <span className="text-blue-300 font-semibold">{row.count}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="rounded-lg border border-white/10 bg-white/5 p-3">
+                    <div className="font-semibold text-white mb-2">PROLANE (label-based)</div>
+                    <div className="space-y-1">
+                      {salesAgentLabelRowsByBrand["PROLANE"].map((row) => (
+                        <div key={row.name} className="flex items-center justify-between text-sm">
+                          <span className="text-white/80">{row.name}</span>
+                          <span className="text-blue-300 font-semibold">{row.count}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
                 <div className="space-y-3">
                   {statistics.agentStats && statistics.agentStats.length > 0 ? (
                     statistics.agentStats.map((agent) => {
@@ -1817,9 +2078,7 @@ export default function Leads() {
                       </div>
                       );
                     })
-                  ) : (
-                    <div className="text-center py-8 text-white/80">No agent statistics found for this date range.</div>
-                  )}
+                  ) : null}
                 </div>
               </div>
 

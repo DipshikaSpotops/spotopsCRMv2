@@ -39,6 +39,16 @@ export function bucketInternalMsToReportingDay(
 
 const LIST_CONCURRENCY = Number(process.env.GMAIL_INBOUND_LIST_CONCURRENCY || 20);
 const PART_FULL_PARSE_MAX = Number(process.env.GMAIL_PART_PARSE_FULL_MAX || 200);
+const BRAND_50STARS = "50STARS";
+const BRAND_PROLANE = "PROLANE";
+
+function detectLeadBrandFromText(raw = "") {
+  const lower = String(raw || "").toLowerCase();
+  if (!lower) return null;
+  if (lower.includes("50stars")) return BRAND_50STARS;
+  if (lower.includes("prolane")) return BRAND_PROLANE;
+  return null;
+}
 
 function extractHtmlFromGmailPayload(payload) {
   if (!payload) return "";
@@ -72,7 +82,9 @@ function partFromParsed(htmlOrSnippet) {
 async function buildPartWiseReceivedFromMessageIds(messageIds, options = {}) {
   const { gmail } = options;
   const partWiseReceived = new Map();
-  if (!messageIds?.length) return partWiseReceived;
+  const partWiseReceivedByBrand = new Map();
+  const brandByMessageId = options.brandByMessageId instanceof Map ? options.brandByMessageId : new Map();
+  if (!messageIds?.length) return { partWiseReceived, partWiseReceivedByBrand };
 
   const uniq = [...new Set(messageIds)];
   const resolved = new Map();
@@ -132,9 +144,19 @@ async function buildPartWiseReceivedFromMessageIds(messageIds, options = {}) {
     const part = resolved.get(mid);
     if (!part) continue;
     partWiseReceived.set(part, (partWiseReceived.get(part) || 0) + 1);
+
+    const brand = brandByMessageId.get(mid);
+    if (brand === BRAND_50STARS || brand === BRAND_PROLANE) {
+      if (!partWiseReceivedByBrand.has(part)) {
+        partWiseReceivedByBrand.set(part, { [BRAND_50STARS]: 0, [BRAND_PROLANE]: 0 });
+      }
+      const current = partWiseReceivedByBrand.get(part);
+      current[brand] = (current[brand] || 0) + 1;
+      partWiseReceivedByBrand.set(part, current);
+    }
   }
 
-  return partWiseReceived;
+  return { partWiseReceived, partWiseReceivedByBrand };
 }
 
 /**
@@ -180,6 +202,7 @@ export async function fetchInboundCountsFromGmailApi({
   const inboundByDate = new Map();
   let totalInboundFromGmail = 0;
   const acceptedMessageIds = [];
+  const brandByMessageId = new Map();
 
   const lowerFilter = agentEmailFilter
     ? String(agentEmailFilter).toLowerCase()
@@ -214,6 +237,13 @@ export async function fetchInboundCountsFromGmailApi({
         if (!detected || detected.toLowerCase() !== lowerFilter) continue;
       }
 
+      const fromHeaderValue =
+        (row.headers || []).find((h) => String(h?.name || "").toLowerCase() === "from")?.value || "";
+      const detectedBrand = detectLeadBrandFromText(fromHeaderValue);
+      if (detectedBrand) {
+        brandByMessageId.set(row.id, detectedBrand);
+      }
+
       const dayKey = bucketInternalMsToReportingDay(
         row.internalMs,
         startDateStr,
@@ -227,11 +257,12 @@ export async function fetchInboundCountsFromGmailApi({
     }
   }
 
-  const partWiseReceived = await buildPartWiseReceivedFromMessageIds(acceptedMessageIds, {
+  const { partWiseReceived, partWiseReceivedByBrand } = await buildPartWiseReceivedFromMessageIds(acceptedMessageIds, {
     gmail,
+    brandByMessageId,
   });
 
-  return { inboundByDate, totalInboundFromGmail, partWiseReceived };
+  return { inboundByDate, totalInboundFromGmail, partWiseReceived, partWiseReceivedByBrand };
 }
 
 /** DB fallback using GmailMessage + same IST windows (internalDate / createdAt). */
@@ -270,12 +301,13 @@ export async function fetchInboundCountsFromMongoIst({
       },
     },
     { $match: rangeMatch },
-    { $project: { arrivalAt: 1, messageId: 1 } },
+    { $project: { arrivalAt: 1, messageId: 1, from: 1 } },
   ]);
 
   const inboundByDate = new Map();
   let totalInboundFromGmail = 0;
   const acceptedMessageIds = [];
+  const brandByMessageId = new Map();
 
   for (const doc of rows) {
     const internalMs = doc.arrivalAt ? new Date(doc.arrivalAt).getTime() : null;
@@ -290,7 +322,13 @@ export async function fetchInboundCountsFromMongoIst({
     if (!dayKey) continue;
     inboundByDate.set(dayKey, (inboundByDate.get(dayKey) || 0) + 1);
     totalInboundFromGmail += 1;
-    if (doc.messageId) acceptedMessageIds.push(doc.messageId);
+    if (doc.messageId) {
+      acceptedMessageIds.push(doc.messageId);
+      const detectedBrand = detectLeadBrandFromText(doc.from);
+      if (detectedBrand) {
+        brandByMessageId.set(doc.messageId, detectedBrand);
+      }
+    }
   }
 
   let gmailForParts = null;
@@ -299,9 +337,10 @@ export async function fetchInboundCountsFromMongoIst({
   } catch {
     /* optional */
   }
-  const partWiseReceived = await buildPartWiseReceivedFromMessageIds(acceptedMessageIds, {
+  const { partWiseReceived, partWiseReceivedByBrand } = await buildPartWiseReceivedFromMessageIds(acceptedMessageIds, {
     gmail: gmailForParts,
+    brandByMessageId,
   });
 
-  return { inboundByDate, totalInboundFromGmail, partWiseReceived };
+  return { inboundByDate, totalInboundFromGmail, partWiseReceived, partWiseReceivedByBrand };
 }

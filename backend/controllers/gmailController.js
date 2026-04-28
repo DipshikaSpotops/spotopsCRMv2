@@ -29,6 +29,111 @@ const SALES_AGENT_EMAILS = (process.env.SALES_AGENT_EMAILS || "")
   .map((email) => email.trim().toLowerCase())
   .filter(Boolean);
 
+const CANONICAL_STATS_LABELS = [
+  "Voice Mail",
+  "Quoted",
+  "Sale",
+  "Not in Service",
+  "Call not connected",
+  "Duplicate",
+  "Expensive",
+  "Invalid",
+  "Need New",
+  "No Part",
+  "No Number",
+  "Spanish customer",
+  "VIN",
+  "Wrong description",
+  "wrong Number",
+  "Others",
+];
+
+const BRAND_SALES_LABELS = {
+  "50STARS": ["Mark", "Richard", "Nick", "Charlie"],
+  "PROLANE": ["Victor", "Sam", "Noah", "Michael"],
+};
+
+function detectBrandFromFromEntry(rawFrom = "") {
+  const lower = String(rawFrom || "").toLowerCase();
+  if (lower.includes("50stars")) return "50STARS";
+  if (lower.includes("prolane")) return "PROLANE";
+  return null;
+}
+
+function normalizeStatsLabel(rawLabel = "") {
+  const normalized = String(rawLabel || "").trim().toLowerCase();
+  if (!normalized) return null;
+
+  const aliasMap = new Map([
+    ["voice mail", "Voice Mail"],
+    ["voicemail", "Voice Mail"],
+    ["quoted", "Quoted"],
+    ["sale", "Sale"],
+    ["sold", "Sale"],
+    ["not in service", "Not in Service"],
+    ["call not connected", "Call not connected"],
+    ["duplicate", "Duplicate"],
+    ["expensive", "Expensive"],
+    ["invalid", "Invalid"],
+    ["need new", "Need New"],
+    ["no part", "No Part"],
+    ["no number", "No Number"],
+    ["wrong number", "wrong Number"],
+    ["wrong no", "wrong Number"],
+    ["spanish customer", "Spanish customer"],
+    ["vin", "VIN"],
+    ["wrong description", "Wrong description"],
+    ["others", "Others"],
+  ]);
+
+  return aliasMap.get(normalized) || "Others";
+}
+
+function isSystemGmailLabel(labelName = "") {
+  const upper = String(labelName || "").toUpperCase();
+  const system = new Set([
+    "INBOX",
+    "UNREAD",
+    "IMPORTANT",
+    "STARRED",
+    "CATEGORY_PERSONAL",
+    "CATEGORY_SOCIAL",
+    "CATEGORY_PROMOTIONS",
+    "CATEGORY_UPDATES",
+    "CATEGORY_FORUMS",
+    "SENT",
+    "DRAFT",
+    "SPAM",
+    "TRASH",
+    "CHAT",
+  ]);
+  return system.has(upper);
+}
+
+function createSalesAgentLabelCountsSeed() {
+  return {
+    "50STARS": Object.fromEntries(BRAND_SALES_LABELS["50STARS"].map((name) => [name, 0])),
+    "PROLANE": Object.fromEntries(BRAND_SALES_LABELS["PROLANE"].map((name) => [name, 0])),
+  };
+}
+
+function incrementSalesAgentLabelCount(counts, brand, labels = []) {
+  if (!counts?.[brand]) return;
+  const brandAgents = BRAND_SALES_LABELS[brand] || [];
+  const lowerToCanonical = new Map(brandAgents.map((name) => [name.toLowerCase(), name]));
+  const normalizedSet = new Set(
+    labels
+      .map((label) => String(label || "").trim().toLowerCase())
+      .filter(Boolean)
+  );
+  for (const lowerLabel of normalizedSet) {
+    const canonical = lowerToCanonical.get(lowerLabel);
+    if (canonical) {
+      counts[brand][canonical] = (counts[brand][canonical] || 0) + 1;
+    }
+  }
+}
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const TOKEN_PATH = path.join(__dirname, "..", "token.json");
@@ -1991,12 +2096,71 @@ export async function getDailyStatisticsHandler(req, res, next) {
         : partWiseReceivedMap && typeof partWiseReceivedMap === "object"
           ? partWiseReceivedMap
           : {};
+    const partWiseReceivedByBrandMap = inboundPack.partWiseReceivedByBrand;
+    const partWiseReceivedByBrand =
+      partWiseReceivedByBrandMap instanceof Map
+        ? Object.fromEntries(partWiseReceivedByBrandMap)
+        : partWiseReceivedByBrandMap && typeof partWiseReceivedByBrandMap === "object"
+          ? partWiseReceivedByBrandMap
+          : {};
+
+    const labelWiseByBrandSeed = new Map(
+      CANONICAL_STATS_LABELS.map((label) => [label, { "50STARS": 0, PROLANE: 0, overall: 0 }])
+    );
+    const salesAgentLabelCountsByBrand = createSalesAgentLabelCountsSeed();
+    let gmailLabelNameById = new Map();
+    try {
+      const gmail = await getGmailClient();
+      const { data: labelsData } = await gmail.users.labels.list({ userId: "me" });
+      const gmailLabels = Array.isArray(labelsData?.labels) ? labelsData.labels : [];
+      gmailLabelNameById = new Map(gmailLabels.map((label) => [label.id, label.name]));
+    } catch (labelErr) {
+      console.warn("[getDailyStatistics] Could not fetch Gmail label map, using stored labels only:", labelErr?.message || labelErr);
+    }
+
+    const labelMatch = { arrivalAt: { $gte: start, $lte: end } };
+    if (emailToFilter) {
+      labelMatch.agentEmail = new RegExp(
+        `^${String(emailToFilter).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`,
+        "i"
+      );
+    }
+    const labelRows = await GmailMessage.aggregate([
+      { $addFields: { arrivalAt: { $ifNull: ["$internalDate", "$createdAt"] } } },
+      { $match: labelMatch },
+      { $project: { from: 1, labels: 1, labelIds: 1 } },
+    ]);
+
+    for (const row of labelRows) {
+      const brand = detectBrandFromFromEntry(row?.from);
+      const labels = Array.isArray(row?.labels) ? row.labels : [];
+      const labelIds = Array.isArray(row?.labelIds) ? row.labelIds : [];
+      const labelsFromIds = labelIds
+        .map((labelId) => gmailLabelNameById.get(labelId))
+        .filter((name) => Boolean(name) && !isSystemGmailLabel(name));
+      const combinedLabels = [...labels, ...labelsFromIds];
+      incrementSalesAgentLabelCount(salesAgentLabelCountsByBrand, brand, combinedLabels);
+      const normalizedLabels = new Set(
+        combinedLabels.map((label) => normalizeStatsLabel(label)).filter((label) => Boolean(label))
+      );
+      for (const label of normalizedLabels) {
+        const current = labelWiseByBrandSeed.get(label) || { "50STARS": 0, PROLANE: 0, overall: 0 };
+        if (brand === "50STARS" || brand === "PROLANE") current[brand] = (current[brand] || 0) + 1;
+        current.overall = (current.overall || 0) + 1;
+        labelWiseByBrandSeed.set(label, current);
+      }
+    }
+
+    const labelWiseByBrand = Object.fromEntries(labelWiseByBrandSeed);
 
     return res.json({
       dailyStats: dailyStatsWithInbound,
       totalLeads: leadsWithPartRequired.length,
       totalInboundFromGmail,
       partWiseReceived,
+      partWiseReceivedByBrand,
+      labelWiseByBrand,
+      salesAgentLabelCountsByBrand,
       agentStats,
       dateRange: {
         start: start.toISOString(),
