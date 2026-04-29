@@ -18,6 +18,25 @@ const AGENT_BRAND_MAPPING = {
   Dipshika: "Dipsikha", // Handle alternate spelling for safety
 };
 
+const LEAD_STATUS_OPTIONS = [
+  "Voice Mail",
+  "Quoted",
+  "Sale",
+  "Not in Service",
+  "Call not connected",
+  "Duplicate",
+  "Expensive",
+  "Invalid",
+  "Need New",
+  "No Part",
+  "No Number",
+  "Spanish customer",
+  "VIN",
+  "Wrong description",
+  "wrong Number",
+  "Others",
+];
+
 function readAuthFromStorage() {
   try {
     const raw = localStorage.getItem("auth");
@@ -105,6 +124,8 @@ const AddLeadNotes = ({ embedded = false, prefill }) => {
     };
   });
   const [showStatusModal, setShowStatusModal] = useState(false);
+  const [selectedQuickStatus, setSelectedQuickStatus] = useState("");
+  const [gmailLabelTargets, setGmailLabelTargets] = useState([]);
 
   const requiredFields = [
     "name",
@@ -167,6 +188,29 @@ const AddLeadNotes = ({ embedded = false, prefill }) => {
     }
   };
 
+  const syncGmailLabels = async ({ status, salesAgent }) => {
+    const labelStatus = String(status || "").trim();
+    const labelAgent = String(salesAgent || "").trim();
+    const labels = [labelStatus, labelAgent].filter(Boolean);
+    if (labels.length === 0) return;
+
+    const idCandidates = [
+      ...gmailLabelTargets,
+      prefill?.gmailMessageId,
+      prefill?.gmailDbId,
+    ].filter(Boolean);
+    if (idCandidates.length === 0) return;
+
+    for (const msgId of idCandidates) {
+      try {
+        await API.patch(`/gmail/messages/${msgId}/labels`, { labels });
+        break;
+      } catch (gmailErr) {
+        console.error("Failed to sync Gmail labels for", msgId, gmailErr);
+      }
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -206,6 +250,10 @@ const AddLeadNotes = ({ embedded = false, prefill }) => {
       }
       
       console.log("Lead saved successfully:", response.data);
+      await syncGmailLabels({
+        status: payload.leadStatus,
+        salesAgent: payload.salesAgent,
+      });
       
       // Auto-hide success toast after 5 seconds
       toastTimeoutRef.current = setTimeout(() => {
@@ -215,6 +263,8 @@ const AddLeadNotes = ({ embedded = false, prefill }) => {
       
       setForm(createEmptyForm());
       setEditingLeadId(null);
+      setSelectedQuickStatus("");
+      setGmailLabelTargets([]);
       if (showLeads || showAllLeads) {
         fetchLeads(dateFilter);
       }
@@ -264,6 +314,8 @@ const AddLeadNotes = ({ embedded = false, prefill }) => {
     if (!showLeads && !showAllLeads && !editingLeadId) {
       setForm(createEmptyForm());
       setEditingLeadId(null);
+      setSelectedQuickStatus("");
+      setGmailLabelTargets([]);
       setErrors({});
       // Do not clear toast here so success messages can still be seen
     }
@@ -295,6 +347,8 @@ const AddLeadNotes = ({ embedded = false, prefill }) => {
     setShowLeads(false);
     setShowAllLeads(false);
     setEditingLeadId(null);
+    setGmailLabelTargets([prefill?.gmailMessageId, prefill?.gmailDbId].filter(Boolean));
+    setSelectedQuickStatus(prefill?.leadStatus || "");
 
     const DEFAULT_COMMENTS = "$ with programming and 1 year";
     const hasPrefillComments =
@@ -594,33 +648,10 @@ const AddLeadNotes = ({ embedded = false, prefill }) => {
 
       const lead = response?.data || payload;
 
-      // After successfully saving the lead, if this came from a Gmail lead (embedded mode)
-      // and we know the Gmail message id, update Gmail labels to reflect the lead status.
-      if (embedded && status) {
-        const labelStatus = String(status).trim();
-        const idCandidates = [
-          prefill?.gmailMessageId,
-          prefill?.gmailDbId,
-        ].filter(Boolean);
-
-        if (labelStatus && idCandidates.length > 0) {
-          for (const msgId of idCandidates) {
-            try {
-              await API.patch(`/gmail/messages/${msgId}/labels`, {
-                labels: [labelStatus],
-              });
-              // If one succeeds, no need to try others
-              break;
-            } catch (gmailErr) {
-              console.error(
-                "Failed to update Gmail labels for lead status with id",
-                msgId,
-                gmailErr
-              );
-            }
-          }
-        }
-      }
+      await syncGmailLabels({
+        status: payload.leadStatus,
+        salesAgent: payload.salesAgent,
+      });
 
       if (!redirectToOrder) {
         setToast(
@@ -639,6 +670,8 @@ const AddLeadNotes = ({ embedded = false, prefill }) => {
 
         setForm(createEmptyForm());
         setEditingLeadId(null);
+        setSelectedQuickStatus("");
+        setGmailLabelTargets([]);
         if (showLeads || showAllLeads) {
           fetchLeads(dateFilter);
         }
@@ -668,6 +701,19 @@ const AddLeadNotes = ({ embedded = false, prefill }) => {
   // Buttons for quick status changes without redirect
   const handleStatusSave = async (status) => {
     await saveLeadWithStatus(status, { redirectToOrder: false });
+  };
+
+  const handleGoWithSelectedStatus = async () => {
+    const chosen = String(selectedQuickStatus || "").trim();
+    if (!chosen) {
+      setToast("Please choose a status first.");
+      return;
+    }
+    if (chosen === "Sale") {
+      await handleSale();
+      return;
+    }
+    await handleStatusSave(chosen);
   };
 
   // Save lead and immediately start sale (prefill AddOrder)
@@ -796,37 +842,28 @@ const AddLeadNotes = ({ embedded = false, prefill }) => {
               >
                 {copySuccess ? "✓ Copied!" : "Copy"}
               </button>
+              <select
+                value={selectedQuickStatus}
+                onChange={(e) => {
+                  setSelectedQuickStatus(e.target.value);
+                  setForm((prev) => ({ ...prev, leadStatus: e.target.value }));
+                }}
+                className="px-2 py-1.5 rounded-lg text-xs font-semibold bg-white/10 border border-white/20 text-white outline-none"
+              >
+                <option value="" className="text-black">Select Status</option>
+                {LEAD_STATUS_OPTIONS.map((status) => (
+                  <option key={status} value={status} className="text-black">
+                    {status}
+                  </option>
+                ))}
+              </select>
               <button
                 type="button"
-                onClick={() => handleStatusSave("Voicemail")}
-                disabled={submitting}
-                className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-purple-600 hover:bg-purple-500 text-white disabled:opacity-60"
+                onClick={handleGoWithSelectedStatus}
+                disabled={submitting || !selectedQuickStatus}
+                className="px-3 py-1.5 rounded-lg text-sm font-semibold bg-[#2c5d81] hover:bg-blue-600 text-white disabled:opacity-60"
               >
-                Voicemail
-              </button>
-              <button
-                type="button"
-                onClick={() => handleStatusSave("Quoted")}
-                disabled={submitting}
-                className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-600 hover:bg-blue-500 text-white disabled:opacity-60"
-              >
-                Quoted
-              </button>
-              <button
-                type="button"
-                onClick={() => handleStatusSave("Invalid")}
-                disabled={submitting}
-                className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-red-600 hover:bg-red-500 text-white disabled:opacity-60"
-              >
-                Invalid
-              </button>
-              <button
-                type="button"
-                onClick={handleSale}
-                disabled={submitting}
-                className="px-3 py-1.5 rounded-lg text-sm font-semibold bg-green-600 hover:bg-green-500 text-white disabled:opacity-60"
-              >
-                Sale
+                Go
               </button>
             </div>
           </div>
@@ -1273,6 +1310,8 @@ const AddLeadNotes = ({ embedded = false, prefill }) => {
                                       lead.comments ||
                                       "$ with programming and 1 year",
                                   });
+                                  setSelectedQuickStatus(lead.leadStatus || "");
+                                  setGmailLabelTargets([lead.gmailMessageId, lead.gmailDbId].filter(Boolean));
                                   // Show form for editing
                                   setShowLeads(false);
                                   setShowAllLeads(false);
