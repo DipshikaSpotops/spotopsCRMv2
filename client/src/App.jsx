@@ -54,6 +54,7 @@ const JunkParts = lazy(() => import("./pages/JunkParts"));
 const IncentivesReport = lazy(() => import("./pages/IncentivesReport"));
 const Attendance = lazy(() => import("./pages/Attendance"));
 const AccessCodes = lazy(() => import("./pages/AccessCodes"));
+const AuthorizationCodes = lazy(() => import("./pages/AuthorizationCodes"));
 
 // Loading fallback component
 const PageLoader = () => (
@@ -249,6 +250,14 @@ function App() {
           element={withLayout(
             <Suspense fallback={<PageLoader />}>
               <AccessCodes />
+            </Suspense>
+          )}
+        />
+        <Route
+          path="/authorization-codes"
+          element={withLayout(
+            <Suspense fallback={<PageLoader />}>
+              <AuthorizationCodes />
             </Suspense>
           )}
         />

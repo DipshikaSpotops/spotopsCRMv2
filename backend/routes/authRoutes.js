@@ -12,7 +12,6 @@ import { requireAuth, allow } from "../middleware/auth.js";
 import { validateSignup } from "../middleware/validateSignup.js";
 import { validateLogin } from "../middleware/validateLogin.js";
 import {
-  sendAccessCodeEmailToUser,
   sendAccessCodeSmtpTest,
   getAccessMailDebug,
 } from "../services/sendAccessCodeEmail.js";
@@ -29,6 +28,18 @@ const router = express.Router();
 const JWT_SECRET = process.env.JWT_SECRET || "supersecretkey";
 const ONE_DAY_IN_SECONDS = 24 * 60 * 60;
 const TZ = "America/Chicago";
+const AUTH_CODE_WINDOW_SECONDS = Math.max(
+  15,
+  Number(process.env.AUTH_CODE_WINDOW_SECONDS ?? 60) || 60
+);
+const AUTH_CODE_PATTERN = String(process.env.AUTH_CODE_PATTERN || "NANNSANNSN")
+  .trim()
+  .toUpperCase();
+const AUTH_CODE_NUMBERS = "0123456789";
+const AUTH_CODE_ALPHABETS = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+const AUTH_CODE_SPECIALS = "!@#$%^&*";
+const AUTH_CODE_SECRET =
+  process.env.AUTH_CODE_SECRET || process.env.JWT_SECRET || "spotops-auth-code";
 
 const allowedEmails = [
   "dipsikha.spotopsdigital@gmail.com",
@@ -43,79 +54,67 @@ function generateAccessCode(length = 16) {
   return out;
 }
 
+function stableUserKey(email = "") {
+  return String(email || "").trim().toLowerCase();
+}
+
+function computeAuthCodeForWindow(email, windowIndex) {
+  const key = stableUserKey(email);
+  const digest = crypto
+    .createHmac("sha256", AUTH_CODE_SECRET)
+    .update(`${key}:${windowIndex}`)
+    .digest();
+  let out = "";
+  const pattern = AUTH_CODE_PATTERN || "NANNSANNSN";
+  for (let i = 0; i < pattern.length; i++) {
+    const token = pattern[i];
+    const source =
+      token === "N"
+        ? AUTH_CODE_NUMBERS
+        : token === "A"
+          ? AUTH_CODE_ALPHABETS
+          : token === "S"
+            ? AUTH_CODE_SPECIALS
+            : AUTH_CODE_ALPHABETS;
+    out += source[digest[i % digest.length] % source.length];
+  }
+  return out;
+}
+
+function getAuthCodeSnapshotForEmail(email) {
+  const nowMs = Date.now();
+  const windowMs = AUTH_CODE_WINDOW_SECONDS * 1000;
+  const windowIndex = Math.floor(nowMs / windowMs);
+  const windowEndMs = (windowIndex + 1) * windowMs;
+  return {
+    code: computeAuthCodeForWindow(email, windowIndex),
+    windowIndex,
+    windowSeconds: AUTH_CODE_WINDOW_SECONDS,
+    secondsRemaining: Math.max(0, Math.ceil((windowEndMs - nowMs) / 1000)),
+  };
+}
+
+function verifyAuthCodeForEmail(email, submittedCode) {
+  const normalizedCode = String(submittedCode || "")
+    .trim()
+    .toUpperCase()
+    .replace(/\s+/g, "");
+  if (!normalizedCode) return false;
+  const nowMs = Date.now();
+  const windowMs = AUTH_CODE_WINDOW_SECONDS * 1000;
+  const currentWindow = Math.floor(nowMs / windowMs);
+  const acceptableWindows = [currentWindow, currentWindow - 1];
+  return acceptableWindows.some((w) => computeAuthCodeForWindow(email, w) === normalizedCode);
+}
+
 /**
  * After password login, locked users get an invite + email to their login address.
  * Mail failures are logged only; login still succeeds.
  */
 async function autoProvisionAccessCodeOnLogin(userDoc, req) {
-  if (!isAppAccessGateEnabled()) return;
-
-  const email = String(userDoc.email || "")
-    .trim()
-    .toLowerCase();
-  if (!email) return;
-
-  const cooldownMs = Math.max(
-    0,
-    Number(process.env.ACCESS_CODE_LOGIN_EMAIL_COOLDOWN_MS ?? 120000) || 120000
-  );
-
-  const existing = await AccessInvite.findOne({
-    allowedEmail: email,
-    usedAt: null,
-    $or: [{ expiresAt: null }, { expiresAt: { $gt: new Date() } }],
-  }).sort({ createdAt: -1 });
-
-  if (existing && Date.now() - new Date(existing.createdAt).getTime() < cooldownMs) {
-    try {
-      await sendAccessCodeEmailToUser({ req, toEmail: email, code: existing.code });
-      console.log("[auth/login] access-code: cooldown — re-sent to", email);
-    } catch (e) {
-      console.error("[auth/login] access-code resend failed:", e?.message);
-    }
-    return;
-  }
-
-  await AccessInvite.deleteMany({ allowedEmail: email, usedAt: null });
-
-  let code = generateAccessCode();
-  let saved = null;
-  const expiresAt = computeAccessInviteExpiresAt();
-
-  for (let attempt = 0; attempt < 5; attempt++) {
-    try {
-      saved = await AccessInvite.create({
-        code,
-        allowedEmail: email,
-        expiresAt,
-      });
-      break;
-    } catch (err) {
-      if (err?.code === 11000) {
-        code = generateAccessCode();
-        continue;
-      }
-      console.error("[auth/login] access-code invite create failed:", err?.message);
-      return;
-    }
-  }
-
-  if (!saved) {
-    console.error("[auth/login] access-code: could not create invite");
-    return;
-  }
-
-  console.log(
-    "[auth/login] ACCESS CODE (login auto)",
-    JSON.stringify({ code: saved.code, forUser: email })
-  );
-
-  try {
-    await sendAccessCodeEmailToUser({ req, toEmail: email, code: saved.code });
-    console.log("[auth/login] access-code email sent to user", email);
-  } catch (e) {
-    console.error("[auth/login] access-code email to user failed:", e?.message);
-  }
+  // Email-based access code delivery has been retired.
+  // Access unlock now uses rotating Authorization Code page values.
+  return;
 }
 
 // Helper function to get IP address from request
@@ -953,23 +952,24 @@ router.post("/access-redeem", requireAuth, async (req, res) => {
       $or: [{ expiresAt: null }, { expiresAt: { $gt: now } }],
     }).lean();
 
-    if (!invite) {
+    if (!invite && !verifyAuthCodeForEmail(email, raw)) {
       return res.status(400).json({ message: "Invalid or expired code" });
     }
 
-    const updated = await AccessInvite.findOneAndUpdate(
-      { _id: invite._id, usedAt: null },
-      {
-        $set: {
-          usedAt: now,
-          redeemedByUserId: req.user.id,
+    if (invite) {
+      const updated = await AccessInvite.findOneAndUpdate(
+        { _id: invite._id, usedAt: null },
+        {
+          $set: {
+            usedAt: now,
+            redeemedByUserId: req.user.id,
+          },
         },
-      },
-      { new: true }
-    );
-
-    if (!updated) {
-      return res.status(400).json({ message: "Code already used" });
+        { new: true }
+      );
+      if (!updated) {
+        return res.status(400).json({ message: "Code already used" });
+      }
     }
 
     await User.updateOne({ _id: req.user.id }, { $set: { appAccessUnlocked: true } });
@@ -981,64 +981,43 @@ router.post("/access-redeem", requireAuth, async (req, res) => {
   }
 });
 
+router.get("/admin/authorization-codes", requireAuth, allow("Admin"), async (_req, res) => {
+  try {
+    const users = await User.find({})
+      .select("firstName lastName email role")
+      .sort({ role: 1, firstName: 1, lastName: 1, email: 1 })
+      .lean();
+    const rows = users
+      .filter((u) => String(u?.role || "").trim() !== "Admin")
+      .map((u) => {
+      const snap = getAuthCodeSnapshotForEmail(u.email);
+      return {
+        userId: String(u._id),
+        firstName: u.firstName || "",
+        lastName: u.lastName || "",
+        email: u.email || "",
+        role: u.role || "",
+        code: snap.code,
+        secondsRemaining: snap.secondsRemaining,
+        windowSeconds: snap.windowSeconds,
+      };
+      });
+    return res.json({
+      generatedAt: new Date().toISOString(),
+      windowSeconds: AUTH_CODE_WINDOW_SECONDS,
+      rows,
+    });
+  } catch (e) {
+    console.error("[admin/authorization-codes]", e);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+});
+
 router.post("/access-resend", requireAuth, async (req, res) => {
   try {
-    if (!isAppAccessGateEnabled()) {
-      return res.status(400).json({ message: "Access gate is not enabled" });
-    }
-
-    const user = await User.findById(req.user.id).lean();
-    if (!user) return res.status(401).json({ message: "Invalid user" });
-
-    const email = String(user.email || "").toLowerCase().trim();
-    if (!email) return res.status(400).json({ message: "User email missing" });
-
-    const now = new Date();
-    let invite = await AccessInvite.findOne({
-      allowedEmail: email,
-      usedAt: null,
-      $or: [{ expiresAt: null }, { expiresAt: { $gt: now } }],
-    }).sort({ createdAt: -1 });
-
-    if (!invite) {
-      await AccessInvite.deleteMany({ allowedEmail: email, usedAt: null });
-      let code = generateAccessCode();
-      const expiresAt = computeAccessInviteExpiresAt();
-
-      for (let attempt = 0; attempt < 5; attempt++) {
-        try {
-          invite = await AccessInvite.create({
-            code,
-            allowedEmail: email,
-            expiresAt,
-          });
-          break;
-        } catch (err) {
-          if (err?.code === 11000) {
-            code = generateAccessCode();
-            continue;
-          }
-          throw err;
-        }
-      }
-    }
-
-    if (!invite) {
-      return res.status(500).json({ message: "Could not issue access code" });
-    }
-
-    try {
-      await sendAccessCodeEmailToUser({ req, toEmail: email, code: invite.code });
-    } catch (mailErr) {
-      return res.status(500).json({
-        message: mailErr?.message || "Could not send access code email",
-        code: invite.code,
-      });
-    }
-
     return res.json({
-      message: "Access code sent",
-      sentFor: email,
+      message:
+        "Email resend is disabled. Ask your admin for the current rotating authorization code.",
     });
   } catch (e) {
     console.error("[access-resend]", e);
@@ -1048,80 +1027,10 @@ router.post("/access-resend", requireAuth, async (req, res) => {
 
 router.post("/admin/access-invites", requireAuth, allow("Admin"), async (req, res) => {
   try {
-    if (!isAppAccessGateEnabled()) {
-      return res.status(400).json({ message: "Enable APP_ACCESS_GATE_ENABLED first" });
-    }
-    const invites = req.body?.invites;
-    if (!Array.isArray(invites) || invites.length === 0) {
-      return res.status(400).json({ message: "invites[] is required" });
-    }
-    const expiresAt = computeAccessInviteExpiresAt();
-
-    const results = [];
-    for (const item of invites) {
-      const email = String(item?.email || "")
-        .trim()
-        .toLowerCase();
-      if (!email || !email.includes("@")) {
-        results.push({ email: item?.email, error: "Invalid email" });
-        continue;
-      }
-      const sendEmail = item?.sendEmail !== false;
-      let code = generateAccessCode();
-      let saved = null;
-      for (let attempt = 0; attempt < 5; attempt++) {
-        try {
-          saved = await AccessInvite.create({
-            code,
-            allowedEmail: email,
-            expiresAt,
-          });
-          break;
-        } catch (err) {
-          if (err?.code === 11000) {
-            code = generateAccessCode();
-            continue;
-          }
-          throw err;
-        }
-      }
-      if (!saved) {
-        results.push({ email, error: "Could not generate unique code" });
-        continue;
-      }
-
-      console.log(
-        "[access-invites] ACCESS CODE (debug)",
-        JSON.stringify({
-          code: saved.code,
-          forUser: email,
-          sendEmailRequested: sendEmail,
-        })
-      );
-
-      if (sendEmail) {
-        console.log("[access-invites] Access-code email: send to user", email, "+ internal notify if configured");
-        try {
-          await sendAccessCodeEmailToUser({ req, toEmail: email, code: saved.code });
-          console.log("[access-invites] Access-code email: SENT OK (user inbox + optional notify copy)");
-          results.push({ email, emailed: true });
-        } catch (mailErr) {
-          console.error("[access-invites] Access-code email: SEND FAILED", mailErr?.message || mailErr);
-          results.push({
-            email,
-            emailed: false,
-            emailError: mailErr.message,
-            code: saved.code,
-          });
-        }
-      } else {
-        console.log(
-          "[access-invites] Access-code email: SKIPPED (checkbox off); use code from console/API results"
-        );
-        results.push({ email, emailed: false, code: saved.code });
-      }
-    }
-    return res.status(201).json({ results });
+    return res.status(410).json({
+      message:
+        "Email-based access invites are retired. Use /authorization-codes page for rotating codes.",
+    });
   } catch (e) {
     console.error("[admin/access-invites]", e);
     return res.status(500).json({ message: "Internal server error" });

@@ -14,9 +14,7 @@ export default function AccessCodeModal() {
   const token = useSelector(selectToken);
   const [code, setCode] = useState("");
   const [error, setError] = useState("");
-  const [info, setInfo] = useState("");
   const [loading, setLoading] = useState(false);
-  const [resending, setResending] = useState(false);
 
   const stored = readStoredAuth();
   const email = stored?.user?.email || "";
@@ -30,7 +28,6 @@ export default function AccessCodeModal() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
-    setInfo("");
     setLoading(true);
     try {
       const res = await API.post("/auth/access-redeem", { code });
@@ -53,21 +50,6 @@ export default function AccessCodeModal() {
     }
   };
 
-  const handleResend = async () => {
-    if (resending) return;
-    setError("");
-    setInfo("");
-    setResending(true);
-    try {
-      const { data } = await API.post("/auth/access-resend");
-      setInfo(data?.message || "A new access code has been sent.");
-    } catch (err) {
-      setError(err.response?.data?.message || "Could not resend access code.");
-    } finally {
-      setResending(false);
-    }
-  };
-
   return (
     <div
       className="fixed inset-0 z-[100] flex items-center justify-center bg-black/75 px-4"
@@ -82,7 +64,8 @@ export default function AccessCodeModal() {
         <p className="text-sm text-gray-400 text-center mb-4">
           You are signed in as{" "}
           <span className="text-gray-200 font-medium">{email || "this account"}</span>.
-          Enter the access code issued for this login (your admin/support team shares it with you).
+          Enter the current rotating authorization code for your account
+          (shared by your admin from the Authorization Code page).
           This code is required to finish unlocking the app.
         </p>
 
@@ -91,8 +74,6 @@ export default function AccessCodeModal() {
             {error}
           </p>
         )}
-        {info && <p className="text-emerald-300 text-sm text-center mb-3">{info}</p>}
-
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label htmlFor="access-code-input" className="block text-xs text-gray-400 mb-1">
@@ -117,15 +98,6 @@ export default function AccessCodeModal() {
             {loading ? "Verifying…" : "Verify & continue"}
           </button>
         </form>
-
-        <button
-          type="button"
-          onClick={handleResend}
-          disabled={resending || loading}
-          className="w-full mt-3 py-2 text-sm text-cyan-300 hover:text-cyan-100 transition disabled:opacity-50"
-        >
-          {resending ? "Resending code..." : "Resend access code"}
-        </button>
 
         <button
           type="button"
