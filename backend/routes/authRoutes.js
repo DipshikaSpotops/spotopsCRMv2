@@ -45,6 +45,9 @@ const allowedEmails = [
   "dipsikha.spotopsdigital@gmail.com",
   "contact@50starsautoparts.com"
 ];
+const AUTHORIZATION_CODES_ALLOWED_EMAILS = new Set([
+  "50starsauto110@gmail.com",
+]);
 
 function generateAccessCode(length = 16) {
   const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -981,8 +984,16 @@ router.post("/access-redeem", requireAuth, async (req, res) => {
   }
 });
 
-router.get("/admin/authorization-codes", requireAuth, allow("Admin"), async (_req, res) => {
+router.get("/admin/authorization-codes", requireAuth, async (req, res) => {
   try {
+    const reqRole = String(req.user?.role || "").trim();
+    const reqEmail = String(req.user?.email || "").trim().toLowerCase();
+    const isAdmin = reqRole === "Admin";
+    const isAllowedEmail = AUTHORIZATION_CODES_ALLOWED_EMAILS.has(reqEmail);
+    if (!isAdmin && !isAllowedEmail) {
+      return res.status(403).json({ message: "Not authorized to view authorization codes" });
+    }
+
     const users = await User.find({})
       .select("firstName lastName email role")
       .sort({ role: 1, firstName: 1, lastName: 1, email: 1 })

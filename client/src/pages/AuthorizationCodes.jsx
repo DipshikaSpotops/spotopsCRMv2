@@ -20,6 +20,16 @@ function useEffectiveRole() {
 
 export default function AuthorizationCodes() {
   const role = useEffectiveRole();
+  const userEmail = useMemo(() => {
+    try {
+      const raw = localStorage.getItem("auth");
+      if (raw) return String(JSON.parse(raw)?.user?.email || "").trim().toLowerCase();
+    } catch {
+      // ignore
+    }
+    return String(localStorage.getItem("email") || "").trim().toLowerCase();
+  }, []);
+  const isAllowedByEmail = userEmail === "50starsauto110@gmail.com";
   const [rows, setRows] = useState([]);
   const [windowSeconds, setWindowSeconds] = useState(60);
   const [loading, setLoading] = useState(true);
@@ -71,7 +81,7 @@ export default function AuthorizationCodes() {
     return () => clearInterval(tick);
   }, []);
 
-  if (role != null && role !== "Admin") {
+  if (role != null && role !== "Admin" && !isAllowedByEmail) {
     return <Navigate to="/dashboard" replace />;
   }
 
