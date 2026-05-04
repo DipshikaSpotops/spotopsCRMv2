@@ -291,8 +291,8 @@ function normalizePartRequiredLabel(partRequired = "") {
 
 function detectBrandFromFromEntry(rawFrom = "") {
   const lower = String(rawFrom || "").toLowerCase();
-  if (lower.includes("50stars") || lower.includes("50 stars")) return "50STARS";
   if (lower.includes("prolane") || lower.includes("pro lane")) return "PROLANE";
+  if (lower.includes("50stars") || lower.includes("50 stars")) return "50STARS";
   return null;
 }
 

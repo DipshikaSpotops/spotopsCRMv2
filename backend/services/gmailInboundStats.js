@@ -41,11 +41,38 @@ const PART_FULL_PARSE_MAX = Number(process.env.GMAIL_PART_PARSE_FULL_MAX || 200)
 const BRAND_50STARS = "50STARS";
 const BRAND_PROLANE = "PROLANE";
 
+/** Same first-name labels as CRM / gmailController — used when headers lack brand text. */
+const BRAND_SALES_LABEL_NAMES = {
+  [BRAND_50STARS]: ["Mark", "Richard", "Nick", "Charlie"],
+  [BRAND_PROLANE]: ["Victor", "Sam", "Noah", "Michael"],
+};
+
+/**
+ * Infer 50STARS vs PROLANE from Gmail user label names (distribution queue labels).
+ */
+function inferLeadBrandFromGmailLabelNames(labelNames = []) {
+  const lower = new Set(
+    labelNames.map((l) => String(l || "").trim().toLowerCase()).filter(Boolean)
+  );
+  let hitStars = false;
+  let hitPro = false;
+  for (const n of BRAND_SALES_LABEL_NAMES[BRAND_50STARS]) {
+    if (lower.has(String(n || "").toLowerCase())) hitStars = true;
+  }
+  for (const n of BRAND_SALES_LABEL_NAMES[BRAND_PROLANE]) {
+    if (lower.has(String(n || "").toLowerCase())) hitPro = true;
+  }
+  if (hitStars && !hitPro) return BRAND_50STARS;
+  if (hitPro && !hitStars) return BRAND_PROLANE;
+  return null;
+}
+
 function detectLeadBrandFromText(raw = "") {
   const lower = String(raw || "").toLowerCase();
   if (!lower) return null;
-  if (lower.includes("50stars") || lower.includes("50 stars")) return BRAND_50STARS;
+  // Prolane first: many lead templates/snippets mention both brands; 50STARS check alone hid all PROLANE (received).
   if (lower.includes("prolane") || lower.includes("pro lane")) return BRAND_PROLANE;
+  if (lower.includes("50stars") || lower.includes("50 stars")) return BRAND_50STARS;
   return null;
 }
 
@@ -75,6 +102,21 @@ function detectLeadBrandFromMetadataHeaders(headers) {
     headerValueLower(headers, "Cc"),
   ].join(" ");
   return detectLeadBrandFromText(haystack);
+}
+
+/**
+ * Prefer brand from visible text (headers + snippet). Snippet often contains
+ * "Prolane Auto Parts" / "50 Stars" even when the only user labels are cross-team (e.g. Richard on a Prolane lead).
+ */
+function detectLeadBrandFromLiveGmailRow(headers, snippet = "") {
+  const headerHay = [
+    headerValueLower(headers, "From"),
+    headerValueLower(headers, "Subject"),
+    headerValueLower(headers, "To"),
+    headerValueLower(headers, "Delivered-To"),
+    headerValueLower(headers, "Cc"),
+  ].join(" ");
+  return detectLeadBrandFromText([headerHay, String(snippet || "")].join("\n"));
 }
 
 function isSystemGmailLabelName(labelName = "") {
@@ -310,7 +352,14 @@ export async function fetchInboundCountsFromGmailApi({
       if (!row || row.internalMs == null) continue;
       if (row.internalMs < overallStartMs || row.internalMs > overallEndMs) continue;
 
-      const detectedBrand = detectLeadBrandFromMetadataHeaders(row.headers);
+      const resolvedLabelNames = (row.labelIds || [])
+        .map((lid) => labelIdToName.get(lid))
+        .filter((name) => Boolean(name) && !isSystemGmailLabelName(name));
+
+      let detectedBrand = detectLeadBrandFromLiveGmailRow(row.headers, row.snippet);
+      if (!detectedBrand) {
+        detectedBrand = inferLeadBrandFromGmailLabelNames(resolvedLabelNames);
+      }
       if (detectedBrand) {
         brandByMessageId.set(row.id, detectedBrand);
       }
@@ -326,9 +375,6 @@ export async function fetchInboundCountsFromGmailApi({
       totalInboundFromGmail += 1;
       acceptedMessageIds.push(row.id);
 
-      const resolvedLabelNames = (row.labelIds || [])
-        .map((lid) => labelIdToName.get(lid))
-        .filter((name) => Boolean(name) && !isSystemGmailLabelName(name));
       labelStatRows.push({
         messageId: row.id,
         internalMs: row.internalMs,
