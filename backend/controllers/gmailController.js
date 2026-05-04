@@ -1,6 +1,7 @@
 import GmailSyncState from "../models/GmailSyncState.js";
 import GmailMessage from "../models/GmailMessage.js";
 import Lead from "../models/Lead.js";
+import LeadNote from "../models/LeadNote.js";
 import User from "../models/User.js";
 import fs from "fs";
 import path from "path";
@@ -15,12 +16,12 @@ import {
 import { detectAgent, buildMessageDoc, persistMessage } from "../services/gmailPubSubService.js";
 import {
   fetchInboundCountsFromGmailApi,
-  fetchInboundCountsFromMongoIst,
-  GMAIL_INBOUND_STATS_ZONE,
   reportingDayBoundsMs,
   bucketInternalMsToReportingDay,
+  buildPartWiseReceivedFromMessageIds,
 } from "../services/gmailInboundStats.js";
 import { extractStructuredFields } from "../utils/extractStructuredFields.js";
+import { normalizePartRequiredLabel } from "../utils/normalizePartRequiredLabel.js";
 import { getGmailClient, getAuthUrl, setTokensFromCode, getUserEmail, clearTokenCache } from "../services/googleAuth.js";
 
 // Get SALES_AGENT_EMAILS from environment
@@ -53,10 +54,68 @@ const BRAND_SALES_LABELS = {
   "PROLANE": ["Victor", "Sam", "Noah", "Michael"],
 };
 
+function pickSalesAgentNameFromGmailLabels(labels = []) {
+  const lower = new Set((labels || []).map((x) => String(x || "").trim().toLowerCase()));
+  for (const name of BRAND_SALES_LABELS["50STARS"]) {
+    if (lower.has(String(name).toLowerCase())) return name;
+  }
+  for (const name of BRAND_SALES_LABELS["PROLANE"]) {
+    if (lower.has(String(name).toLowerCase())) return name;
+  }
+  return null;
+}
+
+function partRequiredFromSnippet(snippet = "") {
+  return String(extractStructuredFields(String(snippet || "")).partRequired || "").trim();
+}
+
 function detectBrandFromFromEntry(rawFrom = "") {
   const lower = String(rawFrom || "").toLowerCase();
-  if (lower.includes("50stars")) return "50STARS";
-  if (lower.includes("prolane")) return "PROLANE";
+  if (lower.includes("50stars") || lower.includes("50 stars")) return "50STARS";
+  if (lower.includes("prolane") || lower.includes("pro lane")) return "PROLANE";
+  return null;
+}
+
+/** Brand for statistics: From often shows the customer; also check subject / To / Delivered-To. */
+function detectStatsBrandFromMessage(row = {}) {
+  const chunks = [
+    row?.from,
+    row?.subject,
+    ...(Array.isArray(row?.to) ? row.to : []),
+    ...(Array.isArray(row?.deliveredTo) ? row.deliveredTo : []),
+  ];
+  return detectBrandFromFromEntry(chunks.join(" "));
+}
+
+function dedupeLabelStrings(list) {
+  const seen = new Set();
+  const out = [];
+  for (const x of list) {
+    const s = String(x ?? "").trim();
+    if (!s) continue;
+    const k = s.toLowerCase();
+    if (seen.has(k)) continue;
+    seen.add(k);
+    out.push(s);
+  }
+  return out;
+}
+
+/** When From/Subject lack brand text, infer 50STARS vs PROLANE from which sales agent labels appear. */
+function inferStatsBrandFromAgentLabels(labels = []) {
+  const lower = new Set(
+    labels.map((l) => String(l || "").trim().toLowerCase()).filter(Boolean)
+  );
+  let hitStars = false;
+  let hitPro = false;
+  for (const n of BRAND_SALES_LABELS["50STARS"]) {
+    if (lower.has(String(n || "").toLowerCase())) hitStars = true;
+  }
+  for (const n of BRAND_SALES_LABELS["PROLANE"]) {
+    if (lower.has(String(n || "").toLowerCase())) hitPro = true;
+  }
+  if (hitStars && !hitPro) return "50STARS";
+  if (hitPro && !hitStars) return "PROLANE";
   return null;
 }
 
@@ -87,6 +146,54 @@ function normalizeStatsLabel(rawLabel = "") {
   ]);
 
   return aliasMap.get(normalized) || "Others";
+}
+
+const ALL_SALES_AGENT_NAMES_LOWER = new Set(
+  [...BRAND_SALES_LABELS["50STARS"], ...BRAND_SALES_LABELS["PROLANE"]].map((n) =>
+    String(n || "").trim().toLowerCase()
+  )
+);
+
+function isSalesAgentFirstNameLabel(raw = "") {
+  return ALL_SALES_AGENT_NAMES_LOWER.has(String(raw || "").trim().toLowerCase());
+}
+
+function applyLeadDocumentToLabelStats(
+  lead,
+  labelWiseByBrandSeed,
+  salesAgentLabelCountsByBrand,
+  salesAgentLabelMatrixByBrand
+) {
+  if (!lead) return;
+  const row = {
+    from: lead.from,
+    subject: lead.subject,
+    to: [],
+    deliveredTo: [],
+  };
+  const rawLabels = Array.isArray(lead.labels) ? lead.labels : [];
+  const agentTag = String(lead.salesAgent || "").trim();
+  const matrixLabels = [...rawLabels];
+  if (agentTag) matrixLabels.push(agentTag);
+
+  let brand = detectStatsBrandFromMessage(row);
+  if (!brand) brand = inferStatsBrandFromAgentLabels(matrixLabels);
+
+  incrementSalesAgentLabelCount(salesAgentLabelCountsByBrand, brand, matrixLabels);
+  incrementSalesAgentLabelMatrix(salesAgentLabelMatrixByBrand, brand, matrixLabels);
+
+  const labelWiseSources = rawLabels.filter((l) => !isSalesAgentFirstNameLabel(l));
+  const normalizedLabels = new Set(
+    labelWiseSources
+      .map((label) => normalizeStatsLabel(label))
+      .filter((label) => Boolean(label))
+  );
+  for (const label of normalizedLabels) {
+    const current = labelWiseByBrandSeed.get(label) || { "50STARS": 0, PROLANE: 0, overall: 0 };
+    if (brand === "50STARS" || brand === "PROLANE") current[brand] = (current[brand] || 0) + 1;
+    current.overall = (current.overall || 0) + 1;
+    labelWiseByBrandSeed.set(label, current);
+  }
 }
 
 function isSystemGmailLabel(labelName = "") {
@@ -1746,6 +1853,95 @@ export async function reparseLeadsHandler(req, res, next) {
   }
 }
 
+/**
+ * Counts LeadNote documents by leadOrigin (Call / Chat / Lead) in the stats window.
+ * Aligns with Add Lead Notes dropdown; uses MongoDB `createdAt` and optional `salesAgent` (firstName).
+ */
+async function countLeadNotesByOriginForStatsWindow({ start, end, salesAgentFirstName }) {
+  const match = {
+    createdAt: { $gte: start, $lte: end },
+    leadOrigin: { $exists: true, $nin: [null, ""] },
+  };
+  const fn = String(salesAgentFirstName || "").trim();
+  if (fn) match.salesAgent = fn;
+
+  const rows = await LeadNote.aggregate([
+    { $match: match },
+    {
+      $project: {
+        o: { $toLower: { $trim: { input: { $ifNull: ["$leadOrigin", ""] } } } },
+      },
+    },
+    { $match: { o: { $in: ["call", "chat", "lead"] } } },
+    { $group: { _id: "$o", count: { $sum: 1 } } },
+  ]);
+
+  const out = { Call: 0, Chat: 0, Lead: 0 };
+  for (const r of rows) {
+    if (r._id === "call") out.Call = r.count;
+    else if (r._id === "chat") out.Chat = r.count;
+    else if (r._id === "lead") out.Lead = r.count;
+  }
+  return out;
+}
+
+function detectBrandFromMongoLeadForStats(lead = {}) {
+  let b = detectStatsBrandFromMessage({
+    from: lead.from,
+    subject: lead.subject,
+    to: [],
+    deliveredTo: [],
+  });
+  if (!b) b = inferStatsBrandFromAgentLabels(lead.labels || []);
+  return b;
+}
+
+/**
+ * Claimed leads with part from Lead collection: claimedAt in stats window, optional salesAgent firstName.
+ * Dedupes by messageId. Part keys match client/Gmail via normalizePartRequiredLabel.
+ */
+async function fetchClaimedPartStatsFromMongoLeads({
+  start,
+  end,
+  salesAgentFirstName,
+}) {
+  const match = {
+    claimedAt: { $gte: start, $lte: end },
+    partRequired: { $regex: /\S/ },
+  };
+  const fn = String(salesAgentFirstName || "").trim();
+  if (fn) match.salesAgent = fn;
+
+  const leads = await Lead.find(match)
+    .select("messageId partRequired from subject labels salesAgent claimedAt")
+    .lean();
+
+  const partWiseClaimed = {};
+  const partWiseClaimedByBrand = {};
+  const seen = new Set();
+  let totalLeads = 0;
+
+  for (const lead of leads) {
+    const mid = lead.messageId;
+    if (!mid || seen.has(mid)) continue;
+    const part = normalizePartRequiredLabel(lead.partRequired);
+    if (!part) continue;
+    seen.add(mid);
+    totalLeads += 1;
+
+    partWiseClaimed[part] = (partWiseClaimed[part] || 0) + 1;
+    if (!partWiseClaimedByBrand[part]) {
+      partWiseClaimedByBrand[part] = { "50STARS": 0, PROLANE: 0 };
+    }
+    const brand = detectBrandFromMongoLeadForStats(lead);
+    if (brand === "50STARS" || brand === "PROLANE") {
+      partWiseClaimedByBrand[part][brand] += 1;
+    }
+  }
+
+  return { totalLeads, partWiseClaimed, partWiseClaimedByBrand };
+}
+
 export async function getDailyStatisticsHandler(req, res, next) {
   try {
     const { startDate, endDate, agentEmail } = req.query;
@@ -1755,366 +1951,255 @@ export async function getDailyStatisticsHandler(req, res, next) {
     
     console.log("[getDailyStatistics] Query params:", { startDate, endDate, agentEmail, userRole, userEmail });
 
-    // Calendar dates from the client (YYYY-MM-DD) — for stats we use IST "reporting days":
-    // day D = 16:30 IST on D through 06:00 IST on D+1 (for inbound from Gmail + daily buckets).
+    // Calendar YYYY-MM-DD from the client must match this zone. Live Gmail / inbound "day D"
+    // is 16:30 IST on D through 06:00 IST on D+1 (same as GMAIL_INBOUND_STATS_ZONE default).
+    const statsCalendarZone =
+      process.env.STATS_CALENDAR_ZONE ||
+      process.env.GMAIL_STATS_INBOUND_TZ ||
+      "Asia/Kolkata";
     const inboundStartStr = startDate
       ? String(startDate).split("T")[0]
-      : moment.tz(GMAIL_INBOUND_STATS_ZONE).format("YYYY-MM-DD");
+      : moment.tz(statsCalendarZone).format("YYYY-MM-DD");
     const inboundEndStr = endDate
       ? String(endDate).split("T")[0]
       : inboundStartStr;
 
-    const istWindowStartMs = reportingDayBoundsMs(inboundStartStr).startMs;
-    const istWindowEndMs = reportingDayBoundsMs(inboundEndStr).endMs;
-    const start = new Date(istWindowStartMs);
-    const end = new Date(istWindowEndMs);
+    const statsWindowStartMs = reportingDayBoundsMs(inboundStartStr, statsCalendarZone).startMs;
+    const statsWindowEndMs = reportingDayBoundsMs(inboundEndStr, statsCalendarZone).endMs;
+    const start = new Date(statsWindowStartMs);
+    const end = new Date(statsWindowEndMs);
 
-    console.log("[getDailyStatistics] IST stats window:", {
-      zone: GMAIL_INBOUND_STATS_ZONE,
+    console.log("[getDailyStatistics] Stats window:", {
+      zone: statsCalendarZone,
       inboundStartStr,
       inboundEndStr,
       utcStart: start.toISOString(),
       utcEnd: end.toISOString(),
     });
 
-    // Build query - Lead rows overlapping the IST wall-clock window [start, end]
-    const query = {
-      status: { $in: ["claimed", "closed"] },
-      $or: [
-        { enteredAt: { $gte: start, $lte: end } },
-        { enteredAt: { $exists: false }, claimedAt: { $gte: start, $lte: end } },
-      ],
-    };
-    
-    // For Sales users: ALWAYS filter to their own statistics (even if no agentEmail provided)
-    // For Admin: only filter if agentEmail is explicitly provided (from dropdown)
+    // Statistics: live Gmail only (no MongoDB Lead / GmailMessage fallback for this endpoint).
     let emailToFilter = null;
+    let targetUser = null;
     if (userRole === "Sales") {
-      // Sales users see only their own statistics
       emailToFilter = userEmail;
-      console.log(`[getDailyStatistics] Sales user detected - filtering to own statistics: ${emailToFilter}`);
+      console.log(`[getDailyStatistics] Sales user — filter live rows by Gmail agent label: ${emailToFilter}`);
     } else if (agentEmail) {
-      // Admin can filter by specific agent email (from dropdown)
       emailToFilter = agentEmail;
-      console.log(`[getDailyStatistics] Admin filtering by agent email: ${emailToFilter}`);
+      console.log(`[getDailyStatistics] Admin filter by agent email: ${emailToFilter}`);
     }
-    
+
     if (emailToFilter) {
-      console.log("[getDailyStatistics] Looking up user with email:", emailToFilter.toLowerCase());
-      // Find user by email to get their ID
-      const targetUser = await User.findOne({ email: emailToFilter.toLowerCase() });
-      if (targetUser) {
-        console.log("[getDailyStatistics] Found user:", { id: targetUser._id, email: targetUser.email, firstName: targetUser.firstName });
-        // claimedBy is stored as String (user.id), not ObjectId
-        query.claimedBy = targetUser._id.toString();
-      } else {
+      targetUser = await User.findOne({ email: emailToFilter.toLowerCase() });
+      if (!targetUser) {
         console.log("[getDailyStatistics] User not found for email:", emailToFilter);
-        // If user not found, return empty results
         return res.json({
           dailyStats: [],
           totalLeads: 0,
           totalInboundFromGmail: 0,
+          leadOriginCounts: { Call: 0, Chat: 0, Lead: 0 },
+          partWiseClaimed: {},
+          partWiseClaimedByBrand: {},
           partWiseReceived: {},
+          partWiseReceivedByBrand: {},
+          labelWiseByBrand: Object.fromEntries(
+            CANONICAL_STATS_LABELS.map((label) => [label, { "50STARS": 0, PROLANE: 0, overall: 0 }])
+          ),
+          salesAgentLabelCountsByBrand: createSalesAgentLabelCountsSeed(),
+          salesAgentLabelMatrixByBrand: createSalesAgentLabelMatrixSeed(),
           agentStats: [],
           debug: { message: `No user found with email: ${emailToFilter}` },
         });
       }
-    } else {
-      console.log("[getDailyStatistics] No email filter - Admin viewing all statistics");
-    }
-    
-    console.log("[getDailyStatistics] Final query:", JSON.stringify(query, null, 2));
-
-    const inboundPromise = fetchInboundCountsFromGmailApi({
-      startDateStr: inboundStartStr,
-      endDateStr: inboundEndStr,
-      agentEmailFilter: emailToFilter,
-    }).catch((err) => {
-      console.error(
-        "[getDailyStatistics] Gmail API inbound failed, using DB fallback:",
-        err?.message || err
-      );
-      return fetchInboundCountsFromMongoIst({
-        startDateStr: inboundStartStr,
-        endDateStr: inboundEndStr,
-        agentEmailFilter: emailToFilter,
+      console.log("[getDailyStatistics] Found user:", {
+        id: targetUser._id,
+        email: targetUser.email,
+        firstName: targetUser.firstName,
       });
-    });
+    } else {
+      console.log("[getDailyStatistics] No email filter — Admin, all live Gmail rows");
+    }
 
-    const leadsPromise = Lead.find(query)
-      .select(
-        "messageId gmailMessageId enteredAt claimedAt createdAt claimedBy salesAgent subject from name email phone year make model partRequired labels status"
-      )
-      .sort({ claimedAt: -1 })
+    const leadOriginMatch = {
+      start,
+      end,
+      salesAgentFirstName: targetUser ? String(targetUser.firstName || "").trim() : "",
+    };
+
+    const claimedPartMatch = {
+      start,
+      end,
+      salesAgentFirstName: targetUser ? String(targetUser.firstName || "").trim() : "",
+    };
+
+    let inboundPack;
+    let leadOriginCounts = { Call: 0, Chat: 0, Lead: 0 };
+    let claimedPartFromDb = { totalLeads: 0, partWiseClaimed: {}, partWiseClaimedByBrand: {} };
+    try {
+      [inboundPack, leadOriginCounts, claimedPartFromDb] = await Promise.all([
+        fetchInboundCountsFromGmailApi({
+          startDateStr: inboundStartStr,
+          endDateStr: inboundEndStr,
+          agentEmailFilter: emailToFilter,
+          zone: statsCalendarZone,
+        }),
+        countLeadNotesByOriginForStatsWindow(leadOriginMatch).catch((e) => {
+          console.error("[getDailyStatistics] leadOrigin aggregation failed:", e);
+          return { Call: 0, Chat: 0, Lead: 0 };
+        }),
+        fetchClaimedPartStatsFromMongoLeads(claimedPartMatch).catch((e) => {
+          console.error("[getDailyStatistics] claimed Lead stats failed:", e);
+          return { totalLeads: 0, partWiseClaimed: {}, partWiseClaimedByBrand: {} };
+        }),
+      ]);
+    } catch (inboundErr) {
+      console.error("[getDailyStatistics] Live Gmail statistics failed:", inboundErr);
+      return res.status(502).json({
+        message:
+          "Statistics use live Gmail only. Check OAuth / token and try again.",
+        error: inboundErr?.message || String(inboundErr),
+      });
+    }
+
+    const liveRowsAll = Array.isArray(inboundPack.labelStatRows) ? inboundPack.labelStatRows : [];
+    let rowsForStats = liveRowsAll;
+    if (targetUser) {
+      const fn = String(targetUser.firstName || "").trim();
+      if (fn) {
+        const fl = fn.toLowerCase();
+        rowsForStats = liveRowsAll.filter((r) =>
+          (r.labels || []).some((lab) => String(lab).trim().toLowerCase() === fl)
+        );
+      }
+    }
+
+    const salesUsers = await User.find({ role: { $in: ["Sales", "Admin"] } })
+      .select("firstName lastName email")
       .lean();
-
-    const [leads, inboundPack] = await Promise.all([leadsPromise, inboundPromise]);
-
-    console.log("[getDailyStatistics] Found leads:", leads.length);
-
-    const leadsWithPartRequired = leads.filter((lead) =>
-      String(lead.partRequired || "").trim().length > 0
+    const userByFirstLower = new Map(
+      salesUsers
+        .filter((u) => u.firstName)
+        .map((u) => [String(u.firstName).trim().toLowerCase(), u])
     );
-    console.log("[getDailyStatistics] Leads with partRequired:", leadsWithPartRequired.length);
 
-    // Get all unique user IDs from leads (must have partRequired for statistics)
-    const userIds = [...new Set(leadsWithPartRequired.map(l => l.claimedBy).filter(Boolean))];
-    console.log("[getDailyStatistics] Unique user IDs:", userIds);
-    
-    // Fetch user details for all claimedBy IDs
-    const users = await User.find({ _id: { $in: userIds } }).select("firstName lastName email").lean();
-    const userMap = new Map(users.map(u => [u._id.toString(), u]));
-    console.log("[getDailyStatistics] User map size:", userMap.size);
-    
-    // Group by date and agent
     const dailyMap = new Map();
     const agentMap = new Map();
-    
-    leadsWithPartRequired.forEach((lead) => {
-      // Use enteredAt (when lead came in) if available, otherwise fallback to claimedAt
-      const leadDate = lead.enteredAt || lead.claimedAt || lead.createdAt;
-      const ts = moment(leadDate).valueOf();
-      let dateKey = bucketInternalMsToReportingDay(
-        ts,
-        inboundStartStr,
-        inboundEndStr,
-        GMAIL_INBOUND_STATS_ZONE
-      );
-      if (!dateKey && ts >= istWindowStartMs && ts <= istWindowEndMs) {
-        dateKey = moment(ts).tz(GMAIL_INBOUND_STATS_ZONE).format("YYYY-MM-DD");
-      }
-      if (!dateKey) return;
-      
-      const user = userMap.get(String(lead.claimedBy));
-      const agentId = lead.claimedBy || "unknown";
-      const agentName = user?.firstName || lead.salesAgent || user?.email || "Unknown";
-      const agentEmail = user?.email || "unknown";
-      
-      // Calculate time to claim (response time) in minutes
-      let timeToClaimMinutes = null;
-      let timeToClaimFormatted = null;
-      if (lead.enteredAt && lead.claimedAt) {
-        const entered = moment(lead.enteredAt);
-        const claimed = moment(lead.claimedAt);
-        const diffSeconds = claimed.diff(entered, 'seconds', true); // Get seconds with decimals
-        timeToClaimMinutes = diffSeconds / 60; // Convert to minutes for calculations
-        
-        // Format the time difference nicely (include seconds when less than 1 minute)
-        if (diffSeconds < 60) {
-          // Show seconds with up to 1 decimal place
-          timeToClaimFormatted = `${diffSeconds.toFixed(1)} sec`;
-        } else if (timeToClaimMinutes < 60) {
-          // Show minutes and seconds if less than 60 minutes
-          const mins = Math.floor(timeToClaimMinutes);
-          const secs = Math.round((timeToClaimMinutes - mins) * 60);
-          timeToClaimFormatted = secs > 0 ? `${mins} min ${secs} sec` : `${mins} min`;
-        } else if (timeToClaimMinutes < 1440) {
-          const hours = Math.floor(timeToClaimMinutes / 60);
-          const mins = Math.round(timeToClaimMinutes % 60);
-          timeToClaimFormatted = `${hours}h ${mins}m`;
-        } else {
-          const days = Math.floor(timeToClaimMinutes / 1440);
-          const hours = Math.floor((timeToClaimMinutes % 1440) / 60);
-          timeToClaimFormatted = `${days}d ${hours}h`;
-        }
-      }
-      
-      // Daily stats
+
+    for (const r of rowsForStats) {
+      const dateKey =
+        r.dayKey ||
+        bucketInternalMsToReportingDay(
+          r.internalMs,
+          inboundStartStr,
+          inboundEndStr,
+          statsCalendarZone
+        );
+      if (!dateKey) continue;
+
+      const agentFirst = pickSalesAgentNameFromGmailLabels(r.labels);
+      const userMatch = agentFirst ? userByFirstLower.get(String(agentFirst).toLowerCase()) : null;
+      const agentId = userMatch?._id?.toString() || agentFirst || "unassigned";
+      const agentName = userMatch?.firstName || agentFirst || "Unassigned";
+      const agentEmailOut = userMatch?.email || "—";
+      const partReq = partRequiredFromSnippet(r.snippet);
+
+      const leadLike = {
+        _id: r.messageId,
+        messageId: r.messageId,
+        subject: r.subject || "",
+        from: r.from || "",
+        enteredAt: r.internalMs != null ? new Date(r.internalMs) : null,
+        claimedAt: null,
+        timeToClaimMinutes: null,
+        timeToClaimFormatted: null,
+        name: "",
+        email: "",
+        phone: "",
+        year: "",
+        make: "",
+        model: "",
+        partRequired: partReq,
+        salesAgent: agentFirst || "",
+        labels: r.labels || [],
+        status: "live",
+        date: dateKey,
+      };
+
       if (!dailyMap.has(dateKey)) {
         dailyMap.set(dateKey, { date: dateKey, total: 0, agents: new Map() });
       }
       const dayData = dailyMap.get(dateKey);
       dayData.total++;
-      
+
       if (!dayData.agents.has(agentId)) {
         dayData.agents.set(agentId, {
           agentId,
           agentName,
-          agentEmail,
+          agentEmail: agentEmailOut,
           count: 0,
           leads: [],
-          totalTimeToClaim: 0, // Sum of all response times in minutes
-          leadsWithResponseTime: 0, // Count of leads with response time data
+          totalTimeToClaim: 0,
+          leadsWithResponseTime: 0,
         });
       }
       const agentData = dayData.agents.get(agentId);
       agentData.count++;
-      
-      // Track response time for average calculation
-      if (timeToClaimMinutes !== null) {
-        agentData.totalTimeToClaim += timeToClaimMinutes;
-        agentData.leadsWithResponseTime++;
-      }
-      
-      // Use lead data directly from Lead collection
-      agentData.leads.push({
-        _id: String(lead._id),
-        messageId: lead.messageId,
-        subject: lead.subject || "",
-        from: lead.from || "",
-        enteredAt: lead.enteredAt, // When lead came in
-        claimedAt: lead.claimedAt, // When lead was claimed
-        timeToClaimMinutes: timeToClaimMinutes, // Response time in minutes
-        timeToClaimFormatted: timeToClaimFormatted, // Formatted response time (e.g., "5 min", "2h 30m")
-        // Include all saved lead details from Lead collection
-        name: lead.name || "",
-        email: lead.email || "", // Customer email
-        phone: lead.phone || "",
-        year: lead.year || "",
-        make: lead.make || "",
-        model: lead.model || "",
-        partRequired: lead.partRequired || "",
-        salesAgent: lead.salesAgent || "",
-        labels: lead.labels || [],
-        status: lead.status || "claimed",
-      });
-      
-      // Agent stats
+      agentData.leads.push(leadLike);
+
       if (!agentMap.has(agentId)) {
         agentMap.set(agentId, {
           agentId,
           agentName,
-          agentEmail,
+          agentEmail: agentEmailOut,
           totalLeads: 0,
           leads: [],
-          totalTimeToClaim: 0, // Sum of all response times in minutes
-          leadsWithResponseTime: 0, // Count of leads with response time data
+          totalTimeToClaim: 0,
+          leadsWithResponseTime: 0,
         });
       }
       const agentStat = agentMap.get(agentId);
       agentStat.totalLeads++;
-      
-      // Track response time for average calculation
-      if (timeToClaimMinutes !== null) {
-        agentStat.totalTimeToClaim += timeToClaimMinutes;
-        agentStat.leadsWithResponseTime++;
-      }
-      
-      // Use lead data directly from Lead collection
-      agentStat.leads.push({
-        _id: String(lead._id),
-        messageId: lead.messageId,
-        subject: lead.subject || "",
-        from: lead.from || "",
-        enteredAt: lead.enteredAt, // When lead came in
-        claimedAt: lead.claimedAt, // When lead was claimed
-        timeToClaimMinutes: timeToClaimMinutes, // Response time in minutes
-        timeToClaimFormatted: timeToClaimFormatted, // Formatted response time (e.g., "5 min", "2h 30m")
-        date: dateKey,
-        // Include all saved lead details from Lead collection
-        name: lead.name || "",
-        email: lead.email || "", // Customer email
-        phone: lead.phone || "",
-        year: lead.year || "",
-        make: lead.make || "",
-        model: lead.model || "",
-        partRequired: lead.partRequired || "",
-        salesAgent: lead.salesAgent || "",
-        labels: lead.labels || [],
-        status: lead.status || "claimed",
-      });
-    });
-    
-    // Convert maps to arrays
+      agentStat.leads.push(leadLike);
+    }
+
     const dailyStats = Array.from(dailyMap.values())
       .map((day) => ({
         date: day.date,
         total: day.total,
-        agents: Array.from(day.agents.values()).map((a) => {
-          // Calculate average response time for this agent on this day
-          let avgResponseTimeMinutes = null;
-          let avgResponseTimeFormatted = null;
-          if (a.leadsWithResponseTime > 0 && a.totalTimeToClaim > 0) {
-            avgResponseTimeMinutes = a.totalTimeToClaim / a.leadsWithResponseTime;
-            
-            // Format average response time nicely (include seconds when less than 1 minute)
-            const avgResponseTimeSeconds = avgResponseTimeMinutes * 60;
-            if (avgResponseTimeSeconds < 60) {
-              avgResponseTimeFormatted = `${avgResponseTimeSeconds.toFixed(1)} sec`;
-            } else if (avgResponseTimeMinutes < 60) {
-              const mins = Math.floor(avgResponseTimeMinutes);
-              const secs = Math.round((avgResponseTimeMinutes - mins) * 60);
-              avgResponseTimeFormatted = secs > 0 ? `${mins} min ${secs} sec` : `${mins} min`;
-            } else if (avgResponseTimeMinutes < 1440) {
-              const hours = Math.floor(avgResponseTimeMinutes / 60);
-              const mins = Math.round(avgResponseTimeMinutes % 60);
-              avgResponseTimeFormatted = `${hours}h ${mins}m`;
-            } else {
-              const days = Math.floor(avgResponseTimeMinutes / 1440);
-              const hours = Math.floor((avgResponseTimeMinutes % 1440) / 60);
-              avgResponseTimeFormatted = `${days}d ${hours}h`;
-            }
-          }
-          
-          return {
-            agentId: a.agentId,
-            agentName: a.agentName,
-            agentEmail: a.agentEmail,
-            count: a.count,
-            avgResponseTimeMinutes: avgResponseTimeMinutes,
-            avgResponseTimeFormatted: avgResponseTimeFormatted,
-            leads: a.leads,
-          };
-        }),
-      }))
-      .sort((a, b) => b.date.localeCompare(a.date));
-    
-    const agentStats = Array.from(agentMap.values())
-      .map((a) => {
-        // Calculate average response time
-        let avgResponseTimeMinutes = null;
-        let avgResponseTimeFormatted = null;
-        if (a.leadsWithResponseTime > 0 && a.totalTimeToClaim > 0) {
-          avgResponseTimeMinutes = a.totalTimeToClaim / a.leadsWithResponseTime;
-          
-          // Format average response time nicely (include seconds when less than 1 minute)
-          const avgResponseTimeSeconds = avgResponseTimeMinutes * 60;
-          if (avgResponseTimeSeconds < 60) {
-            avgResponseTimeFormatted = `${avgResponseTimeSeconds.toFixed(1)} sec`;
-          } else if (avgResponseTimeMinutes < 60) {
-            const mins = Math.floor(avgResponseTimeMinutes);
-            const secs = Math.round((avgResponseTimeMinutes - mins) * 60);
-            avgResponseTimeFormatted = secs > 0 ? `${mins} min ${secs} sec` : `${mins} min`;
-          } else if (avgResponseTimeMinutes < 1440) {
-            const hours = Math.floor(avgResponseTimeMinutes / 60);
-            const mins = Math.round(avgResponseTimeMinutes % 60);
-            avgResponseTimeFormatted = `${hours}h ${mins}m`;
-          } else {
-            const days = Math.floor(avgResponseTimeMinutes / 1440);
-            const hours = Math.floor((avgResponseTimeMinutes % 1440) / 60);
-            avgResponseTimeFormatted = `${days}d ${hours}h`;
-          }
-        }
-        
-        return {
+        agents: Array.from(day.agents.values()).map((a) => ({
           agentId: a.agentId,
           agentName: a.agentName,
           agentEmail: a.agentEmail,
-          totalLeads: a.totalLeads,
-          avgResponseTimeMinutes: avgResponseTimeMinutes,
-          avgResponseTimeFormatted: avgResponseTimeFormatted,
-          leads: a.leads.sort((x, y) => {
-            // Sort by claimedAt, but if same, sort by enteredAt
-            const xClaimed = new Date(x.claimedAt || 0);
-            const yClaimed = new Date(y.claimedAt || 0);
-            if (xClaimed.getTime() !== yClaimed.getTime()) {
-              return yClaimed - xClaimed;
-            }
-            const xEntered = new Date(x.enteredAt || 0);
-            const yEntered = new Date(y.enteredAt || 0);
-            return yEntered - xEntered;
-          }),
-        };
-      })
+          count: a.count,
+          avgResponseTimeMinutes: null,
+          avgResponseTimeFormatted: null,
+          leads: a.leads,
+        })),
+      }))
+      .sort((a, b) => b.date.localeCompare(a.date));
+
+    const agentStats = Array.from(agentMap.values())
+      .map((a) => ({
+        agentId: a.agentId,
+        agentName: a.agentName,
+        agentEmail: a.agentEmail,
+        totalLeads: a.totalLeads,
+        avgResponseTimeMinutes: null,
+        avgResponseTimeFormatted: null,
+        leads: a.leads.sort((x, y) => {
+          const xt = new Date(x.enteredAt || 0).getTime();
+          const yt = new Date(y.enteredAt || 0).getTime();
+          return yt - xt;
+        }),
+      }))
       .sort((a, b) => b.totalLeads - a.totalLeads);
 
     const inboundByDate = inboundPack.inboundByDate;
     const totalInboundFromGmail = inboundPack.totalInboundFromGmail;
     console.log(
-      "[getDailyStatistics] Inbound Gmail (live API or DB fallback):",
-      `totalMsgs=${totalInboundFromGmail}`,
-      `zone=${GMAIL_INBOUND_STATS_ZONE}`,
-      `labels=${inboundStartStr}–${inboundEndStr}`
+      "[getDailyStatistics] Live Gmail:",
+      `statRows=${rowsForStats.length}`,
+      `inboundMsgs=${totalInboundFromGmail}`,
+      `zone=${statsCalendarZone}`
     );
 
     const claimedDates = new Set(dailyStats.map((d) => d.date));
@@ -2134,14 +2219,33 @@ export async function getDailyStatisticsHandler(req, res, next) {
     }
     dailyStatsWithInbound.sort((a, b) => b.date.localeCompare(a.date));
 
-    const partWiseReceivedMap = inboundPack.partWiseReceived;
+    let partWiseReceivedMap = inboundPack.partWiseReceived;
+    let partWiseReceivedByBrandMap = inboundPack.partWiseReceivedByBrand;
+    if (targetUser && rowsForStats.length !== liveRowsAll.length) {
+      const gmail = await getGmailClient();
+      const snippetByMessageId = new Map(rowsForStats.map((x) => [x.messageId, x.snippet || ""]));
+      const brandMap = new Map();
+      rowsForStats.forEach((row) => {
+        const b =
+          detectStatsBrandFromMessage(row) || inferStatsBrandFromAgentLabels(row.labels || []);
+        if (b) brandMap.set(row.messageId, b);
+      });
+      const built = await buildPartWiseReceivedFromMessageIds(rowsForStats.map((x) => x.messageId), {
+        gmail,
+        brandByMessageId: brandMap,
+        snippetByMessageId,
+        liveGmailOnly: true,
+      });
+      partWiseReceivedMap = built.partWiseReceived;
+      partWiseReceivedByBrandMap = built.partWiseReceivedByBrand;
+    }
+
     const partWiseReceived =
       partWiseReceivedMap instanceof Map
         ? Object.fromEntries(partWiseReceivedMap)
         : partWiseReceivedMap && typeof partWiseReceivedMap === "object"
           ? partWiseReceivedMap
           : {};
-    const partWiseReceivedByBrandMap = inboundPack.partWiseReceivedByBrand;
     const partWiseReceivedByBrand =
       partWiseReceivedByBrandMap instanceof Map
         ? Object.fromEntries(partWiseReceivedByBrandMap)
@@ -2154,41 +2258,17 @@ export async function getDailyStatisticsHandler(req, res, next) {
     );
     const salesAgentLabelCountsByBrand = createSalesAgentLabelCountsSeed();
     const salesAgentLabelMatrixByBrand = createSalesAgentLabelMatrixSeed();
-    let gmailLabelNameById = new Map();
-    try {
-      const gmail = await getGmailClient();
-      const { data: labelsData } = await gmail.users.labels.list({ userId: "me" });
-      const gmailLabels = Array.isArray(labelsData?.labels) ? labelsData.labels : [];
-      gmailLabelNameById = new Map(gmailLabels.map((label) => [label.id, label.name]));
-    } catch (labelErr) {
-      console.warn("[getDailyStatistics] Could not fetch Gmail label map, using stored labels only:", labelErr?.message || labelErr);
-    }
 
-    const labelMatch = { arrivalAt: { $gte: start, $lte: end } };
-    if (emailToFilter) {
-      labelMatch.agentEmail = new RegExp(
-        `^${String(emailToFilter).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`,
-        "i"
-      );
-    }
-    const labelRows = await GmailMessage.aggregate([
-      { $addFields: { arrivalAt: { $ifNull: ["$internalDate", "$createdAt"] } } },
-      { $match: labelMatch },
-      { $project: { from: 1, labels: 1, labelIds: 1 } },
-    ]);
+    for (const row of rowsForStats) {
+      const combinedLabels = dedupeLabelStrings([...(row.labels || [])]);
+      let brand = detectStatsBrandFromMessage(row);
+      if (!brand) brand = inferStatsBrandFromAgentLabels(combinedLabels);
 
-    for (const row of labelRows) {
-      const brand = detectBrandFromFromEntry(row?.from);
-      const labels = Array.isArray(row?.labels) ? row.labels : [];
-      const labelIds = Array.isArray(row?.labelIds) ? row.labelIds : [];
-      const labelsFromIds = labelIds
-        .map((labelId) => gmailLabelNameById.get(labelId))
-        .filter((name) => Boolean(name) && !isSystemGmailLabel(name));
-      const combinedLabels = [...labels, ...labelsFromIds];
       incrementSalesAgentLabelCount(salesAgentLabelCountsByBrand, brand, combinedLabels);
       incrementSalesAgentLabelMatrix(salesAgentLabelMatrixByBrand, brand, combinedLabels);
+      const labelWiseSources = combinedLabels.filter((l) => !isSalesAgentFirstNameLabel(l));
       const normalizedLabels = new Set(
-        combinedLabels.map((label) => normalizeStatsLabel(label)).filter((label) => Boolean(label))
+        labelWiseSources.map((label) => normalizeStatsLabel(label)).filter((label) => Boolean(label))
       );
       for (const label of normalizedLabels) {
         const current = labelWiseByBrandSeed.get(label) || { "50STARS": 0, PROLANE: 0, overall: 0 };
@@ -2199,11 +2279,15 @@ export async function getDailyStatisticsHandler(req, res, next) {
     }
 
     const labelWiseByBrand = Object.fromEntries(labelWiseByBrandSeed);
+    const totalLeadsWithPart = claimedPartFromDb.totalLeads || 0;
 
     return res.json({
       dailyStats: dailyStatsWithInbound,
-      totalLeads: leadsWithPartRequired.length,
+      totalLeads: totalLeadsWithPart,
       totalInboundFromGmail,
+      leadOriginCounts,
+      partWiseClaimed: claimedPartFromDb.partWiseClaimed || {},
+      partWiseClaimedByBrand: claimedPartFromDb.partWiseClaimedByBrand || {},
       partWiseReceived,
       partWiseReceivedByBrand,
       labelWiseByBrand,
@@ -2213,9 +2297,14 @@ export async function getDailyStatisticsHandler(req, res, next) {
       dateRange: {
         start: start.toISOString(),
         end: end.toISOString(),
-        inboundReportingZone: GMAIL_INBOUND_STATS_ZONE,
+        inboundReportingZone: statsCalendarZone,
+        dataSource: "gmail_live",
         inboundReportingDayNote:
-          "Each calendar date D uses 16:30 IST on D through 06:00 IST on D+1 (inclusive).",
+          "Each calendar date D is 16:30 IST on D through 06:00 IST on D+1 (inclusive). Override with STATS_CALENDAR_ZONE or GMAIL_STATS_INBOUND_TZ.",
+        claimedFromDbNote:
+          "Claimed (with part) and part-wise Claimed 50STARS / PROLANE / Overall Claimed use the Lead collection (MongoDB): claimedAt in this window, non-empty partRequired, brand from From/Subject or lead labels. Lead Origin uses LeadNote.",
+        leadOriginNote:
+          "Lead Origin counts come from LeadNote records (MongoDB): leadOrigin Call / Chat / Lead, filtered by createdAt in this window; when an agent filter applies, salesAgent matches that user’s first name.",
       },
     });
   } catch (err) {

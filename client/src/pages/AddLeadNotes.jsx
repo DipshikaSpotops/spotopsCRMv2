@@ -81,6 +81,7 @@ const AddLeadNotes = ({ embedded = false, prefill }) => {
     name: "",
     email: "",
     phoneNo: "",
+    alternatePhoneNo: "",
     year: "",
     make: "",
     model: "",
@@ -362,6 +363,7 @@ const AddLeadNotes = ({ embedded = false, prefill }) => {
         prev.email ||
         "",
       phoneNo: prefill.phoneNo ?? prev.phoneNo ?? "",
+      alternatePhoneNo: prefill.alternatePhoneNo ?? prev.alternatePhoneNo ?? "",
       year: prefill.year ?? prev.year ?? "",
       make: prefill.make ?? prev.make ?? "",
       model: prefill.model ?? prev.model ?? "",
@@ -556,6 +558,7 @@ const AddLeadNotes = ({ embedded = false, prefill }) => {
       `Name: ${formatValue(form.name)}`,
       `Email: ${formatValue(form.email)}`,
       `Phone: ${formatValue(form.phoneNo)}`,
+      `Alternate phone no: ${formatValue(form.alternatePhoneNo)}`,
       `Part required: ${formatValue(form.partRequired)}`,
       `Year: ${formatValue(form.year)}`,
       `Make: ${formatValue(form.make)}`,
@@ -730,6 +733,7 @@ const AddLeadNotes = ({ embedded = false, prefill }) => {
           name: lead.name || form.name || "",
           email: lead.email || form.email || "",
           phoneNo: lead.phoneNo || form.phoneNo || "",
+          alternatePhoneNo: lead.alternatePhoneNo || form.alternatePhoneNo || "",
           year: lead.year || form.year || "",
           make: lead.make || form.make || "",
           model: lead.model || form.model || "",
@@ -989,6 +993,14 @@ const AddLeadNotes = ({ embedded = false, prefill }) => {
                 type="email"
               />
             </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+              <InputField
+                label="Alternate phone no"
+                value={form.alternatePhoneNo}
+                onChange={setField("alternatePhoneNo")}
+                error={errors.alternatePhoneNo}
+              />
+            </div>
             <div className="grid grid-cols-3 gap-2">
               <InputField
                 label="Year"
@@ -1228,7 +1240,17 @@ const AddLeadNotes = ({ embedded = false, prefill }) => {
                                 {lead.phoneNo}
                               </div>
                             )}
-                            {!lead.name && !lead.email && !lead.phoneNo && "—"}
+                            {lead.alternatePhoneNo && (
+                              <div className="whitespace-nowrap">
+                                <span className="font-semibold">Alt ph:</span>{" "}
+                                {lead.alternatePhoneNo}
+                              </div>
+                            )}
+                            {!lead.name &&
+                              !lead.email &&
+                              !lead.phoneNo &&
+                              !lead.alternatePhoneNo &&
+                              "—"}
                           </td>
                           <td className="p-2 border-r border-white/15">
                             {[lead.year, lead.make, lead.model].some(Boolean) && (
@@ -1292,6 +1314,7 @@ const AddLeadNotes = ({ embedded = false, prefill }) => {
                                     name: lead.name || "",
                                     email: lead.email || "",
                                     phoneNo: lead.phoneNo || "",
+                                    alternatePhoneNo: lead.alternatePhoneNo || "",
                                     year: lead.year || "",
                                     make: lead.make || "",
                                     model: lead.model || "",

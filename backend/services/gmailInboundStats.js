@@ -3,7 +3,6 @@ import GmailMessage from "../models/GmailMessage.js";
 import Lead from "../models/Lead.js";
 import { extractStructuredFields } from "../utils/extractStructuredFields.js";
 import { getGmailClient } from "./googleAuth.js";
-import { detectAgent } from "./gmailPubSubService.js";
 
 /** Calendar dates (YYYY-MM-DD) for inbound stats are interpreted in this zone. */
 export const GMAIL_INBOUND_STATS_ZONE =
@@ -45,9 +44,58 @@ const BRAND_PROLANE = "PROLANE";
 function detectLeadBrandFromText(raw = "") {
   const lower = String(raw || "").toLowerCase();
   if (!lower) return null;
-  if (lower.includes("50stars")) return BRAND_50STARS;
-  if (lower.includes("prolane")) return BRAND_PROLANE;
+  if (lower.includes("50stars") || lower.includes("50 stars")) return BRAND_50STARS;
+  if (lower.includes("prolane") || lower.includes("pro lane")) return BRAND_PROLANE;
   return null;
+}
+
+function detectLeadBrandFromGmailLeanDoc(doc = {}) {
+  const parts = [
+    doc.from,
+    doc.subject,
+    ...(Array.isArray(doc.to) ? doc.to : []),
+    ...(Array.isArray(doc.deliveredTo) ? doc.deliveredTo : []),
+  ];
+  return detectLeadBrandFromText(parts.join(" "));
+}
+
+function headerValueLower(headers, name) {
+  const h = (headers || []).find(
+    (x) => String(x?.name || "").toLowerCase() === String(name || "").toLowerCase()
+  );
+  return String(h?.value || "");
+}
+
+function detectLeadBrandFromMetadataHeaders(headers) {
+  const haystack = [
+    headerValueLower(headers, "From"),
+    headerValueLower(headers, "Subject"),
+    headerValueLower(headers, "To"),
+    headerValueLower(headers, "Delivered-To"),
+    headerValueLower(headers, "Cc"),
+  ].join(" ");
+  return detectLeadBrandFromText(haystack);
+}
+
+function isSystemGmailLabelName(labelName = "") {
+  const upper = String(labelName || "").toUpperCase();
+  const system = new Set([
+    "INBOX",
+    "UNREAD",
+    "IMPORTANT",
+    "STARRED",
+    "CATEGORY_PERSONAL",
+    "CATEGORY_SOCIAL",
+    "CATEGORY_PROMOTIONS",
+    "CATEGORY_UPDATES",
+    "CATEGORY_FORUMS",
+    "SENT",
+    "DRAFT",
+    "SPAM",
+    "TRASH",
+    "CHAT",
+  ]);
+  return system.has(upper);
 }
 
 function extractHtmlFromGmailPayload(payload) {
@@ -76,11 +124,11 @@ function partFromParsed(htmlOrSnippet) {
 }
 
 /**
- * Per-part "Received" counts: Lead.partRequired, else parse GmailMessage body/snippet,
- * else optional Gmail API full message (for ids not in DB yet).
+ * Per-part "Received" counts. Default: Lead → Mongo GmailMessage → live full fetch.
+ * When `liveGmailOnly` + `snippetByMessageId`: skip DB and use snippets first, then full fetch for gaps.
  */
-async function buildPartWiseReceivedFromMessageIds(messageIds, options = {}) {
-  const { gmail } = options;
+export async function buildPartWiseReceivedFromMessageIds(messageIds, options = {}) {
+  const { gmail, snippetByMessageId, liveGmailOnly = false } = options;
   const partWiseReceived = new Map();
   const partWiseReceivedByBrand = new Map();
   const brandByMessageId = options.brandByMessageId instanceof Map ? options.brandByMessageId : new Map();
@@ -89,16 +137,29 @@ async function buildPartWiseReceivedFromMessageIds(messageIds, options = {}) {
   const uniq = [...new Set(messageIds)];
   const resolved = new Map();
 
-  const leads = await Lead.find({ messageId: { $in: uniq } })
-    .select("messageId partRequired")
-    .lean();
-  for (const l of leads) {
-    const p = String(l.partRequired || "").trim();
-    if (p) resolved.set(l.messageId, p);
+  if (snippetByMessageId instanceof Map) {
+    for (const mid of uniq) {
+      const sn = snippetByMessageId.get(mid);
+      if (!sn) continue;
+      const p = partFromParsed(sn);
+      if (p) resolved.set(mid, p);
+    }
   }
 
   let missing = uniq.filter((id) => !resolved.has(id));
-  if (missing.length) {
+
+  if (!liveGmailOnly && missing.length) {
+    const leads = await Lead.find({ messageId: { $in: missing } })
+      .select("messageId partRequired")
+      .lean();
+    for (const l of leads) {
+      const p = String(l.partRequired || "").trim();
+      if (p) resolved.set(l.messageId, p);
+    }
+    missing = uniq.filter((id) => !resolved.has(id));
+  }
+
+  if (!liveGmailOnly && missing.length) {
     const gdocs = await GmailMessage.find({ messageId: { $in: missing } })
       .select("messageId bodyHtml snippet")
       .lean();
@@ -161,20 +222,32 @@ async function buildPartWiseReceivedFromMessageIds(messageIds, options = {}) {
 
 /**
  * Live Gmail API: list messages in a loose date window, then filter by internalDate
- * and bucket into IST reporting days. Optional agent filter via detectAgent().
+ * and bucket into IST reporting days.
  */
 export async function fetchInboundCountsFromGmailApi({
   startDateStr,
   endDateStr,
   agentEmailFilter,
+  zone: zoneOverride,
 }) {
-  const zone = GMAIL_INBOUND_STATS_ZONE;
+  const zone = zoneOverride || GMAIL_INBOUND_STATS_ZONE;
   const first = moment.tz(startDateStr, "YYYY-MM-DD", zone);
   const last = moment.tz(endDateStr, "YYYY-MM-DD", zone);
   const overallStartMs = reportingDayBoundsMs(first.format("YYYY-MM-DD"), zone).startMs;
   const overallEndMs = reportingDayBoundsMs(last.format("YYYY-MM-DD"), zone).endMs;
 
   const gmail = await getGmailClient();
+
+  let labelIdToName = new Map();
+  try {
+    const { data: labelsData } = await gmail.users.labels.list({ userId: "me" });
+    labelIdToName = new Map(
+      (Array.isArray(labelsData?.labels) ? labelsData.labels : []).map((l) => [l.id, l.name])
+    );
+  } catch {
+    labelIdToName = new Map();
+  }
+
   const qAfter = moment(first)
     .subtract(1, "day")
     .format("YYYY/MM/DD");
@@ -203,10 +276,8 @@ export async function fetchInboundCountsFromGmailApi({
   let totalInboundFromGmail = 0;
   const acceptedMessageIds = [];
   const brandByMessageId = new Map();
-
-  const lowerFilter = agentEmailFilter
-    ? String(agentEmailFilter).toLowerCase()
-    : null;
+  /** One row per message in the stats window — used for label-wise / agent-matrix (live labelIds). */
+  const labelStatRows = [];
 
   for (let i = 0; i < uniqueIds.length; i += LIST_CONCURRENCY) {
     const chunk = uniqueIds.slice(i, i + LIST_CONCURRENCY);
@@ -217,11 +288,18 @@ export async function fetchInboundCountsFromGmailApi({
             userId: "me",
             id,
             format: "metadata",
-            metadataHeaders: ["From", "To", "Delivered-To", "Cc"],
+            metadataHeaders: ["From", "To", "Delivered-To", "Cc", "Subject"],
           });
           const internalMs = data.internalDate != null ? Number(data.internalDate) : null;
           const headers = data.payload?.headers || [];
-          return { id, internalMs, headers };
+          const labelIds = Array.isArray(data.labelIds) ? data.labelIds : [];
+          return {
+            id,
+            internalMs,
+            headers,
+            labelIds,
+            snippet: String(data?.snippet || ""),
+          };
         } catch {
           return null;
         }
@@ -232,14 +310,7 @@ export async function fetchInboundCountsFromGmailApi({
       if (!row || row.internalMs == null) continue;
       if (row.internalMs < overallStartMs || row.internalMs > overallEndMs) continue;
 
-      if (lowerFilter) {
-        const detected = detectAgent(row.headers);
-        if (!detected || detected.toLowerCase() !== lowerFilter) continue;
-      }
-
-      const fromHeaderValue =
-        (row.headers || []).find((h) => String(h?.name || "").toLowerCase() === "from")?.value || "";
-      const detectedBrand = detectLeadBrandFromText(fromHeaderValue);
+      const detectedBrand = detectLeadBrandFromMetadataHeaders(row.headers);
       if (detectedBrand) {
         brandByMessageId.set(row.id, detectedBrand);
       }
@@ -254,15 +325,45 @@ export async function fetchInboundCountsFromGmailApi({
       inboundByDate.set(dayKey, (inboundByDate.get(dayKey) || 0) + 1);
       totalInboundFromGmail += 1;
       acceptedMessageIds.push(row.id);
+
+      const resolvedLabelNames = (row.labelIds || [])
+        .map((lid) => labelIdToName.get(lid))
+        .filter((name) => Boolean(name) && !isSystemGmailLabelName(name));
+      labelStatRows.push({
+        messageId: row.id,
+        internalMs: row.internalMs,
+        dayKey,
+        snippet: row.snippet || "",
+        from: headerValueLower(row.headers, "From"),
+        subject: headerValueLower(row.headers, "Subject"),
+        to: [],
+        deliveredTo: [],
+        labels: resolvedLabelNames,
+        labelIds: [],
+      });
     }
   }
 
-  const { partWiseReceived, partWiseReceivedByBrand } = await buildPartWiseReceivedFromMessageIds(acceptedMessageIds, {
-    gmail,
-    brandByMessageId,
-  });
+  const snippetByMessageId = new Map(
+    labelStatRows.map((r) => [r.messageId, r.snippet || ""]).filter(([id]) => Boolean(id))
+  );
+  const { partWiseReceived, partWiseReceivedByBrand } = await buildPartWiseReceivedFromMessageIds(
+    acceptedMessageIds,
+    {
+      gmail,
+      brandByMessageId,
+      snippetByMessageId,
+      liveGmailOnly: true,
+    }
+  );
 
-  return { inboundByDate, totalInboundFromGmail, partWiseReceived, partWiseReceivedByBrand };
+  return {
+    inboundByDate,
+    totalInboundFromGmail,
+    partWiseReceived,
+    partWiseReceivedByBrand,
+    labelStatRows,
+  };
 }
 
 /** DB fallback using GmailMessage + same IST windows (internalDate / createdAt). */
@@ -270,8 +371,9 @@ export async function fetchInboundCountsFromMongoIst({
   startDateStr,
   endDateStr,
   agentEmailFilter,
+  zone: zoneOverride,
 }) {
-  const zone = GMAIL_INBOUND_STATS_ZONE;
+  const zone = zoneOverride || GMAIL_INBOUND_STATS_ZONE;
   const overallStartMs = reportingDayBoundsMs(
     moment.tz(startDateStr, "YYYY-MM-DD", zone).format("YYYY-MM-DD"),
     zone
@@ -287,12 +389,8 @@ export async function fetchInboundCountsFromMongoIst({
       $lte: new Date(overallEndMs),
     },
   };
-  if (agentEmailFilter) {
-    rangeMatch.agentEmail = new RegExp(
-      `^${String(agentEmailFilter).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`,
-      "i"
-    );
-  }
+  // Do not filter by agentEmailFilter here — it is the CRM user's login email, not
+  // GmailMessage.agentEmail (sales distribution inbox). That mismatch zeroed inbound stats.
 
   const rows = await GmailMessage.aggregate([
     {
@@ -301,7 +399,16 @@ export async function fetchInboundCountsFromMongoIst({
       },
     },
     { $match: rangeMatch },
-    { $project: { arrivalAt: 1, messageId: 1, from: 1 } },
+    {
+      $project: {
+        arrivalAt: 1,
+        messageId: 1,
+        from: 1,
+        subject: 1,
+        to: 1,
+        deliveredTo: 1,
+      },
+    },
   ]);
 
   const inboundByDate = new Map();
@@ -324,7 +431,7 @@ export async function fetchInboundCountsFromMongoIst({
     totalInboundFromGmail += 1;
     if (doc.messageId) {
       acceptedMessageIds.push(doc.messageId);
-      const detectedBrand = detectLeadBrandFromText(doc.from);
+      const detectedBrand = detectLeadBrandFromGmailLeanDoc(doc);
       if (detectedBrand) {
         brandByMessageId.set(doc.messageId, detectedBrand);
       }
@@ -342,5 +449,11 @@ export async function fetchInboundCountsFromMongoIst({
     brandByMessageId,
   });
 
-  return { inboundByDate, totalInboundFromGmail, partWiseReceived, partWiseReceivedByBrand };
+  return {
+    inboundByDate,
+    totalInboundFromGmail,
+    partWiseReceived,
+    partWiseReceivedByBrand,
+    labelStatRows: [],
+  };
 }

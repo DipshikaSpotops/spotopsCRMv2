@@ -10,6 +10,7 @@ const leadNoteSchema = new mongoose.Schema(
     partRequired: { type: String, trim: true },
     partDescription: { type: String, trim: true },
     phoneNo: { type: String, trim: true },
+    alternatePhoneNo: { type: String, trim: true },
     vinNo: { type: String, trim: true },
     partNo: { type: String, trim: true },
     warranty: { type: String, trim: true },

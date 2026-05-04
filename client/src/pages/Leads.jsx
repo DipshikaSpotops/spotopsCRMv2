@@ -5,6 +5,14 @@ import moment from "moment-timezone";
 import API from "../api";
 import AgentDropdown from "../components/AgentDropdown";
 import UnifiedDatePicker from "../components/UnifiedDatePicker";
+import {
+  GMAIL_INBOUND_STATS_ZONE,
+  reportingDayKeysIntersectingRange,
+} from "../utils/gmailReportingDayIst.js";
+
+function formatStatsReportingDayKey(ymd) {
+  return moment.tz(ymd, "YYYY-MM-DD", GMAIL_INBOUND_STATS_ZONE).format("D MMM yyyy");
+}
 import AddLeadNotes from "./AddLeadNotes";
 import { FaEye } from "react-icons/fa";
 
@@ -283,9 +291,14 @@ function normalizePartRequiredLabel(partRequired = "") {
 
 function detectBrandFromFromEntry(rawFrom = "") {
   const lower = String(rawFrom || "").toLowerCase();
-  if (lower.includes("50stars")) return "50STARS";
-  if (lower.includes("prolane")) return "PROLANE";
+  if (lower.includes("50stars") || lower.includes("50 stars")) return "50STARS";
+  if (lower.includes("prolane") || lower.includes("pro lane")) return "PROLANE";
   return null;
+}
+
+function detectBrandFromLead(lead = {}) {
+  const hay = [lead?.from, lead?.subject].filter(Boolean).join(" ");
+  return detectBrandFromFromEntry(hay);
 }
 
 function normalizeLeadLabel(rawLabel = "") {
@@ -379,6 +392,16 @@ export default function Leads() {
     };
   });
   const [selectedAgentForStats, setSelectedAgentForStats] = useState(null);
+
+  /** IST reporting-day keys (4:30 PM → next 6:00 AM) that overlap the selected ISO range — used for stats API + labels. */
+  const statsReportingDayKeys = useMemo(() => {
+    if (!dateFilter?.start || !dateFilter?.end) return [];
+    return reportingDayKeysIntersectingRange(
+      dateFilter.start,
+      dateFilter.end,
+      GMAIL_INBOUND_STATS_ZONE
+    );
+  }, [dateFilter.start, dateFilter.end]);
   const [allSalesAgents, setAllSalesAgents] = useState([]); // For admin dropdown - stores emails
   const [emailToNameMap, setEmailToNameMap] = useState(new Map()); // Maps email -> firstName
 
@@ -814,13 +837,26 @@ export default function Leads() {
     try {
       console.log("[Leads] fetchStatistics called with dateFilter:", dateFilter);
       const params = {};
-      const ZONE = "America/Chicago";
-      if (dateFilter?.start) {
-        // Interpret stored ISO bounds in Dallas calendar days (avoid UTC date-string bugs)
-        params.startDate = moment(dateFilter.start).tz(ZONE).format("YYYY-MM-DD");
-      }
-      if (dateFilter?.end) {
-        params.endDate = moment(dateFilter.end).tz(ZONE).format("YYYY-MM-DD");
+      // Statistics use IST reporting days (16:30 IST → next day 06:00 IST), not IST calendar dates of range edges.
+      const statsCalendarZone = GMAIL_INBOUND_STATS_ZONE;
+      const dayKeys =
+        dateFilter?.start && dateFilter?.end
+          ? reportingDayKeysIntersectingRange(
+              dateFilter.start,
+              dateFilter.end,
+              statsCalendarZone
+            )
+          : [];
+      if (dayKeys.length > 0) {
+        params.startDate = dayKeys[0];
+        params.endDate = dayKeys[dayKeys.length - 1];
+      } else {
+        if (dateFilter?.start) {
+          params.startDate = moment(dateFilter.start).tz(statsCalendarZone).format("YYYY-MM-DD");
+        }
+        if (dateFilter?.end) {
+          params.endDate = moment(dateFilter.end).tz(statsCalendarZone).format("YYYY-MM-DD");
+        }
       }
       // For Admin: use selectedAgentForStats if set (from dropdown filter)
       // For Sales: don't send agentEmail - backend will automatically filter to their own stats
@@ -1276,6 +1312,26 @@ export default function Leads() {
   }, [statistics]);
 
   const partWiseLeadTotals = useMemo(() => {
+    const apiClaimed = statistics?.partWiseClaimed;
+    const apiBrands = statistics?.partWiseClaimedByBrand;
+    if (apiClaimed != null && apiBrands != null) {
+      const keys = new Set([...Object.keys(apiClaimed), ...Object.keys(apiBrands)]);
+      return Array.from(keys)
+        .map((partRequired) => {
+          const b = apiBrands[partRequired] || { "50STARS": 0, PROLANE: 0 };
+          const stars = Number(b["50STARS"]) || 0;
+          const prolane = Number(b["PROLANE"]) || 0;
+          const fromApi = Number(apiClaimed[partRequired]) || 0;
+          const count = fromApi > 0 ? fromApi : stars + prolane;
+          return {
+            partRequired,
+            count,
+            claimedByBrand: { "50STARS": stars, PROLANE: prolane },
+          };
+        })
+        .sort((a, b) => b.count - a.count || a.partRequired.localeCompare(b.partRequired));
+    }
+
     const partMap = new Map();
     const partClaimedByBrandMap = new Map();
     const seenLeadKeys = new Set();
@@ -1293,7 +1349,7 @@ export default function Leads() {
         seenLeadKeys.add(leadKey);
         partMap.set(normalizedPart, (partMap.get(normalizedPart) || 0) + 1);
 
-        const brand = detectBrandFromFromEntry(lead?.from);
+        const brand = detectBrandFromLead(lead);
         if (brand === "50STARS" || brand === "PROLANE") {
           if (!partClaimedByBrandMap.has(normalizedPart)) {
             partClaimedByBrandMap.set(normalizedPart, { "50STARS": 0, PROLANE: 0 });
@@ -1312,7 +1368,7 @@ export default function Leads() {
         claimedByBrand: partClaimedByBrandMap.get(partRequired) || { "50STARS": 0, PROLANE: 0 },
       }))
       .sort((a, b) => b.count - a.count || a.partRequired.localeCompare(b.partRequired));
-  }, [statistics]);
+  }, [statistics?.partWiseClaimed, statistics?.partWiseClaimedByBrand, statistics?.agentStats]);
 
   const partWiseRows = useMemo(() => {
     const claimedMap = new Map(partWiseLeadTotals.map((r) => [r.partRequired, r.count]));
@@ -1391,7 +1447,7 @@ export default function Leads() {
         if (!leadKey || seenLeadKeys.has(leadKey)) return;
         seenLeadKeys.add(leadKey);
 
-        const brand = detectBrandFromFromEntry(lead?.from);
+        const brand = detectBrandFromLead(lead);
         const leadLabels = Array.isArray(lead?.labels) ? lead.labels : [];
         const normalizedLabels = new Set(
           leadLabels
@@ -1723,6 +1779,30 @@ export default function Leads() {
                   </select>
                 </div>
               )}
+              {dateFilter?.start && dateFilter?.end && (
+                <span
+                  className="inline-flex items-center rounded-full bg-white/5 border border-white/15 px-3 py-1.5 text-xs sm:text-sm text-white/90 whitespace-nowrap"
+                  title="IST reporting day(s): 4:30 PM – 6:00 AM next day (same buckets as statistics API)"
+                >
+                  {statsReportingDayKeys.length === 0 ? (
+                    <>
+                      {formatInTimeZone(new Date(dateFilter.start), "Asia/Kolkata", "d MMM yyyy")}
+                      <span className="text-white/45 mx-1.5">–</span>
+                      {formatInTimeZone(new Date(dateFilter.end), "Asia/Kolkata", "d MMM yyyy")}
+                    </>
+                  ) : statsReportingDayKeys.length === 1 ? (
+                    formatStatsReportingDayKey(statsReportingDayKeys[0])
+                  ) : (
+                    <>
+                      {formatStatsReportingDayKey(statsReportingDayKeys[0])}
+                      <span className="text-white/45 mx-1.5">–</span>
+                      {formatStatsReportingDayKey(
+                        statsReportingDayKeys[statsReportingDayKeys.length - 1]
+                      )}
+                    </>
+                  )}
+                </span>
+              )}
               <UnifiedDatePicker
                 syncIsoRange={dateFilter}
                 persistKey="leads_statistics_range"
@@ -1812,19 +1892,45 @@ export default function Leads() {
           ) : statistics ? (
             <div className="space-y-6">
               {/* Summary Cards */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
                 <div className="rounded-lg border border-white/20 bg-white/10 backdrop-blur-md p-4">
                   <div className="text-sm text-white/70">Claimed (with part)</div>
                   <div className="text-3xl font-bold text-white mt-2">{statistics.totalLeads || 0}</div>
                   <div className="text-xs text-white/50 mt-1">
-                    Bucketed by IST reporting day (same windows as Received)
+                    From Lead collection (MongoDB). Bucketed by IST reporting day (same windows as Received)
                   </div>
                 </div>
                 <div className="rounded-lg border border-white/20 bg-white/10 backdrop-blur-md p-4">
                   <div className="text-sm text-white/70">Received in Gmail</div>
                   <div className="text-3xl font-bold text-emerald-300 mt-2">{statistics.totalInboundFromGmail ?? 0}</div>
                   <div className="text-xs text-white/50 mt-1">
-                    Live Gmail counts (Asia/Kolkata): From 4:30 PM IST to  6:00 AM IST
+                    Live Gmail (Asia/Kolkata): 4:30 PM IST → 6:00 AM IST next day
+                  </div>
+                </div>
+                <div className="rounded-lg border border-white/20 bg-white/10 backdrop-blur-md p-4">
+                  <div className="text-sm text-white/70">Lead Origin</div>
+                  <div className="mt-2 space-y-1 text-sm text-white/90">
+                    <div className="flex justify-between gap-3">
+                      <span className="text-white/60">Call</span>
+                      <span className="font-semibold tabular-nums">
+                        {statistics.leadOriginCounts?.Call ?? 0}
+                      </span>
+                    </div>
+                    <div className="flex justify-between gap-3">
+                      <span className="text-white/60">Chat</span>
+                      <span className="font-semibold tabular-nums">
+                        {statistics.leadOriginCounts?.Chat ?? 0}
+                      </span>
+                    </div>
+                    <div className="flex justify-between gap-3">
+                      <span className="text-white/60">Lead</span>
+                      <span className="font-semibold tabular-nums">
+                        {statistics.leadOriginCounts?.Lead ?? 0}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="text-xs text-white/50 mt-2">
+                    From Lead Note records (same IST window; matches Add Lead Notes → Lead Origin)
                   </div>
                 </div>
                 <div className="rounded-lg border border-white/20 bg-white/10 backdrop-blur-md p-4">
@@ -1841,8 +1947,8 @@ export default function Leads() {
               <div className="rounded-lg border border-white/20 bg-white/10 backdrop-blur-md p-4">
                 <h2 className="text-xl font-bold text-white mb-2">Part-wise Leads</h2>
                 <p className="text-xs text-white/55 mb-3">
-                  Received per part comes from Lead data when present; otherwise parsed from stored Gmail HTML/snippet
-                  or a limited live Gmail fetch (same IST window as the totals card).
+                  Claimed columns (Overall Claimed, Claimed 50STARS, Claimed PROLANE) use the Lead collection
+                  (MongoDB) for this IST window. Received columns stay live Gmail.
                 </p>
                 {partWiseRows.length === 0 ? (
                   <div className="text-white/70 text-sm">No part data found for this range.</div>
@@ -2402,10 +2508,23 @@ export default function Leads() {
               <h3 className="text-lg font-semibold">Total Leads Summary</h3>
               {dateFilter?.start && dateFilter?.end && (
                 <p className="text-xs text-white/70 mt-1">
-                  Range:{" "}
-                  {formatInTimeZone(new Date(dateFilter.start), "America/Chicago", "MMM d, yyyy")}{" "}
-                  -{" "}
-                  {formatInTimeZone(new Date(dateFilter.end), "America/Chicago", "MMM d, yyyy")}
+                  IST reporting day(s) (4:30 PM – 6:00 AM next day):{" "}
+                  {statsReportingDayKeys.length === 0 ? (
+                    <>
+                      {formatInTimeZone(new Date(dateFilter.start), "Asia/Kolkata", "MMM d, yyyy")}{" "}
+                      -{" "}
+                      {formatInTimeZone(new Date(dateFilter.end), "Asia/Kolkata", "MMM d, yyyy")}
+                    </>
+                  ) : statsReportingDayKeys.length === 1 ? (
+                    formatStatsReportingDayKey(statsReportingDayKeys[0])
+                  ) : (
+                    <>
+                      {formatStatsReportingDayKey(statsReportingDayKeys[0])} -{" "}
+                      {formatStatsReportingDayKey(
+                        statsReportingDayKeys[statsReportingDayKeys.length - 1]
+                      )}
+                    </>
+                  )}
                 </p>
               )}
             </div>
