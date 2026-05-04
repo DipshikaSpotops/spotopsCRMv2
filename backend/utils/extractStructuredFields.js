@@ -23,7 +23,7 @@ export function extractStructuredFields(html) {
     makeAndModel: /(?:Make\s*[&]?\s*Model|Make and Model)[\s:]+([^:]*?)(?=\s*(?:Part Required|Part|Year|Email|Phone|Good Luck|©|50 Stars)|$)/i,
     make: /(?:^|\s)(?:Make)[\s:]+([^:&]*?)(?=\s*(?:Model|Part|Year|Email|Phone|Good Luck|©|50 Stars)|$)/i,
     model: /(?:^|\s)(?:Model)[\s:]+([^:]*?)(?=\s*(?:Part|Year|Make|Email|Phone|Good Luck|©|50 Stars)|$)/i,
-    partRequired: /(?:Part Required|Part Needed)[\s:]+([^:]*?)(?=\s*(?:Offer|Offer Selected|Good Luck|©|50 Stars|@media|\n\n|\r\n\r\n)|$)/i,
+    partRequired: /(?:Part Required|Part Needed)[\s:]+([^:]*?)(?=\s*(?:Name|Email|Phone|Phone Number|Year|Make|Model|Offer|Offer Selected|Good Luck|©|50 Stars|Prolane|Pro\s*Lane|Prolane Auto Parts|@media|\n\n|\r\n\r\n)|$)/i,
   };
 
   for (const [key, pattern] of Object.entries(patterns)) {
@@ -41,6 +41,9 @@ export function extractStructuredFields(html) {
             "Good Luck",
             "©",
             "50 Stars",
+            "Prolane Auto Parts",
+            "Pro Lane",
+            "Prolane",
             "Auto Parts",
             "@media",
           ];
@@ -53,6 +56,7 @@ export function extractStructuredFields(html) {
           value = value.replace(/\s+/g, " ").replace(/[.\s]+$/, "").trim();
           if (
             value.toLowerCase().includes("50 stars auto parts") ||
+            value.toLowerCase().includes("prolane auto parts") ||
             value.toLowerCase().includes("new lead")
           ) {
             const lastPartRequired = value.toLowerCase().lastIndexOf("part required:");
@@ -81,6 +85,9 @@ export function extractStructuredFields(html) {
           "Good Luck",
           "©",
           "50 Stars",
+          "Prolane Auto Parts",
+          "Pro Lane",
+          "Prolane",
           "Auto Parts",
           "@media",
         ];
@@ -95,6 +102,17 @@ export function extractStructuredFields(html) {
           fields[key] = value;
         }
       }
+    }
+  }
+
+  /** Common inbox/snippet format: "{Part} - New Lead - Prolane …" / "50 Stars …" */
+  if (!fields.partRequired) {
+    const leadLine = textContent.match(
+      /\b([A-Za-z0-9&][A-Za-z0-9\s&'./-]{0,80}?)\s*-\s*New Lead\s*-\s*(?:Prolane|Pro\s*Lane|50\s*Stars|50STARS|50\s*Stars\s*Auto)/i
+    );
+    if (leadLine && leadLine[1]) {
+      let v = leadLine[1].replace(/\s+/g, " ").trim();
+      if (v.length >= 2 && v.length < 90) fields.partRequired = v;
     }
   }
 

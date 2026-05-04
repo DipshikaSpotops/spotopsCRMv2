@@ -2,6 +2,7 @@ import moment from "moment-timezone";
 import GmailMessage from "../models/GmailMessage.js";
 import Lead from "../models/Lead.js";
 import { extractStructuredFields } from "../utils/extractStructuredFields.js";
+import { normalizePartRequiredLabel } from "../utils/normalizePartRequiredLabel.js";
 import { getGmailClient } from "./googleAuth.js";
 
 /** Calendar dates (YYYY-MM-DD) for inbound stats are interpreted in this zone. */
@@ -243,19 +244,26 @@ export async function buildPartWiseReceivedFromMessageIds(messageIds, options = 
     }
   }
 
+  const CANONICAL_OTHER = "Others";
+
   for (const mid of uniq) {
-    const part = resolved.get(mid);
-    if (!part) continue;
-    partWiseReceived.set(part, (partWiseReceived.get(part) || 0) + 1);
+    const raw = resolved.get(mid);
+    let partKey = "";
+    if (raw && String(raw).trim()) {
+      partKey = normalizePartRequiredLabel(String(raw).trim());
+    }
+    if (!partKey) partKey = CANONICAL_OTHER;
+
+    partWiseReceived.set(partKey, (partWiseReceived.get(partKey) || 0) + 1);
 
     const brand = brandByMessageId.get(mid);
     if (brand === BRAND_50STARS || brand === BRAND_PROLANE) {
-      if (!partWiseReceivedByBrand.has(part)) {
-        partWiseReceivedByBrand.set(part, { [BRAND_50STARS]: 0, [BRAND_PROLANE]: 0 });
+      if (!partWiseReceivedByBrand.has(partKey)) {
+        partWiseReceivedByBrand.set(partKey, { [BRAND_50STARS]: 0, [BRAND_PROLANE]: 0 });
       }
-      const current = partWiseReceivedByBrand.get(part);
+      const current = partWiseReceivedByBrand.get(partKey);
       current[brand] = (current[brand] || 0) + 1;
-      partWiseReceivedByBrand.set(part, current);
+      partWiseReceivedByBrand.set(partKey, current);
     }
   }
 
