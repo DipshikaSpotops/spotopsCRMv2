@@ -1498,6 +1498,38 @@ export default function Leads() {
     };
   }, [statistics]);
 
+  const labelWiseTotals = useMemo(() => {
+    return labelWiseRows.reduce(
+      (acc, row) => {
+        acc.stars += row.stars || 0;
+        acc.prolane += row.prolane || 0;
+        acc.overall += row.overall || 0;
+        return acc;
+      },
+      { stars: 0, prolane: 0, overall: 0 }
+    );
+  }, [labelWiseRows]);
+
+  const salesAgentTotalsByBrand = useMemo(() => {
+    const makeTotals = (brand) => {
+      const rows = salesAgentLabelMatrixByBrand[brand] || [];
+      const agents = BRAND_SALES_AGENTS[brand] || [];
+      const totals = {};
+      agents.forEach((agent) => {
+        totals[agent] = rows.reduce(
+          (sum, row) => sum + (row.counts?.[agent] || 0),
+          0
+        );
+      });
+      return totals;
+    };
+
+    return {
+      "50STARS": makeTotals("50STARS"),
+      PROLANE: makeTotals("PROLANE"),
+    };
+  }, [salesAgentLabelMatrixByBrand]);
+
   const filteredMessages = useMemo(() => {
     console.log(`[Leads] filteredMessages - isAdmin: ${isAdmin}, total messages: ${messages.length}`);
     const claimedLeads = messages.filter(m => m.status === "claimed" || m.status === "closed");
@@ -1897,14 +1929,13 @@ export default function Leads() {
                   <div className="text-sm text-white/70">Claimed (with part)</div>
                   <div className="text-3xl font-bold text-white mt-2">{statistics.totalLeads || 0}</div>
                   <div className="text-xs text-white/50 mt-1">
-                    From Lead collection (MongoDB). Bucketed by IST reporting day (same windows as Received)
                   </div>
                 </div>
                 <div className="rounded-lg border border-white/20 bg-white/10 backdrop-blur-md p-4">
                   <div className="text-sm text-white/70">Received in Gmail</div>
                   <div className="text-3xl font-bold text-emerald-300 mt-2">{statistics.totalInboundFromGmail ?? 0}</div>
                   <div className="text-xs text-white/50 mt-1">
-                    Live Gmail (Asia/Kolkata): 4:30 PM IST → 6:00 AM IST next day
+                    Live Gmail: 4:30 PM IST → 6:00 AM IST next day
                   </div>
                 </div>
                 <div className="rounded-lg border border-white/20 bg-white/10 backdrop-blur-md p-4">
@@ -1930,7 +1961,6 @@ export default function Leads() {
                     </div>
                   </div>
                   <div className="text-xs text-white/50 mt-2">
-                    From Lead Note records (same IST window; matches Add Lead Notes → Lead Origin)
                   </div>
                 </div>
                 <div className="rounded-lg border border-white/20 bg-white/10 backdrop-blur-md p-4">
@@ -1955,7 +1985,7 @@ export default function Leads() {
                 ) : (
                   <div className="max-h-64 overflow-y-auto rounded-lg border border-white/10">
                     <table className="w-full text-sm">
-                      <thead className="sticky top-0 bg-white/10">
+                      <thead className="sticky top-0 z-30 bg-[#5a67a9] shadow-[0_1px_0_rgba(255,255,255,0.2)]">
                         <tr>
                           <th className="text-left px-3 py-2 border-r border-white/20">Part Required</th>
                           <th className="text-right px-3 py-2 border-r border-white/20">50STARS (received)</th>
@@ -1994,7 +2024,7 @@ export default function Leads() {
                 ) : (
                   <div className="max-h-64 overflow-y-auto rounded-lg border border-white/10">
                     <table className="w-full text-sm">
-                      <thead className="sticky top-0 bg-white/10">
+                      <thead className="sticky top-0 z-30 bg-[#5a67a9] shadow-[0_1px_0_rgba(255,255,255,0.2)]">
                         <tr>
                           <th className="text-left px-3 py-2 border-r border-white/20">Label</th>
                           <th className="text-right px-3 py-2 border-r border-white/20">50STARS</th>
@@ -2012,6 +2042,20 @@ export default function Leads() {
                           </tr>
                         ))}
                       </tbody>
+                      <tfoot className="sticky bottom-0 z-20 bg-[#4f5ea1] shadow-[0_-1px_0_rgba(255,255,255,0.2)] [transform:translateZ(0)]">
+                        <tr className="font-semibold">
+                          <th className="px-3 py-2 border-r border-white/10 text-left">Total</th>
+                          <th className="px-3 py-2 text-right border-r border-white/10">
+                            {labelWiseTotals.stars}
+                          </th>
+                          <th className="px-3 py-2 text-right border-r border-white/10">
+                            {labelWiseTotals.prolane}
+                          </th>
+                          <th className="px-3 py-2 text-right text-emerald-300">
+                            {labelWiseTotals.overall}
+                          </th>
+                        </tr>
+                      </tfoot>
                     </table>
                   </div>
                 )}
@@ -2025,7 +2069,7 @@ export default function Leads() {
                     <div className="font-semibold text-white mb-2">50STARS (label-wise by sales agent)</div>
                     <div className="max-h-64 overflow-y-auto rounded border border-white/10">
                       <table className="w-full text-xs">
-                        <thead className="sticky top-0 bg-white/10">
+                        <thead className="sticky top-0 z-30 bg-[#5a67a9] shadow-[0_1px_0_rgba(255,255,255,0.2)]">
                           <tr>
                             <th className="text-left px-2 py-2 border-r border-white/20">Label</th>
                             {BRAND_SALES_AGENTS["50STARS"].map((agent) => (
@@ -2047,6 +2091,19 @@ export default function Leads() {
                             </tr>
                           ))}
                         </tbody>
+                        <tfoot className="sticky bottom-0 z-20 bg-[#4f5ea1] shadow-[0_-1px_0_rgba(255,255,255,0.2)] [transform:translateZ(0)]">
+                          <tr className="font-semibold">
+                            <th className="px-2 py-1.5 border-r border-white/10 text-left">Total</th>
+                            {BRAND_SALES_AGENTS["50STARS"].map((agent) => (
+                              <th
+                                key={`50-total-${agent}`}
+                                className="px-2 py-1.5 text-right border-r border-white/10 last:border-r-0 text-emerald-300"
+                              >
+                                {salesAgentTotalsByBrand["50STARS"]?.[agent] ?? 0}
+                              </th>
+                            ))}
+                          </tr>
+                        </tfoot>
                       </table>
                     </div>
                   </div>
@@ -2054,7 +2111,7 @@ export default function Leads() {
                     <div className="font-semibold text-white mb-2">PROLANE (label-wise by sales agent)</div>
                     <div className="max-h-64 overflow-y-auto rounded border border-white/10">
                       <table className="w-full text-xs">
-                        <thead className="sticky top-0 bg-white/10">
+                        <thead className="sticky top-0 z-30 bg-[#5a67a9] shadow-[0_1px_0_rgba(255,255,255,0.2)]">
                           <tr>
                             <th className="text-left px-2 py-2 border-r border-white/20">Label</th>
                             {BRAND_SALES_AGENTS["PROLANE"].map((agent) => (
@@ -2076,6 +2133,19 @@ export default function Leads() {
                             </tr>
                           ))}
                         </tbody>
+                        <tfoot className="sticky bottom-0 z-20 bg-[#4f5ea1] shadow-[0_-1px_0_rgba(255,255,255,0.2)] [transform:translateZ(0)]">
+                          <tr className="font-semibold">
+                            <th className="px-2 py-1.5 border-r border-white/10 text-left">Total</th>
+                            {BRAND_SALES_AGENTS["PROLANE"].map((agent) => (
+                              <th
+                                key={`pro-total-${agent}`}
+                                className="px-2 py-1.5 text-right border-r border-white/10 last:border-r-0 text-emerald-300"
+                              >
+                                {salesAgentTotalsByBrand.PROLANE?.[agent] ?? 0}
+                              </th>
+                            ))}
+                          </tr>
+                        </tfoot>
                       </table>
                     </div>
                   </div>
