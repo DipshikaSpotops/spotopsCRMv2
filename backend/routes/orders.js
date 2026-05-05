@@ -64,6 +64,35 @@ function inferBrandFromOrderNo(orderNo) {
   return null;
 }
 
+function normalizeSalesOriginValue(...values) {
+  for (const value of values) {
+    const normalized = String(value ?? "").trim();
+    if (normalized) return normalized;
+  }
+  return "";
+}
+
+function normalizeIncomingOrderPayload(body) {
+  const payload = { ...(body || {}) };
+  const salesOrigin = normalizeSalesOriginValue(payload.salesOrigin, payload.leadOrigin);
+
+  if (
+    Object.prototype.hasOwnProperty.call(payload, "salesOrigin") ||
+    Object.prototype.hasOwnProperty.call(payload, "leadOrigin")
+  ) {
+    payload.salesOrigin = salesOrigin;
+    payload.leadOrigin = salesOrigin;
+  }
+
+  return payload;
+}
+
+function attachSalesOrigin(order) {
+  if (!order || typeof order !== "object") return order;
+  const salesOrigin = normalizeSalesOriginValue(order.salesOrigin, order.leadOrigin);
+  return { ...order, salesOrigin };
+}
+
 /* helper functions*/
 // publish to all clients watching this order
 const publish = (req, orderNo, payload = {}) => {
@@ -463,7 +492,7 @@ router.get("/cancelled-by-date", ...requireAuthAllRoles, async (req, res) => {
       cancelledDate: { $gte: startDate, $lt: endDate },
     });
 
-    res.json(orders);
+    res.json(orders.map((order) => attachSalesOrigin(order.toObject())));
   } catch (error) {
     console.error("Error fetching cancelled-by-date orders:", error);
     res.status(500).json({ message: "Server error", error: error?.message || String(error) });
@@ -487,7 +516,7 @@ router.get("/reimbursed-by-date", ...requireAuthAllRoles, async (req, res) => {
       ],
     });
 
-    res.json(orders);
+    res.json(orders.map((order) => attachSalesOrigin(order.toObject())));
   } catch (error) {
     console.error("Error fetching reimbursed-by-date orders:", error);
     res.status(500).json({ message: "Server error", error: error?.message || String(error) });
@@ -505,7 +534,7 @@ router.get("/refunded-by-date", ...requireAuthAllRoles, async (req, res) => {
       custRefundDate: { $gte: startDate, $lt: endDate },
     });
 
-    res.json(orders);
+    res.json(orders.map((order) => attachSalesOrigin(order.toObject())));
   } catch (error) {
     console.error("Error fetching refunded-by-date orders:", error);
     res.status(500).json({ message: "Server error", error: error?.message || String(error) });
@@ -615,7 +644,7 @@ router.get("/disputes-by-date", ...requireAuthAllRoles, async (req, res) => {
       disputedDate: { $gte: startDate, $lt: endDate },
     });
 
-    res.json(orders);
+    res.json(orders.map((order) => attachSalesOrigin(order.toObject())));
   } catch (error) {
     console.error("Error fetching disputed-by-date orders:", error);
     res.status(500).json({ message: "Server error", error: error?.message || String(error) });
@@ -644,7 +673,8 @@ router.post("/orders", async (req, res) => {
       }
     }
 
-    const { _expectedBrand, expectedBrand, ...orderBody } = req.body || {};
+    const { _expectedBrand, expectedBrand, ...rawOrderBody } = req.body || {};
+    const orderBody = normalizeIncomingOrderPayload(rawOrderBody);
 
     const orderNoStr = String(orderBody.orderNo || "").trim();
     const inferredFromOrderNo = inferBrandFromOrderNo(orderNoStr);
@@ -701,11 +731,11 @@ router.post("/orders", async (req, res) => {
 
     await newOrder.save();
     const io = req.app.get("io");
-    io.emit("orderCreated", newOrder);
+    io.emit("orderCreated", attachSalesOrigin(newOrder.toObject()));
     // also broadcast for list pages
     broadcastOrder(req, newOrder);
     publish(req, newOrder.orderNo, { type: "ORDER_CREATED" });
-    res.status(201).json(newOrder);
+    res.status(201).json(attachSalesOrigin(newOrder.toObject()));
   } catch (error) {
     if (error?.code === 11000) {
       return res.status(409).json({ message: "Order No already exists" });
@@ -1096,10 +1126,12 @@ router.put("/:orderNo", async (req, res) => {
       order.customerApprovedDate = req.body.customerApprovedDate;
     }
 
+    const normalizedBody = normalizeIncomingOrderPayload(req.body);
+
     // Update provided fields (except customerApprovedDate already handled)
-    Object.keys(req.body).forEach((key) => {
+    Object.keys(normalizedBody).forEach((key) => {
       if (key !== "customerApprovedDate") {
-        order[key] = req.body[key];
+        order[key] = normalizedBody[key];
       }
     });
 
@@ -1150,7 +1182,7 @@ router.put("/:orderNo", async (req, res) => {
   status: updatedOrder.orderStatus,
 });
     broadcastOrder(req, updatedOrder);
-    res.json(updatedOrder);
+    res.json(attachSalesOrigin(updatedOrder.toObject()));
   } catch (err) {
     res.status(400).send(err?.message || String(err));
   }
@@ -1177,7 +1209,7 @@ router.get("/:orderNo", ...requireAuthAllRoles, async (req, res) => {
       return res.status(404).json({ message: "Order not found" });
     }
     
-    res.json(order);
+    res.json(attachSalesOrigin(order));
   } catch (err) {
     console.error("Error fetching order:", err);
     res.status(500).json({ message: "Error fetching order" });
@@ -1287,7 +1319,7 @@ router.put("/:orderNo/custRefund", async (req, res) => {
       status: order.orderStatus,
     });
     broadcastOrder(req, order);
-    res.json(order);
+    res.json(attachSalesOrigin(order.toObject ? order.toObject() : order));
   } catch (error) {
     console.error("Error updating refund/cancellation:", error);
     res.status(500).json({ message: "Server error" });
@@ -1406,7 +1438,7 @@ router.post("/:orderNo/additionalInfo", async (req, res) => {
       status: order.orderStatus,
     });
     broadcastOrder(req, order);
-    res.json(order);
+    res.json(attachSalesOrigin(order.toObject ? order.toObject() : order));
   } catch (error) {
     console.error("POST /orders/:orderNo/additionalInfo failed", error);
     res.status(500).json({ message: "Server error", error: error?.message || String(error) });
@@ -1902,7 +1934,7 @@ router.put(
       status: order.orderStatus,
       yardStatus: newStatus, // Include the yard status for email loading detection
     });
-    res.json(order);
+    res.json(attachSalesOrigin(order.toObject ? order.toObject() : order));
   } catch (err) {
     console.error("PUT yard edit failed", err);
     res.status(500).json({ message: "Server error", error: err.message || err });
@@ -2540,7 +2572,7 @@ router.put('/:orderNo/updateActualGP', async (req, res) => {
       console.log(
         `Skipping Actual GP history entry — unchanged (prev: ${previousGP}, incoming: ${nextGP})`
       );
-      return res.json(order);
+      return res.json(attachSalesOrigin(order.toObject ? order.toObject() : order));
     }
 
     order.actualGP = nextGP;
@@ -2561,7 +2593,7 @@ router.put('/:orderNo/updateActualGP', async (req, res) => {
       actualGP: order.actualGP,
     });
     broadcastOrder(req, order);
-    res.json(order);
+    res.json(attachSalesOrigin(order.toObject ? order.toObject() : order));
   } catch (error) {
     console.error("Error updating Actual GP:", error);
     res.status(500).json({ message: "Server error", error: error.message });

@@ -43,6 +43,7 @@ const REQUIRED_FIELD_LABELS = {
   costP: "Est. Yard Price",
   shippingFee: "Est. Shipping",
   last4digits: "Last 4 Digits",
+  salesOrigin: "Sale Origin",
 };
 import API from "../api";
 
@@ -106,7 +107,8 @@ const buildInitialFormData = (defaultSalesAgent = "") => ({
   grossProfit: "",
   last4digits: "",
   notes: "",
-  leadOrigin: "",
+  // For new orders this is the required origin; backend still stores into `leadOrigin` for now.
+  salesOrigin: "",
 
   // Toggles
   expediteShipping: false,
@@ -336,8 +338,8 @@ export default function AddOrder() {
         warrantyField: lead.warrantyField || prev.warrantyField || "days",
         // Notes
         notes: prev.notes || lead.comments || "",
-        // Lead origin
-        leadOrigin: prev.leadOrigin || lead.leadOrigin || "",
+        // Sale origin: prefer existing salesOrigin, then legacy leadOrigin from lead draft
+        salesOrigin: prev.salesOrigin || lead.leadOrigin || "",
       }));
 
       // Clear the draft so it isn't reused accidentally
@@ -1025,10 +1027,11 @@ export default function AddOrder() {
                 error={fieldErrors.has("last4digits")}
               />
               <Dropdown
-                placeholder="Lead Origin"
+                placeholder="Sale Origin"
                 options={["Chat", "Call", "Lead"]}
-                value={formData.leadOrigin}
-                onChange={(e) => handleFieldChange("leadOrigin", e.target.value)}
+                value={formData.salesOrigin}
+                onChange={(e) => handleFieldChange("salesOrigin", e.target.value)}
+                error={fieldErrors.has("salesOrigin")}
               />
               <Input 
                 placeholder="Order Notes" 

@@ -141,6 +141,7 @@ orderDate: { type: Date, required: true },
 fName: String,
 lName: String,
 salesAgent: String,
+salesOrigin: String,
 leadOrigin: String,
 customerName: String,
 customerApprovedDate: String,
@@ -215,6 +216,13 @@ dsCall: String,
 programmingRequired: String,
 programmingCostQuoted: String,
 images: [imageSchema],
+});
+
+orderSchema.pre("save", function syncSalesOriginFields(next) {
+  const salesOrigin = String(this.salesOrigin || this.leadOrigin || "").trim();
+  this.salesOrigin = salesOrigin;
+  this.leadOrigin = salesOrigin;
+  next();
 });
 
 // Database synchronization hooks
