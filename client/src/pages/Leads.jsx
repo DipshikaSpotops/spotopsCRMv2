@@ -2077,6 +2077,7 @@ export default function Leads() {
                                 {agent}
                               </th>
                             ))}
+                            <th className="text-right px-2 py-2 text-emerald-300">Overall</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -2088,6 +2089,12 @@ export default function Leads() {
                                   {row.counts[agent]}
                                 </td>
                               ))}
+                              <td className="px-2 py-1.5 text-right font-semibold text-emerald-300">
+                                {BRAND_SALES_AGENTS["50STARS"].reduce(
+                                  (sum, agent) => sum + (row.counts?.[agent] || 0),
+                                  0
+                                )}
+                              </td>
                             </tr>
                           ))}
                         </tbody>
@@ -2102,6 +2109,13 @@ export default function Leads() {
                                 {salesAgentTotalsByBrand["50STARS"]?.[agent] ?? 0}
                               </th>
                             ))}
+                            <th className="px-2 py-1.5 text-right text-emerald-300">
+                              {BRAND_SALES_AGENTS["50STARS"].reduce(
+                                (sum, agent) =>
+                                  sum + (salesAgentTotalsByBrand["50STARS"]?.[agent] ?? 0),
+                                0
+                              )}
+                            </th>
                           </tr>
                         </tfoot>
                       </table>
@@ -2119,6 +2133,7 @@ export default function Leads() {
                                 {agent}
                               </th>
                             ))}
+                            <th className="text-right px-2 py-2 text-emerald-300">Overall</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -2130,6 +2145,12 @@ export default function Leads() {
                                   {row.counts[agent]}
                                 </td>
                               ))}
+                              <td className="px-2 py-1.5 text-right font-semibold text-emerald-300">
+                                {BRAND_SALES_AGENTS["PROLANE"].reduce(
+                                  (sum, agent) => sum + (row.counts?.[agent] || 0),
+                                  0
+                                )}
+                              </td>
                             </tr>
                           ))}
                         </tbody>
@@ -2144,6 +2165,13 @@ export default function Leads() {
                                 {salesAgentTotalsByBrand.PROLANE?.[agent] ?? 0}
                               </th>
                             ))}
+                            <th className="px-2 py-1.5 text-right text-emerald-300">
+                              {BRAND_SALES_AGENTS["PROLANE"].reduce(
+                                (sum, agent) =>
+                                  sum + (salesAgentTotalsByBrand.PROLANE?.[agent] ?? 0),
+                                0
+                              )}
+                            </th>
                           </tr>
                         </tfoot>
                       </table>
