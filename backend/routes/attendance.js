@@ -1,4 +1,5 @@
-// routes/attendance.js — IST calendar day + active sales users list (keep in sync with client activeAttendanceUsers.js)
+// routes/attendance.js — IST calendar day + roster (sync ACTIVE_ATTENDANCE_NAMES with client activeAttendanceUsers.js).
+// GET merges stored rows for names no longer on the roster so historical attendance still appears.
 import express from "express";
 import moment from "moment-timezone";
 import Attendance from "../models/Attendance.js";
@@ -18,8 +19,6 @@ const ACTIVE_ATTENDANCE_NAMES = [
   "Richard",
   "Ashley",
   "Max",
-  "Peter",
-  "Jessie",
   "Guru",
   "Suzanne",
   "Tony",
@@ -36,6 +35,32 @@ function canonicalFirstName(name) {
     ACTIVE_ATTENDANCE_NAMES.find((a) => a.toLowerCase() === key) ||
     null
   );
+}
+
+/** Admin edits: roster spelling when active; otherwise raw first token (retired / legacy rows). */
+function resolveFirstNameForAdmin(raw) {
+  const active = canonicalFirstName(raw);
+  if (active) return active;
+  const token = String(raw || "").trim().split(/\s+/)[0];
+  return token || null;
+}
+
+/** Active roster order first, then any other firstNames present in `docs` (sorted). */
+function displayAttendanceNamesFromDocs(activeNames, docs) {
+  const activeLower = new Set(activeNames.map((n) => String(n).toLowerCase()));
+  const extras = [];
+  const seenExtraLower = new Set();
+  for (const d of docs) {
+    const fn = String(d.firstName ?? "").trim();
+    if (!fn) continue;
+    const low = fn.toLowerCase();
+    if (activeLower.has(low)) continue;
+    if (seenExtraLower.has(low)) continue;
+    seenExtraLower.add(low);
+    extras.push(fn);
+  }
+  extras.sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
+  return [...activeNames, ...extras];
 }
 
 /** Shift-attendance date key (matches mark-present / today logic). */
@@ -169,6 +194,10 @@ router.get("/", requireAuth, async (req, res) => {
       }
 
       const docs = await Attendance.find({ dateKey: { $in: dateKeys } }).lean();
+      const displayNames = displayAttendanceNamesFromDocs(
+        ACTIVE_ATTENDANCE_NAMES,
+        docs
+      );
       const byKeyName = new Map();
       for (const d of docs) {
         const dk = String(d.dateKey ?? "").trim();
@@ -179,7 +208,7 @@ router.get("/", requireAuth, async (req, res) => {
 
       const merged = [];
       for (const dateKey of dateKeys) {
-        for (const firstName of ACTIVE_ATTENDANCE_NAMES) {
+        for (const firstName of displayNames) {
           const doc = byKeyName.get(`${dateKey}|${firstName.trim()}`);
           const base = {
             dateKey,
@@ -203,7 +232,7 @@ router.get("/", requireAuth, async (req, res) => {
         start,
         end,
         dateKeys,
-        activeUsers: ACTIVE_ATTENDANCE_NAMES,
+        activeUsers: displayNames,
         rows: merged,
       });
     }
@@ -215,11 +244,15 @@ router.get("/", requireAuth, async (req, res) => {
     }
 
     const rows = await Attendance.find({ dateKey }).lean();
+    const displayNames = displayAttendanceNamesFromDocs(
+      ACTIVE_ATTENDANCE_NAMES,
+      rows
+    );
     const byName = new Map(
       rows.map((r) => [String(r.firstName ?? "").trim(), r]).filter(([k]) => k)
     );
 
-    const merged = ACTIVE_ATTENDANCE_NAMES.map((firstName) => {
+    const merged = displayNames.map((firstName) => {
       const doc = byName.get(String(firstName).trim());
       const base = {
         firstName,
@@ -239,7 +272,7 @@ router.get("/", requireAuth, async (req, res) => {
     res.json({
       mode: "day",
       dateKey,
-      activeUsers: ACTIVE_ATTENDANCE_NAMES,
+      activeUsers: displayNames,
       rows: merged,
     });
   } catch (e) {
@@ -341,7 +374,7 @@ router.patch("/admin/entry", requireAuth, async (req, res) => {
       return res.status(403).json({ message: "Forbidden" });
     }
     const dateKey = String(req.body?.dateKey || "").trim();
-    const firstName = canonicalFirstName(req.body?.firstName);
+    const firstName = resolveFirstNameForAdmin(req.body?.firstName);
     const action = String(req.body?.action || "").trim();
     if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) {
       return res.status(400).json({ message: "Invalid dateKey; use YYYY-MM-DD" });

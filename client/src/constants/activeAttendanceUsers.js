@@ -1,5 +1,6 @@
 /**
- * Roster for the attendance calendar (IST rules).
+ * Active roster for self-service Mark Present / logout (IST rules).
+ * Backend GET attendance also appends any other stored firstNames in the requested range (historical rows).
  * Keep firstName values in sync with backend routes/attendance.js ACTIVE_ATTENDANCE_NAMES.
  */
 export const ACTIVE_ATTENDANCE_USER_LIST = [
@@ -10,8 +11,6 @@ export const ACTIVE_ATTENDANCE_USER_LIST = [
   "Richard",
   "Ashley",
   "Max",
-  "Peter",
-  "Jessie",
   "Guru",
   "Suzanne",
   "Tony",
