@@ -223,10 +223,20 @@ router.post("/", async (req, res) => {
       return res.status(400).json({ message: "yardName is required" });
     }
 
+    const baseYardName = String(yardName || "").trim();
+    const cityTrimmed = String(city || "").trim();
+    const stateTrimmed = String(state || "").trim();
+    const hasCityState = cityTrimmed && stateTrimmed;
+    const alreadyFormattedYardName = /\([^)]+,\s*[^)]+\)\s*$/.test(baseYardName);
+    const normalizedYardName =
+      hasCityState && !alreadyFormattedYardName
+        ? `${baseYardName} (${cityTrimmed}, ${stateTrimmed})`
+        : baseYardName;
+
     // Normalize name for consistent matching like “G & T” vs “G&T”
     const normalize = (name) =>
       name.toLowerCase().replace(/&/g, "and").replace(/\s+/g, "").trim();
-    const normName = normalize(yardName);
+    const normName = normalize(normalizedYardName);
 
     // Check for an existing yard by normalized comparison
     const existing = await Yard.findOne({
@@ -313,7 +323,7 @@ router.post("/", async (req, res) => {
 
     // Otherwise create new yard
     const newYard = new Yard({
-      yardName: yardName.trim(),
+      yardName: normalizedYardName,
       yardRating,
       phone,
       altNo,

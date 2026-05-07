@@ -1168,17 +1168,26 @@ export default function OrderDetails() {
     handleAddYardRef.current = true;
     try {
       const firstName = localStorage.getItem("firstName") || "Unknown";
+      const baseYardName = String(formData?.yardName || "").trim();
+      const city = String(formData?.city || "").trim();
+      const state = String(formData?.state || "").trim();
+      const hasLocation = city && state;
+      const alreadyFormatted = /\([^)]+,\s*[^)]+\)\s*$/.test(baseYardName);
+      const normalizedYardName =
+        hasLocation && !alreadyFormatted
+          ? `${baseYardName} (${city}, ${state})`
+          : baseYardName;
 
       // 1) Check if yard already exists
       const yardCheck = await API.get(`/yards/search`, {
-        params: { name: formData.yardName },
+        params: { name: normalizedYardName },
       });
       const existingYards = yardCheck.data || [];
 
       // 2) Add new yard only if it doesn't exist
       if (existingYards.length === 0) {
         await API.post(`/yards`, {
-          yardName: formData.yardName,
+          yardName: normalizedYardName,
           agentName: formData.agentName,
           agentPhone: formData.agentPhone,
           yardRating: formData.yardRating,
@@ -1194,7 +1203,11 @@ export default function OrderDetails() {
       }
 
       // 3) Add yard info to this order (updates order.additionalInfo)
-      const payload = { ...formData, orderStatus: "Yard Processing" };
+      const payload = {
+        ...formData,
+        yardName: normalizedYardName,
+        orderStatus: "Yard Processing",
+      };
       await API.post(
         `/orders/${orderNo}/additionalInfo`,
         payload,
@@ -1204,7 +1217,7 @@ export default function OrderDetails() {
       // 4) Refresh data and close modal
       if (typeof refresh === "function") await refresh();
       setShowAdd(false);
-      setToast(`Yard ${formData.yardName} added successfully.`);
+      setToast(`Yard ${normalizedYardName} added successfully.`);
     } catch (err) {
       console.error("Error adding yard:", err);
       setToast("Error adding yard. Please try again.");

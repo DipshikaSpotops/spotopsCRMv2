@@ -1371,6 +1371,16 @@ router.post("/:orderNo/additionalInfo", async (req, res) => {
       status = "Yard located",
     } = req.body || {};
 
+    const baseYardName = String(yardName || "").trim();
+    const cityTrimmed = String(city || "").trim();
+    const stateTrimmed = String(state || "").trim();
+    const hasCityState = cityTrimmed && stateTrimmed;
+    const alreadyFormattedYardName = /\([^)]+,\s*[^)]+\)\s*$/.test(baseYardName);
+    const normalizedYardName =
+      hasCityState && !alreadyFormattedYardName
+        ? `${baseYardName} (${cityTrimmed}, ${stateTrimmed})`
+        : baseYardName;
+
     const ownSet  = ownShipping !== undefined && String(ownShipping).trim() !== "";
     const yardSet = yardShipping !== undefined && String(yardShipping).trim() !== "";
     if (ownSet && yardSet) {
@@ -1395,7 +1405,7 @@ router.post("/:orderNo/additionalInfo", async (req, res) => {
     const parsedExpedite = parseOptionalBooleanFlag(yardExpedite);
     const expediteFlag = parsedExpedite === undefined ? false : parsedExpedite;
     const yardEntry = {
-      yardName, agentName, agentPhone, yardRating, phone, altPhone, ext, email,
+      yardName: normalizedYardName, agentName, agentPhone, yardRating, phone, altPhone, ext, email,
       street, city, state, zipcode,
       address: address || [street, city, state, zipcode].filter(Boolean).join(" "),
       country, partPrice,
@@ -1409,7 +1419,7 @@ router.post("/:orderNo/additionalInfo", async (req, res) => {
     order.additionalInfo.push(yardEntry);
 
     const pp    = partPrice ?? "";
-    const yname = yardName  ?? "";
+    const yname = normalizedYardName  ?? "";
     const shipTxt =
       shippingDetails ||
       (ownSet ? `Own shipping: ${ownShipping}` : (yardSet ? `Yard shipping: ${yardShipping}` : ""));

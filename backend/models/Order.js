@@ -222,7 +222,7 @@ orderSchema.pre("save", function syncSalesOriginFields(next) {
   const salesOrigin = String(this.salesOrigin || this.leadOrigin || "").trim();
   this.salesOrigin = salesOrigin;
   this.leadOrigin = salesOrigin;
-  next();
+  if (typeof next === "function") next();
 });
 
 // Database synchronization hooks
