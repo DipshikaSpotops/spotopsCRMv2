@@ -265,10 +265,9 @@ export default function CommentBox({
 
   /* -------------------- Handle keyboard -------------------- */
   const handleKeyDown = (e) => {
-    // submit on Enter (no Shift) OR Ctrl/Cmd+Enter
-    const plainEnter = e.key === "Enter" && !e.shiftKey && !e.ctrlKey && !e.metaKey;
+    // For multiline textarea, submit only on Ctrl/Cmd+Enter
     const modEnter = e.key === "Enter" && (e.ctrlKey || e.metaKey);
-    if (plainEnter || modEnter) {
+    if (modEnter) {
       e.preventDefault();
       handleSubmit(e);
     }
@@ -328,9 +327,8 @@ export default function CommentBox({
           {/* Input row */}
           <div className="shrink-0 border-t border-gray-200 dark:border-white/10 bg-blue-50 dark:bg-[#1a1a3d]/80 dark:backdrop-blur-md p-3">
             <form onSubmit={handleSubmit} className="flex gap-2 items-center">
-              <div className="flex-1 flex flex-col">
-                <input
-                  type="text"
+              <div className="flex-1 min-w-0 flex flex-col">
+                <textarea
                   placeholder="Type your comment here..."
                   value={input}
                   onChange={(e) => {
@@ -404,7 +402,8 @@ export default function CommentBox({
                       clearTimeout(typingTimeoutRef.current);
                     }
                   }}
-                  className="flex-1 rounded-lg px-3 py-2 bg-gray-50 border border-gray-300 outline-none text-[#09325d] placeholder-gray-400 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 dark:bg-white/10 dark:border-white/20 dark:text-white dark:placeholder-white/50 dark:focus:ring-white/60 dark:focus:border-white/60 dark:focus:bg-white/20"
+                  rows={3}
+                  className="w-full rounded-lg px-3 py-2 bg-gray-50 border border-gray-300 outline-none text-[#09325d] placeholder-gray-400 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 dark:bg-white/10 dark:border-white/20 dark:text-white dark:placeholder-white/50 dark:focus:ring-white/60 dark:focus:border-white/60 dark:focus:bg-white/20 resize-y min-h-[72px] max-h-40 overflow-y-auto"
                 />
                 {(() => {
                   // Deduplicate by socketId to prevent showing same user twice

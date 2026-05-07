@@ -73,6 +73,7 @@ export default function Sidebar() {
     { text: "Edit Order", to: "/edit-order", roles: ["Admin", "Sales"] },
     { text: "Daily Sales GP", to: "/daily-sales-gp", roles: ["Admin", "Sales"] },
     { text: "Sales Data", to: "/sales-data", roles: ["Admin", "Sales"] },
+    { text: "Sales Origin", to: "/sales-origin", roles: ["Admin", "Sales"], emailAccess: "50starsauto110@gmail.com" },
     { text: "Leads", to: "/leads", roles: ["Admin", "Sales"], emailAccess: "50starsauto110@gmail.com" },
     { text: "Authorization Code", to: "/authorization-codes", emailAccess: "50starsauto110@gmail.com", adminOnly: true },
     { text: "View All Orders", to: "/view-all-orders" },

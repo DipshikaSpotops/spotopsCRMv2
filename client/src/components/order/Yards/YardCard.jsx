@@ -121,6 +121,7 @@ export default function YardCard({
     makeField("Shipper", y.shipperName),
     makeField("Delivered", y.deliveredDate || y.yardDeliveredDate),
     makeField("Escalation Reason", y.escalationCause),
+    makeField("Escalation Process", y.escalationProcess),
     makeField("Yard Refund", y.refundedAmount),
   ].filter(Boolean);
 

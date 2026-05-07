@@ -41,6 +41,7 @@ const ShippingExpenses = lazy(() => import("./pages/ShippingExpenses"));
 const StoreCredits = lazy(() => import("./pages/StoreCredit"));
 const TrackingInfo = lazy(() => import("./pages/TrackingInfo"));
 const SalesData = lazy(() => import("./pages/SalesData"));
+const SalesOrigin = lazy(() => import("./pages/SalesOrigin"));
 const SalesReport = lazy(() => import("./pages/SalesReport"));
 const EmailLeads = lazy(() => import("./pages/EmailLeads"));
 const Leads = lazy(() => import("./pages/Leads"));
@@ -378,6 +379,14 @@ function App() {
           element={withLayout(
             <Suspense fallback={<PageLoader />}>
               <SalesData />
+            </Suspense>
+          )}
+        />
+        <Route
+          path="/sales-origin"
+          element={withLayout(
+            <Suspense fallback={<PageLoader />}>
+              <SalesOrigin />
             </Suspense>
           )}
         />

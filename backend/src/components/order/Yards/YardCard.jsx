@@ -54,6 +54,7 @@ export default function YardCard({
     { label: "Shipper", value: y.shipperName },
     { label: "Delivered", value: y.deliveredDate || y.yardDeliveredDate },
     { label: "Escalation Reason", value: y.escalationCause },
+    { label: "Escalation Process", value: y.escalationProcess },
     { label: "Yard Refund", value: y.refundedAmount },
     
   ].filter((f) => f.value !== undefined && f.value !== null && f.value !== "");

@@ -31,6 +31,7 @@ const COLUMNS = [
   { key: "salesAgent",       label: "Sales Agent" },
   { key: "customerName",     label: "Customer Name" },
   { key: "escalationStatus", label: "Escalation Status" },
+  { key: "lastComment",      label: "Last Comment" },
   { key: "orderStatus",      label: "Order Status" },
 ];
 
@@ -61,6 +62,28 @@ function renderCell(row, key, formatDateSafe /*, currency */) {
           ? "Yes"
           : "";
       return esc;
+    }
+
+    case "lastComment": {
+      const yards = Array.isArray(row.additionalInfo) ? row.additionalInfo : [];
+      if (!yards.length) return "—";
+      const lastYard = yards[yards.length - 1] || {};
+      const notes = Array.isArray(lastYard.notes) ? lastYard.notes : [];
+      const lastNote = notes.length ? notes[notes.length - 1] : "—";
+      return (
+        <div
+          className="whitespace-normal break-words max-w-[360px] leading-5"
+          style={{
+            display: "-webkit-box",
+            WebkitLineClamp: 5,
+            WebkitBoxOrient: "vertical",
+            overflow: "hidden",
+          }}
+          title={typeof lastNote === "string" ? lastNote : ""}
+        >
+          {lastNote}
+        </div>
+      );
     }
 
     case "orderStatus":

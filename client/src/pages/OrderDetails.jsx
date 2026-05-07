@@ -363,6 +363,12 @@ export default function OrderDetails() {
   const [toBeReimbursedSaved, setToBeReimbursedSaved] = useState(false);
   const [reimbursementSaved, setReimbursementSaved] = useState(false);
   const [savingToBeReimbursed, setSavingToBeReimbursed] = useState(false);
+  const firstColumnRef = useRef(null);
+  const [firstColumnHeight, setFirstColumnHeight] = useState(null);
+  const matchedColumnHeight =
+    typeof firstColumnHeight === "number" && firstColumnHeight > 0
+      ? `${Math.round(firstColumnHeight)}px`
+      : undefined;
 
   // Initialize activeYardIndex to last yard on first load, but preserve it across refreshes
   const isInitialYardIndexSet = useRef(false);
@@ -452,6 +458,22 @@ export default function OrderDetails() {
     setActiveYardIndex(idx);
     activeYardIndexRef.current = idx;
   }, []);
+
+  useEffect(() => {
+    const node = firstColumnRef.current;
+    if (!node || typeof ResizeObserver === "undefined") return undefined;
+
+    const updateHeight = () => {
+      const next = node.getBoundingClientRect().height;
+      if (next > 0) setFirstColumnHeight(next);
+    };
+
+    updateHeight();
+    const observer = new ResizeObserver(updateHeight);
+    observer.observe(node);
+
+    return () => observer.disconnect();
+  }, [order, yards, tab, activeSection]);
 
   useEffect(() => {
     document.title = orderNo ? `Order No ${orderNo}` : "ORDER DETAILS";
@@ -1725,9 +1747,9 @@ export default function OrderDetails() {
           {/* Customer Images (icon opens modal; actual UI below) */}
 
           {/* 3 columns */}
-          <div className="grid grid-cols-12 gap-6 2xl:gap-8 items-stretch">
+          <div className="grid grid-cols-12 gap-6 2xl:gap-8 items-start">
             {/* LEFT: Order Details */}
-            <aside className="col-span-12 xl:col-span-4 flex flex-col gap-4 h-full">
+            <aside ref={firstColumnRef} className="col-span-12 xl:col-span-4 flex flex-col gap-4">
               <div>
                 <GlassCard
                   className="flex flex-col dark:border-white/20 dark:bg-white/10 dark:text-white"
@@ -1888,7 +1910,13 @@ export default function OrderDetails() {
             </aside>
 
             {/* CENTER: Yards */}
-            <section className="col-span-12 xl:col-span-4 flex flex-col gap-4 h-full relative z-10">
+            <section
+              className="col-span-12 xl:col-span-4 flex flex-col gap-4 min-h-0 xl:overflow-hidden relative z-10"
+              style={{
+                height: matchedColumnHeight,
+                maxHeight: matchedColumnHeight,
+              }}
+            >
               <div className="flex-1 min-h-0">
                 <YardList
                   yards={yards}
@@ -1939,7 +1967,13 @@ export default function OrderDetails() {
             </section>
 
             {/* RIGHT: comments */}
-            <aside className="col-span-12 xl:col-span-4 flex flex-col gap-4 h-full xl:overflow-hidden">
+            <aside
+              className="col-span-12 xl:col-span-4 flex flex-col gap-4 min-h-0 xl:overflow-hidden"
+              style={{
+                height: matchedColumnHeight,
+                maxHeight: matchedColumnHeight,
+              }}
+            >
       <GlassCard
         className="relative flex-1 flex flex-col z-20 dark:border-white/20 dark:bg-white/10 dark:text-white"
                 title="Support Comments"
