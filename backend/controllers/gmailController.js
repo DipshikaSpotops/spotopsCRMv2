@@ -2439,6 +2439,140 @@ export async function reopenLeadHandler(req, res, next) {
   }
 }
 
+export async function unclaimLeadHandler(req, res, next) {
+  try {
+    const user = req.user;
+    if (!user) {
+      return res.status(401).json({ message: "Not authenticated" });
+    }
+
+    const role = String(user.role || "").trim().toLowerCase();
+    const userEmail = String(user.email || "").trim().toLowerCase();
+    const isAdmin = role === "admin";
+    const isAuthorizedEmail = userEmail === "50starsauto110@gmail.com";
+    if (!isAdmin && !isAuthorizedEmail) {
+      return res.status(403).json({ message: "Not authorized to unclaim leads." });
+    }
+
+    const id = String(req.params.id);
+
+    // Find message by _id or messageId
+    let message = await GmailMessage.findById(id);
+    if (!message && id.length !== 24) {
+      message = await GmailMessage.findOne({ messageId: id });
+    }
+    if (!message) {
+      return res.status(404).json({ message: "Lead not found" });
+    }
+
+    // Only claimed/closed leads can be unclaimed
+    if (message.status !== "claimed" && message.status !== "closed") {
+      return res.status(400).json({
+        message: "Only claimed or closed leads can be unclaimed.",
+        currentStatus: message.status,
+      });
+    }
+
+    const previousOwnerId = message.claimedBy;
+    let previousOwnerLabel = "";
+    if (previousOwnerId) {
+      try {
+        const owner = await User.findById(previousOwnerId).select("firstName");
+        previousOwnerLabel = String(owner?.firstName || "").trim();
+      } catch (ownerErr) {
+        console.error("[unclaimLead] Failed to fetch previous owner:", ownerErr.message);
+      }
+    }
+
+    // Reset to active/unclaimed in GmailMessage
+    message.status = "active";
+    message.claimedBy = null;
+    message.claimedAt = null;
+    message.labels = [];
+
+    // Ensure UI can immediately treat it as unread/claimable
+    const nextLabelIds = new Set(
+      Array.isArray(message.labelIds) ? message.labelIds : []
+    );
+    nextLabelIds.add("UNREAD");
+    message.labelIds = [...nextLabelIds];
+
+    await message.save();
+
+    // Remove claimed lead snapshot from Lead collection.
+    // It will be re-created on next claim.
+    if (message.messageId) {
+      try {
+        await Lead.deleteOne({ messageId: message.messageId });
+        console.log(`[unclaimLead] Removed Lead record for messageId: ${message.messageId}`);
+      } catch (leadErr) {
+        console.error("[unclaimLead] Failed to remove Lead collection record:", leadErr.message);
+      }
+    }
+
+    // Sync labels back to Gmail: mark unread and remove previous owner label
+    try {
+      const gmail = await getGmailClient();
+      const { data: labelsData } = await gmail.users.labels.list({ userId: "me" });
+      const gmailLabels = labelsData.labels || [];
+      const labelMap = new Map(gmailLabels.map((l) => [l.name.toLowerCase(), l.id]));
+
+      const addLabelIds = [];
+      const removeLabelIds = [];
+
+      // Always add UNREAD back.
+      addLabelIds.push("UNREAD");
+
+      // Remove previous owner label if present.
+      if (previousOwnerLabel) {
+        const ownerLabelId = labelMap.get(previousOwnerLabel.toLowerCase());
+        if (ownerLabelId) removeLabelIds.push(ownerLabelId);
+      }
+
+      await gmail.users.messages.modify({
+        userId: "me",
+        id: message.messageId,
+        requestBody: {
+          addLabelIds,
+          ...(removeLabelIds.length > 0 ? { removeLabelIds } : {}),
+        },
+      });
+
+      // Refresh labelIds snapshot from Gmail after mutation
+      try {
+        const { data: msgData } = await gmail.users.messages.get({
+          userId: "me",
+          id: message.messageId,
+          format: "metadata",
+          metadataHeaders: [],
+        });
+        message.labelIds = msgData.labelIds || message.labelIds;
+        await message.save();
+      } catch (refreshErr) {
+        console.error("[unclaimLead] Failed to refresh labelIds:", refreshErr.message);
+      }
+    } catch (gmailErr) {
+      console.error("[unclaimLead] Failed to sync Gmail labels:", gmailErr.message);
+    }
+
+    const messageObj = message.toObject();
+    if (req.app?.locals?.sseBroadcast) {
+      req.app.locals.sseBroadcast("gmail", { reason: "lead_unclaimed", messageId: messageObj._id });
+    }
+
+    return res.json({
+      _id: String(messageObj._id),
+      ...messageObj,
+      status: "active",
+      claimedBy: null,
+      claimedAt: null,
+      labels: [],
+    });
+  } catch (err) {
+    return next(err);
+  }
+}
+
 export async function updateLabelsHandler(req, res, next) {
   try {
     const user = req.user;

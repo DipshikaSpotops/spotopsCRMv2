@@ -339,6 +339,7 @@ export default function Leads() {
   const isAdmin = role === "Admin";
   const isSales = role === "Sales";
   const isAuthorizedEmail = email?.toLowerCase() === "50starsauto110@gmail.com";
+  const canUnclaimLead = isAdmin || isAuthorizedEmail;
   const isAuthorized = isAdmin || isSales || isAuthorizedEmail;
   
   // Show unauthorized message if user doesn't have access
@@ -367,6 +368,7 @@ export default function Leads() {
   const [limit, setLimit] = useState(50);
   const [lastUpdated, setLastUpdated] = useState(null);
   const [claimingId, setClaimingId] = useState(null);
+  const [unclaimingId, setUnclaimingId] = useState(null);
   const [labels, setLabels] = useState(["Charlie", "David", "John", "Mark", "Richard", "Quoted", "Already Purchased", "Left voicemail"]);
   const [updatingLabels, setUpdatingLabels] = useState(false);
   const labelsDropdownRef = useRef(null);
@@ -1137,6 +1139,41 @@ export default function Leads() {
       }
     } finally {
       setClaimingId(null);
+    }
+  };
+
+  const handleUnclaim = async (msg) => {
+    const targetId = msg._id || msg.messageId;
+    if (!targetId) return;
+
+    setUnclaimingId(targetId);
+    try {
+      const { data } = await API.patch(`/gmail/messages/${targetId}/unclaim`);
+      setMessages((prev) =>
+        prev.map((m) =>
+          (m._id === msg._id || m.messageId === msg.messageId)
+            ? {
+                ...m,
+                ...data,
+                status: "active",
+                claimedBy: null,
+                claimedAt: null,
+                labels: [],
+                labelIds: Array.from(new Set([...(m.labelIds || []), "UNREAD"])),
+              }
+            : m
+        )
+      );
+
+      // Keep details panel consistent if currently selected item was unclaimed.
+      if (selectedMessage && (selectedMessage._id === msg._id || selectedMessage.messageId === msg.messageId)) {
+        setSelectedMessage(null);
+      }
+    } catch (err) {
+      console.error("[Leads] Unclaim error:", err);
+      setError(err?.response?.data?.message || "Failed to unclaim lead.");
+    } finally {
+      setUnclaimingId(null);
     }
   };
 
@@ -2583,6 +2620,24 @@ export default function Leads() {
                           {claimingId === msg._id || claimingId === msg.messageId ? "Claiming..." : "Claim"}
                         </button>
                     )}
+                        {canUnclaimLead && (msg.status === "claimed" || msg.status === "closed") && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleUnclaim(msg);
+                            }}
+                            disabled={unclaimingId === msg._id || unclaimingId === msg.messageId}
+                            className={`px-2 py-1 text-xs rounded text-white font-medium ${
+                              unclaimingId === msg._id || unclaimingId === msg.messageId
+                                ? "bg-gray-500 cursor-not-allowed opacity-50"
+                                : "bg-amber-600 hover:bg-amber-700"
+                            }`}
+                          >
+                            {unclaimingId === msg._id || unclaimingId === msg.messageId
+                              ? "Unclaiming..."
+                              : "Unclaim"}
+                          </button>
+                        )}
                       </div>
                     </div>
                   </div>

@@ -10,6 +10,7 @@ import {
   updateLabelsHandler,
   closeLeadHandler,
   reopenLeadHandler,
+  unclaimLeadHandler,
   getDailyStatisticsHandler,
   oauth2UrlHandler,
   oauth2CallbackHandler,
@@ -41,6 +42,7 @@ router.post("/messages/:id/claim-and-view", requireAuth, claimAndViewHandler);
 router.patch("/messages/:id/labels", requireAuth, updateLabelsHandler);
 router.patch("/messages/:id/close", requireAuth, closeLeadHandler);
 router.patch("/messages/:id/reopen", requireAuth, reopenLeadHandler);
+router.patch("/messages/:id/unclaim", requireAuth, unclaimLeadHandler);
 router.post("/messages/:id/comments", requireAuth, addCommentHandler);
 router.get("/statistics/daily", requireAuth, getDailyStatisticsHandler);
 router.post("/reparse-leads", requireAuth, reparseLeadsHandler); // Admin only - re-parse existing leads
