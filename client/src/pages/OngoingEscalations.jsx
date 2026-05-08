@@ -66,22 +66,48 @@ function renderCell(row, key, formatDateSafe /*, currency */) {
 
     case "lastComment": {
       const yards = Array.isArray(row.additionalInfo) ? row.additionalInfo : [];
-      if (!yards.length) return "—";
-      const lastYard = yards[yards.length - 1] || {};
-      const notes = Array.isArray(lastYard.notes) ? lastYard.notes : [];
-      const lastNote = notes.length ? notes[notes.length - 1] : "—";
+      const lines = [];
+      const lineItems = [];
+
+      yards.forEach((yard, idx) => {
+        const status = String(yard?.status || "").trim().toLowerCase();
+        if (status !== "escalation") return;
+
+        const notes = Array.isArray(yard?.notes) ? yard.notes : [];
+        const lastNote = notes.length ? notes[notes.length - 1] : "—";
+        lines.push(`Yard ${idx + 1}: ${lastNote}`);
+        lineItems.push({
+          label: `Yard ${idx + 1}:`,
+          text: lastNote,
+        });
+      });
+
+      const supportNotes = Array.isArray(row.supportNotes) ? row.supportNotes : [];
+      if (supportNotes.length) {
+        const orderComment = supportNotes[supportNotes.length - 1];
+        lines.push(`Order comment: ${orderComment}`);
+        lineItems.push({
+          label: "Order comment:",
+          text: orderComment,
+        });
+      }
+
+      const displayText = lines.length ? lines.join("\n") : "—";
       return (
         <div
-          className="whitespace-normal break-words max-w-[360px] leading-5"
-          style={{
-            display: "-webkit-box",
-            WebkitLineClamp: 5,
-            WebkitBoxOrient: "vertical",
-            overflow: "hidden",
-          }}
-          title={typeof lastNote === "string" ? lastNote : ""}
+          className="break-words leading-5 min-w-[260px]"
+          title={displayText}
         >
-          {lastNote}
+          {lineItems.length ? (
+            lineItems.map((item, idx) => (
+              <div key={`${item.label}-${idx}`} className="whitespace-pre-line">
+                <span className="underline font-medium">{item.label}</span>{" "}
+                <span>{item.text}</span>
+              </div>
+            ))
+          ) : (
+            "—"
+          )}
         </div>
       );
     }

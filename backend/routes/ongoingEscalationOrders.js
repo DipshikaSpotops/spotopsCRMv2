@@ -133,6 +133,7 @@ router.get("/", async (req, res) => {
       make: 1,
       model: 1,
       orderHistory: 1,
+      supportNotes: 1,
       custRefAmount: 1,
       soldP: 1,
       grossProfit: 1,
