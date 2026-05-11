@@ -55,6 +55,13 @@ const BRAND_SALES_LABELS = {
   "PROLANE": ["Victor", "Sam", "Noah", "Michael"],
 };
 
+const REPORT_PART_REQUIRED_LABELS = [
+  "Anti Lock Braking",
+  "Engine",
+  "Others",
+  "Transmission",
+];
+
 function pickSalesAgentNameFromGmailLabels(labels = []) {
   const lower = new Set((labels || []).map((x) => String(x || "").trim().toLowerCase()));
   for (const name of BRAND_SALES_LABELS["50STARS"]) {
@@ -68,6 +75,11 @@ function pickSalesAgentNameFromGmailLabels(labels = []) {
 
 function partRequiredFromSnippet(snippet = "") {
   return String(extractStructuredFields(String(snippet || "")).partRequired || "").trim();
+}
+
+function normalizeReportPartRequiredLabel(partRequired = "") {
+  const normalized = normalizePartRequiredLabel(partRequired);
+  return REPORT_PART_REQUIRED_LABELS.includes(normalized) ? normalized : "Others";
 }
 
 function detectBrandFromFromEntry(rawFrom = "") {
@@ -235,6 +247,39 @@ function createSalesAgentLabelMatrixSeed() {
     });
   });
   return out;
+}
+
+function createSalesAgentPartMatrixSeed() {
+  const createAgentRow = () => ({
+    "Anti Lock Braking": 0,
+    Engine: 0,
+    Others: 0,
+    Transmission: 0,
+    total: 0,
+  });
+  return {
+    "50STARS": Object.fromEntries(BRAND_SALES_LABELS["50STARS"].map((agent) => [agent, createAgentRow()])),
+    PROLANE: Object.fromEntries(BRAND_SALES_LABELS.PROLANE.map((agent) => [agent, createAgentRow()])),
+  };
+}
+
+function incrementSalesAgentPartMatrix(matrix, brand, salesAgent, partRequired) {
+  if (brand !== "50STARS" && brand !== "PROLANE") return;
+  const agent = String(salesAgent || "").trim().split(/\s+/)[0];
+  if (!agent) return;
+  if (!matrix[brand]) matrix[brand] = {};
+  if (!matrix[brand][agent]) {
+    matrix[brand][agent] = {
+      "Anti Lock Braking": 0,
+      Engine: 0,
+      Others: 0,
+      Transmission: 0,
+      total: 0,
+    };
+  }
+  const part = normalizeReportPartRequiredLabel(partRequired);
+  matrix[brand][agent][part] = (matrix[brand][agent][part] || 0) + 1;
+  matrix[brand][agent].total = (matrix[brand][agent].total || 0) + 1;
 }
 
 function incrementSalesAgentLabelCount(counts, brand, labels = []) {
@@ -1920,6 +1965,7 @@ async function fetchClaimedPartStatsFromMongoLeads({
 
   const partWiseClaimed = {};
   const partWiseClaimedByBrand = {};
+  const salesAgentPartMatrixByBrand = createSalesAgentPartMatrixSeed();
   const seen = new Set();
   let totalLeads = 0;
 
@@ -1938,10 +1984,16 @@ async function fetchClaimedPartStatsFromMongoLeads({
     const brand = detectBrandFromMongoLeadForStats(lead);
     if (brand === "50STARS" || brand === "PROLANE") {
       partWiseClaimedByBrand[part][brand] += 1;
+      incrementSalesAgentPartMatrix(salesAgentPartMatrixByBrand, brand, lead.salesAgent, part);
     }
   }
 
-  return { totalLeads, partWiseClaimed, partWiseClaimedByBrand };
+  return {
+    totalLeads,
+    partWiseClaimed,
+    partWiseClaimedByBrand,
+    salesAgentPartMatrixByBrand,
+  };
 }
 
 export async function getDailyStatisticsHandler(req, res, next) {
@@ -2008,6 +2060,7 @@ export async function getDailyStatisticsHandler(req, res, next) {
           ),
           salesAgentLabelCountsByBrand: createSalesAgentLabelCountsSeed(),
           salesAgentLabelMatrixByBrand: createSalesAgentLabelMatrixSeed(),
+          salesAgentPartMatrixByBrand: createSalesAgentPartMatrixSeed(),
           agentStats: [],
           debug: { message: `No user found with email: ${emailToFilter}` },
         });
@@ -2035,7 +2088,12 @@ export async function getDailyStatisticsHandler(req, res, next) {
 
     let inboundPack;
     let leadOriginCounts = { Call: 0, Chat: 0, Lead: 0 };
-    let claimedPartFromDb = { totalLeads: 0, partWiseClaimed: {}, partWiseClaimedByBrand: {} };
+    let claimedPartFromDb = {
+      totalLeads: 0,
+      partWiseClaimed: {},
+      partWiseClaimedByBrand: {},
+      salesAgentPartMatrixByBrand: createSalesAgentPartMatrixSeed(),
+    };
     try {
       [inboundPack, leadOriginCounts, claimedPartFromDb] = await Promise.all([
         fetchInboundCountsFromGmailApi({
@@ -2260,6 +2318,7 @@ export async function getDailyStatisticsHandler(req, res, next) {
     );
     const salesAgentLabelCountsByBrand = createSalesAgentLabelCountsSeed();
     const salesAgentLabelMatrixByBrand = createSalesAgentLabelMatrixSeed();
+    const salesAgentPartMatrixByBrand = createSalesAgentPartMatrixSeed();
 
     for (const row of rowsForStats) {
       const combinedLabels = dedupeLabelStrings([...(row.labels || [])]);
@@ -2268,6 +2327,12 @@ export async function getDailyStatisticsHandler(req, res, next) {
 
       incrementSalesAgentLabelCount(salesAgentLabelCountsByBrand, brand, combinedLabels);
       incrementSalesAgentLabelMatrix(salesAgentLabelMatrixByBrand, brand, combinedLabels);
+      incrementSalesAgentPartMatrix(
+        salesAgentPartMatrixByBrand,
+        brand,
+        pickSalesAgentNameFromGmailLabels(combinedLabels),
+        partRequiredFromSnippet(row.snippet)
+      );
       const labelWiseSources = combinedLabels.filter((l) => !isSalesAgentFirstNameLabel(l));
       const normalizedLabels = new Set(
         labelWiseSources.map((label) => normalizeStatsLabel(label)).filter((label) => Boolean(label))
@@ -2295,6 +2360,7 @@ export async function getDailyStatisticsHandler(req, res, next) {
       labelWiseByBrand,
       salesAgentLabelCountsByBrand,
       salesAgentLabelMatrixByBrand,
+      salesAgentPartMatrixByBrand,
       agentStats,
       dateRange: {
         start: start.toISOString(),
@@ -2329,7 +2395,30 @@ export async function sendLeadDigestHandler(req, res, next) {
       return res.status(403).json({ message: "Not authorized to send lead digest." });
     }
 
-    const result = await sendLeadStatisticsDigest({ force: true });
+    const startDate = req.body?.startDate ? String(req.body.startDate).split("T")[0] : "";
+    const endDate = req.body?.endDate ? String(req.body.endDate).split("T")[0] : startDate;
+    const requestedAgentEmail = String(req.body?.agentEmail || "").trim().toLowerCase();
+    let agentEmailFilter = "";
+    let salesAgentFirstName = "";
+
+    if (isAdmin && requestedAgentEmail && requestedAgentEmail !== "all") {
+      const targetUser = await User.findOne({ email: requestedAgentEmail })
+        .select("firstName email")
+        .lean();
+      if (!targetUser) {
+        return res.status(400).json({ message: "Selected sales agent was not found." });
+      }
+      agentEmailFilter = targetUser.email;
+      salesAgentFirstName = String(targetUser.firstName || "").trim();
+    }
+
+    const result = await sendLeadStatisticsDigest({
+      force: true,
+      startDate,
+      endDate,
+      agentEmailFilter,
+      salesAgentFirstName,
+    });
     return res.json({
       ok: true,
       message: "Lead statistics email sent.",

@@ -1,108 +1,281 @@
 import moment from "moment-timezone";
 import Lead from "../models/Lead.js";
 import {
-  createGmailServiceTransport,
-} from "../utils/serviceGmailTransport.js";
+  buildPartWiseReceivedFromMessageIds,
+  fetchInboundCountsFromGmailApi,
+  GMAIL_INBOUND_STATS_ZONE,
+  reportingDayBoundsMs,
+} from "./gmailInboundStats.js";
+import { getGmailClient } from "./googleAuth.js";
+import { extractStructuredFields } from "../utils/extractStructuredFields.js";
+import { normalizePartRequiredLabel } from "../utils/normalizePartRequiredLabel.js";
+import { createGmailServiceTransport } from "../utils/serviceGmailTransport.js";
 
-const IST_ZONE = "Asia/Kolkata";
+const IST_ZONE = GMAIL_INBOUND_STATS_ZONE || "Asia/Kolkata";
 const RECIPIENTS = [
   "dipsikha.spotopsdigital@gmail.com",
   "50starsauto110@gmail.com",
 ];
 
-// Send at 4:30 PM IST every day
+// Send at 4:30 PM IST every day.
 const SEND_HOUR_IST = 16;
 const SEND_MINUTE_IST = 30;
-
-// Reporting window: previous day 6:30 PM IST -> current day 5:00 AM IST
-const WINDOW_START_HOUR = 18;
-const WINDOW_START_MINUTE = 30;
-const WINDOW_END_HOUR = 5;
-const WINDOW_END_MINUTE = 0;
 
 // In-memory guard to avoid duplicate sends during same day/runtime.
 let lastDigestKeySent = "";
 
-const AGENT_GROUPS = [
-  { displayName: "Charlie", names: ["michael", "charlie"] },
-  { displayName: "Richard", names: ["richard", "victor"] },
-  { displayName: "Mark", names: ["mark", "sam"] },
-  { displayName: "Nick", names: ["nick", "noah"] },
+const REPORT_PARTS = [
+  "Anti Lock Braking",
+  "Engine",
+  "Others",
+  "Transmission",
 ];
 
+const BRAND_SALES_LABEL_NAMES = {
+  "50STARS": ["Mark", "Richard", "Nick", "Charlie"],
+  PROLANE: ["Victor", "Sam", "Noah", "Michael"],
+};
+
 function detectBrandFromLead(lead = {}) {
-  const hay = `${lead?.from || ""} ${lead?.subject || ""}`.toLowerCase();
+  const hay = `${lead?.from || ""} ${lead?.subject || ""} ${lead?.snippet || ""}`.toLowerCase();
   if (hay.includes("prolane") || hay.includes("pro lane")) return "PROLANE";
-  return "50STARS";
+  if (hay.includes("50stars") || hay.includes("50 stars")) return "50STARS";
+
+  const labels = [
+    ...(Array.isArray(lead?.labels) ? lead.labels : []),
+    lead?.salesAgent,
+  ]
+    .map((label) => String(label || "").trim().toLowerCase())
+    .filter(Boolean);
+  const labelSet = new Set(labels);
+
+  for (const [brand, names] of Object.entries(BRAND_SALES_LABEL_NAMES)) {
+    if (names.some((name) => labelSet.has(name.toLowerCase()))) return brand;
+  }
+  return "";
 }
 
-function normalizePart(partRequired = "") {
-  const raw = String(partRequired || "").toLowerCase().trim();
-  if (!raw) return "invalid";
-  if (raw.includes("abs") || raw.includes("anti lock braking")) return "abs";
-  if (raw.includes("drive shaft") || raw.includes("driveshaft")) return "driveShaft";
-  if (raw.includes("transmission")) return "trans";
-  if (raw.includes("engine") && !raw.includes("control module")) return "engine";
-  return "invalid";
+function pickSalesAgentNameFromLabels(labels = []) {
+  const lower = new Set((labels || []).map((label) => String(label || "").trim().toLowerCase()));
+  for (const name of BRAND_SALES_LABEL_NAMES["50STARS"]) {
+    if (lower.has(name.toLowerCase())) return name;
+  }
+  for (const name of BRAND_SALES_LABEL_NAMES.PROLANE) {
+    if (lower.has(name.toLowerCase())) return name;
+  }
+  return "";
 }
 
-function createEmptyRow() {
-  return { abs: 0, driveShaft: 0, engine: 0, trans: 0, invalid: 0, total: 0 };
+function partRequiredFromSnippet(snippet = "") {
+  return String(extractStructuredFields(String(snippet || "")).partRequired || "").trim();
 }
 
-function ensureAgentRows() {
-  const rows = {};
-  AGENT_GROUPS.forEach((group) => {
-    rows[group.displayName] = createEmptyRow();
+function normalizeReportPart(partRequired = "") {
+  const normalized = normalizePartRequiredLabel(partRequired);
+  return REPORT_PARTS.includes(normalized) ? normalized : "Others";
+}
+
+function incrementMap(map, rawPart, count = 1) {
+  const part = normalizeReportPart(rawPart);
+  map.set(part, (map.get(part) || 0) + (Number(count) || 0));
+}
+
+function incrementBrandMap(map, rawPart, brand, count = 1) {
+  if (brand !== "50STARS" && brand !== "PROLANE") return;
+  const part = normalizeReportPart(rawPart);
+  const current = map.get(part) || { "50STARS": 0, PROLANE: 0 };
+  current[brand] = (current[brand] || 0) + (Number(count) || 0);
+  map.set(part, current);
+}
+
+function createSalesAgentPartMatrixSeed() {
+  const createAgentRow = () => ({
+    "Anti Lock Braking": 0,
+    Engine: 0,
+    Others: 0,
+    Transmission: 0,
+    total: 0,
   });
-  return rows;
+  return {
+    "50STARS": Object.fromEntries(BRAND_SALES_LABEL_NAMES["50STARS"].map((agent) => [agent, createAgentRow()])),
+    PROLANE: Object.fromEntries(BRAND_SALES_LABEL_NAMES.PROLANE.map((agent) => [agent, createAgentRow()])),
+  };
 }
 
-function addLeadToRows(rows, lead) {
-  const salesAgent = String(lead?.salesAgent || "").trim().toLowerCase();
-  const matchingGroup = AGENT_GROUPS.find((group) =>
-    group.names.includes(salesAgent)
-  );
-  if (!matchingGroup) return;
-
-  const bucket = normalizePart(lead?.partRequired || "");
-  const row = rows[matchingGroup.displayName];
-  row[bucket] += 1;
-  row.total += 1;
+function incrementSalesAgentPartMatrix(matrix, brand, salesAgent, partRequired) {
+  if (brand !== "50STARS" && brand !== "PROLANE") return;
+  const agent = String(salesAgent || "").trim().split(/\s+/)[0];
+  if (!agent) return;
+  if (!matrix[brand]) matrix[brand] = {};
+  if (!matrix[brand][agent]) {
+    matrix[brand][agent] = {
+      "Anti Lock Braking": 0,
+      Engine: 0,
+      Others: 0,
+      Transmission: 0,
+      total: 0,
+    };
+  }
+  const part = normalizeReportPart(partRequired);
+  matrix[brand][agent][part] = (matrix[brand][agent][part] || 0) + 1;
+  matrix[brand][agent].total = (matrix[brand][agent].total || 0) + 1;
 }
 
-function sumTotals(rows) {
-  const totals = createEmptyRow();
-  Object.values(rows).forEach((row) => {
-    totals.abs += row.abs;
-    totals.driveShaft += row.driveShaft;
-    totals.engine += row.engine;
-    totals.trans += row.trans;
-    totals.invalid += row.invalid;
-    totals.total += row.total;
+function mapFromObject(obj = {}) {
+  const out = new Map();
+  Object.entries(obj || {}).forEach(([part, count]) => incrementMap(out, part, count));
+  return out;
+}
+
+function brandMapFromObject(obj = {}) {
+  const out = new Map();
+  Object.entries(obj || {}).forEach(([part, counts]) => {
+    incrementBrandMap(out, part, "50STARS", counts?.["50STARS"]);
+    incrementBrandMap(out, part, "PROLANE", counts?.PROLANE);
   });
-  return totals;
+  return out;
 }
 
-function renderTableHtml(title, rows) {
-  const order = ["Charlie", "Mark", "Richard", "Nick"];
-  const totals = sumTotals(rows);
-  const rowHtml = order
-    .map((name) => {
-      const row = rows[name] || createEmptyRow();
-      return `
+function buildPartWiseRows({ claimed, claimedByBrand, received, receivedByBrand }) {
+  const claimedMap = claimed instanceof Map ? claimed : mapFromObject(claimed);
+  const claimedBrandMap =
+    claimedByBrand instanceof Map ? claimedByBrand : brandMapFromObject(claimedByBrand);
+  const receivedMap = received instanceof Map ? received : mapFromObject(received);
+  const receivedBrandMap =
+    receivedByBrand instanceof Map ? receivedByBrand : brandMapFromObject(receivedByBrand);
+
+  return REPORT_PARTS.map((partRequired) => {
+    const received50Stars = receivedBrandMap.get(partRequired)?.["50STARS"] || 0;
+    const receivedProlane = receivedBrandMap.get(partRequired)?.PROLANE || 0;
+    const claimed50Stars = claimedBrandMap.get(partRequired)?.["50STARS"] || 0;
+    const claimedProlane = claimedBrandMap.get(partRequired)?.PROLANE || 0;
+    return {
+      partRequired,
+      received50Stars,
+      claimed50Stars,
+      receivedProlane,
+      claimedProlane,
+      claimedOverall: claimedMap.get(partRequired) || 0,
+      receivedOverall: receivedMap.get(partRequired) || received50Stars + receivedProlane,
+    };
+  });
+}
+
+function renderPartWiseTableHtml(title, rows) {
+  const rowHtml = rows
+    .map(
+      (row) => `
         <tr>
-          <td style="padding:6px 8px;border:1px solid #b8c7dc;font-weight:600;">${name}</td>
-          <td style="padding:6px 8px;border:1px solid #b8c7dc;text-align:center;">${row.abs}</td>
-          <td style="padding:6px 8px;border:1px solid #b8c7dc;text-align:center;">${row.driveShaft}</td>
-          <td style="padding:6px 8px;border:1px solid #b8c7dc;text-align:center;">${row.engine}</td>
-          <td style="padding:6px 8px;border:1px solid #b8c7dc;text-align:center;">${row.trans}</td>
-          <td style="padding:6px 8px;border:1px solid #b8c7dc;text-align:center;">${row.invalid}</td>
-          <td style="padding:6px 8px;border:1px solid #b8c7dc;text-align:center;font-weight:600;">${row.total}</td>
+          <td style="padding:6px 8px;border:1px solid #b8c7dc;font-weight:600;">${row.partRequired}</td>
+          <td style="padding:6px 8px;border:1px solid #b8c7dc;text-align:center;">${row.received50Stars}</td>
+          <td style="padding:6px 8px;border:1px solid #b8c7dc;text-align:center;">${row.claimed50Stars}</td>
+          <td style="padding:6px 8px;border:1px solid #b8c7dc;text-align:center;">${row.receivedProlane}</td>
+          <td style="padding:6px 8px;border:1px solid #b8c7dc;text-align:center;">${row.claimedProlane}</td>
+          <td style="padding:6px 8px;border:1px solid #b8c7dc;text-align:center;font-weight:600;">${row.claimedOverall}</td>
+          <td style="padding:6px 8px;border:1px solid #b8c7dc;text-align:center;font-weight:600;">${row.receivedOverall}</td>
+        </tr>
+      `
+    )
+    .join("");
+
+  return `
+    <div style="margin-bottom:18px;">
+      <div style="font-weight:700;background:#f2b183;padding:7px 10px;border:1px solid #d49d72;">${title}</div>
+      <div style="font-size:12px;color:#4a5b6d;margin:6px 0 8px 0;">
+        Claimed columns use the Lead collection (MongoDB) for this IST window. Received columns stay live Gmail.
+      </div>
+      <table style="border-collapse:collapse;width:100%;font-size:13px;">
+        <thead>
+          <tr style="background:#cfe0f3;">
+            <th style="padding:6px 8px;border:1px solid #b8c7dc;text-align:left;">Part Required</th>
+            <th style="padding:6px 8px;border:1px solid #b8c7dc;">50STARS (received)</th>
+            <th style="padding:6px 8px;border:1px solid #b8c7dc;">Claimed 50STARS</th>
+            <th style="padding:6px 8px;border:1px solid #b8c7dc;">PROLANE (received)</th>
+            <th style="padding:6px 8px;border:1px solid #b8c7dc;">Claimed PROLANE</th>
+            <th style="padding:6px 8px;border:1px solid #b8c7dc;">Overall Claimed</th>
+            <th style="padding:6px 8px;border:1px solid #b8c7dc;">Overall Received</th>
+          </tr>
+        </thead>
+        <tbody>${rowHtml}</tbody>
+      </table>
+    </div>
+  `;
+}
+
+function buildSalesAgentPartRowsByBrand(matrixByBrand = {}) {
+  const makeRows = (brand) => {
+    const brandMatrix = matrixByBrand?.[brand] || {};
+    const orderedAgents = [
+      ...(BRAND_SALES_LABEL_NAMES[brand] || []),
+      ...Object.keys(brandMatrix).filter(
+        (agent) => !(BRAND_SALES_LABEL_NAMES[brand] || []).includes(agent)
+      ),
+    ];
+    return orderedAgents
+      .map((agent) => {
+        const counts = brandMatrix?.[agent] || {};
+        const row = {
+          agent,
+          counts: Object.fromEntries(REPORT_PARTS.map((part) => [part, Number(counts?.[part]) || 0])),
+          total: Number(counts?.total) || 0,
+        };
+        if (!row.total) {
+          row.total = REPORT_PARTS.reduce((sum, part) => sum + (row.counts?.[part] || 0), 0);
+        }
+        return row;
+      })
+      .filter((row) => row.total > 0);
+  };
+
+  return {
+    "50STARS": makeRows("50STARS"),
+    PROLANE: makeRows("PROLANE"),
+  };
+}
+
+function renderSalesAgentPartTableHtml(title, rows) {
+  const bodyHtml =
+    rows.length === 0
+      ? `<tr><td colspan="${REPORT_PARTS.length + 2}" style="padding:8px;border:1px solid #b8c7dc;text-align:center;color:#667;">No live Gmail part data found.</td></tr>`
+      : rows
+          .map(
+            (row) => `
+              <tr>
+                <td style="padding:6px 8px;border:1px solid #b8c7dc;font-weight:600;">${row.agent}</td>
+                ${REPORT_PARTS.map(
+                  (part) =>
+                    `<td style="padding:6px 8px;border:1px solid #b8c7dc;text-align:center;">${row.counts?.[part] || 0}</td>`
+                ).join("")}
+                <td style="padding:6px 8px;border:1px solid #b8c7dc;text-align:center;font-weight:600;">${row.total || 0}</td>
+              </tr>
+            `
+          )
+          .join("");
+
+  const totals = rows.reduce(
+    (acc, row) => {
+      REPORT_PARTS.forEach((part) => {
+        acc[part] += row.counts?.[part] || 0;
+      });
+      acc.total += row.total || 0;
+      return acc;
+    },
+    { "Anti Lock Braking": 0, Engine: 0, Others: 0, Transmission: 0, total: 0 }
+  );
+
+  const totalHtml =
+    rows.length === 0
+      ? ""
+      : `
+        <tr style="background:#d9efc1;font-weight:700;">
+          <td style="padding:6px 8px;border:1px solid #b8c7dc;">Total</td>
+          ${REPORT_PARTS.map(
+            (part) =>
+              `<td style="padding:6px 8px;border:1px solid #b8c7dc;text-align:center;">${totals[part]}</td>`
+          ).join("")}
+          <td style="padding:6px 8px;border:1px solid #b8c7dc;text-align:center;">${totals.total}</td>
         </tr>
       `;
-    })
-    .join("");
 
   return `
     <div style="margin-bottom:18px;">
@@ -110,80 +283,168 @@ function renderTableHtml(title, rows) {
       <table style="border-collapse:collapse;width:100%;font-size:13px;">
         <thead>
           <tr style="background:#cfe0f3;">
-            <th style="padding:6px 8px;border:1px solid #b8c7dc;text-align:left;">Name</th>
-            <th style="padding:6px 8px;border:1px solid #b8c7dc;">ABS Leads</th>
-            <th style="padding:6px 8px;border:1px solid #b8c7dc;">Drive shaft</th>
-            <th style="padding:6px 8px;border:1px solid #b8c7dc;">Engine</th>
-            <th style="padding:6px 8px;border:1px solid #b8c7dc;">Trans</th>
-            <th style="padding:6px 8px;border:1px solid #b8c7dc;">Invalid</th>
+            <th style="padding:6px 8px;border:1px solid #b8c7dc;text-align:left;">Sales Agent</th>
+            ${REPORT_PARTS.map(
+              (part) => `<th style="padding:6px 8px;border:1px solid #b8c7dc;">${part}</th>`
+            ).join("")}
             <th style="padding:6px 8px;border:1px solid #b8c7dc;">Total</th>
           </tr>
         </thead>
-        <tbody>
-          ${rowHtml}
-          <tr style="background:#d9efc1;font-weight:700;">
-            <td style="padding:6px 8px;border:1px solid #b8c7dc;">Total</td>
-            <td style="padding:6px 8px;border:1px solid #b8c7dc;text-align:center;">${totals.abs}</td>
-            <td style="padding:6px 8px;border:1px solid #b8c7dc;text-align:center;">${totals.driveShaft}</td>
-            <td style="padding:6px 8px;border:1px solid #b8c7dc;text-align:center;">${totals.engine}</td>
-            <td style="padding:6px 8px;border:1px solid #b8c7dc;text-align:center;">${totals.trans}</td>
-            <td style="padding:6px 8px;border:1px solid #b8c7dc;text-align:center;">${totals.invalid}</td>
-            <td style="padding:6px 8px;border:1px solid #b8c7dc;text-align:center;">${totals.total}</td>
-          </tr>
-        </tbody>
+        <tbody>${bodyHtml}${totalHtml}</tbody>
       </table>
     </div>
   `;
 }
 
-function getWindowForDigest(nowIst = moment.tz(IST_ZONE)) {
-  const windowEnd = nowIst
-    .clone()
-    .startOf("day")
-    .hour(WINDOW_END_HOUR)
-    .minute(WINDOW_END_MINUTE)
-    .second(0)
-    .millisecond(0);
-
-  const windowStart = windowEnd
-    .clone()
-    .subtract(1, "day")
-    .hour(WINDOW_START_HOUR)
-    .minute(WINDOW_START_MINUTE);
-
-  return { windowStart, windowEnd };
+function getDefaultDigestDate(nowIst = moment.tz(IST_ZONE)) {
+  return nowIst.clone().subtract(1, "day").format("YYYY-MM-DD");
 }
 
-async function buildDigestData(nowIst) {
-  const { windowStart, windowEnd } = getWindowForDigest(nowIst);
+function getWindowForDigest(startDateStr, endDateStr, zone = IST_ZONE) {
+  const startBounds = reportingDayBoundsMs(startDateStr, zone);
+  const endBounds = reportingDayBoundsMs(endDateStr, zone);
+  return {
+    windowStart: moment.tz(startBounds.startMs, zone),
+    windowEnd: moment.tz(endBounds.endMs, zone),
+  };
+}
 
-  const leads = await Lead.find({
-    claimedAt: { $gte: windowStart.toDate(), $lte: windowEnd.toDate() },
-  })
-    .select("salesAgent partRequired from subject claimedAt")
+function formatDateRangeLabel(startDateStr, endDateStr) {
+  const start = moment.tz(startDateStr, "YYYY-MM-DD", IST_ZONE);
+  const end = moment.tz(endDateStr, "YYYY-MM-DD", IST_ZONE);
+  if (startDateStr === endDateStr) return start.format("D MMM YYYY");
+  return `${start.format("D MMM YYYY")} - ${end.format("D MMM YYYY")}`;
+}
+
+async function fetchClaimedPartStats({ start, end, salesAgentFirstName }) {
+  const match = {
+    claimedAt: { $gte: start, $lte: end },
+    partRequired: { $regex: /\S/ },
+  };
+  const fn = String(salesAgentFirstName || "").trim();
+  if (fn) match.salesAgent = fn;
+
+  const leads = await Lead.find(match)
+    .select("messageId partRequired from subject labels salesAgent claimedAt")
     .lean();
 
-  const rows50 = ensureAgentRows();
-  const rowsPro = ensureAgentRows();
-  const rowsAll = ensureAgentRows();
+  const claimed = new Map();
+  const claimedByBrand = new Map();
+  const salesAgentPartMatrixByBrand = createSalesAgentPartMatrixSeed();
+  const seen = new Set();
 
   leads.forEach((lead) => {
+    const leadKey = lead?.messageId || lead?._id?.toString();
+    if (!leadKey || seen.has(leadKey)) return;
+    seen.add(leadKey);
+
+    incrementMap(claimed, lead.partRequired, 1);
     const brand = detectBrandFromLead(lead);
-    if (brand === "PROLANE") {
-      addLeadToRows(rowsPro, lead);
-    } else {
-      addLeadToRows(rows50, lead);
-    }
-    addLeadToRows(rowsAll, lead);
+    incrementBrandMap(claimedByBrand, lead.partRequired, brand, 1);
+    incrementSalesAgentPartMatrix(salesAgentPartMatrixByBrand, brand, lead.salesAgent, lead.partRequired);
   });
 
-  return { rows50, rowsPro, rowsAll, windowStart, windowEnd };
+  return { claimed, claimedByBrand, salesAgentPartMatrixByBrand };
 }
 
-export async function sendLeadStatisticsDigest({ force = false } = {}) {
+async function buildDigestData({
+  startDate,
+  endDate,
+  salesAgentFirstName,
+} = {}) {
   const nowIst = moment.tz(IST_ZONE);
-  const digestKey = nowIst.format("YYYY-MM-DD");
-  if (!force && lastDigestKeySent === digestKey) return { skipped: true, reason: "already_sent_today" };
+  const startDateStr = startDate || getDefaultDigestDate(nowIst);
+  const endDateStr = endDate || startDateStr;
+  const { windowStart, windowEnd } = getWindowForDigest(startDateStr, endDateStr, IST_ZONE);
+
+  const [inboundPack, claimedPack] = await Promise.all([
+    fetchInboundCountsFromGmailApi({
+      startDateStr,
+      endDateStr,
+      zone: IST_ZONE,
+    }),
+    fetchClaimedPartStats({
+      start: windowStart.toDate(),
+      end: windowEnd.toDate(),
+      salesAgentFirstName,
+    }),
+  ]);
+
+  let received = inboundPack.partWiseReceived;
+  let receivedByBrand = inboundPack.partWiseReceivedByBrand;
+  let liveRowsForPartMatrix = Array.isArray(inboundPack.labelStatRows)
+    ? inboundPack.labelStatRows
+    : [];
+  if (salesAgentFirstName) {
+    const agentLabel = String(salesAgentFirstName).trim().toLowerCase();
+    const rowsForAgent = (inboundPack.labelStatRows || []).filter((row) =>
+      (row.labels || []).some((label) => String(label).trim().toLowerCase() === agentLabel)
+    );
+    liveRowsForPartMatrix = rowsForAgent;
+    const gmail = await getGmailClient();
+    const snippetByMessageId = new Map(
+      rowsForAgent.map((row) => [row.messageId, row.snippet || ""]).filter(([id]) => Boolean(id))
+    );
+    const brandByMessageId = new Map();
+    rowsForAgent.forEach((row) => {
+      const brand = detectBrandFromLead(row);
+      if (brand) brandByMessageId.set(row.messageId, brand);
+    });
+    const rebuilt = await buildPartWiseReceivedFromMessageIds(
+      rowsForAgent.map((row) => row.messageId),
+      {
+        gmail,
+        brandByMessageId,
+        snippetByMessageId,
+        liveGmailOnly: true,
+      }
+    );
+    received = rebuilt.partWiseReceived;
+    receivedByBrand = rebuilt.partWiseReceivedByBrand;
+  }
+
+  const rows = buildPartWiseRows({
+    claimed: claimedPack.claimed,
+    claimedByBrand: claimedPack.claimedByBrand,
+    received,
+    receivedByBrand,
+  });
+  const liveSalesAgentPartMatrixByBrand = createSalesAgentPartMatrixSeed();
+  liveRowsForPartMatrix.forEach((row) => {
+    const brand = detectBrandFromLead(row);
+    incrementSalesAgentPartMatrix(
+      liveSalesAgentPartMatrixByBrand,
+      brand,
+      pickSalesAgentNameFromLabels(row.labels || []),
+      partRequiredFromSnippet(row.snippet)
+    );
+  });
+  const salesAgentPartRowsByBrand = buildSalesAgentPartRowsByBrand(liveSalesAgentPartMatrixByBrand);
+
+  return {
+    rows,
+    salesAgentPartRowsByBrand,
+    windowStart,
+    windowEnd,
+    startDateStr,
+    endDateStr,
+  };
+}
+
+export async function sendLeadStatisticsDigest({
+  force = false,
+  startDate,
+  endDate,
+  agentEmailFilter,
+  salesAgentFirstName,
+} = {}) {
+  const nowIst = moment.tz(IST_ZONE);
+  const startDateStr = startDate || getDefaultDigestDate(nowIst);
+  const endDateStr = endDate || startDateStr;
+  const digestKey = `${startDateStr}:${endDateStr}:${agentEmailFilter || ""}:${salesAgentFirstName || ""}`;
+  if (!force && lastDigestKeySent === digestKey) {
+    return { skipped: true, reason: "already_sent_today" };
+  }
 
   const smtpUser =
     process.env.SMTP_USER?.trim() ||
@@ -200,12 +461,14 @@ export async function sendLeadStatisticsDigest({ force = false } = {}) {
     return;
   }
 
-  const { rows50, rowsPro, rowsAll, windowStart, windowEnd } = await buildDigestData(
-    nowIst
-  );
+  const { rows, salesAgentPartRowsByBrand, windowStart, windowEnd } = await buildDigestData({
+    startDate: startDateStr,
+    endDate: endDateStr,
+    salesAgentFirstName,
+  });
 
   const transporter = createGmailServiceTransport(smtpUser, smtpPass);
-  const dayLabel = windowEnd.clone().subtract(1, "day").format("D MMM YYYY");
+  const dayLabel = formatDateRangeLabel(startDateStr, endDateStr);
 
   const html = `
     <div style="font-family:Arial,sans-serif;color:#1f2d3d;">
@@ -215,9 +478,15 @@ export async function sendLeadStatisticsDigest({ force = false } = {}) {
           "DD MMM YYYY hh:mm A"
         )}
       </div>
-      ${renderTableHtml(`50STARS — Leads on ${dayLabel}`, rows50)}
-      ${renderTableHtml(`PROLANE — Leads on ${dayLabel}`, rowsPro)}
-      ${renderTableHtml(`Combined — Leads on ${dayLabel}`, rowsAll)}
+      ${renderPartWiseTableHtml(`Part-wise Leads - ${dayLabel}`, rows)}
+      ${renderSalesAgentPartTableHtml(
+        `50STARS - Part-wise by Sales Agent - ${dayLabel}`,
+        salesAgentPartRowsByBrand["50STARS"] || []
+      )}
+      ${renderSalesAgentPartTableHtml(
+        `PROLANE - Part-wise by Sales Agent - ${dayLabel}`,
+        salesAgentPartRowsByBrand.PROLANE || []
+      )}
     </div>
   `;
 
@@ -236,6 +505,8 @@ export async function sendLeadStatisticsDigest({ force = false } = {}) {
     key: digestKey,
     recipients: RECIPIENTS,
     dayLabel,
+    startDate: startDateStr,
+    endDate: endDateStr,
   };
 }
 
@@ -262,4 +533,3 @@ export function startLeadStatisticsDigestScheduler() {
     )}:${String(SEND_MINUTE_IST).padStart(2, "0")})`
   );
 }
-

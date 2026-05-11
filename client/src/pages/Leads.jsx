@@ -212,6 +212,13 @@ const CANONICAL_PART_REQUIRED_LABELS = [
   "Window Regulator",
 ];
 
+const REPORT_PART_REQUIRED_LABELS = [
+  "Anti Lock Braking",
+  "Engine",
+  "Others",
+  "Transmission",
+];
+
 const CANONICAL_LEAD_LABELS = [
   "Voice Mail",
   "Quoted",
@@ -287,6 +294,11 @@ function normalizePartRequiredLabel(partRequired = "") {
   if (exactCanonical) return exactCanonical;
 
   return "Others";
+}
+
+function normalizeReportPartRequiredLabel(partRequired = "") {
+  const normalized = normalizePartRequiredLabel(partRequired);
+  return REPORT_PART_REQUIRED_LABELS.includes(normalized) ? normalized : "Others";
 }
 
 function detectBrandFromFromEntry(rawFrom = "") {
@@ -833,6 +845,36 @@ export default function Leads() {
     }
   }, []);
 
+  const buildStatisticsParams = useCallback(() => {
+    const params = {};
+    // Statistics use IST reporting days (16:30 IST -> next day 06:00 IST), not IST calendar dates of range edges.
+    const statsCalendarZone = GMAIL_INBOUND_STATS_ZONE;
+    const dayKeys =
+      dateFilter?.start && dateFilter?.end
+        ? reportingDayKeysIntersectingRange(
+            dateFilter.start,
+            dateFilter.end,
+            statsCalendarZone
+          )
+        : [];
+    if (dayKeys.length > 0) {
+      params.startDate = dayKeys[0];
+      params.endDate = dayKeys[dayKeys.length - 1];
+    } else {
+      if (dateFilter?.start) {
+        params.startDate = moment(dateFilter.start).tz(statsCalendarZone).format("YYYY-MM-DD");
+      }
+      if (dateFilter?.end) {
+        params.endDate = moment(dateFilter.end).tz(statsCalendarZone).format("YYYY-MM-DD");
+      }
+    }
+    // For Admin: use selectedAgentForStats if set (from dropdown filter).
+    if (isAdmin && selectedAgentForStats && selectedAgentForStats !== "All") {
+      params.agentEmail = selectedAgentForStats;
+    }
+    return params;
+  }, [dateFilter, isAdmin, selectedAgentForStats]);
+
   const fetchStatistics = useCallback(async ({ silent = false } = {}) => {
     if (!silent) {
       setLoadingStats(true);
@@ -840,34 +882,8 @@ export default function Leads() {
     }
     try {
       console.log("[Leads] fetchStatistics called with dateFilter:", dateFilter);
-      const params = {};
-      // Statistics use IST reporting days (16:30 IST → next day 06:00 IST), not IST calendar dates of range edges.
-      const statsCalendarZone = GMAIL_INBOUND_STATS_ZONE;
-      const dayKeys =
-        dateFilter?.start && dateFilter?.end
-          ? reportingDayKeysIntersectingRange(
-              dateFilter.start,
-              dateFilter.end,
-              statsCalendarZone
-            )
-          : [];
-      if (dayKeys.length > 0) {
-        params.startDate = dayKeys[0];
-        params.endDate = dayKeys[dayKeys.length - 1];
-      } else {
-        if (dateFilter?.start) {
-          params.startDate = moment(dateFilter.start).tz(statsCalendarZone).format("YYYY-MM-DD");
-        }
-        if (dateFilter?.end) {
-          params.endDate = moment(dateFilter.end).tz(statsCalendarZone).format("YYYY-MM-DD");
-        }
-      }
-      // For Admin: use selectedAgentForStats if set (from dropdown filter)
-      // For Sales: don't send agentEmail - backend will automatically filter to their own stats
-      if (isAdmin && selectedAgentForStats && selectedAgentForStats !== "All") {
-        params.agentEmail = selectedAgentForStats;
-      }
-      // Sales users: don't send agentEmail - backend automatically filters to their own statistics
+      const params = buildStatisticsParams();
+      // Sales users: don't send agentEmail - backend automatically filters to their own statistics.
       console.log("[Leads] Fetching statistics with params:", params);
       console.log("[Leads] Selected agent for stats:", selectedAgentForStats);
       console.log("[Leads] Is Admin:", isAdmin, "Is Sales:", isSales);
@@ -899,13 +915,15 @@ export default function Leads() {
         setLoadingStats(false);
       }
     }
-  }, [dateFilter, isAdmin, selectedAgentForStats]);
+  }, [buildStatisticsParams, dateFilter, isAdmin, isSales, selectedAgentForStats]);
 
   const handleSendLeadDigest = useCallback(async () => {
     if (sendingLeadDigest) return;
     try {
       setSendingLeadDigest(true);
-      await API.post("/gmail/statistics/send-lead-digest");
+      await API.post("/gmail/statistics/send-lead-digest", buildStatisticsParams(), {
+        timeout: 180000,
+      });
       setLeadDigestToast({
         type: "success",
         message: "Lead statistics email sent successfully.",
@@ -920,7 +938,7 @@ export default function Leads() {
       setSendingLeadDigest(false);
       setTimeout(() => setLeadDigestToast(null), 3000);
     }
-  }, [sendingLeadDigest]);
+  }, [buildStatisticsParams, sendingLeadDigest]);
 
   useEffect(() => {
     fetchMessages();
@@ -1431,35 +1449,36 @@ export default function Leads() {
   }, [statistics?.partWiseClaimed, statistics?.partWiseClaimedByBrand, statistics?.agentStats]);
 
   const partWiseRows = useMemo(() => {
-    const claimedMap = new Map(partWiseLeadTotals.map((r) => [r.partRequired, r.count]));
-    const claimed50StarsMap = new Map(partWiseLeadTotals.map((r) => [r.partRequired, Number(r.claimedByBrand?.["50STARS"]) || 0]));
-    const claimedProlaneMap = new Map(partWiseLeadTotals.map((r) => [r.partRequired, Number(r.claimedByBrand?.["PROLANE"]) || 0]));
+    const increment = (map, rawPart, count) => {
+      const normalizedPart = normalizeReportPartRequiredLabel(rawPart);
+      map.set(normalizedPart, (map.get(normalizedPart) || 0) + (Number(count) || 0));
+    };
+
+    const claimedMap = new Map();
+    const claimed50StarsMap = new Map();
+    const claimedProlaneMap = new Map();
+    partWiseLeadTotals.forEach((row) => {
+      increment(claimedMap, row.partRequired, row.count);
+      increment(claimed50StarsMap, row.partRequired, row.claimedByBrand?.["50STARS"]);
+      increment(claimedProlaneMap, row.partRequired, row.claimedByBrand?.["PROLANE"]);
+    });
+
     const receivedObj = statistics?.partWiseReceived || {};
     const receivedByBrandObj = statistics?.partWiseReceivedByBrand || {};
     const receivedMap = new Map();
     const received50StarsMap = new Map();
     const receivedProlaneMap = new Map();
     Object.entries(receivedObj).forEach(([rawPart, count]) => {
-      const normalizedPart = normalizePartRequiredLabel(rawPart);
-      if (!normalizedPart) return;
-      receivedMap.set(normalizedPart, (receivedMap.get(normalizedPart) || 0) + (Number(count) || 0));
+      increment(receivedMap, rawPart, count);
     });
     Object.entries(receivedByBrandObj).forEach(([rawPart, counts]) => {
-      const normalizedPart = normalizePartRequiredLabel(rawPart);
-      if (!normalizedPart) return;
       const stars = Number(counts?.["50STARS"]) || 0;
       const prolane = Number(counts?.["PROLANE"]) || 0;
-      received50StarsMap.set(normalizedPart, (received50StarsMap.get(normalizedPart) || 0) + stars);
-      receivedProlaneMap.set(normalizedPart, (receivedProlaneMap.get(normalizedPart) || 0) + prolane);
+      increment(received50StarsMap, rawPart, stars);
+      increment(receivedProlaneMap, rawPart, prolane);
     });
 
-    const parts = new Set([
-      ...claimedMap.keys(),
-      ...receivedMap.keys(),
-      ...received50StarsMap.keys(),
-      ...receivedProlaneMap.keys(),
-    ]);
-    return Array.from(parts)
+    return REPORT_PART_REQUIRED_LABELS
       .map((partRequired) => {
         const received50Stars = received50StarsMap.get(partRequired) ?? 0;
         const receivedProlane = receivedProlaneMap.get(partRequired) ?? 0;
@@ -1473,12 +1492,7 @@ export default function Leads() {
           receivedProlane,
           receivedOverall,
         };
-      })
-      .sort(
-        (a, b) =>
-          Math.max(b.claimed, b.receivedOverall) - Math.max(a.claimed, a.receivedOverall) ||
-          a.partRequired.localeCompare(b.partRequired)
-      );
+      });
   }, [partWiseLeadTotals, statistics?.partWiseReceived, statistics?.partWiseReceivedByBrand]);
 
   const labelWiseRows = useMemo(() => {
@@ -1589,6 +1603,63 @@ export default function Leads() {
       PROLANE: makeTotals("PROLANE"),
     };
   }, [salesAgentLabelMatrixByBrand]);
+
+  const salesAgentPartRowsByBrand = useMemo(() => {
+    const payload = statistics?.salesAgentPartMatrixByBrand || {};
+    const makeRows = (brand) => {
+      const brandPayload = payload?.[brand] || {};
+      const orderedAgents = [
+        ...(BRAND_SALES_AGENTS[brand] || []),
+        ...Object.keys(brandPayload).filter(
+          (agent) => !(BRAND_SALES_AGENTS[brand] || []).includes(agent)
+        ),
+      ];
+      return orderedAgents
+        .map((agent) => {
+          const counts = brandPayload?.[agent] || {};
+          const row = {
+            agent,
+            counts: Object.fromEntries(
+              REPORT_PART_REQUIRED_LABELS.map((part) => [part, Number(counts?.[part]) || 0])
+            ),
+            total: Number(counts?.total) || 0,
+          };
+          if (!row.total) {
+            row.total = REPORT_PART_REQUIRED_LABELS.reduce(
+              (sum, part) => sum + (row.counts?.[part] || 0),
+              0
+            );
+          }
+          return row;
+        })
+        .filter((row) => row.total > 0);
+    };
+
+    return {
+      "50STARS": makeRows("50STARS"),
+      PROLANE: makeRows("PROLANE"),
+    };
+  }, [statistics?.salesAgentPartMatrixByBrand]);
+
+  const salesAgentPartTotalsByBrand = useMemo(() => {
+    const makeTotals = (brand) => {
+      const rows = salesAgentPartRowsByBrand[brand] || [];
+      const totals = Object.fromEntries(REPORT_PART_REQUIRED_LABELS.map((part) => [part, 0]));
+      totals.total = 0;
+      rows.forEach((row) => {
+        REPORT_PART_REQUIRED_LABELS.forEach((part) => {
+          totals[part] += row.counts?.[part] || 0;
+        });
+        totals.total += row.total || 0;
+      });
+      return totals;
+    };
+
+    return {
+      "50STARS": makeTotals("50STARS"),
+      PROLANE: makeTotals("PROLANE"),
+    };
+  }, [salesAgentPartRowsByBrand]);
 
   const filteredMessages = useMemo(() => {
     console.log(`[Leads] filteredMessages - isAdmin: ${isAdmin}, total messages: ${messages.length}`);
@@ -2146,6 +2217,81 @@ export default function Leads() {
               {/* Agent Statistics */}
               <div className="rounded-lg border border-white/20 bg-white/10 backdrop-blur-md p-4">
                 <h2 className="text-xl font-bold text-white mb-4">Agent Statistics</h2>
+                <div className="space-y-4 mb-5">
+                  {["50STARS", "PROLANE"].map((brand) => {
+                    const rows = salesAgentPartRowsByBrand[brand] || [];
+                    const totals = salesAgentPartTotalsByBrand[brand] || {};
+                    return (
+                      <div key={`part-${brand}`} className="rounded-lg border border-white/10 bg-white/5 p-3">
+                        <div className="font-semibold text-white mb-2">
+                          {brand} (part-wise by sales agent)
+                        </div>
+                        <div className="max-h-64 overflow-y-auto rounded border border-white/10">
+                          <table className="w-full text-xs">
+                            <thead className="sticky top-0 z-30 bg-[#5a67a9] shadow-[0_1px_0_rgba(255,255,255,0.2)]">
+                              <tr>
+                                <th className="text-left px-2 py-2 border-r border-white/20">Sales Agent</th>
+                                {REPORT_PART_REQUIRED_LABELS.map((part) => (
+                                  <th key={`${brand}-part-head-${part}`} className="text-right px-2 py-2 border-r border-white/20">
+                                    {part}
+                                  </th>
+                                ))}
+                                <th className="text-right px-2 py-2 text-emerald-300">Total</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {rows.length === 0 ? (
+                                <tr>
+                                  <td
+                                    className="px-2 py-3 text-center text-white/60"
+                                    colSpan={REPORT_PART_REQUIRED_LABELS.length + 2}
+                                  >
+                                    No live Gmail part data found.
+                                  </td>
+                                </tr>
+                              ) : (
+                                rows.map((row) => (
+                                  <tr key={`${brand}-part-${row.agent}`} className="even:bg-white/5">
+                                    <td className="px-2 py-1.5 border-r border-white/10">{row.agent}</td>
+                                    {REPORT_PART_REQUIRED_LABELS.map((part) => (
+                                      <td
+                                        key={`${brand}-part-${row.agent}-${part}`}
+                                        className="px-2 py-1.5 text-right border-r border-white/10 font-semibold text-blue-300"
+                                      >
+                                        {row.counts?.[part] || 0}
+                                      </td>
+                                    ))}
+                                    <td className="px-2 py-1.5 text-right font-semibold text-emerald-300">
+                                      {row.total || 0}
+                                    </td>
+                                  </tr>
+                                ))
+                              )}
+                            </tbody>
+                            {rows.length > 0 && (
+                              <tfoot className="sticky bottom-0 z-20 bg-[#4f5ea1] shadow-[0_-1px_0_rgba(255,255,255,0.2)] [transform:translateZ(0)]">
+                                <tr className="font-semibold">
+                                  <th className="px-2 py-1.5 border-r border-white/10 text-left">Total</th>
+                                  {REPORT_PART_REQUIRED_LABELS.map((part) => (
+                                    <th
+                                      key={`${brand}-part-total-${part}`}
+                                      className="px-2 py-1.5 text-right border-r border-white/10 text-emerald-300"
+                                    >
+                                      {totals?.[part] || 0}
+                                    </th>
+                                  ))}
+                                  <th className="px-2 py-1.5 text-right text-emerald-300">
+                                    {totals?.total || 0}
+                                  </th>
+                                </tr>
+                              </tfoot>
+                            )}
+                          </table>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
                 <div className="space-y-4 mb-5">
                   <div className="rounded-lg border border-white/10 bg-white/5 p-3">
                     <div className="font-semibold text-white mb-2">50STARS (label-wise by sales agent)</div>
