@@ -12,6 +12,7 @@ import {
   reopenLeadHandler,
   unclaimLeadHandler,
   getDailyStatisticsHandler,
+  sendLeadDigestHandler,
   oauth2UrlHandler,
   oauth2CallbackHandler,
   addCommentHandler,
@@ -45,6 +46,7 @@ router.patch("/messages/:id/reopen", requireAuth, reopenLeadHandler);
 router.patch("/messages/:id/unclaim", requireAuth, unclaimLeadHandler);
 router.post("/messages/:id/comments", requireAuth, addCommentHandler);
 router.get("/statistics/daily", requireAuth, getDailyStatisticsHandler);
+router.post("/statistics/send-lead-digest", requireAuth, sendLeadDigestHandler);
 router.post("/reparse-leads", requireAuth, reparseLeadsHandler); // Admin only - re-parse existing leads
 
 // Health check route

@@ -243,7 +243,7 @@ function getCancelledByFromHistory(order = {}) {
 /* =========================
    Small, reusable modal
    ========================= */
-const GlassModal = ({ title, subtitle, onClose, children, actions }) => {
+const GlassModal = ({ title, subtitle, onClose, children, actions, wide = false }) => {
   useEffect(() => {
     const onEsc = (e) => e.key === "Escape" && onClose?.();
     window.addEventListener("keydown", onEsc);
@@ -258,7 +258,7 @@ const GlassModal = ({ title, subtitle, onClose, children, actions }) => {
       aria-modal="true"
     >
       <div
-        className="w-[92%] max-w-lg rounded-xl bg-gradient-to-b from-[#0b1726] to-[#122641] border border-white/10 p-5 text-white shadow-xl ml-[120px]"
+        className={`w-[92%] ${wide ? "max-w-4xl" : "max-w-lg"} rounded-xl bg-gradient-to-b from-[#0b1726] to-[#122641] border border-white/10 p-5 text-white shadow-xl ml-[120px]`}
         onMouseDown={(e) => e.stopPropagation()}
       >
         {(title || subtitle) && (
@@ -295,7 +295,7 @@ const GlassModal = ({ title, subtitle, onClose, children, actions }) => {
    - showAgentFilter      : boolean (Admin-only dropdown)
    - showGP               : boolean (enables GP totals and derived _currentGP/_actualGP)
    - navigateTo           : function(row) -> path  (default `/order-details?orderNo=...`)
-   - extraTotals          : optional function(sortedRows) => [{name, value}]  (for pages like Cancelled)
+   - extraTotals          : optional function(sortedRows) => [{name, value}] or { columns, rows }
    - extraActions         : optional (row) => ReactNode (after View in Actions column)
    - defaultFilter        : optional seed { month, year } or { start, end } if no saved filter in LS
 */
@@ -945,10 +945,25 @@ export default function OrdersTable({
     }
     return { totalEstGP: est, totalCurrentGP: cur, totalActualGP: act };
   }, [sortedRows, showGP]);
-  const computedExtraTotals = useMemo(() => {
+  const extraTotalsResult = useMemo(() => {
     if (typeof extraTotals !== "function") return [];
     return extraTotals(sortedRows, { denomCount, badCount, responseMeta }) || [];
   }, [extraTotals, sortedRows, denomCount, badCount, responseMeta]);
+  const customTotalsTable = useMemo(() => {
+    if (
+      extraTotalsResult &&
+      !Array.isArray(extraTotalsResult) &&
+      Array.isArray(extraTotalsResult.columns) &&
+      Array.isArray(extraTotalsResult.rows)
+    ) {
+      return extraTotalsResult;
+    }
+    return null;
+  }, [extraTotalsResult]);
+  const computedExtraTotals = useMemo(
+    () => (Array.isArray(extraTotalsResult) ? extraTotalsResult : []),
+    [extraTotalsResult]
+  );
   const hasExtraCountColumn = useMemo(
     () => computedExtraTotals.some((item) => item?.count !== undefined && item?.count !== null),
     [computedExtraTotals]
@@ -1474,6 +1489,23 @@ export default function OrdersTable({
           actions={
             <button
               onClick={() => {
+                if (customTotalsTable) {
+                  const formatCopyCell = (value) =>
+                    value == null ? "" : String(value);
+                  const headers = customTotalsTable.columns.map(
+                    (column) => column.label || column.key
+                  );
+                  const rows = customTotalsTable.rows.map((row) =>
+                    customTotalsTable.columns
+                      .map((column) => formatCopyCell(row?.[column.key]))
+                      .join("\t")
+                  );
+                  navigator.clipboard
+                    ?.writeText([headers.join("\t"), ...rows].join("\n"))
+                    .catch(() => { });
+                  return;
+                }
+
                 const lines = [];
                 if (showOrdersCountInTotals) {
                   lines.push(["Orders", String(sortedRows.length), ""]);
@@ -1498,43 +1530,76 @@ export default function OrdersTable({
               Copy
             </button>
           }
+          wide={Boolean(customTotalsTable)}
         >
           <div className="overflow-x-auto">
-            <table className="w-full text-sm rounded-lg overflow-hidden border-collapse">
-              <thead>
-                <tr className="bg-white/10">
-                  <th className="text-left px-3 py-2">Metric</th>
-                  <th className="text-right px-3 py-2 border-l border-white/25">
-                    Value
-                  </th>
-                  {hasExtraCountColumn && (
+            {customTotalsTable ? (
+              <table className="w-full text-sm rounded-lg overflow-hidden border-collapse">
+                <thead>
+                  <tr className="bg-white/10">
+                    {customTotalsTable.columns.map((column, index) => {
+                      const alignClass =
+                        column.align === "left" ? "text-left" : "text-right";
+                      return (
+                        <th
+                          key={column.key}
+                          className={`${alignClass} px-3 py-2 whitespace-nowrap ${index > 0 ? "border-l border-white/25" : ""}`}
+                        >
+                          {column.label || column.key}
+                        </th>
+                      );
+                    })}
+                  </tr>
+                </thead>
+                <tbody>
+                  {customTotalsTable.rows.map((row, rowIndex) => {
+                    const baseBg = row.isTotal ? "bg-[#0b1726]" : "bg-white/5";
+                    const borderClass = row.isTotal
+                      ? "border-b border-white/20"
+                      : "border-b border-white/10";
+                    return (
+                      <tr
+                        key={row.id || row.name || rowIndex}
+                        className={`${baseBg} ${borderClass}`}
+                      >
+                        {customTotalsTable.columns.map((column, index) => {
+                          const alignClass =
+                            column.align === "left" ? "text-left" : "text-right";
+                          return (
+                            <td
+                              key={column.key}
+                              className={`${alignClass} px-3 py-2 whitespace-nowrap font-semibold ${index > 0 ? "border-l border-white/15" : ""}`}
+                            >
+                              {row?.[column.key] ?? "—"}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            ) : (
+              <table className="w-full text-sm rounded-lg overflow-hidden border-collapse">
+                <thead>
+                  <tr className="bg-white/10">
+                    <th className="text-left px-3 py-2">Metric</th>
                     <th className="text-right px-3 py-2 border-l border-white/25">
-                      Count
+                      Value
                     </th>
-                  )}
-                </tr>
-              </thead>
-              <tbody>
-                {showOrdersCountInTotals && (
-                  <tr className="bg-white/5 border-b border-white/10">
-                    <td className="px-3 py-2">Orders</td>
-                    <td className="px-3 py-2 text-right font-semibold border-l border-white/15">
-                      {sortedRows.length}
-                    </td>
                     {hasExtraCountColumn && (
-                      <td className="px-3 py-2 text-right font-semibold border-l border-white/15">
-                        —
-                      </td>
+                      <th className="text-right px-3 py-2 border-l border-white/25">
+                        Count
+                      </th>
                     )}
                   </tr>
-                )}
-
-                {showGP && (
-                  <>
+                </thead>
+                <tbody>
+                  {showOrdersCountInTotals && (
                     <tr className="bg-white/5 border-b border-white/10">
-                      <td className="px-3 py-2">Est GP</td>
+                      <td className="px-3 py-2">Orders</td>
                       <td className="px-3 py-2 text-right font-semibold border-l border-white/15">
-                        {currency(totals.totalEstGP)}
+                        {sortedRows.length}
                       </td>
                       {hasExtraCountColumn && (
                         <td className="px-3 py-2 text-right font-semibold border-l border-white/15">
@@ -1542,54 +1607,69 @@ export default function OrdersTable({
                         </td>
                       )}
                     </tr>
-                    <tr className="bg-white/5 border-b border-white/10">
-                      <td className="px-3 py-2">Current GP</td>
-                      <td className="px-3 py-2 text-right font-semibold border-l border-white/15">
-                        {currency(totals.totalCurrentGP)}
-                      </td>
-                      {hasExtraCountColumn && (
-                        <td className="px-3 py-2 text-right font-semibold border-l border-white/15">
-                          —
-                        </td>
-                      )}
-                    </tr>
-                    <tr className="bg-white/5 border-b border-white/10">
-                      <td className="px-3 py-2">Actual GP</td>
-                      <td className="px-3 py-2 text-right font-semibold border-l border-white/15">
-                        {currency(totals.totalActualGP)}
-                      </td>
-                      {hasExtraCountColumn && (
-                        <td className="px-3 py-2 text-right font-semibold border-l border-white/15">
-                          —
-                        </td>
-                      )}
-                    </tr>
-                  </>
-                )}
+                  )}
 
-                {/* Extra totals (e.g., cancellation rate, counts, etc.) */}
-                {computedExtraTotals.map((item) => {
-                  const baseBg = item.isTotal ? "bg-[#0b1726]" : "bg-white/5";
-                  const borderClass = item.isTotal
-                    ? "border-b border-white/20"
-                    : "border-b border-white/10";
-                  return (
-                    <tr key={item.name} className={`${baseBg} ${borderClass}`}>
-                      <td className="px-3 py-2">{item.name}</td>
-                      <td className="px-3 py-2 text-right font-semibold border-l border-white/15">
-                        {item.value}
-                      </td>
-                      {hasExtraCountColumn && (
+                  {showGP && (
+                    <>
+                      <tr className="bg-white/5 border-b border-white/10">
+                        <td className="px-3 py-2">Est GP</td>
                         <td className="px-3 py-2 text-right font-semibold border-l border-white/15">
-                          {item?.count ?? "—"}
+                          {currency(totals.totalEstGP)}
                         </td>
-                      )}
-                    </tr>
-                  );
-                })}
+                        {hasExtraCountColumn && (
+                          <td className="px-3 py-2 text-right font-semibold border-l border-white/15">
+                            —
+                          </td>
+                        )}
+                      </tr>
+                      <tr className="bg-white/5 border-b border-white/10">
+                        <td className="px-3 py-2">Current GP</td>
+                        <td className="px-3 py-2 text-right font-semibold border-l border-white/15">
+                          {currency(totals.totalCurrentGP)}
+                        </td>
+                        {hasExtraCountColumn && (
+                          <td className="px-3 py-2 text-right font-semibold border-l border-white/15">
+                            —
+                          </td>
+                        )}
+                      </tr>
+                      <tr className="bg-white/5 border-b border-white/10">
+                        <td className="px-3 py-2">Actual GP</td>
+                        <td className="px-3 py-2 text-right font-semibold border-l border-white/15">
+                          {currency(totals.totalActualGP)}
+                        </td>
+                        {hasExtraCountColumn && (
+                          <td className="px-3 py-2 text-right font-semibold border-l border-white/15">
+                            —
+                          </td>
+                        )}
+                      </tr>
+                    </>
+                  )}
 
-              </tbody>
-            </table>
+                  {/* Extra totals (e.g., cancellation rate, counts, etc.) */}
+                  {computedExtraTotals.map((item) => {
+                    const baseBg = item.isTotal ? "bg-[#0b1726]" : "bg-white/5";
+                    const borderClass = item.isTotal
+                      ? "border-b border-white/20"
+                      : "border-b border-white/10";
+                    return (
+                      <tr key={item.name} className={`${baseBg} ${borderClass}`}>
+                        <td className="px-3 py-2">{item.name}</td>
+                        <td className="px-3 py-2 text-right font-semibold border-l border-white/15">
+                          {item.value}
+                        </td>
+                        {hasExtraCountColumn && (
+                          <td className="px-3 py-2 text-right font-semibold border-l border-white/15">
+                            {item?.count ?? "—"}
+                          </td>
+                        )}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
           </div>
         </GlassModal>
       )}

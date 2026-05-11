@@ -380,6 +380,8 @@ export default function Leads() {
   const [statistics, setStatistics] = useState(null);
   const [showStatsSummaryModal, setShowStatsSummaryModal] = useState(false);
   const [loadingStats, setLoadingStats] = useState(false);
+  const [sendingLeadDigest, setSendingLeadDigest] = useState(false);
+  const [leadDigestToast, setLeadDigestToast] = useState(null);
   const [dateFilter, setDateFilter] = useState(() => {
     // Default to today (start and end both today) in Dallas timezone
     const ZONE = "America/Chicago";
@@ -898,6 +900,27 @@ export default function Leads() {
       }
     }
   }, [dateFilter, isAdmin, selectedAgentForStats]);
+
+  const handleSendLeadDigest = useCallback(async () => {
+    if (sendingLeadDigest) return;
+    try {
+      setSendingLeadDigest(true);
+      await API.post("/gmail/statistics/send-lead-digest");
+      setLeadDigestToast({
+        type: "success",
+        message: "Lead statistics email sent successfully.",
+      });
+    } catch (err) {
+      console.error("[Leads] send lead digest error", err);
+      setLeadDigestToast({
+        type: "error",
+        message: err?.response?.data?.message || "Failed to send lead statistics email.",
+      });
+    } finally {
+      setSendingLeadDigest(false);
+      setTimeout(() => setLeadDigestToast(null), 3000);
+    }
+  }, [sendingLeadDigest]);
 
   useEffect(() => {
     fetchMessages();
@@ -1804,6 +1827,18 @@ export default function Leads() {
         </div>
       )}
 
+      {leadDigestToast && (
+        <div
+          className={`mb-4 rounded-lg px-4 py-3 text-sm border ${
+            leadDigestToast.type === "success"
+              ? "border-emerald-500/30 bg-emerald-900/40 text-emerald-200"
+              : "border-red-500/30 bg-red-900/40 text-red-200"
+          }`}
+        >
+          {leadDigestToast.message}
+        </div>
+      )}
+
       {/* Commented out - Source Email Address section
       {sourceEmail && (
         <div className="mb-4 rounded-lg border border-blue-500/30 bg-blue-900/40 px-4 py-3 text-sm">
@@ -1888,6 +1923,16 @@ export default function Leads() {
             >
               {loadingStats ? "Loading..." : "Load Statistics"}
             </button>
+            {(isAdmin || isAuthorizedEmail) && (
+              <button
+                onClick={handleSendLeadDigest}
+                disabled={sendingLeadDigest}
+                className="px-4 py-2 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white text-sm disabled:opacity-60"
+                title="Send lead statistics report now"
+              >
+                {sendingLeadDigest ? "Sending..." : "Send Lead Email"}
+              </button>
+            )}
             <button
               onClick={() => setShowStatsSummaryModal(true)}
               disabled={loadingStats || !statistics}

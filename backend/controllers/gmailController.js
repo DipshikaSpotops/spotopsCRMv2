@@ -23,6 +23,7 @@ import {
 import { extractStructuredFields } from "../utils/extractStructuredFields.js";
 import { normalizePartRequiredLabel } from "../utils/normalizePartRequiredLabel.js";
 import { getGmailClient, getAuthUrl, setTokensFromCode, getUserEmail, clearTokenCache } from "../services/googleAuth.js";
+import { sendLeadStatisticsDigest } from "../services/sendLeadStatisticsDigest.js";
 
 // Get SALES_AGENT_EMAILS from environment
 const SALES_AGENT_EMAILS = (process.env.SALES_AGENT_EMAILS || "")
@@ -2307,6 +2308,32 @@ export async function getDailyStatisticsHandler(req, res, next) {
         leadOriginNote:
           "Lead Origin counts come from LeadNote records (MongoDB): leadOrigin Call / Chat / Lead, filtered by createdAt in this window; when an agent filter applies, salesAgent matches that user’s first name.",
       },
+    });
+  } catch (err) {
+    return next(err);
+  }
+}
+
+export async function sendLeadDigestHandler(req, res, next) {
+  try {
+    const user = req.user;
+    if (!user) {
+      return res.status(401).json({ message: "Not authenticated" });
+    }
+
+    const role = String(user.role || "").trim().toLowerCase();
+    const email = String(user.email || "").trim().toLowerCase();
+    const isAdmin = role === "admin";
+    const isAuthorizedEmail = email === "50starsauto110@gmail.com";
+    if (!isAdmin && !isAuthorizedEmail) {
+      return res.status(403).json({ message: "Not authorized to send lead digest." });
+    }
+
+    const result = await sendLeadStatisticsDigest({ force: true });
+    return res.json({
+      ok: true,
+      message: "Lead statistics email sent.",
+      ...result,
     });
   } catch (err) {
     return next(err);

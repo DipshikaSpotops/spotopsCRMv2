@@ -9,6 +9,7 @@ const columns = [
   { key: "orderDate", label: "Order Date" },
   { key: "salesAgent", label: "Sales Agent" },
   { key: "salesOrigin", label: "Sales Origin" },
+  { key: "grossProfit", label: "Est GP" },
   { key: "actualGP", label: "Actual GP" },
   { key: "orderStatus", label: "Order Status" },
 ];
@@ -25,6 +26,24 @@ const getSalesOrigin = (row = {}) =>
 
 const getSalesAgent = (row = {}) => row?.salesAgent || "—";
 
+const ORIGIN_COLUMNS = [
+  { key: "call", label: "Call" },
+  { key: "chat", label: "Chat" },
+  { key: "lead", label: "Lead" },
+];
+
+const getOriginKey = (row = {}) => {
+  const origin = String(getSalesOrigin(row) || "").trim().toLowerCase();
+  return ORIGIN_COLUMNS.some((column) => column.key === origin) ? origin : "";
+};
+
+const toNumber = (value) => {
+  const n = Number.parseFloat(value);
+  return Number.isFinite(n) ? n : 0;
+};
+
+const toCurrency = (value) => `$${toNumber(value).toFixed(2)}`;
+
 export default function SalesOrigin() {
   const brand = useBrand();
 
@@ -38,6 +57,8 @@ export default function SalesOrigin() {
         return getSalesAgent(row);
       case "salesOrigin":
         return getSalesOrigin(row);
+      case "grossProfit":
+        return currency(row?.grossProfit);
       case "actualGP":
         return currency(row?.actualGP);
       case "orderStatus":
@@ -105,51 +126,71 @@ export default function SalesOrigin() {
   );
 
   const salesOriginTotals = useCallback((rows = []) => {
+    const createRow = (salesAgent) => ({
+      salesAgent,
+      call: 0,
+      chat: 0,
+      lead: 0,
+      overall: 0,
+      estGP: 0,
+      actualGP: 0,
+    });
+
     const grouped = new Map();
-    let overallActualGP = 0;
-    let overallCount = 0;
+    const overall = createRow("Overall");
 
     rows.forEach((row) => {
       const salesAgent = getSalesAgent(row);
-      const salesOrigin = getSalesOrigin(row);
-      const actualGP = Number(row?.actualGP) || 0;
-      const groupKey = `${salesAgent}||${salesOrigin}`;
+      const originKey = getOriginKey(row);
+      const estGP = toNumber(row?.grossProfit);
+      const actualGP = toNumber(row?.actualGP);
+      const current = grouped.get(salesAgent) || createRow(salesAgent);
 
-      const current = grouped.get(groupKey) || {
-        salesAgent,
-        salesOrigin,
-        count: 0,
-        totalActualGP: 0,
-      };
+      if (originKey) {
+        current[originKey] += 1;
+        overall[originKey] += 1;
+      }
 
-      current.count += 1;
-      current.totalActualGP += actualGP;
-      grouped.set(groupKey, current);
+      current.overall += 1;
+      current.estGP += estGP;
+      current.actualGP += actualGP;
+      grouped.set(salesAgent, current);
 
-      overallCount += 1;
-      overallActualGP += actualGP;
+      overall.overall += 1;
+      overall.estGP += estGP;
+      overall.actualGP += actualGP;
     });
 
-    const items = Array.from(grouped.values())
-      .sort((a, b) => {
-        const byAgent = a.salesAgent.localeCompare(b.salesAgent);
-        if (byAgent !== 0) return byAgent;
-        return a.salesOrigin.localeCompare(b.salesOrigin);
-      })
+    const formatRow = (item, isTotal = false) => ({
+      id: isTotal ? "overall" : item.salesAgent,
+      salesAgent: item.salesAgent,
+      call: item.call,
+      chat: item.chat,
+      lead: item.lead,
+      overall: item.overall,
+      estGP: toCurrency(item.estGP),
+      actualGP: toCurrency(item.actualGP),
+      isTotal,
+    });
+
+    const totalRows = Array.from(grouped.values())
+      .sort((a, b) => a.salesAgent.localeCompare(b.salesAgent))
       .map((item) => ({
-        name: `${item.salesAgent} — ${item.salesOrigin}`,
-        value: `$${item.totalActualGP.toFixed(2)}`,
-        count: item.count,
+        ...formatRow(item),
       }));
 
-    items.push({
-      name: "Overall",
-      value: `$${overallActualGP.toFixed(2)}`,
-      count: overallCount,
-      isTotal: true,
-    });
+    totalRows.push(formatRow(overall, true));
 
-    return items;
+    return {
+      columns: [
+        { key: "salesAgent", label: "Sales Agent", align: "left" },
+        ...ORIGIN_COLUMNS,
+        { key: "overall", label: "Overall" },
+        { key: "estGP", label: "Est GP" },
+        { key: "actualGP", label: "Actual GP" },
+      ],
+      rows: totalRows,
+    };
   }, []);
 
   useOrdersRealtime({
@@ -182,6 +223,7 @@ export default function SalesOrigin() {
       showAgentFilter={true}
       showGP={false}
       showTotalsButton={true}
+      showOrdersCountInTotals={false}
       extraTotals={salesOriginTotals}
       paramsBuilder={paramsBuilder}
       fetchOverride={fetchOverride}
