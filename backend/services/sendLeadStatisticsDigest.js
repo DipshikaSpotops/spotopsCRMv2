@@ -8,6 +8,7 @@ import {
 } from "./gmailInboundStats.js";
 import { getGmailClient } from "./googleAuth.js";
 import { extractStructuredFields } from "../utils/extractStructuredFields.js";
+import { labelsIncludeInvalidDisposition } from "../utils/invalidLeadDispositionLabels.js";
 import { normalizePartRequiredLabel } from "../utils/normalizePartRequiredLabel.js";
 import { createGmailServiceTransport } from "../utils/serviceGmailTransport.js";
 
@@ -31,9 +32,18 @@ const REPORT_PARTS = [
   "Transmission",
 ];
 
+/** Column order for digest HTML tables (part-wise + sales agent). */
+const DIGEST_PART_COLUMNS = [
+  "Anti Lock Braking",
+  "Engine",
+  "Transmission",
+  "Invalid",
+  "Others",
+];
+
 const BRAND_SALES_LABEL_NAMES = {
-  "50STARS": ["Mark", "Richard", "Nick", "Charlie"],
-  PROLANE: ["Victor", "Sam", "Noah", "Michael"],
+  "50STARS": ["Mark", "Richard", "Nick", "Michael"],
+  PROLANE: ["Victor", "Sam", "Noah", "Charlie"],
 };
 
 function detectBrandFromLead(lead = {}) {
@@ -71,7 +81,10 @@ function partRequiredFromSnippet(snippet = "") {
 }
 
 function normalizeReportPart(partRequired = "") {
+  const raw = String(partRequired || "").trim();
+  if (raw === "Invalid") return "Invalid";
   const normalized = normalizePartRequiredLabel(partRequired);
+  if (normalized === "Invalid") return "Invalid";
   return REPORT_PARTS.includes(normalized) ? normalized : "Others";
 }
 
@@ -94,6 +107,7 @@ function createSalesAgentPartMatrixSeed() {
     Engine: 0,
     Others: 0,
     Transmission: 0,
+    Invalid: 0,
     total: 0,
   });
   return {
@@ -102,7 +116,7 @@ function createSalesAgentPartMatrixSeed() {
   };
 }
 
-function incrementSalesAgentPartMatrix(matrix, brand, salesAgent, partRequired) {
+function incrementSalesAgentPartMatrix(matrix, brand, salesAgent, partRequired, options = {}) {
   if (brand !== "50STARS" && brand !== "PROLANE") return;
   const agent = String(salesAgent || "").trim().split(/\s+/)[0];
   if (!agent) return;
@@ -113,8 +127,14 @@ function incrementSalesAgentPartMatrix(matrix, brand, salesAgent, partRequired) 
       Engine: 0,
       Others: 0,
       Transmission: 0,
+      Invalid: 0,
       total: 0,
     };
+  }
+  if (options?.asInvalid) {
+    matrix[brand][agent].Invalid = (matrix[brand][agent].Invalid || 0) + 1;
+    matrix[brand][agent].total = (matrix[brand][agent].total || 0) + 1;
+    return;
   }
   const part = normalizeReportPart(partRequired);
   matrix[brand][agent][part] = (matrix[brand][agent][part] || 0) + 1;
@@ -136,25 +156,19 @@ function brandMapFromObject(obj = {}) {
   return out;
 }
 
-function buildPartWiseRows({ claimed, claimedByBrand, received, receivedByBrand }) {
+function buildPartWiseRows({ claimed, received, receivedByBrand }) {
   const claimedMap = claimed instanceof Map ? claimed : mapFromObject(claimed);
-  const claimedBrandMap =
-    claimedByBrand instanceof Map ? claimedByBrand : brandMapFromObject(claimedByBrand);
   const receivedMap = received instanceof Map ? received : mapFromObject(received);
   const receivedBrandMap =
     receivedByBrand instanceof Map ? receivedByBrand : brandMapFromObject(receivedByBrand);
 
-  return REPORT_PARTS.map((partRequired) => {
+  return DIGEST_PART_COLUMNS.map((partRequired) => {
     const received50Stars = receivedBrandMap.get(partRequired)?.["50STARS"] || 0;
     const receivedProlane = receivedBrandMap.get(partRequired)?.PROLANE || 0;
-    const claimed50Stars = claimedBrandMap.get(partRequired)?.["50STARS"] || 0;
-    const claimedProlane = claimedBrandMap.get(partRequired)?.PROLANE || 0;
     return {
       partRequired,
       received50Stars,
-      claimed50Stars,
       receivedProlane,
-      claimedProlane,
       claimedOverall: claimedMap.get(partRequired) || 0,
       receivedOverall: receivedMap.get(partRequired) || received50Stars + receivedProlane,
     };
@@ -162,15 +176,24 @@ function buildPartWiseRows({ claimed, claimedByBrand, received, receivedByBrand 
 }
 
 function renderPartWiseTableHtml(title, rows) {
+  const totals = rows.reduce(
+    (acc, row) => {
+      acc.received50Stars += Number(row.received50Stars) || 0;
+      acc.receivedProlane += Number(row.receivedProlane) || 0;
+      acc.claimedOverall += Number(row.claimedOverall) || 0;
+      acc.receivedOverall += Number(row.receivedOverall) || 0;
+      return acc;
+    },
+    { received50Stars: 0, receivedProlane: 0, claimedOverall: 0, receivedOverall: 0 }
+  );
+
   const rowHtml = rows
     .map(
       (row) => `
         <tr>
           <td style="padding:6px 8px;border:1px solid #b8c7dc;font-weight:600;">${row.partRequired}</td>
           <td style="padding:6px 8px;border:1px solid #b8c7dc;text-align:center;">${row.received50Stars}</td>
-          <td style="padding:6px 8px;border:1px solid #b8c7dc;text-align:center;">${row.claimed50Stars}</td>
           <td style="padding:6px 8px;border:1px solid #b8c7dc;text-align:center;">${row.receivedProlane}</td>
-          <td style="padding:6px 8px;border:1px solid #b8c7dc;text-align:center;">${row.claimedProlane}</td>
           <td style="padding:6px 8px;border:1px solid #b8c7dc;text-align:center;font-weight:600;">${row.claimedOverall}</td>
           <td style="padding:6px 8px;border:1px solid #b8c7dc;text-align:center;font-weight:600;">${row.receivedOverall}</td>
         </tr>
@@ -178,25 +201,31 @@ function renderPartWiseTableHtml(title, rows) {
     )
     .join("");
 
+  const totalRowHtml = `
+        <tr style="background:#d9efc1;font-weight:700;">
+          <td style="padding:6px 8px;border:1px solid #b8c7dc;">Total</td>
+          <td style="padding:6px 8px;border:1px solid #b8c7dc;text-align:center;">${totals.received50Stars}</td>
+          <td style="padding:6px 8px;border:1px solid #b8c7dc;text-align:center;">${totals.receivedProlane}</td>
+          <td style="padding:6px 8px;border:1px solid #b8c7dc;text-align:center;">${totals.claimedOverall}</td>
+          <td style="padding:6px 8px;border:1px solid #b8c7dc;text-align:center;">${totals.receivedOverall}</td>
+        </tr>
+      `;
+
   return `
     <div style="margin-bottom:18px;">
       <div style="font-weight:700;background:#f2b183;padding:7px 10px;border:1px solid #d49d72;">${title}</div>
-      <div style="font-size:12px;color:#4a5b6d;margin:6px 0 8px 0;">
-        Claimed columns use the Lead collection (MongoDB) for this IST window. Received columns stay live Gmail.
-      </div>
       <table style="border-collapse:collapse;width:100%;font-size:13px;">
         <thead>
           <tr style="background:#cfe0f3;">
             <th style="padding:6px 8px;border:1px solid #b8c7dc;text-align:left;">Part Required</th>
             <th style="padding:6px 8px;border:1px solid #b8c7dc;">50STARS (received)</th>
-            <th style="padding:6px 8px;border:1px solid #b8c7dc;">Claimed 50STARS</th>
             <th style="padding:6px 8px;border:1px solid #b8c7dc;">PROLANE (received)</th>
-            <th style="padding:6px 8px;border:1px solid #b8c7dc;">Claimed PROLANE</th>
             <th style="padding:6px 8px;border:1px solid #b8c7dc;">Overall Claimed</th>
             <th style="padding:6px 8px;border:1px solid #b8c7dc;">Overall Received</th>
           </tr>
         </thead>
         <tbody>${rowHtml}</tbody>
+        <tfoot>${totalRowHtml}</tfoot>
       </table>
     </div>
   `;
@@ -205,22 +234,18 @@ function renderPartWiseTableHtml(title, rows) {
 function buildSalesAgentPartRowsByBrand(matrixByBrand = {}) {
   const makeRows = (brand) => {
     const brandMatrix = matrixByBrand?.[brand] || {};
-    const orderedAgents = [
-      ...(BRAND_SALES_LABEL_NAMES[brand] || []),
-      ...Object.keys(brandMatrix).filter(
-        (agent) => !(BRAND_SALES_LABEL_NAMES[brand] || []).includes(agent)
-      ),
-    ];
+    // Only canonical agents for this brand so cross-team names never appear in the wrong table.
+    const orderedAgents = [...(BRAND_SALES_LABEL_NAMES[brand] || [])];
     return orderedAgents
       .map((agent) => {
         const counts = brandMatrix?.[agent] || {};
         const row = {
           agent,
-          counts: Object.fromEntries(REPORT_PARTS.map((part) => [part, Number(counts?.[part]) || 0])),
+          counts: Object.fromEntries(DIGEST_PART_COLUMNS.map((part) => [part, Number(counts?.[part]) || 0])),
           total: Number(counts?.total) || 0,
         };
         if (!row.total) {
-          row.total = REPORT_PARTS.reduce((sum, part) => sum + (row.counts?.[part] || 0), 0);
+          row.total = DIGEST_PART_COLUMNS.reduce((sum, part) => sum + (row.counts?.[part] || 0), 0);
         }
         return row;
       })
@@ -234,15 +259,18 @@ function buildSalesAgentPartRowsByBrand(matrixByBrand = {}) {
 }
 
 function renderSalesAgentPartTableHtml(title, rows) {
+  const emptyTotals = Object.fromEntries(DIGEST_PART_COLUMNS.map((p) => [p, 0]));
+  emptyTotals.total = 0;
+
   const bodyHtml =
     rows.length === 0
-      ? `<tr><td colspan="${REPORT_PARTS.length + 2}" style="padding:8px;border:1px solid #b8c7dc;text-align:center;color:#667;">No live Gmail part data found.</td></tr>`
+      ? `<tr><td colspan="${DIGEST_PART_COLUMNS.length + 2}" style="padding:8px;border:1px solid #b8c7dc;text-align:center;color:#667;">No live Gmail part data found.</td></tr>`
       : rows
           .map(
             (row) => `
               <tr>
                 <td style="padding:6px 8px;border:1px solid #b8c7dc;font-weight:600;">${row.agent}</td>
-                ${REPORT_PARTS.map(
+                ${DIGEST_PART_COLUMNS.map(
                   (part) =>
                     `<td style="padding:6px 8px;border:1px solid #b8c7dc;text-align:center;">${row.counts?.[part] || 0}</td>`
                 ).join("")}
@@ -252,28 +280,28 @@ function renderSalesAgentPartTableHtml(title, rows) {
           )
           .join("");
 
-  const totals = rows.reduce(
-    (acc, row) => {
-      REPORT_PARTS.forEach((part) => {
-        acc[part] += row.counts?.[part] || 0;
-      });
-      acc.total += row.total || 0;
-      return acc;
-    },
-    { "Anti Lock Braking": 0, Engine: 0, Others: 0, Transmission: 0, total: 0 }
-  );
+  const totals =
+    rows.length === 0
+      ? emptyTotals
+      : rows.reduce((acc, row) => {
+          DIGEST_PART_COLUMNS.forEach((part) => {
+            acc[part] += row.counts?.[part] || 0;
+          });
+          acc.total += row.total || 0;
+          return acc;
+        }, { ...emptyTotals });
 
   const totalHtml =
     rows.length === 0
       ? ""
       : `
-        <tr style="background:#d9efc1;font-weight:700;">
-          <td style="padding:6px 8px;border:1px solid #b8c7dc;">Total</td>
-          ${REPORT_PARTS.map(
+          <tr style="background:#d9efc1;font-weight:700;">
+            <td style="padding:6px 8px;border:1px solid #b8c7dc;">Total</td>
+          ${DIGEST_PART_COLUMNS.map(
             (part) =>
               `<td style="padding:6px 8px;border:1px solid #b8c7dc;text-align:center;">${totals[part]}</td>`
           ).join("")}
-          <td style="padding:6px 8px;border:1px solid #b8c7dc;text-align:center;">${totals.total}</td>
+            <td style="padding:6px 8px;border:1px solid #b8c7dc;text-align:center;">${totals.total}</td>
         </tr>
       `;
 
@@ -284,7 +312,7 @@ function renderSalesAgentPartTableHtml(title, rows) {
         <thead>
           <tr style="background:#cfe0f3;">
             <th style="padding:6px 8px;border:1px solid #b8c7dc;text-align:left;">Sales Agent</th>
-            ${REPORT_PARTS.map(
+            ${DIGEST_PART_COLUMNS.map(
               (part) => `<th style="padding:6px 8px;border:1px solid #b8c7dc;">${part}</th>`
             ).join("")}
             <th style="padding:6px 8px;border:1px solid #b8c7dc;">Total</th>
@@ -338,6 +366,16 @@ async function fetchClaimedPartStats({ start, end, salesAgentFirstName }) {
     if (!leadKey || seen.has(leadKey)) return;
     seen.add(leadKey);
 
+    if (labelsIncludeInvalidDisposition(lead.labels || [])) {
+      incrementMap(claimed, "Invalid", 1);
+      const brand = detectBrandFromLead(lead);
+      incrementBrandMap(claimedByBrand, "Invalid", brand, 1);
+      incrementSalesAgentPartMatrix(salesAgentPartMatrixByBrand, brand, lead.salesAgent, null, {
+        asInvalid: true,
+      });
+      return;
+    }
+
     incrementMap(claimed, lead.partRequired, 1);
     const brand = detectBrandFromLead(lead);
     incrementBrandMap(claimedByBrand, lead.partRequired, brand, 1);
@@ -390,33 +428,45 @@ async function buildDigestData({
       const brand = detectBrandFromLead(row);
       if (brand) brandByMessageId.set(row.messageId, brand);
     });
-    const rebuilt = await buildPartWiseReceivedFromMessageIds(
-      rowsForAgent.map((row) => row.messageId),
-      {
-        gmail,
-        brandByMessageId,
-        snippetByMessageId,
-        liveGmailOnly: true,
-      }
-    );
+    const eligibleIds = rowsForAgent
+      .filter((row) => !labelsIncludeInvalidDisposition(row.labels || []))
+      .map((row) => row.messageId)
+      .filter(Boolean);
+    const rebuilt = await buildPartWiseReceivedFromMessageIds(eligibleIds, {
+      gmail,
+      brandByMessageId,
+      snippetByMessageId,
+      liveGmailOnly: true,
+    });
+    let invalidReceived = 0;
+    const invalidReceivedByBrand = { "50STARS": 0, PROLANE: 0 };
+    for (const row of rowsForAgent) {
+      if (!labelsIncludeInvalidDisposition(row.labels || [])) continue;
+      invalidReceived += 1;
+      const brand = detectBrandFromLead(row);
+      if (brand === "50STARS" || brand === "PROLANE") invalidReceivedByBrand[brand] += 1;
+    }
+    rebuilt.partWiseReceived.set("Invalid", invalidReceived);
+    rebuilt.partWiseReceivedByBrand.set("Invalid", { ...invalidReceivedByBrand });
     received = rebuilt.partWiseReceived;
     receivedByBrand = rebuilt.partWiseReceivedByBrand;
   }
 
   const rows = buildPartWiseRows({
     claimed: claimedPack.claimed,
-    claimedByBrand: claimedPack.claimedByBrand,
     received,
     receivedByBrand,
   });
   const liveSalesAgentPartMatrixByBrand = createSalesAgentPartMatrixSeed();
   liveRowsForPartMatrix.forEach((row) => {
     const brand = detectBrandFromLead(row);
+    const inv = labelsIncludeInvalidDisposition(row.labels || []);
     incrementSalesAgentPartMatrix(
       liveSalesAgentPartMatrixByBrand,
       brand,
       pickSalesAgentNameFromLabels(row.labels || []),
-      partRequiredFromSnippet(row.snippet)
+      partRequiredFromSnippet(row.snippet),
+      inv ? { asInvalid: true } : {}
     );
   });
   const salesAgentPartRowsByBrand = buildSalesAgentPartRowsByBrand(liveSalesAgentPartMatrixByBrand);

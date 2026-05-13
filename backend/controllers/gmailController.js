@@ -21,6 +21,7 @@ import {
   buildPartWiseReceivedFromMessageIds,
 } from "../services/gmailInboundStats.js";
 import { extractStructuredFields } from "../utils/extractStructuredFields.js";
+import { labelsIncludeInvalidDisposition } from "../utils/invalidLeadDispositionLabels.js";
 import { normalizePartRequiredLabel } from "../utils/normalizePartRequiredLabel.js";
 import { getGmailClient, getAuthUrl, setTokensFromCode, getUserEmail, clearTokenCache } from "../services/googleAuth.js";
 import { sendLeadStatisticsDigest } from "../services/sendLeadStatisticsDigest.js";
@@ -51,8 +52,8 @@ const CANONICAL_STATS_LABELS = [
 ];
 
 const BRAND_SALES_LABELS = {
-  "50STARS": ["Mark", "Richard", "Nick", "Charlie"],
-  "PROLANE": ["Victor", "Sam", "Noah", "Michael"],
+  "50STARS": ["Mark", "Richard", "Nick", "Michael"],
+  "PROLANE": ["Victor", "Sam", "Noah", "Charlie"],
 };
 
 const REPORT_PART_REQUIRED_LABELS = [
@@ -255,6 +256,7 @@ function createSalesAgentPartMatrixSeed() {
     Engine: 0,
     Others: 0,
     Transmission: 0,
+    Invalid: 0,
     total: 0,
   });
   return {
@@ -263,7 +265,7 @@ function createSalesAgentPartMatrixSeed() {
   };
 }
 
-function incrementSalesAgentPartMatrix(matrix, brand, salesAgent, partRequired) {
+function incrementSalesAgentPartMatrix(matrix, brand, salesAgent, partRequired, options = {}) {
   if (brand !== "50STARS" && brand !== "PROLANE") return;
   const agent = String(salesAgent || "").trim().split(/\s+/)[0];
   if (!agent) return;
@@ -274,8 +276,14 @@ function incrementSalesAgentPartMatrix(matrix, brand, salesAgent, partRequired) 
       Engine: 0,
       Others: 0,
       Transmission: 0,
+      Invalid: 0,
       total: 0,
     };
+  }
+  if (options?.asInvalid) {
+    matrix[brand][agent].Invalid = (matrix[brand][agent].Invalid || 0) + 1;
+    matrix[brand][agent].total = (matrix[brand][agent].total || 0) + 1;
+    return;
   }
   const part = normalizeReportPartRequiredLabel(partRequired);
   matrix[brand][agent][part] = (matrix[brand][agent][part] || 0) + 1;
@@ -1972,9 +1980,26 @@ async function fetchClaimedPartStatsFromMongoLeads({
   for (const lead of leads) {
     const mid = lead.messageId;
     if (!mid || seen.has(mid)) continue;
+    seen.add(mid);
+
+    if (labelsIncludeInvalidDisposition(lead.labels || [])) {
+      totalLeads += 1;
+      partWiseClaimed.Invalid = (partWiseClaimed.Invalid || 0) + 1;
+      if (!partWiseClaimedByBrand.Invalid) {
+        partWiseClaimedByBrand.Invalid = { "50STARS": 0, PROLANE: 0 };
+      }
+      const brandInv = detectBrandFromMongoLeadForStats(lead);
+      if (brandInv === "50STARS" || brandInv === "PROLANE") {
+        partWiseClaimedByBrand.Invalid[brandInv] += 1;
+        incrementSalesAgentPartMatrix(salesAgentPartMatrixByBrand, brandInv, lead.salesAgent, null, {
+          asInvalid: true,
+        });
+      }
+      continue;
+    }
+
     const part = normalizePartRequiredLabel(lead.partRequired);
     if (!part) continue;
-    seen.add(mid);
     totalLeads += 1;
 
     partWiseClaimed[part] = (partWiseClaimed[part] || 0) + 1;
@@ -2006,7 +2031,7 @@ export async function getDailyStatisticsHandler(req, res, next) {
     console.log("[getDailyStatistics] Query params:", { startDate, endDate, agentEmail, userRole, userEmail });
 
     // Calendar YYYY-MM-DD from the client must match this zone. Live Gmail / inbound "day D"
-    // is 16:30 IST on D through 06:00 IST on D+1 (same as GMAIL_INBOUND_STATS_ZONE default).
+    // is 05:30 IST on D through 05:00 IST on D+1 (same as GMAIL_INBOUND_STATS_ZONE default).
     const statsCalendarZone =
       process.env.STATS_CALENDAR_ZONE ||
       process.env.GMAIL_STATS_INBOUND_TZ ||
@@ -2108,7 +2133,12 @@ export async function getDailyStatisticsHandler(req, res, next) {
         }),
         fetchClaimedPartStatsFromMongoLeads(claimedPartMatch).catch((e) => {
           console.error("[getDailyStatistics] claimed Lead stats failed:", e);
-          return { totalLeads: 0, partWiseClaimed: {}, partWiseClaimedByBrand: {} };
+          return {
+            totalLeads: 0,
+            partWiseClaimed: {},
+            partWiseClaimedByBrand: {},
+            salesAgentPartMatrixByBrand: createSalesAgentPartMatrixSeed(),
+          };
         }),
       ]);
     } catch (inboundErr) {
@@ -2290,12 +2320,29 @@ export async function getDailyStatisticsHandler(req, res, next) {
           detectStatsBrandFromMessage(row) || inferStatsBrandFromAgentLabels(row.labels || []);
         if (b) brandMap.set(row.messageId, b);
       });
-      const built = await buildPartWiseReceivedFromMessageIds(rowsForStats.map((x) => x.messageId), {
+      const eligibleIds = rowsForStats
+        .filter((row) => !labelsIncludeInvalidDisposition(row.labels || []))
+        .map((x) => x.messageId)
+        .filter(Boolean);
+      const built = await buildPartWiseReceivedFromMessageIds(eligibleIds, {
         gmail,
         brandByMessageId: brandMap,
         snippetByMessageId,
         liveGmailOnly: true,
       });
+      let invalidReceived = 0;
+      const invalidReceivedByBrand = { "50STARS": 0, PROLANE: 0 };
+      for (const row of rowsForStats) {
+        if (!labelsIncludeInvalidDisposition(row.labels || [])) continue;
+        invalidReceived += 1;
+        const b =
+          brandMap.get(row.messageId) ||
+          detectStatsBrandFromMessage(row) ||
+          inferStatsBrandFromAgentLabels(row.labels || []);
+        if (b === "50STARS" || b === "PROLANE") invalidReceivedByBrand[b] += 1;
+      }
+      built.partWiseReceived.set("Invalid", invalidReceived);
+      built.partWiseReceivedByBrand.set("Invalid", { ...invalidReceivedByBrand });
       partWiseReceivedMap = built.partWiseReceived;
       partWiseReceivedByBrandMap = built.partWiseReceivedByBrand;
     }
@@ -2331,7 +2378,8 @@ export async function getDailyStatisticsHandler(req, res, next) {
         salesAgentPartMatrixByBrand,
         brand,
         pickSalesAgentNameFromGmailLabels(combinedLabels),
-        partRequiredFromSnippet(row.snippet)
+        partRequiredFromSnippet(row.snippet),
+        labelsIncludeInvalidDisposition(combinedLabels) ? { asInvalid: true } : {}
       );
       const labelWiseSources = combinedLabels.filter((l) => !isSalesAgentFirstNameLabel(l));
       const normalizedLabels = new Set(
@@ -2368,7 +2416,7 @@ export async function getDailyStatisticsHandler(req, res, next) {
         inboundReportingZone: statsCalendarZone,
         dataSource: "gmail_live",
         inboundReportingDayNote:
-          "Each calendar date D is 16:30 IST on D through 06:00 IST on D+1 (inclusive). Override with STATS_CALENDAR_ZONE or GMAIL_STATS_INBOUND_TZ.",
+          "Each calendar date D is 05:30 IST on D through 05:00 IST on D+1 (inclusive). Override with STATS_CALENDAR_ZONE or GMAIL_STATS_INBOUND_TZ.",
         claimedFromDbNote:
           "Claimed (with part) and part-wise Claimed 50STARS / PROLANE / Overall Claimed use the Lead collection (MongoDB): claimedAt in this window, non-empty partRequired, brand from From/Subject or lead labels. Lead Origin uses LeadNote.",
         leadOriginNote:

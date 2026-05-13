@@ -4,13 +4,13 @@ import moment from "moment-timezone";
 export const GMAIL_INBOUND_STATS_ZONE = "Asia/Kolkata";
 
 /**
- * One inbound stats "reporting day" D: 16:30 IST on D through 06:00 IST on D+1 (inclusive).
+ * One inbound stats "reporting day" D: 05:30 IST on D through 05:00 IST on D+1 (inclusive).
  * Same rule as `backend/services/gmailInboundStats.js` `reportingDayBoundsMs`.
  */
 export function reportingDayBoundsMs(dateYYYYMMDD, zone = GMAIL_INBOUND_STATS_ZONE) {
   const d = moment.tz(dateYYYYMMDD, "YYYY-MM-DD", zone);
-  const start = d.clone().hour(16).minute(30).second(0).millisecond(0);
-  const end = d.clone().add(1, "day").hour(6).minute(0).second(0).millisecond(0);
+  const start = d.clone().hour(5).minute(30).second(0).millisecond(0);
+  const end = d.clone().add(1, "day").hour(5).minute(0).second(0).millisecond(0);
   return { startMs: start.valueOf(), endMs: end.valueOf() };
 }
 

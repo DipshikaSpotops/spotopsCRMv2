@@ -2,6 +2,7 @@ import moment from "moment-timezone";
 import GmailMessage from "../models/GmailMessage.js";
 import Lead from "../models/Lead.js";
 import { extractStructuredFields } from "../utils/extractStructuredFields.js";
+import { labelsIncludeInvalidDisposition } from "../utils/invalidLeadDispositionLabels.js";
 import { normalizePartRequiredLabel } from "../utils/normalizePartRequiredLabel.js";
 import { getGmailClient } from "./googleAuth.js";
 
@@ -11,12 +12,12 @@ export const GMAIL_INBOUND_STATS_ZONE =
 
 /**
  * One "reporting day" for inbound volume: same calendar date D in IST,
- * from 16:30 IST through 06:00 IST the next calendar day (inclusive).
+ * from 05:30 IST on D through 05:00 IST the next calendar day (inclusive).
  */
 export function reportingDayBoundsMs(dateYYYYMMDD, zone = GMAIL_INBOUND_STATS_ZONE) {
   const d = moment.tz(dateYYYYMMDD, "YYYY-MM-DD", zone);
-  const start = d.clone().hour(16).minute(30).second(0).millisecond(0);
-  const end = d.clone().add(1, "day").hour(6).minute(0).second(0).millisecond(0);
+  const start = d.clone().hour(5).minute(30).second(0).millisecond(0);
+  const end = d.clone().add(1, "day").hour(5).minute(0).second(0).millisecond(0);
   return { startMs: start.valueOf(), endMs: end.valueOf() };
 }
 
@@ -44,8 +45,8 @@ const BRAND_PROLANE = "PROLANE";
 
 /** Same first-name labels as CRM / gmailController — used when headers lack brand text. */
 const BRAND_SALES_LABEL_NAMES = {
-  [BRAND_50STARS]: ["Mark", "Richard", "Nick", "Charlie"],
-  [BRAND_PROLANE]: ["Victor", "Sam", "Noah", "Michael"],
+  [BRAND_50STARS]: ["Mark", "Richard", "Nick", "Michael"],
+  [BRAND_PROLANE]: ["Victor", "Sam", "Noah", "Charlie"],
 };
 
 /**
@@ -325,6 +326,7 @@ export async function fetchInboundCountsFromGmailApi({
   const inboundByDate = new Map();
   let totalInboundFromGmail = 0;
   const acceptedMessageIds = [];
+  const partEligibleMessageIds = [];
   const brandByMessageId = new Map();
   /** One row per message in the stats window — used for label-wise / agent-matrix (live labelIds). */
   const labelStatRows = [];
@@ -382,6 +384,9 @@ export async function fetchInboundCountsFromGmailApi({
       inboundByDate.set(dayKey, (inboundByDate.get(dayKey) || 0) + 1);
       totalInboundFromGmail += 1;
       acceptedMessageIds.push(row.id);
+      if (!labelsIncludeInvalidDisposition(resolvedLabelNames)) {
+        partEligibleMessageIds.push(row.id);
+      }
 
       labelStatRows.push({
         messageId: row.id,
@@ -402,7 +407,7 @@ export async function fetchInboundCountsFromGmailApi({
     labelStatRows.map((r) => [r.messageId, r.snippet || ""]).filter(([id]) => Boolean(id))
   );
   const { partWiseReceived, partWiseReceivedByBrand } = await buildPartWiseReceivedFromMessageIds(
-    acceptedMessageIds,
+    partEligibleMessageIds,
     {
       gmail,
       brandByMessageId,
@@ -410,6 +415,19 @@ export async function fetchInboundCountsFromGmailApi({
       liveGmailOnly: true,
     }
   );
+
+  let invalidReceived = 0;
+  const invalidReceivedByBrand = { [BRAND_50STARS]: 0, [BRAND_PROLANE]: 0 };
+  for (const row of labelStatRows) {
+    if (!labelsIncludeInvalidDisposition(row.labels || [])) continue;
+    invalidReceived += 1;
+    const b = brandByMessageId.get(row.messageId);
+    if (b === BRAND_50STARS || b === BRAND_PROLANE) {
+      invalidReceivedByBrand[b] = (invalidReceivedByBrand[b] || 0) + 1;
+    }
+  }
+  partWiseReceived.set("Invalid", invalidReceived);
+  partWiseReceivedByBrand.set("Invalid", { ...invalidReceivedByBrand });
 
   return {
     inboundByDate,
@@ -461,6 +479,7 @@ export async function fetchInboundCountsFromMongoIst({
         subject: 1,
         to: 1,
         deliveredTo: 1,
+        labels: 1,
       },
     },
   ]);
@@ -468,7 +487,9 @@ export async function fetchInboundCountsFromMongoIst({
   const inboundByDate = new Map();
   let totalInboundFromGmail = 0;
   const acceptedMessageIds = [];
+  const partEligibleMessageIds = [];
   const brandByMessageId = new Map();
+  const rowsForInvalidRollup = [];
 
   for (const doc of rows) {
     const internalMs = doc.arrivalAt ? new Date(doc.arrivalAt).getTime() : null;
@@ -489,6 +510,11 @@ export async function fetchInboundCountsFromMongoIst({
       if (detectedBrand) {
         brandByMessageId.set(doc.messageId, detectedBrand);
       }
+      const labs = Array.isArray(doc.labels) ? doc.labels : [];
+      rowsForInvalidRollup.push({ messageId: doc.messageId, labels: labs });
+      if (!labelsIncludeInvalidDisposition(labs)) {
+        partEligibleMessageIds.push(doc.messageId);
+      }
     }
   }
 
@@ -498,10 +524,26 @@ export async function fetchInboundCountsFromMongoIst({
   } catch {
     /* optional */
   }
-  const { partWiseReceived, partWiseReceivedByBrand } = await buildPartWiseReceivedFromMessageIds(acceptedMessageIds, {
-    gmail: gmailForParts,
-    brandByMessageId,
-  });
+  const { partWiseReceived, partWiseReceivedByBrand } = await buildPartWiseReceivedFromMessageIds(
+    partEligibleMessageIds,
+    {
+      gmail: gmailForParts,
+      brandByMessageId,
+    }
+  );
+
+  let invalidReceived = 0;
+  const invalidReceivedByBrand = { [BRAND_50STARS]: 0, [BRAND_PROLANE]: 0 };
+  for (const row of rowsForInvalidRollup) {
+    if (!labelsIncludeInvalidDisposition(row.labels || [])) continue;
+    invalidReceived += 1;
+    const b = brandByMessageId.get(row.messageId);
+    if (b === BRAND_50STARS || b === BRAND_PROLANE) {
+      invalidReceivedByBrand[b] = (invalidReceivedByBrand[b] || 0) + 1;
+    }
+  }
+  partWiseReceived.set("Invalid", invalidReceived);
+  partWiseReceivedByBrand.set("Invalid", { ...invalidReceivedByBrand });
 
   return {
     inboundByDate,

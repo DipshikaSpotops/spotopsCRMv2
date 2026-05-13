@@ -219,6 +219,15 @@ const REPORT_PART_REQUIRED_LABELS = [
   "Transmission",
 ];
 
+/** Display order for part-wise + agent part matrix (matches lead digest email). */
+const PART_WISE_DISPLAY_LABELS = [
+  "Anti Lock Braking",
+  "Engine",
+  "Transmission",
+  "Invalid",
+  "Others",
+];
+
 const CANONICAL_LEAD_LABELS = [
   "Voice Mail",
   "Quoted",
@@ -238,8 +247,8 @@ const CANONICAL_LEAD_LABELS = [
   "Others",
 ];
 const BRAND_SALES_AGENTS = {
-  "50STARS": ["Mark", "Richard", "Nick", "Charlie"],
-  "PROLANE": ["Victor", "Sam", "Noah", "Michael"],
+  "50STARS": ["Mark", "Richard", "Nick", "Michael"],
+  "PROLANE": ["Victor", "Sam", "Noah", "Charlie"],
 };
 
 function normalizePartRequiredLabel(partRequired = "") {
@@ -297,6 +306,8 @@ function normalizePartRequiredLabel(partRequired = "") {
 }
 
 function normalizeReportPartRequiredLabel(partRequired = "") {
+  const trimmed = String(partRequired || "").trim();
+  if (trimmed === "Invalid") return "Invalid";
   const normalized = normalizePartRequiredLabel(partRequired);
   return REPORT_PART_REQUIRED_LABELS.includes(normalized) ? normalized : "Others";
 }
@@ -409,7 +420,7 @@ export default function Leads() {
   });
   const [selectedAgentForStats, setSelectedAgentForStats] = useState(null);
 
-  /** IST reporting-day keys (4:30 PM → next 6:00 AM) that overlap the selected ISO range — used for stats API + labels. */
+  /** IST reporting-day keys (5:30 AM D → 5:00 AM D+1) overlapping the picker range — stats API + pill. */
   const statsReportingDayKeys = useMemo(() => {
     if (!dateFilter?.start || !dateFilter?.end) return [];
     return reportingDayKeysIntersectingRange(
@@ -418,6 +429,36 @@ export default function Leads() {
       GMAIL_INBOUND_STATS_ZONE
     );
   }, [dateFilter.start, dateFilter.end]);
+
+  /** Pill / modal: one date when one Dallas day or one IST key; range only for multi-day Dallas. */
+  const STATS_PICKER_ZONE = "America/Chicago";
+  const statsDayPillText = useMemo(() => {
+    if (!dateFilter?.start || !dateFilter?.end) return "";
+    const keys = statsReportingDayKeys;
+    if (keys.length === 0) {
+      return formatInTimeZone(new Date(dateFilter.start), "Asia/Kolkata", "d MMM yyyy");
+    }
+    if (keys.length === 1) return formatStatsReportingDayKey(keys[0]);
+    const dallasOneDay =
+      moment(dateFilter.start).tz(STATS_PICKER_ZONE).format("YYYY-MM-DD") ===
+      moment(dateFilter.end).tz(STATS_PICKER_ZONE).format("YYYY-MM-DD");
+    if (dallasOneDay) return formatStatsReportingDayKey(keys[0]);
+    return `${formatStatsReportingDayKey(keys[0])} – ${formatStatsReportingDayKey(keys[keys.length - 1])}`;
+  }, [dateFilter.start, dateFilter.end, statsReportingDayKeys.join(",")]);
+
+  const statsDayModalLine = useMemo(() => {
+    if (!dateFilter?.start || !dateFilter?.end) return "";
+    const keys = statsReportingDayKeys;
+    if (keys.length === 0) {
+      return formatInTimeZone(new Date(dateFilter.start), "Asia/Kolkata", "MMM d, yyyy");
+    }
+    if (keys.length === 1) return formatStatsReportingDayKey(keys[0]);
+    const dallasOneDay =
+      moment(dateFilter.start).tz(STATS_PICKER_ZONE).format("YYYY-MM-DD") ===
+      moment(dateFilter.end).tz(STATS_PICKER_ZONE).format("YYYY-MM-DD");
+    if (dallasOneDay) return formatStatsReportingDayKey(keys[0]);
+    return `${formatStatsReportingDayKey(keys[0])} - ${formatStatsReportingDayKey(keys[keys.length - 1])}`;
+  }, [dateFilter.start, dateFilter.end, statsReportingDayKeys.join(",")]);
   const [allSalesAgents, setAllSalesAgents] = useState([]); // For admin dropdown - stores emails
   const [emailToNameMap, setEmailToNameMap] = useState(new Map()); // Maps email -> firstName
 
@@ -847,7 +888,10 @@ export default function Leads() {
 
   const buildStatisticsParams = useCallback(() => {
     const params = {};
-    // Statistics use IST reporting days (16:30 IST -> next day 06:00 IST), not IST calendar dates of range edges.
+    /** Must match `UnifiedDatePicker` default on Leads Statistics (Dallas wall calendar). */
+    const STATS_PICKER_ZONE = "America/Chicago";
+    // IST reporting days (05:30 D → 05:00 D+1). When the picker is one Dallas day but overlaps two IST keys,
+    // sending both keys made the API span ~two full windows (~2× count). Collapse to the first key for that case.
     const statsCalendarZone = GMAIL_INBOUND_STATS_ZONE;
     const dayKeys =
       dateFilter?.start && dateFilter?.end
@@ -857,9 +901,20 @@ export default function Leads() {
             statsCalendarZone
           )
         : [];
+    const dallasSameCalendarDay =
+      dateFilter?.start &&
+      dateFilter?.end &&
+      moment(dateFilter.start).tz(STATS_PICKER_ZONE).format("YYYY-MM-DD") ===
+        moment(dateFilter.end).tz(STATS_PICKER_ZONE).format("YYYY-MM-DD");
+
     if (dayKeys.length > 0) {
-      params.startDate = dayKeys[0];
-      params.endDate = dayKeys[dayKeys.length - 1];
+      if (dallasSameCalendarDay && dayKeys.length > 1) {
+        params.startDate = dayKeys[0];
+        params.endDate = dayKeys[0];
+      } else {
+        params.startDate = dayKeys[0];
+        params.endDate = dayKeys[dayKeys.length - 1];
+      }
     } else {
       if (dateFilter?.start) {
         params.startDate = moment(dateFilter.start).tz(statsCalendarZone).format("YYYY-MM-DD");
@@ -1478,22 +1533,43 @@ export default function Leads() {
       increment(receivedProlaneMap, rawPart, prolane);
     });
 
-    return REPORT_PART_REQUIRED_LABELS
-      .map((partRequired) => {
-        const received50Stars = received50StarsMap.get(partRequired) ?? 0;
-        const receivedProlane = receivedProlaneMap.get(partRequired) ?? 0;
-        const receivedOverall = receivedMap.get(partRequired) ?? received50Stars + receivedProlane;
-        return {
-          partRequired,
-          claimed: claimedMap.get(partRequired) ?? 0,
-          claimed50Stars: claimed50StarsMap.get(partRequired) ?? 0,
-          claimedProlane: claimedProlaneMap.get(partRequired) ?? 0,
-          received50Stars,
-          receivedProlane,
-          receivedOverall,
-        };
-      });
+    return PART_WISE_DISPLAY_LABELS.map((partRequired) => {
+      const received50Stars = received50StarsMap.get(partRequired) ?? 0;
+      const receivedProlane = receivedProlaneMap.get(partRequired) ?? 0;
+      const receivedOverall = receivedMap.get(partRequired) ?? received50Stars + receivedProlane;
+      return {
+        partRequired,
+        claimed: claimedMap.get(partRequired) ?? 0,
+        claimed50Stars: claimed50StarsMap.get(partRequired) ?? 0,
+        claimedProlane: claimedProlaneMap.get(partRequired) ?? 0,
+        received50Stars,
+        receivedProlane,
+        receivedOverall,
+      };
+    });
   }, [partWiseLeadTotals, statistics?.partWiseReceived, statistics?.partWiseReceivedByBrand]);
+
+  const partWiseTotals = useMemo(() => {
+    return partWiseRows.reduce(
+      (acc, row) => {
+        acc.received50Stars += Number(row.received50Stars) || 0;
+        acc.claimed50Stars += Number(row.claimed50Stars) || 0;
+        acc.receivedProlane += Number(row.receivedProlane) || 0;
+        acc.claimedProlane += Number(row.claimedProlane) || 0;
+        acc.claimed += Number(row.claimed) || 0;
+        acc.receivedOverall += Number(row.receivedOverall) || 0;
+        return acc;
+      },
+      {
+        received50Stars: 0,
+        claimed50Stars: 0,
+        receivedProlane: 0,
+        claimedProlane: 0,
+        claimed: 0,
+        receivedOverall: 0,
+      }
+    );
+  }, [partWiseRows]);
 
   const labelWiseRows = useMemo(() => {
     const apiLabelWiseByBrand = statistics?.labelWiseByBrand;
@@ -1608,24 +1684,19 @@ export default function Leads() {
     const payload = statistics?.salesAgentPartMatrixByBrand || {};
     const makeRows = (brand) => {
       const brandPayload = payload?.[brand] || {};
-      const orderedAgents = [
-        ...(BRAND_SALES_AGENTS[brand] || []),
-        ...Object.keys(brandPayload).filter(
-          (agent) => !(BRAND_SALES_AGENTS[brand] || []).includes(agent)
-        ),
-      ];
+      const orderedAgents = [...(BRAND_SALES_AGENTS[brand] || [])];
       return orderedAgents
         .map((agent) => {
           const counts = brandPayload?.[agent] || {};
           const row = {
             agent,
             counts: Object.fromEntries(
-              REPORT_PART_REQUIRED_LABELS.map((part) => [part, Number(counts?.[part]) || 0])
+              PART_WISE_DISPLAY_LABELS.map((part) => [part, Number(counts?.[part]) || 0])
             ),
             total: Number(counts?.total) || 0,
           };
           if (!row.total) {
-            row.total = REPORT_PART_REQUIRED_LABELS.reduce(
+            row.total = PART_WISE_DISPLAY_LABELS.reduce(
               (sum, part) => sum + (row.counts?.[part] || 0),
               0
             );
@@ -1644,10 +1715,10 @@ export default function Leads() {
   const salesAgentPartTotalsByBrand = useMemo(() => {
     const makeTotals = (brand) => {
       const rows = salesAgentPartRowsByBrand[brand] || [];
-      const totals = Object.fromEntries(REPORT_PART_REQUIRED_LABELS.map((part) => [part, 0]));
+      const totals = Object.fromEntries(PART_WISE_DISPLAY_LABELS.map((part) => [part, 0]));
       totals.total = 0;
       rows.forEach((row) => {
-        REPORT_PART_REQUIRED_LABELS.forEach((part) => {
+        PART_WISE_DISPLAY_LABELS.forEach((part) => {
           totals[part] += row.counts?.[part] || 0;
         });
         totals.total += row.total || 0;
@@ -1957,25 +2028,9 @@ export default function Leads() {
               {dateFilter?.start && dateFilter?.end && (
                 <span
                   className="inline-flex items-center rounded-full bg-white/5 border border-white/15 px-3 py-1.5 text-xs sm:text-sm text-white/90 whitespace-nowrap"
-                  title="IST reporting day(s): 4:30 PM – 6:00 AM next day (same buckets as statistics API)"
+                  title="IST reporting day(s): 5:30 AM – 5:00 AM next day (same buckets as statistics API)"
                 >
-                  {statsReportingDayKeys.length === 0 ? (
-                    <>
-                      {formatInTimeZone(new Date(dateFilter.start), "Asia/Kolkata", "d MMM yyyy")}
-                      <span className="text-white/45 mx-1.5">–</span>
-                      {formatInTimeZone(new Date(dateFilter.end), "Asia/Kolkata", "d MMM yyyy")}
-                    </>
-                  ) : statsReportingDayKeys.length === 1 ? (
-                    formatStatsReportingDayKey(statsReportingDayKeys[0])
-                  ) : (
-                    <>
-                      {formatStatsReportingDayKey(statsReportingDayKeys[0])}
-                      <span className="text-white/45 mx-1.5">–</span>
-                      {formatStatsReportingDayKey(
-                        statsReportingDayKeys[statsReportingDayKeys.length - 1]
-                      )}
-                    </>
-                  )}
+                  {statsDayPillText}
                 </span>
               )}
               <UnifiedDatePicker
@@ -2088,7 +2143,7 @@ export default function Leads() {
                   <div className="text-sm text-white/70">Received in Gmail</div>
                   <div className="text-3xl font-bold text-emerald-300 mt-2">{statistics.totalInboundFromGmail ?? 0}</div>
                   <div className="text-xs text-white/50 mt-1">
-                    Live Gmail: 4:30 PM IST → 6:00 AM IST next day
+                    Live Gmail: 5:30 AM IST → 5:00 AM IST next day
                   </div>
                 </div>
                 <div className="rounded-lg border border-white/20 bg-white/10 backdrop-blur-md p-4">
@@ -2128,11 +2183,7 @@ export default function Leads() {
 
               {/* Part-wise lead count */}
               <div className="rounded-lg border border-white/20 bg-white/10 backdrop-blur-md p-4">
-                <h2 className="text-xl font-bold text-white mb-2">Part-wise Leads</h2>
-                <p className="text-xs text-white/55 mb-3">
-                  Claimed columns (Overall Claimed, Claimed 50STARS, Claimed PROLANE) use the Lead collection
-                  (MongoDB) for this IST window. Received columns stay live Gmail.
-                </p>
+                <h2 className="text-xl font-bold text-white mb-3">Part-wise Leads</h2>
                 {partWiseRows.length === 0 ? (
                   <div className="text-white/70 text-sm">No part data found for this range.</div>
                 ) : (
@@ -2162,16 +2213,36 @@ export default function Leads() {
                           </tr>
                         ))}
                       </tbody>
+                      <tfoot className="sticky bottom-0 z-20 bg-[#4f5ea1] shadow-[0_-1px_0_rgba(255,255,255,0.2)] [transform:translateZ(0)]">
+                        <tr className="font-semibold">
+                          <th className="px-3 py-2 border-r border-white/10 text-left">Total</th>
+                          <th className="px-3 py-2 text-right border-r border-white/10">
+                            {partWiseTotals.received50Stars}
+                          </th>
+                          <th className="px-3 py-2 text-right border-r border-white/10">
+                            {partWiseTotals.claimed50Stars}
+                          </th>
+                          <th className="px-3 py-2 text-right border-r border-white/10">
+                            {partWiseTotals.receivedProlane}
+                          </th>
+                          <th className="px-3 py-2 text-right border-r border-white/10">
+                            {partWiseTotals.claimedProlane}
+                          </th>
+                          <th className="px-3 py-2 text-right border-r border-white/10">
+                            {partWiseTotals.claimed}
+                          </th>
+                          <th className="px-3 py-2 text-right text-emerald-300">
+                            {partWiseTotals.receivedOverall}
+                          </th>
+                        </tr>
+                      </tfoot>
                     </table>
                   </div>
                 )}
               </div>
 
               <div className="rounded-lg border border-white/20 bg-white/10 backdrop-blur-md p-4">
-                <h2 className="text-xl font-bold text-white mb-2">Label-wise Leads</h2>
-                <p className="text-xs text-white/55 mb-3">
-                  Counts are based on lead labels, split by brand from the lead email From entry.
-                </p>
+                <h2 className="text-xl font-bold text-white mb-3">Label-wise Leads</h2>
                 {labelWiseRows.length === 0 ? (
                   <div className="text-white/70 text-sm">No label data found for this range.</div>
                 ) : (
@@ -2231,7 +2302,7 @@ export default function Leads() {
                             <thead className="sticky top-0 z-30 bg-[#5a67a9] shadow-[0_1px_0_rgba(255,255,255,0.2)]">
                               <tr>
                                 <th className="text-left px-2 py-2 border-r border-white/20">Sales Agent</th>
-                                {REPORT_PART_REQUIRED_LABELS.map((part) => (
+                                {PART_WISE_DISPLAY_LABELS.map((part) => (
                                   <th key={`${brand}-part-head-${part}`} className="text-right px-2 py-2 border-r border-white/20">
                                     {part}
                                   </th>
@@ -2244,7 +2315,7 @@ export default function Leads() {
                                 <tr>
                                   <td
                                     className="px-2 py-3 text-center text-white/60"
-                                    colSpan={REPORT_PART_REQUIRED_LABELS.length + 2}
+                                    colSpan={PART_WISE_DISPLAY_LABELS.length + 2}
                                   >
                                     No live Gmail part data found.
                                   </td>
@@ -2253,7 +2324,7 @@ export default function Leads() {
                                 rows.map((row) => (
                                   <tr key={`${brand}-part-${row.agent}`} className="even:bg-white/5">
                                     <td className="px-2 py-1.5 border-r border-white/10">{row.agent}</td>
-                                    {REPORT_PART_REQUIRED_LABELS.map((part) => (
+                                    {PART_WISE_DISPLAY_LABELS.map((part) => (
                                       <td
                                         key={`${brand}-part-${row.agent}-${part}`}
                                         className="px-2 py-1.5 text-right border-r border-white/10 font-semibold text-blue-300"
@@ -2272,7 +2343,7 @@ export default function Leads() {
                               <tfoot className="sticky bottom-0 z-20 bg-[#4f5ea1] shadow-[0_-1px_0_rgba(255,255,255,0.2)] [transform:translateZ(0)]">
                                 <tr className="font-semibold">
                                   <th className="px-2 py-1.5 border-r border-white/10 text-left">Total</th>
-                                  {REPORT_PART_REQUIRED_LABELS.map((part) => (
+                                  {PART_WISE_DISPLAY_LABELS.map((part) => (
                                     <th
                                       key={`${brand}-part-total-${part}`}
                                       className="px-2 py-1.5 text-right border-r border-white/10 text-emerald-300"
@@ -2852,23 +2923,7 @@ export default function Leads() {
               <h3 className="text-lg font-semibold">Total Leads Summary</h3>
               {dateFilter?.start && dateFilter?.end && (
                 <p className="text-xs text-white/70 mt-1">
-                  IST reporting day(s) (4:30 PM – 6:00 AM next day):{" "}
-                  {statsReportingDayKeys.length === 0 ? (
-                    <>
-                      {formatInTimeZone(new Date(dateFilter.start), "Asia/Kolkata", "MMM d, yyyy")}{" "}
-                      -{" "}
-                      {formatInTimeZone(new Date(dateFilter.end), "Asia/Kolkata", "MMM d, yyyy")}
-                    </>
-                  ) : statsReportingDayKeys.length === 1 ? (
-                    formatStatsReportingDayKey(statsReportingDayKeys[0])
-                  ) : (
-                    <>
-                      {formatStatsReportingDayKey(statsReportingDayKeys[0])} -{" "}
-                      {formatStatsReportingDayKey(
-                        statsReportingDayKeys[statsReportingDayKeys.length - 1]
-                      )}
-                    </>
-                  )}
+                  IST reporting day(s) (5:30 AM – 5:00 AM next day): {statsDayModalLine}
                 </p>
               )}
             </div>
