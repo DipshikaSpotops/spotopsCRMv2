@@ -228,6 +228,34 @@ const PART_WISE_DISPLAY_LABELS = [
   "Others",
 ];
 
+/** Part buckets counted as "leads taken" for Sales % (Invalid excluded). */
+const PART_WISE_LEADS_TAKEN_LABELS = PART_WISE_DISPLAY_LABELS.filter((p) => p !== "Invalid");
+
+function partWiseLeadsTaken(counts = {}) {
+  return PART_WISE_LEADS_TAKEN_LABELS.reduce(
+    (sum, part) => sum + (Number(counts?.[part]) || 0),
+    0
+  );
+}
+
+/**
+ * Sales % = conversion rate: (Sale label count ÷ leads taken) × 100.
+ * Leads taken = ABS + Engine + Transmission + Others (Invalid excluded).
+ */
+function formatAgentSalesPct(leadsTaken, saleCount) {
+  const taken = Number(leadsTaken) || 0;
+  const sales = Number(saleCount) || 0;
+  if (taken <= 0) return sales > 0 ? "—" : "0.0%";
+  return `${((sales / taken) * 100).toFixed(1)}%`;
+}
+
+function salesPctTitle(leadsTaken, saleCount) {
+  const taken = Number(leadsTaken) || 0;
+  const sales = Number(saleCount) || 0;
+  const pct = taken > 0 ? ((sales / taken) * 100).toFixed(1) : "—";
+  return `Sales (Sale label): ${sales} ÷ Leads taken: ${taken} × 100 = ${pct}%`;
+}
+
 const CANONICAL_LEAD_LABELS = [
   "Voice Mail",
   "Quoted",
@@ -1648,6 +1676,34 @@ export default function Leads() {
     };
   }, [statistics]);
 
+  /** Sale label count per agent (live Gmail), by brand — denominator for Sales %. */
+  const salesAgentSaleCountsByBrand = useMemo(() => {
+    const apiPayload = statistics?.salesAgentSaleCountsByBrand;
+    const make = (brand) => {
+      const fromApi = apiPayload?.[brand];
+      if (fromApi && typeof fromApi === "object") {
+        return Object.fromEntries(
+          (BRAND_SALES_AGENTS[brand] || []).map((agent) => [
+            agent,
+            Number(fromApi[agent]) || 0,
+          ])
+        );
+      }
+      const rows = salesAgentLabelMatrixByBrand[brand] || [];
+      const saleRow = rows.find((r) => r.label === "Sale");
+      return Object.fromEntries(
+        (BRAND_SALES_AGENTS[brand] || []).map((agent) => [
+          agent,
+          Number(saleRow?.counts?.[agent]) || 0,
+        ])
+      );
+    };
+    return {
+      "50STARS": make("50STARS"),
+      PROLANE: make("PROLANE"),
+    };
+  }, [statistics?.salesAgentSaleCountsByBrand, salesAgentLabelMatrixByBrand]);
+
   const labelWiseTotals = useMemo(() => {
     return labelWiseRows.reduce(
       (acc, row) => {
@@ -2292,6 +2348,16 @@ export default function Leads() {
                   {["50STARS", "PROLANE"].map((brand) => {
                     const rows = salesAgentPartRowsByBrand[brand] || [];
                     const totals = salesAgentPartTotalsByBrand[brand] || {};
+                    const saleCounts = salesAgentSaleCountsByBrand[brand] || {};
+                    const totalLeadsTaken = rows.reduce(
+                      (sum, row) => sum + partWiseLeadsTaken(row.counts),
+                      0
+                    );
+                    const totalSaleLabels = (BRAND_SALES_AGENTS[brand] || []).reduce(
+                      (sum, agent) => sum + (Number(saleCounts[agent]) || 0),
+                      0
+                    );
+                    const totalSalesPct = formatAgentSalesPct(totalLeadsTaken, totalSaleLabels);
                     return (
                       <div key={`part-${brand}`} className="rounded-lg border border-white/10 bg-white/5 p-3">
                         <div className="font-semibold text-white mb-2">
@@ -2307,6 +2373,8 @@ export default function Leads() {
                                     {part}
                                   </th>
                                 ))}
+                                <th className="text-right px-2 py-2 border-r border-white/20">Sale Made</th>
+                                <th className="text-right px-2 py-2 border-r border-white/20">Sales %</th>
                                 <th className="text-right px-2 py-2 text-emerald-300">Total</th>
                               </tr>
                             </thead>
@@ -2315,7 +2383,7 @@ export default function Leads() {
                                 <tr>
                                   <td
                                     className="px-2 py-3 text-center text-white/60"
-                                    colSpan={PART_WISE_DISPLAY_LABELS.length + 2}
+                                    colSpan={PART_WISE_DISPLAY_LABELS.length + 4}
                                   >
                                     No live Gmail part data found.
                                   </td>
@@ -2332,6 +2400,21 @@ export default function Leads() {
                                         {row.counts?.[part] || 0}
                                       </td>
                                     ))}
+                                    <td className="px-2 py-1.5 text-right border-r border-white/10 font-semibold text-violet-200">
+                                      {Number(saleCounts[row.agent]) || 0}
+                                    </td>
+                                    <td
+                                      className="px-2 py-1.5 text-right border-r border-white/10 font-semibold text-amber-200"
+                                      title={salesPctTitle(
+                                        partWiseLeadsTaken(row.counts),
+                                        saleCounts[row.agent]
+                                      )}
+                                    >
+                                      {formatAgentSalesPct(
+                                        partWiseLeadsTaken(row.counts),
+                                        saleCounts[row.agent]
+                                      )}
+                                    </td>
                                     <td className="px-2 py-1.5 text-right font-semibold text-emerald-300">
                                       {row.total || 0}
                                     </td>
@@ -2351,6 +2434,15 @@ export default function Leads() {
                                       {totals?.[part] || 0}
                                     </th>
                                   ))}
+                                  <th className="px-2 py-1.5 text-right border-r border-white/10 text-violet-200">
+                                    {totalSaleLabels}
+                                  </th>
+                                  <th
+                                    className="px-2 py-1.5 text-right border-r border-white/10 text-amber-200"
+                                    title={salesPctTitle(totalLeadsTaken, totalSaleLabels)}
+                                  >
+                                    {totalSalesPct}
+                                  </th>
                                   <th className="px-2 py-1.5 text-right text-emerald-300">
                                     {totals?.total || 0}
                                   </th>

@@ -74,6 +74,29 @@ function pickSalesAgentNameFromGmailLabels(labels = []) {
   return null;
 }
 
+function salesAgentHomeBrand(agentFirstName = "") {
+  const lower = String(agentFirstName || "").trim().toLowerCase();
+  if (!lower) return null;
+  for (const [brand, names] of Object.entries(BRAND_SALES_LABELS)) {
+    if (names.some((n) => String(n).toLowerCase() === lower)) return brand;
+  }
+  return null;
+}
+
+function labelsIncludeSaleLabel(labels = []) {
+  for (const raw of labels || []) {
+    if (normalizeStatsLabel(raw) === "Sale") return true;
+  }
+  return false;
+}
+
+function createSalesAgentSaleCountsSeed() {
+  return {
+    "50STARS": Object.fromEntries(BRAND_SALES_LABELS["50STARS"].map((name) => [name, 0])),
+    PROLANE: Object.fromEntries(BRAND_SALES_LABELS.PROLANE.map((name) => [name, 0])),
+  };
+}
+
 function partRequiredFromSnippet(snippet = "") {
   return String(extractStructuredFields(String(snippet || "")).partRequired || "").trim();
 }
@@ -307,38 +330,45 @@ function incrementSalesAgentLabelCount(counts, brand, labels = []) {
   }
 }
 
-function incrementSalesAgentLabelMatrix(matrix, brand, labels = []) {
-  if (!matrix?.[brand]) return;
-  const brandAgents = BRAND_SALES_LABELS[brand] || [];
-  const lowerToAgent = new Map(brandAgents.map((name) => [name.toLowerCase(), name]));
-  const rawLowerSet = new Set(
-    labels
-      .map((label) => String(label || "").trim().toLowerCase())
-      .filter(Boolean)
+function incrementSalesAgentLabelMatrix(matrix, _messageBrand, labels = []) {
+  const agentsOnMessage = [];
+  const lower = new Set(
+    labels.map((l) => String(l || "").trim().toLowerCase()).filter(Boolean)
   );
-
-  const agentNames = new Set();
-  rawLowerSet.forEach((lower) => {
-    const agent = lowerToAgent.get(lower);
-    if (agent) agentNames.add(agent);
-  });
-  if (agentNames.size === 0) return;
+  for (const [agentBrand, names] of Object.entries(BRAND_SALES_LABELS)) {
+    for (const name of names) {
+      if (lower.has(String(name).toLowerCase())) {
+        agentsOnMessage.push({ agent: name, brand: agentBrand });
+      }
+    }
+  }
+  if (agentsOnMessage.length === 0) return;
 
   const labelNames = new Set();
   labels.forEach((rawLabel) => {
-    const lower = String(rawLabel || "").trim().toLowerCase();
-    if (!lower) return;
-    if (lowerToAgent.has(lower)) return;
+    const labLower = String(rawLabel || "").trim().toLowerCase();
+    if (!labLower) return;
+    if (ALL_SALES_AGENT_NAMES_LOWER.has(labLower)) return;
     const normalized = normalizeStatsLabel(rawLabel);
     if (normalized) labelNames.add(normalized);
   });
 
-  labelNames.forEach((label) => {
-    if (!matrix[brand][label]) return;
-    agentNames.forEach((agent) => {
-      matrix[brand][label][agent] = (matrix[brand][label][agent] || 0) + 1;
+  for (const { agent, brand: agentBrand } of agentsOnMessage) {
+    if (!matrix?.[agentBrand]) continue;
+    labelNames.forEach((label) => {
+      if (!matrix[agentBrand][label]) return;
+      matrix[agentBrand][label][agent] = (matrix[agentBrand][label][agent] || 0) + 1;
     });
-  });
+  }
+}
+
+function incrementSalesAgentSaleCount(saleCounts, labels = []) {
+  const agent = pickSalesAgentNameFromGmailLabels(labels);
+  if (!agent || !labelsIncludeSaleLabel(labels)) return;
+  const homeBrand = salesAgentHomeBrand(agent);
+  if (homeBrand !== "50STARS" && homeBrand !== "PROLANE") return;
+  if (!saleCounts[homeBrand]) saleCounts[homeBrand] = {};
+  saleCounts[homeBrand][agent] = (saleCounts[homeBrand][agent] || 0) + 1;
 }
 
 const __filename = fileURLToPath(import.meta.url);
@@ -2086,6 +2116,7 @@ export async function getDailyStatisticsHandler(req, res, next) {
           salesAgentLabelCountsByBrand: createSalesAgentLabelCountsSeed(),
           salesAgentLabelMatrixByBrand: createSalesAgentLabelMatrixSeed(),
           salesAgentPartMatrixByBrand: createSalesAgentPartMatrixSeed(),
+          salesAgentSaleCountsByBrand: createSalesAgentSaleCountsSeed(),
           agentStats: [],
           debug: { message: `No user found with email: ${emailToFilter}` },
         });
@@ -2366,6 +2397,7 @@ export async function getDailyStatisticsHandler(req, res, next) {
     const salesAgentLabelCountsByBrand = createSalesAgentLabelCountsSeed();
     const salesAgentLabelMatrixByBrand = createSalesAgentLabelMatrixSeed();
     const salesAgentPartMatrixByBrand = createSalesAgentPartMatrixSeed();
+    const salesAgentSaleCountsByBrand = createSalesAgentSaleCountsSeed();
 
     for (const row of rowsForStats) {
       const combinedLabels = dedupeLabelStrings([...(row.labels || [])]);
@@ -2374,6 +2406,7 @@ export async function getDailyStatisticsHandler(req, res, next) {
 
       incrementSalesAgentLabelCount(salesAgentLabelCountsByBrand, brand, combinedLabels);
       incrementSalesAgentLabelMatrix(salesAgentLabelMatrixByBrand, brand, combinedLabels);
+      incrementSalesAgentSaleCount(salesAgentSaleCountsByBrand, combinedLabels);
       incrementSalesAgentPartMatrix(
         salesAgentPartMatrixByBrand,
         brand,
@@ -2409,6 +2442,7 @@ export async function getDailyStatisticsHandler(req, res, next) {
       salesAgentLabelCountsByBrand,
       salesAgentLabelMatrixByBrand,
       salesAgentPartMatrixByBrand,
+      salesAgentSaleCountsByBrand,
       agentStats,
       dateRange: {
         start: start.toISOString(),
