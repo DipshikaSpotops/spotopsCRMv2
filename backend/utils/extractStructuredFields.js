@@ -1,3 +1,84 @@
+import { normalizePartRequiredLabel } from "./normalizePartRequiredLabel.js";
+
+/** Snippet/HTML often truncates at ":" (e.g. VIN:) or returns a fragment like "Anti". */
+function isWeakPartCandidate(part = "") {
+  const t = String(part || "").trim();
+  if (!t) return true;
+  if (t.length < 5) return true;
+  if (normalizePartRequiredLabel(t) === "Others") return true;
+  return false;
+}
+
+function extractPartRequiredFromText(textContent = "") {
+  const m = String(textContent || "").match(
+    /(?:Part Required|Part Needed)\s*:\s*(.+?)(?=\s+(?:VIN|Offer|Offer Selected|Good Luck|©|50\s*Stars|Prolane|Pro\s*Lane|Name|Email|Phone|Phone Number|Year|Make|Model)\s*:|$)/i
+  );
+  if (!m?.[1]) return "";
+  let value = m[1].replace(/\s+/g, " ").trim();
+  const endPhrases = [
+    "Offer",
+    "Offer Selected",
+    "Good Luck",
+    "©",
+    "50 Stars",
+    "Prolane Auto Parts",
+    "Pro Lane",
+    "Prolane",
+    "Auto Parts",
+    "@media",
+  ];
+  for (const phrase of endPhrases) {
+    const idx = value.toLowerCase().indexOf(phrase.toLowerCase());
+    if (idx > 0) value = value.substring(0, idx).trim();
+  }
+  return value.replace(/[.\s]+$/, "").trim();
+}
+
+/**
+ * Parse "{Part} - New Lead - …" from a subject line or body/snippet text.
+ */
+export function partFromLeadSubjectLine(subject = "") {
+  const text = String(subject || "").trim();
+  if (!text) return "";
+  const m = text.match(
+    /\b([A-Za-z0-9&][A-Za-z0-9\s&'./-]{0,80}?)\s*-\s*New Lead\s*-\s*(?:Prolane|Pro\s*Lane|50\s*Stars|50STARS|50\s*Stars\s*Auto)/i
+  );
+  if (m?.[1]) {
+    const v = m[1].replace(/\s+/g, " ").trim();
+    if (v.length >= 2 && v.length < 90) return v;
+  }
+  const plain = text.match(/^([^-]+?)\s*-\s*New Lead\b/i);
+  if (plain?.[1]) {
+    const v = plain[1].trim();
+    if (v.length >= 2 && v.length < 80) return v;
+  }
+  return "";
+}
+
+/**
+ * Prefer subject when body/snippet only yield a weak fragment; full HTML still wins when strong.
+ */
+export function resolvePartRequired({ html, snippet, subject } = {}) {
+  const fromSubject = partFromLeadSubjectLine(subject);
+  const fromHtml = html ? String(extractStructuredFields(html).partRequired || "").trim() : "";
+  if (fromHtml && !isWeakPartCandidate(fromHtml)) return fromHtml;
+  if (fromSubject) return fromSubject;
+  if (fromHtml) return fromHtml;
+  if (snippet && snippet !== html) {
+    const fromSn = String(extractStructuredFields(snippet).partRequired || "").trim();
+    if (fromSn && !isWeakPartCandidate(fromSn)) return fromSn;
+    if (fromSubject) return fromSubject;
+    if (fromSn) return fromSn;
+  }
+  if (!html && snippet) {
+    const fromSn = String(extractStructuredFields(snippet).partRequired || "").trim();
+    if (fromSn && !isWeakPartCandidate(fromSn)) return fromSn;
+    if (fromSubject) return fromSubject;
+    if (fromSn) return fromSn;
+  }
+  return fromSubject || "";
+}
+
 /**
  * Extract structured fields from lead-form email HTML (shared by gmail controller + inbound stats).
  */
@@ -15,6 +96,9 @@ export function extractStructuredFields(html) {
     .replace(/&#39;/g, "'");
   textContent = textContent.replace(/@media[^}]*}/g, "");
 
+  const robustPart = extractPartRequiredFromText(textContent);
+  if (robustPart) fields.partRequired = robustPart;
+
   const patterns = {
     name: /(?:Name|Full Name|Customer Name)[\s:]+([^:]*?)(?=\s*(?:Email|Phone|Phone Number|Year|Make|Model|Part|Good Luck|©|50 Stars)|$)/i,
     email: /(?:Email|Email Address)[\s:]+([^\s:<>]+@[^\s:<>]+(?:\.[^\s:<>]+)*)(?=\s*(?:Phone|Phone Number|Year|Make|Model|Part|Good Luck|©|50 Stars)|$)/i,
@@ -28,6 +112,7 @@ export function extractStructuredFields(html) {
 
   for (const [key, pattern] of Object.entries(patterns)) {
     if (key === "partRequired") {
+      if (fields.partRequired) continue;
       const allMatches = [
         ...textContent.matchAll(new RegExp(pattern.source, pattern.flags + "g")),
       ];
@@ -102,17 +187,6 @@ export function extractStructuredFields(html) {
           fields[key] = value;
         }
       }
-    }
-  }
-
-  /** Common inbox/snippet format: "{Part} - New Lead - Prolane …" / "50 Stars …" */
-  if (!fields.partRequired) {
-    const leadLine = textContent.match(
-      /\b([A-Za-z0-9&][A-Za-z0-9\s&'./-]{0,80}?)\s*-\s*New Lead\s*-\s*(?:Prolane|Pro\s*Lane|50\s*Stars|50STARS|50\s*Stars\s*Auto)/i
-    );
-    if (leadLine && leadLine[1]) {
-      let v = leadLine[1].replace(/\s+/g, " ").trim();
-      if (v.length >= 2 && v.length < 90) fields.partRequired = v;
     }
   }
 

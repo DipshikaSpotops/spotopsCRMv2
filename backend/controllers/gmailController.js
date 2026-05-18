@@ -20,7 +20,7 @@ import {
   bucketInternalMsToReportingDay,
   buildPartWiseReceivedFromMessageIds,
 } from "../services/gmailInboundStats.js";
-import { extractStructuredFields } from "../utils/extractStructuredFields.js";
+import { extractStructuredFields, resolvePartRequired } from "../utils/extractStructuredFields.js";
 import { labelsIncludeInvalidDisposition } from "../utils/invalidLeadDispositionLabels.js";
 import { normalizePartRequiredLabel } from "../utils/normalizePartRequiredLabel.js";
 import { getGmailClient, getAuthUrl, setTokensFromCode, getUserEmail, clearTokenCache } from "../services/googleAuth.js";
@@ -97,8 +97,11 @@ function createSalesAgentSaleCountsSeed() {
   };
 }
 
-function partRequiredFromSnippet(snippet = "") {
-  return String(extractStructuredFields(String(snippet || "")).partRequired || "").trim();
+function partRequiredFromLeadRow(row = {}) {
+  return resolvePartRequired({
+    snippet: row.snippet,
+    subject: row.subject,
+  });
 }
 
 function normalizeReportPartRequiredLabel(partRequired = "") {
@@ -2221,7 +2224,7 @@ export async function getDailyStatisticsHandler(req, res, next) {
       const agentId = userMatch?._id?.toString() || agentFirst || "unassigned";
       const agentName = userMatch?.firstName || agentFirst || "Unassigned";
       const agentEmailOut = userMatch?.email || "—";
-      const partReq = partRequiredFromSnippet(r.snippet);
+      const partReq = partRequiredFromLeadRow(r);
 
       const leadLike = {
         _id: r.messageId,
@@ -2345,6 +2348,9 @@ export async function getDailyStatisticsHandler(req, res, next) {
     if (targetUser && rowsForStats.length !== liveRowsAll.length) {
       const gmail = await getGmailClient();
       const snippetByMessageId = new Map(rowsForStats.map((x) => [x.messageId, x.snippet || ""]));
+      const subjectByMessageId = new Map(
+        rowsForStats.map((x) => [x.messageId, x.subject || ""]).filter(([id]) => Boolean(id))
+      );
       const brandMap = new Map();
       rowsForStats.forEach((row) => {
         const b =
@@ -2359,6 +2365,7 @@ export async function getDailyStatisticsHandler(req, res, next) {
         gmail,
         brandByMessageId: brandMap,
         snippetByMessageId,
+        subjectByMessageId,
         liveGmailOnly: true,
       });
       let invalidReceived = 0;
@@ -2411,7 +2418,7 @@ export async function getDailyStatisticsHandler(req, res, next) {
         salesAgentPartMatrixByBrand,
         brand,
         pickSalesAgentNameFromGmailLabels(combinedLabels),
-        partRequiredFromSnippet(row.snippet),
+        partRequiredFromLeadRow(row),
         labelsIncludeInvalidDisposition(combinedLabels) ? { asInvalid: true } : {}
       );
       const labelWiseSources = combinedLabels.filter((l) => !isSalesAgentFirstNameLabel(l));

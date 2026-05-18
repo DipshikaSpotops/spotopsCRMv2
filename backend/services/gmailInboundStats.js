@@ -1,7 +1,7 @@
 import moment from "moment-timezone";
 import GmailMessage from "../models/GmailMessage.js";
 import Lead from "../models/Lead.js";
-import { extractStructuredFields } from "../utils/extractStructuredFields.js";
+import { resolvePartRequired } from "../utils/extractStructuredFields.js";
 import { labelsIncludeInvalidDisposition } from "../utils/invalidLeadDispositionLabels.js";
 import { normalizePartRequiredLabel } from "../utils/normalizePartRequiredLabel.js";
 import { getGmailClient } from "./googleAuth.js";
@@ -161,10 +161,28 @@ function extractHtmlFromGmailPayload(payload) {
   return findHtmlPart(payload) || "";
 }
 
-function partFromParsed(htmlOrSnippet) {
-  if (!htmlOrSnippet) return "";
-  const p = String(extractStructuredFields(htmlOrSnippet).partRequired || "").trim();
-  return p;
+function partFromParsed(htmlOrSnippet, subject = "") {
+  return resolvePartRequired({ html: htmlOrSnippet, snippet: htmlOrSnippet, subject });
+}
+
+/** Snippet-only false positives (brand name as "part") must not block full-body parse. */
+function isJunkInboundPartCandidate(raw = "") {
+  const t = String(raw || "").trim();
+  if (!t) return true;
+  const lower = t.toLowerCase();
+  const looksLikeBrand =
+    (/\b50\s*stars\b/.test(lower) || /\bprolane\b/.test(lower) || /\bpro\s*lane\b/.test(lower)) &&
+    /\bauto\s*parts\b/.test(lower);
+  if (looksLikeBrand && !/\b(abs|engine|transmission|anti\s*lock|braking)\b/i.test(lower)) {
+    return true;
+  }
+  if (/\bnew\s+lead\b/i.test(lower) && normalizePartRequiredLabel(t) === "Others") return true;
+  return false;
+}
+
+function acceptPreliminaryPart(raw = "") {
+  const t = String(raw || "").trim();
+  return Boolean(t) && !isJunkInboundPartCandidate(t);
 }
 
 /**
@@ -172,21 +190,27 @@ function partFromParsed(htmlOrSnippet) {
  * When `liveGmailOnly` + `snippetByMessageId`: skip DB and use snippets first, then full fetch for gaps.
  */
 export async function buildPartWiseReceivedFromMessageIds(messageIds, options = {}) {
-  const { gmail, snippetByMessageId, liveGmailOnly = false } = options;
+  const { gmail, snippetByMessageId, subjectByMessageId, liveGmailOnly = false } = options;
+  const subjectMap =
+    subjectByMessageId instanceof Map ? subjectByMessageId : new Map();
   const partWiseReceived = new Map();
   const partWiseReceivedByBrand = new Map();
   const brandByMessageId = options.brandByMessageId instanceof Map ? options.brandByMessageId : new Map();
-  if (!messageIds?.length) return { partWiseReceived, partWiseReceivedByBrand };
+  if (!messageIds?.length) {
+    return { partWiseReceived, partWiseReceivedByBrand, resolvedByMessageId: resolved };
+  }
 
   const uniq = [...new Set(messageIds)];
   const resolved = new Map();
 
-  if (snippetByMessageId instanceof Map) {
+  if (snippetByMessageId instanceof Map || subjectMap.size > 0) {
     for (const mid of uniq) {
-      const sn = snippetByMessageId.get(mid);
-      if (!sn) continue;
-      const p = partFromParsed(sn);
-      if (p) resolved.set(mid, p);
+      const sn =
+        snippetByMessageId instanceof Map ? snippetByMessageId.get(mid) || "" : "";
+      const subj = subjectMap.get(mid) || "";
+      if (!sn && !subj) continue;
+      const p = partFromParsed(sn, subj);
+      if (acceptPreliminaryPart(p)) resolved.set(mid, p);
     }
   }
 
@@ -194,10 +218,11 @@ export async function buildPartWiseReceivedFromMessageIds(messageIds, options = 
 
   if (!liveGmailOnly && missing.length) {
     const leads = await Lead.find({ messageId: { $in: missing } })
-      .select("messageId partRequired")
+      .select("messageId partRequired subject")
       .lean();
     for (const l of leads) {
-      const p = String(l.partRequired || "").trim();
+      let p = String(l.partRequired || "").trim();
+      if (!p) p = partFromParsed("", l.subject);
       if (p) resolved.set(l.messageId, p);
     }
     missing = uniq.filter((id) => !resolved.has(id));
@@ -205,11 +230,12 @@ export async function buildPartWiseReceivedFromMessageIds(messageIds, options = 
 
   if (!liveGmailOnly && missing.length) {
     const gdocs = await GmailMessage.find({ messageId: { $in: missing } })
-      .select("messageId bodyHtml snippet")
+      .select("messageId bodyHtml snippet subject")
       .lean();
     for (const g of gdocs) {
-      let p = partFromParsed(g.bodyHtml || "");
-      if (!p) p = partFromParsed(g.snippet || "");
+      const subj = subjectMap.get(g.messageId) || g.subject || "";
+      let p = partFromParsed(g.bodyHtml || "", subj);
+      if (!p) p = partFromParsed(g.snippet || "", subj);
       if (p) resolved.set(g.messageId, p);
     }
     missing = uniq.filter((id) => !resolved.has(id));
@@ -231,7 +257,7 @@ export async function buildPartWiseReceivedFromMessageIds(messageIds, options = 
               format: "full",
             });
             const html = extractHtmlFromGmailPayload(data.payload);
-            const p = partFromParsed(html);
+            const p = partFromParsed(html, subjectMap.get(id));
             return { id, p };
           } catch {
             return { id, p: "" };
@@ -246,14 +272,24 @@ export async function buildPartWiseReceivedFromMessageIds(messageIds, options = 
   }
 
   const CANONICAL_OTHER = "Others";
+  const REPORT_RECEIVED_PART_KEYS = new Set([
+    "Anti Lock Braking",
+    "Engine",
+    "Transmission",
+  ]);
+
+  function toReceivedPartKey(raw = "") {
+    const trimmed = String(raw || "").trim();
+    if (!trimmed) return CANONICAL_OTHER;
+    const norm = normalizePartRequiredLabel(trimmed);
+    if (!norm || norm === CANONICAL_OTHER) return CANONICAL_OTHER;
+    if (REPORT_RECEIVED_PART_KEYS.has(norm)) return norm;
+    return CANONICAL_OTHER;
+  }
 
   for (const mid of uniq) {
     const raw = resolved.get(mid);
-    let partKey = "";
-    if (raw && String(raw).trim()) {
-      partKey = normalizePartRequiredLabel(String(raw).trim());
-    }
-    if (!partKey) partKey = CANONICAL_OTHER;
+    const partKey = toReceivedPartKey(raw);
 
     partWiseReceived.set(partKey, (partWiseReceived.get(partKey) || 0) + 1);
 
@@ -268,7 +304,7 @@ export async function buildPartWiseReceivedFromMessageIds(messageIds, options = 
     }
   }
 
-  return { partWiseReceived, partWiseReceivedByBrand };
+  return { partWiseReceived, partWiseReceivedByBrand, resolvedByMessageId: resolved };
 }
 
 /**
@@ -406,12 +442,16 @@ export async function fetchInboundCountsFromGmailApi({
   const snippetByMessageId = new Map(
     labelStatRows.map((r) => [r.messageId, r.snippet || ""]).filter(([id]) => Boolean(id))
   );
+  const subjectByMessageId = new Map(
+    labelStatRows.map((r) => [r.messageId, r.subject || ""]).filter(([id]) => Boolean(id))
+  );
   const { partWiseReceived, partWiseReceivedByBrand } = await buildPartWiseReceivedFromMessageIds(
     partEligibleMessageIds,
     {
       gmail,
       brandByMessageId,
       snippetByMessageId,
+      subjectByMessageId,
       liveGmailOnly: true,
     }
   );
@@ -489,6 +529,7 @@ export async function fetchInboundCountsFromMongoIst({
   const acceptedMessageIds = [];
   const partEligibleMessageIds = [];
   const brandByMessageId = new Map();
+  const subjectByMessageId = new Map();
   const rowsForInvalidRollup = [];
 
   for (const doc of rows) {
@@ -506,6 +547,7 @@ export async function fetchInboundCountsFromMongoIst({
     totalInboundFromGmail += 1;
     if (doc.messageId) {
       acceptedMessageIds.push(doc.messageId);
+      if (doc.subject) subjectByMessageId.set(doc.messageId, doc.subject);
       const detectedBrand = detectLeadBrandFromGmailLeanDoc(doc);
       if (detectedBrand) {
         brandByMessageId.set(doc.messageId, detectedBrand);
@@ -529,6 +571,7 @@ export async function fetchInboundCountsFromMongoIst({
     {
       gmail: gmailForParts,
       brandByMessageId,
+      subjectByMessageId,
     }
   );
 

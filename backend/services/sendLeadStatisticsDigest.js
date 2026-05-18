@@ -7,7 +7,7 @@ import {
   reportingDayBoundsMs,
 } from "./gmailInboundStats.js";
 import { getGmailClient } from "./googleAuth.js";
-import { extractStructuredFields } from "../utils/extractStructuredFields.js";
+import { resolvePartRequired } from "../utils/extractStructuredFields.js";
 import { labelsIncludeInvalidDisposition } from "../utils/invalidLeadDispositionLabels.js";
 import { normalizePartRequiredLabel } from "../utils/normalizePartRequiredLabel.js";
 import { createGmailServiceTransport } from "../utils/serviceGmailTransport.js";
@@ -76,8 +76,11 @@ function pickSalesAgentNameFromLabels(labels = []) {
   return "";
 }
 
-function partRequiredFromSnippet(snippet = "") {
-  return String(extractStructuredFields(String(snippet || "")).partRequired || "").trim();
+function partRequiredFromLeadRow(row = {}) {
+  return resolvePartRequired({
+    snippet: row.snippet,
+    subject: row.subject,
+  });
 }
 
 function normalizeReportPart(partRequired = "") {
@@ -423,6 +426,9 @@ async function buildDigestData({
     const snippetByMessageId = new Map(
       rowsForAgent.map((row) => [row.messageId, row.snippet || ""]).filter(([id]) => Boolean(id))
     );
+    const subjectByMessageId = new Map(
+      rowsForAgent.map((row) => [row.messageId, row.subject || ""]).filter(([id]) => Boolean(id))
+    );
     const brandByMessageId = new Map();
     rowsForAgent.forEach((row) => {
       const brand = detectBrandFromLead(row);
@@ -436,6 +442,7 @@ async function buildDigestData({
       gmail,
       brandByMessageId,
       snippetByMessageId,
+      subjectByMessageId,
       liveGmailOnly: true,
     });
     let invalidReceived = 0;
@@ -465,7 +472,7 @@ async function buildDigestData({
       liveSalesAgentPartMatrixByBrand,
       brand,
       pickSalesAgentNameFromLabels(row.labels || []),
-      partRequiredFromSnippet(row.snippet),
+      partRequiredFromLeadRow(row),
       inv ? { asInvalid: true } : {}
     );
   });
