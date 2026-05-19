@@ -99,6 +99,7 @@ export default function Sidebar() {
         { text: "Yard Data", to: "/yards", adminOnly: true, emailAccess: "50starsauto110@gmail.com" },
         { text: "CX Approved Orders", to: "/customer-approved" },
         { text: "Yard Processing Orders", to: "/yard-processing" },
+        { text: "Priority Orders", to: "/priority-orders" },
         { text: "Own Shipping", to: "/own-shipping-orders" },
         { text: "Expedite Shipping", to: "/yard-expedite" },
         { text: "Junk Parts", to: "/junk-parts" },

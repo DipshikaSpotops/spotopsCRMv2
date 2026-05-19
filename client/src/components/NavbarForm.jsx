@@ -59,6 +59,7 @@ export default function NavbarForm() {
       ["View All Orders", "/view-all-orders"],
       ["Yard Located Orders", "/yard-located"],
       ["Yard Processing Orders", "/yard-processing"],
+      ["Priority Orders", "/priority-orders"],
       ["Own Shipping Orders", "/own-shipping-orders"],
       ["In Transit Orders", "/in-transit"],
       ["Sales Data", "/sales-data"],
