@@ -1,8 +1,9 @@
 // /src/pages/MonthlyOrders.jsx
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import OrdersTable from "../components/OrdersTable";
 import useOrdersRealtime from "../hooks/useOrdersRealtime";
 import useBrand from "../hooks/useBrand";
+import API from "../api";
 
 /* ---------- Columns (order matters) ---------- */
 const columns = [
@@ -91,9 +92,34 @@ function computeYardDerived(yard) {
 }
 
 /* ---------- Page ---------- */
+function readAuthEmailRole() {
+  try {
+    const raw = localStorage.getItem("auth");
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      return {
+        role: parsed?.user?.role || localStorage.getItem("role") || "",
+        email: (parsed?.user?.email || localStorage.getItem("email") || "").toLowerCase(),
+      };
+    }
+  } catch {
+    /* ignore */
+  }
+  return {
+    role: localStorage.getItem("role") || "",
+    email: (localStorage.getItem("email") || "").toLowerCase(),
+  };
+}
+
 export default function MonthlyOrders() {
   const [expandedIds, setExpandedIds] = useState(() => new Set());
+  const [sendingSalesReport, setSendingSalesReport] = useState(false);
   const brand = useBrand(); // 50STARS / PROLANE
+
+  const canSendSalesReport = useMemo(() => {
+    const { role, email } = readAuthEmailRole();
+    return role === "Admin" || email === "50starsauto110@gmail.com";
+  }, []);
 
   const toggleExpand = useCallback((row) => {
     const id = row._id || row.orderNo || `${row.orderDate || ""}-${Math.random()}`;
@@ -305,6 +331,30 @@ export default function MonthlyOrders() {
     return params;
   }, []);
 
+  const handleSendSalesReport = useCallback(async (filter) => {
+    const payload = {};
+    if (filter?.start && filter?.end) {
+      payload.start = filter.start;
+      payload.end = filter.end;
+    } else if (filter?.month && filter?.year) {
+      payload.month = filter.month;
+      payload.year = filter.year;
+    } else {
+      window.alert("Select a date range or month before sending the sales report.");
+      return;
+    }
+    setSendingSalesReport(true);
+    try {
+      const { data } = await API.post("/orders/monthlyOrders/send-sales-report", payload);
+      window.alert(data?.message || "Sales report email sent.");
+    } catch (err) {
+      const msg = err?.response?.data?.message || err?.message || "Failed to send sales report.";
+      window.alert(msg);
+    } finally {
+      setSendingSalesReport(false);
+    }
+  }, []);
+
   // Realtime: when orders change, refetch monthly data with the current filter.
   useOrdersRealtime({
     enabled: true,
@@ -387,6 +437,21 @@ export default function MonthlyOrders() {
       extraTotals={paymentSourceTotals}
       paramsBuilder={paramsBuilder}
       tableId="monthlyOrders"
+      subheaderExtra={
+        canSendSalesReport
+          ? ({ activeFilter }) => (
+              <button
+                type="button"
+                onClick={() => handleSendSalesReport(activeFilter)}
+                disabled={sendingSalesReport}
+                className="px-4 py-2 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white text-sm font-medium disabled:opacity-60 whitespace-nowrap"
+                title="Email sales report for the selected range (50STARS + Prolane)"
+              >
+                {sendingSalesReport ? "Sending…" : "Send Sales Report"}
+              </button>
+            )
+          : null
+      }
     />
   );
 }

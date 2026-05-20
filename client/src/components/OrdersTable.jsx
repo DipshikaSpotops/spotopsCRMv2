@@ -323,6 +323,8 @@ export default function OrdersTable({
   rowsPerPage = ROWS_PER_PAGE, // allow per-page override
   tableId, // optional: identifier so realtime hooks can trigger refetch
   customFilters, // optional: custom filter components to render next to agent filter
+  /** Rendered beside UnifiedDatePicker in the subheader row (e.g. Send Sales Report). */
+  subheaderExtra = null,
   /** When no saved filter in localStorage, use this (e.g. today-only for Daily Sales GP) */
   defaultFilter = null,
 }) {
@@ -1165,6 +1167,9 @@ export default function OrdersTable({
               setCurrentPage(1);
             }}
           />
+          {typeof subheaderExtra === "function"
+            ? subheaderExtra({ activeFilter })
+            : subheaderExtra}
         </div>
 
         {/* RIGHT: compact pagination */}

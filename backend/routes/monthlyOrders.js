@@ -3,6 +3,7 @@ import express from 'express';
 import moment from 'moment-timezone';
 import { getOrderModelForBrand } from '../models/Order.js';
 import { requireAuth, allow } from '../middleware/auth.js';
+import { sendSalesReportEmail } from '../services/sendSalesReportEmail.js';
 
 const router = express.Router();
 const TZ = 'America/Chicago';
@@ -421,6 +422,40 @@ router.get('/', requireAuth, allow('Admin', 'Sales', 'Support'), async (req, res
     const msg = err?.message?.includes('Provide either start/end')
       ? err.message
       : 'Internal server error';
+    return res.status(500).json({ message: msg });
+  }
+});
+
+/* POST /orders/monthlyOrders/send-sales-report — Admin or 50starsauto110@gmail.com */
+router.post('/send-sales-report', requireAuth, allow('Admin', 'Sales', 'Support'), async (req, res) => {
+  try {
+    const role = String(req.user?.role || '').trim();
+    const email = String(req.user?.email || '').trim().toLowerCase();
+    const isAdmin = role === 'Admin';
+    const isAuthorizedEmail = email === '50starsauto110@gmail.com';
+    if (!isAdmin && !isAuthorizedEmail) {
+      return res.status(403).json({
+        message: 'Access denied. Admin or 50starsauto110@gmail.com only.',
+      });
+    }
+
+    const { start, end, month, year } = req.body || {};
+    const result = await sendSalesReportEmail({ start, end, month, year });
+    return res.json({
+      ok: true,
+      message: 'Sales report email sent.',
+      dayLabel: result.dayLabel,
+      agentCount: result.rows.length,
+      totals: result.totals,
+      recipients: result.recipients,
+    });
+  } catch (err) {
+    console.error('Error sending sales report:', err);
+    const msg =
+      err?.message?.includes('Provide either start/end') ||
+      err?.message?.includes('Invalid month/year')
+        ? err.message
+        : err?.message || 'Failed to send sales report';
     return res.status(500).json({ message: msg });
   }
 });

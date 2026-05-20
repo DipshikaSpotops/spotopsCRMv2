@@ -37,8 +37,16 @@ function pickEnv(baseKey, brand) {
   return process.env[base] || "";
 }
 
-function getEmailBrandConfig(req) {
-  const brand = getBrand(req);
+/** Prefer order-number prefix so PROLANE0160 always uses Prolane branding. */
+function resolveBrandFromOrderNo(orderNo, fallbackBrand = "50STARS") {
+  const no = String(orderNo || "").trim().toUpperCase();
+  if (no.startsWith("PROLANE")) return "PROLANE";
+  if (no.startsWith("50STARS")) return "50STARS";
+  return fallbackBrand === "PROLANE" ? "PROLANE" : "50STARS";
+}
+
+function getEmailBrandConfig(req, brandOverride) {
+  const brand = brandOverride || getBrand(req);
 
   const serviceEmail = pickEnv("SERVICE_EMAIL", brand);
   const servicePass = pickEnv("SERVICE_PASS", brand);
@@ -82,6 +90,9 @@ function getEmailBrandConfig(req) {
       ? "purchase@prolaneautoparts.com"
       : "purchase@auto-partsgroup.com";
 
+  const customerFacingName =
+    brand === "PROLANE" ? "Prolane Auto Parts" : "50 Stars Auto Parts";
+
   return {
     brand,
     serviceEmail,
@@ -91,12 +102,26 @@ function getEmailBrandConfig(req) {
     purchaseEmail,
     purchasePass,
     companyName,
+    customerFacingName,
     websiteUrl,
     phoneNumber,
     purchaseDisplayName,
     serviceEmailAddress,
     purchaseEmailAddress,
   };
+}
+
+function buildCustomerSignatureHtml(firstName, cfg) {
+  const {
+    companyName,
+    phoneNumber,
+    serviceEmailAddress,
+    websiteUrl,
+  } = cfg;
+  const siteHref = String(websiteUrl || "").startsWith("http")
+    ? websiteUrl
+    : `https://${websiteUrl}`;
+  return `<p>${firstName || "Team Member"}<br/>Customer Service Team<br/>${companyName}<br/>${phoneNumber}<br/>${serviceEmailAddress}<br/><a href="${siteHref}">${websiteUrl}</a></p>`;
 }
 
 const cardNumber = process.env.CARD_NUMBER || "**** **** **** 7195";
@@ -219,7 +244,8 @@ router.post("/order-cancel/:orderNo", async (req, res) => {
     const firstName = getSupportDisplayName(req.query.firstName ?? "", req);
     console.log("[emails] params:", { orderNo, cancelledRefAmount, firstName });
 
-    const Order = getOrderModel(req);
+    const brand = resolveBrandFromOrderNo(orderNo, getBrand(req));
+    const Order = getOrderModelForBrand(brand);
     const order = await Order.findOne({ orderNo });
     if (!order) return res.status(404).json({ message: "Order not found" });
 
@@ -234,16 +260,18 @@ router.post("/order-cancel/:orderNo", async (req, res) => {
     if (!toEmail)
       return res.status(400).json({ message: "No customer email on file" });
 
+    const emailCfg = getEmailBrandConfig(req, brand);
     const {
       serviceEmail,
       servicePass,
       supportBcc,
       logoUrl,
       companyName,
+      customerFacingName,
       phoneNumber,
       serviceEmailAddress,
       websiteUrl,
-    } = getEmailBrandConfig(req);
+    } = emailCfg;
 
     const transporter = nodemailer.createTransport({
       service: "gmail",
@@ -254,21 +282,21 @@ router.post("/order-cancel/:orderNo", async (req, res) => {
     });
 
     await transporter.sendMail({
-      from: `"50 Stars Auto Parts" <${serviceEmail}>`,
+      from: `"${customerFacingName}" <${serviceEmail}>`,
       to: toEmail,
       bcc: supportBcc,
       subject: `Order Cancellation | ${order.orderNo}`,
       html: `<div style="font-size:16px;line-height:1.7;">
         <p>I hope this email finds you well. I am writing to inform you about the cancellation of your recent order# <b>${order.orderNo}</b>, dated <b>${formattedDate}</b>, for a <b>${order.year} ${order.make}
-        ${order.model} ${order.pReq}</b> with <b>50 Stars Auto Parts</b>.</p>
+        ${order.model} ${order.pReq}</b> with <b>${customerFacingName}</b>.</p>
         <p>We regret any inconvenience this may have caused you.</p>
         <p><b>We have cancelled your order and will refund you $${cancelledRefAmount}  to the same source account.</b></p>
         <p>Please call us if you have any questions. Rest assured, any payment made for the cancelled order will be promptly refunded to your original payment method. You can expect to see the refund reflected in your account within 10-15 business days(sometimes sooner).</p>
         <p>We understand the importance of timely and efficient service, and we sincerely apologize for any inconvenience this cancellation may have caused. Our team is working diligently to prevent such occurrences in the future.</p>
-        <p>If you have any questions or require further assistance, please don't hesitate to contact our customer support team at <b>+1 (866) 207-5533</b>. We are here to assist you in any way we can. Thank you for your understanding and continued support.</p>
+        <p>If you have any questions or require further assistance, please don't hesitate to contact our customer support team at <b>${phoneNumber}</b>. We are here to assist you in any way we can. Thank you for your understanding and continued support.</p>
         <p><b>Please reply to this email with a quick confirmation to acknowledge and approve this cancellation request.</b></p>
         <p><img src="cid:logo" alt="logo" style="width: 180px; height: 100px;"></p>
-        <p>${firstName || "Team Member"}<br/>Customer Service Team<br/>50 STARS AUTO PARTS<br/>+1 (866) 207-5533<br/>service@50starsautoparts.com<br/>www.50starsautoparts.com</p>
+        ${buildCustomerSignatureHtml(firstName, emailCfg)}
       </div>`,
       attachments: [
         {
@@ -493,14 +521,26 @@ router.post("/orders/sendRefundConfirmation/:orderNo", upload.single("pdfFile"),
       return res.status(400).json({ message: "Refunded amount is missing." });
     }
 
-    const Order = getOrderModel(req);
+    const brand = resolveBrandFromOrderNo(orderNo, getBrand(req));
+    const Order = getOrderModelForBrand(brand);
     const order = await Order.findOne({ orderNo });
     if (!order) return res.status(404).json({ message: "Order not found" });
 
     const pdfFile = req.file;
     if (!pdfFile) return res.status(400).json({ message: "No PDF file uploaded" });
 
-    const { serviceEmail, servicePass, supportBcc, logoUrl } = getEmailBrandConfig(req);
+    const emailCfg = getEmailBrandConfig(req, brand);
+    const {
+      serviceEmail,
+      servicePass,
+      supportBcc,
+      logoUrl,
+      companyName,
+      customerFacingName,
+      phoneNumber,
+      serviceEmailAddress,
+      websiteUrl,
+    } = emailCfg;
 
     const transporter = nodemailer.createTransport({
       service: "gmail",
@@ -526,21 +566,20 @@ router.post("/orders/sendRefundConfirmation/:orderNo", upload.single("pdfFile"),
         <p>Attached to this email, you'll find a copy of the refund receipt for your records.</p>
         <p>Please allow <b>3–5 business days</b> for the refund to reflect on your original payment method, as processing times may vary based on your financial institution.</p>
         <p>If you have any questions or require further assistance, please feel free to reach out — we're happy to help.</p>
-        <p>Thank you for choosing <b>50 Stars Auto Parts</b>. We appreciate your business and look forward to serving you again.</p>
+        <p>Thank you for choosing <b>${customerFacingName}</b>. We appreciate your business and look forward to serving you again.</p>
         <p><img src="cid:logo" alt="logo" style="width: 180px; height: 100px;"></p>
-        <p>${firstName}<br/>Customer Service Team<br/>50 STARS AUTO PARTS<br/>+1 (866) 207-5533<br/>service@50starsautoparts.com<br/><a href="https://www.50starsautoparts.com">www.50starsautoparts.com</a></p>
+        ${buildCustomerSignatureHtml(firstName, emailCfg)}
       </div>`;
 
     const mailOptions = {
-      from: `"50 Stars Auto Parts" <${serviceEmail}>`,
+      from: `"${customerFacingName}" <${serviceEmail}>`,
       to: toEmail,
-      replyTo: process.env.SERVICE_EMAIL,
-      bcc: supportBcc || "service@50starsautoparts.com,dipsikha.spotopsdigital@gmail.com",
-      subject: `Refund Processed for Your Order ${orderNo} | 50 Stars Auto Parts`,
+      replyTo: serviceEmailAddress,
+      bcc: supportBcc || `${serviceEmailAddress},dipsikha.spotopsdigital@gmail.com`,
+      subject: `Refund Processed for Your Order ${orderNo} | ${customerFacingName}`,
       html: htmlContent,
-      // Minimal headers to avoid spam triggers
       headers: {
-        "X-Mailer": "50 Stars Auto Parts CRM",
+        "X-Mailer": `${companyName} CRM`,
       },
       attachments: [
         {
