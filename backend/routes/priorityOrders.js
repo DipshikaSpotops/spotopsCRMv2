@@ -106,6 +106,9 @@ router.get("/", requireAuth, allow("Admin", "Sales", "Support"), async (req, res
         { orderStatus: /^order\s+cancelled$/i },
         { orderStatus: /^refunded$/i },
         { orderStatus: /^dispute/i },
+        { orderStatus: /^in\s+transit$/i },
+        { orderStatus: /^order\s+fulfilled$/i },
+        { orderStatus: /^voided$/i },
       ],
     };
 

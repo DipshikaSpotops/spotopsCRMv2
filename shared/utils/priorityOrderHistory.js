@@ -174,13 +174,16 @@ export function normalizeStatusLabel(status) {
     .toLowerCase();
 }
 
-/** Not eligible for Priority Orders list. */
+/** Not eligible for Priority Orders list — only track up to Yard Processing. */
 export function isExcludedFromPriorityOrders(orderStatus) {
   const normalized = normalizeStatusLabel(orderStatus);
   if (!normalized) return false;
   if (normalized === "order cancelled" || normalized === "refunded") return true;
   if (normalized === "dispute" || normalized === "dispute 2") return true;
   if (normalized.startsWith("dispute")) return true;
+  if (normalized === "in transit") return true;
+  if (normalized === "order fulfilled") return true;
+  if (normalized === "voided") return true;
   return false;
 }
 
