@@ -405,7 +405,7 @@ router.post("/sendReimburseEmail/:orderNo", handleReimbursementAttachmentUpload,
       html: `<div style="font-size:16px;line-height:1.7;">
   <p>Dear ${customerName},</p>
   <p>This email is regarding reimbursement for ${reimbursementContext}.</p>
-  <p>As discussed and agreed during our call, we will be reimbursing you $${amount.toFixed(
+  <p>As discussed and agreed during our call, we have reimbursed $${amount.toFixed(
     2
   )} toward the issue you faced.</p>
   <p>Please note that in the event of a future order cancellation, any reimbursement amount already issued will be deducted from the refund. Additionally, we do not provide any guarantee or warranty on labor-related work.</p>
