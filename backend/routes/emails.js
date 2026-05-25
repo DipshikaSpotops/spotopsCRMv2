@@ -63,7 +63,7 @@ function getEmailBrandConfig(req, brandOverride) {
 
   // Brand-specific display details
   const companyName =
-    brand === "PROLANE" ? "American Auto Supply" : "50 STARS AUTO PARTS";
+    brand === "PROLANE" ? "Prolane Auto Parts" : "50 Stars Auto Parts";
 
   const websiteUrl =
     brand === "PROLANE"
@@ -965,7 +965,7 @@ router.post("/orders/sendRefundEmail/:orderNo", upload.single("pdfFile"), async 
           has been attached below for your reference.
         </p>
         <p><img src="cid:logo" alt="logo" style="width: 180px; height: 100px;"></p>
-        <p>${firstName}<br/>Customer Service Team<br/>${companyName}<br/>${phoneNumber}<br/>${purchaseEmailAddress}<br/><a href="https://${websiteUrl}">${websiteUrl}</a></p>
+        <p>${firstName}<br/>Customer Service Team<br/>${purchaseDisplayName}<br/>${phoneNumber}<br/>${purchaseEmailAddress}<br/><a href="https://${websiteUrl}">${websiteUrl}</a></p>
       </div>`,
       attachments: [
         {
@@ -1024,7 +1024,7 @@ router.post("/orders/po-cancelled/:orderNo", async (req, res) => {
       purchaseEmail,
       purchasePass,
       logoUrl,
-      companyName,
+      purchaseDisplayName,
       websiteUrl,
       purchaseEmailAddress,
     } = getEmailBrandConfig(req);
@@ -1072,7 +1072,7 @@ router.post("/orders/po-cancelled/:orderNo", async (req, res) => {
     }
 
     const mailOptions = {
-      from: `"${companyName}" <${purchaseEmail}>`,
+      from: `"${purchaseDisplayName}" <${purchaseEmail}>`,
       to: yardEmail,
       bcc: getPurchaseBcc(req),
       subject: `PO Cancellation Request | Order ${orderNo} | Stock ${stockNo}`,
@@ -1096,7 +1096,7 @@ router.post("/orders/po-cancelled/:orderNo", async (req, res) => {
         <p><img src="cid:logo" alt="logo" style="width: 180px; height: 100px;"></p>
         <p>Best regards,</p>
         <p>${firstName}<br/>
-           ${companyName}
+           ${purchaseDisplayName}
         </p>
         <p>${signaturePhone} | ${signatureEmail}<br/><a href="https://${
           signatureWebsite.startsWith("http")
