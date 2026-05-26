@@ -32,14 +32,20 @@ export function getBrand(req) {
  */
 export function resolveSmtpCredentialsForRequest(req) {
   const brand = getBrand(req);
-  const smtpUser =
-    process.env.ACCESS_CODE_SMTP_USER?.trim() ||
-    process.env.SMTP_USER?.trim() ||
-    pickEnv("SERVICE_EMAIL", brand);
-  const passRaw =
-    process.env.ACCESS_CODE_SMTP_PASS?.trim() ||
-    process.env.SMTP_PASS?.trim() ||
-    pickEnv("SERVICE_PASS", brand);
+  let smtpUser, passRaw;
+  if (brand === "PROTP") {
+    smtpUser = process.env.EMAIL_PROLANE_TRUCK?.trim() || pickEnv("SERVICE_EMAIL", "PROLANE");
+    passRaw = process.env.PASS_PROLANE_TRUCK?.trim() || pickEnv("SERVICE_PASS", "PROLANE");
+  } else {
+    smtpUser =
+      process.env.ACCESS_CODE_SMTP_USER?.trim() ||
+      process.env.SMTP_USER?.trim() ||
+      pickEnv("SERVICE_EMAIL", brand);
+    passRaw =
+      process.env.ACCESS_CODE_SMTP_PASS?.trim() ||
+      process.env.SMTP_PASS?.trim() ||
+      pickEnv("SERVICE_PASS", brand);
+  }
   const smtpPass = String(passRaw || "").replace(/\s+/g, "").trim();
   return { brand, smtpUser, smtpPass };
 }

@@ -67,8 +67,14 @@ function getCardConfig(req) {
 function getEmailBrandConfig(req) {
   const brand = getBrand(req);
 
-  const purchaseEmail = pickEnv("PURCHASE_EMAIL", brand);
-  const purchasePass = pickEnv("PURCHASE_PASS", brand);
+  let purchaseEmail, purchasePass;
+  if (brand === "PROTP") {
+    purchaseEmail = process.env.EMAIL_PROLANE_TRUCK || pickEnv("PURCHASE_EMAIL", "PROLANE");
+    purchasePass = process.env.PASS_PROLANE_TRUCK || pickEnv("PURCHASE_PASS", "PROLANE");
+  } else {
+    purchaseEmail = pickEnv("PURCHASE_EMAIL", brand);
+    purchasePass = pickEnv("PURCHASE_PASS", brand);
+  }
 
   // Logo: allow a dedicated PROLANE_LOGO env var to override LOGO_URL_PROLANE
   let logoUrl = pickEnv("LOGO_URL", brand) || DEFAULT_LOGO_URL;
@@ -87,14 +93,16 @@ function getEmailBrandConfig(req) {
   // - 50STARS: use historical purchase phone
   let companyPhone = "+1 (888) 732-8680";
   if (brand === "PROTP") {
-    companyPhone = "+1 (888) 343-7670";
+    companyPhone = process.env.PHONE_PROLANE_TRUCK || "+1 (888) 343-7670";
   } else if (brand === "PROLANE") {
     companyPhone =
       process.env.PROLANE_PURCHASE_NO ||
       process.env.PROLANE_SERVICE_NO ||
       "+1 (866) 207-5533";
   }
-  const purchaseEmailAddress = brand === "PROLANE" || brand === "PROTP"
+  const purchaseEmailAddress = brand === "PROTP"
+    ? "service@prolanetruckparts.com"
+    : brand === "PROLANE"
     ? "purchase@prolaneautoparts.com"
     : "purchase@auto-partsgroup.com";
   const websiteUrl = brand === "PROLANE" || brand === "PROTP"

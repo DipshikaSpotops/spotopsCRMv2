@@ -56,11 +56,17 @@ function resolveBrandFromOrderNo(orderNo, fallbackBrand = "50STARS") {
 function getEmailBrandConfig(req, brandOverride) {
   const brand = brandOverride || getBrand(req);
 
-  // PROTP uses the same email credentials as PROLANE
+  // PROTP has its own sender (EMAIL_PROLANE_TRUCK), rest falls back to PROLANE config
   const envBrand = brand === "PROTP" ? "PROLANE" : brand;
 
-  const serviceEmail = pickEnv("SERVICE_EMAIL", envBrand);
-  const servicePass = pickEnv("SERVICE_PASS", envBrand);
+  let serviceEmail, servicePass;
+  if (brand === "PROTP") {
+    serviceEmail = process.env.EMAIL_PROLANE_TRUCK || pickEnv("SERVICE_EMAIL", "PROLANE");
+    servicePass = process.env.PASS_PROLANE_TRUCK || pickEnv("SERVICE_PASS", "PROLANE");
+  } else {
+    serviceEmail = pickEnv("SERVICE_EMAIL", envBrand);
+    servicePass = pickEnv("SERVICE_PASS", envBrand);
+  }
   const supportBcc = pickEnv("SUPPORT_BCC", envBrand);
 
   // Logo: allow a dedicated PROLANE_LOGO env var to override LOGO_URL_PROLANE
@@ -69,8 +75,14 @@ function getEmailBrandConfig(req, brandOverride) {
     logoUrl = process.env.PROLANE_LOGO;
   }
 
-  const purchaseEmail = pickEnv("PURCHASE_EMAIL", envBrand);
-  const purchasePass = pickEnv("PURCHASE_PASS", envBrand);
+  let purchaseEmail, purchasePass;
+  if (brand === "PROTP") {
+    purchaseEmail = process.env.EMAIL_PROLANE_TRUCK || pickEnv("PURCHASE_EMAIL", "PROLANE");
+    purchasePass = process.env.PASS_PROLANE_TRUCK || pickEnv("PURCHASE_PASS", "PROLANE");
+  } else {
+    purchaseEmail = pickEnv("PURCHASE_EMAIL", envBrand);
+    purchasePass = pickEnv("PURCHASE_PASS", envBrand);
+  }
 
   // Brand-specific display details
   const companyName =
@@ -81,10 +93,10 @@ function getEmailBrandConfig(req, brandOverride) {
       ? "www.prolaneautoparts.com"
       : "www.50starsautoparts.com";
 
-  // Phone: PROTP uses (888) 343-7670, PROLANE uses env, 50STARS uses fixed number
+  // Phone: PROTP uses PHONE_PROLANE_TRUCK env, PROLANE uses PROLANE_SERVICE_NO, 50STARS uses fixed
   let phoneNumber = "+1 (866) 207-5533";
   if (brand === "PROTP") {
-    phoneNumber = "+1 (888) 343-7670";
+    phoneNumber = process.env.PHONE_PROLANE_TRUCK || "+1 (888) 343-7670";
   } else if (brand === "PROLANE" && process.env.PROLANE_SERVICE_NO) {
     phoneNumber = process.env.PROLANE_SERVICE_NO;
   }
@@ -94,12 +106,16 @@ function getEmailBrandConfig(req, brandOverride) {
     brand === "PROLANE" || brand === "PROTP" ? "American Auto Supply" : "Auto Parts Group Corp";
 
   const serviceEmailAddress =
-    brand === "PROLANE" || brand === "PROTP"
+    brand === "PROTP"
+      ? "service@prolanetruckparts.com"
+      : brand === "PROLANE"
       ? "service@prolaneautoparts.com"
       : "service@50starsautoparts.com";
 
   const purchaseEmailAddress =
-    brand === "PROLANE" || brand === "PROTP"
+    brand === "PROTP"
+      ? "service@prolanetruckparts.com"
+      : brand === "PROLANE"
       ? "purchase@prolaneautoparts.com"
       : "purchase@auto-partsgroup.com";
 
