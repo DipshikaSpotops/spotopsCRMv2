@@ -18,7 +18,14 @@ export default function Navbar() {
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [searchLoading, setSearchLoading] = useState(false);
   const [brand, setBrand] = useState(() => getCurrentBrand());
-  const [attendanceOpen, setAttendanceOpen] = useState(false);
+  const [attendanceOpen, setAttendanceOpen] = useState(() => {
+    if (sessionStorage.getItem("showAttendancePopup") === "true") {
+      sessionStorage.removeItem("showAttendancePopup");
+      return true;
+    }
+    return false;
+  });
+  const [attendanceBlocking, setAttendanceBlocking] = useState(attendanceOpen);
   const dropdownRef = useRef(null);
 
   // --- Single read path for user name ---
@@ -133,7 +140,7 @@ export default function Navbar() {
               if (e.key === "Enter" || e.key === " ") navigate("/dashboard");
             }}
           />
-          {/* Brand toggle: 50STARS / PROLANE */}
+          {/* Brand toggle: 50STARS / PROLANE / PROTP */}
           <div className="flex items-center gap-1 rounded-full bg-black/10 px-1 py-0.5 text-xs sm:text-sm">
             <button
               type="button"
@@ -156,6 +163,17 @@ export default function Navbar() {
               }`}
             >
               PROLANE
+            </button>
+            <button
+              type="button"
+              onClick={() => handleBrandChange("PROTP")}
+              className={`px-2 py-1 rounded-full font-semibold transition ${
+                brand === "PROTP"
+                  ? "bg-[#e67e22] text-white shadow-sm"
+                  : "bg-transparent text-white/80 hover:bg-white/10"
+              }`}
+            >
+              PROTP
             </button>
           </div>
         </div>
@@ -324,8 +342,9 @@ export default function Navbar() {
 
       <MarkAttendanceModal
         isOpen={attendanceOpen}
-        onClose={() => setAttendanceOpen(false)}
+        onClose={() => { setAttendanceOpen(false); setAttendanceBlocking(false); }}
         isDarkMode={isDarkMode}
+        blocking={attendanceBlocking}
       />
     </nav>
   );

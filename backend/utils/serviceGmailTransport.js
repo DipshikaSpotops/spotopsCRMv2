@@ -8,7 +8,9 @@ export function pickEnv(baseKey, brand) {
   const base = String(baseKey).trim();
   if (!base) return "";
 
-  if (brand === "PROLANE") {
+  // PROTP shares credentials with PROLANE
+  const envBrand = brand === "PROTP" ? "PROLANE" : brand;
+  if (envBrand === "PROLANE") {
     const brandKey = `${base}_PROLANE`;
     if (process.env[brandKey] != null && String(process.env[brandKey]).trim() !== "") {
       return String(process.env[brandKey]).trim();
@@ -19,7 +21,9 @@ export function pickEnv(baseKey, brand) {
 }
 
 export function getBrand(req) {
-  return req?.brand === "PROLANE" ? "PROLANE" : "50STARS";
+  const b = String(req?.brand || "").toUpperCase();
+  if (b === "PROLANE" || b === "PROTP") return b;
+  return "50STARS";
 }
 
 /**

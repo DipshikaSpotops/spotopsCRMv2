@@ -11,12 +11,14 @@ import dotenv from "dotenv";
 import { getPurchaseBcc } from "../utils/purchaseBcc.js";
 dotenv.config();
 
-// --- Brand-aware email config helpers (50STARS / PROLANE) ---
+// --- Brand-aware email config helpers (50STARS / PROLANE / PROTP) ---
 const DEFAULT_LOGO_URL =
   "https://assets-autoparts.s3.ap-south-1.amazonaws.com/images/logo.png";
 
 function getBrand(req) {
-  return (req.brand === "PROLANE" ? "PROLANE" : "50STARS");
+  const b = String(req.brand || "").toUpperCase();
+  if (b === "PROLANE" || b === "PROTP") return b;
+  return "50STARS";
 }
 
 // Helper to get brand-aware Order model
@@ -30,7 +32,9 @@ function pickEnv(baseKey, brand) {
   const base = String(baseKey).trim();
   if (!base) return "";
 
-  if (brand === "PROLANE") {
+  // PROTP shares credentials with PROLANE
+  const envBrand = brand === "PROTP" ? "PROLANE" : brand;
+  if (envBrand === "PROLANE") {
     const brandKey = `${base}_PROLANE`;
     if (process.env[brandKey]) return process.env[brandKey];
   }
@@ -40,58 +44,67 @@ function pickEnv(baseKey, brand) {
 /** Prefer order-number prefix so PROLANE0160 always uses Prolane branding. */
 function resolveBrandFromOrderNo(orderNo, fallbackBrand = "50STARS") {
   const no = String(orderNo || "").trim().toUpperCase();
+  if (no.startsWith("PROTP")) return "PROTP";
   if (no.startsWith("PROLANE")) return "PROLANE";
   if (no.startsWith("50STARS")) return "50STARS";
-  return fallbackBrand === "PROLANE" ? "PROLANE" : "50STARS";
+  const normalized = String(fallbackBrand || "").toUpperCase();
+  if (normalized === "PROLANE") return "PROLANE";
+  if (normalized === "PROTP") return "PROTP";
+  return "50STARS";
 }
 
 function getEmailBrandConfig(req, brandOverride) {
   const brand = brandOverride || getBrand(req);
 
-  const serviceEmail = pickEnv("SERVICE_EMAIL", brand);
-  const servicePass = pickEnv("SERVICE_PASS", brand);
-  const supportBcc = pickEnv("SUPPORT_BCC", brand);
+  // PROTP uses the same email credentials as PROLANE
+  const envBrand = brand === "PROTP" ? "PROLANE" : brand;
+
+  const serviceEmail = pickEnv("SERVICE_EMAIL", envBrand);
+  const servicePass = pickEnv("SERVICE_PASS", envBrand);
+  const supportBcc = pickEnv("SUPPORT_BCC", envBrand);
 
   // Logo: allow a dedicated PROLANE_LOGO env var to override LOGO_URL_PROLANE
-  let logoUrl = pickEnv("LOGO_URL", brand) || DEFAULT_LOGO_URL;
-  if (brand === "PROLANE" && process.env.PROLANE_LOGO) {
+  let logoUrl = pickEnv("LOGO_URL", envBrand) || DEFAULT_LOGO_URL;
+  if ((brand === "PROLANE" || brand === "PROTP") && process.env.PROLANE_LOGO) {
     logoUrl = process.env.PROLANE_LOGO;
   }
 
-  const purchaseEmail = pickEnv("PURCHASE_EMAIL", brand);
-  const purchasePass = pickEnv("PURCHASE_PASS", brand);
+  const purchaseEmail = pickEnv("PURCHASE_EMAIL", envBrand);
+  const purchasePass = pickEnv("PURCHASE_PASS", envBrand);
 
   // Brand-specific display details
   const companyName =
-    brand === "PROLANE" ? "Prolane Auto Parts" : "50 Stars Auto Parts";
+    brand === "PROLANE" || brand === "PROTP" ? "Prolane Auto Parts" : "50 Stars Auto Parts";
 
   const websiteUrl =
-    brand === "PROLANE"
+    brand === "PROLANE" || brand === "PROTP"
       ? "www.prolaneautoparts.com"
       : "www.50starsautoparts.com";
 
-  // Phone: 50STARS uses fixed number, PROLANE comes from PROLANE_SERVICE_NO (fallback to same)
+  // Phone: PROTP uses (888) 343-7670, PROLANE uses env, 50STARS uses fixed number
   let phoneNumber = "+1 (866) 207-5533";
-  if (brand === "PROLANE" && process.env.PROLANE_SERVICE_NO) {
+  if (brand === "PROTP") {
+    phoneNumber = "+1 (888) 343-7670";
+  } else if (brand === "PROLANE" && process.env.PROLANE_SERVICE_NO) {
     phoneNumber = process.env.PROLANE_SERVICE_NO;
   }
 
   // Display name for purchase-side emails (yard refund, PO, etc.)
   const purchaseDisplayName =
-    brand === "PROLANE" ? "American Auto Supply" : "Auto Parts Group Corp";
+    brand === "PROLANE" || brand === "PROTP" ? "American Auto Supply" : "Auto Parts Group Corp";
 
   const serviceEmailAddress =
-    brand === "PROLANE"
+    brand === "PROLANE" || brand === "PROTP"
       ? "service@prolaneautoparts.com"
       : "service@50starsautoparts.com";
 
   const purchaseEmailAddress =
-    brand === "PROLANE"
+    brand === "PROLANE" || brand === "PROTP"
       ? "purchase@prolaneautoparts.com"
       : "purchase@auto-partsgroup.com";
 
   const customerFacingName =
-    brand === "PROLANE" ? "Prolane Auto Parts" : "50 Stars Auto Parts";
+    brand === "PROLANE" || brand === "PROTP" ? "Prolane Auto Parts" : "50 Stars Auto Parts";
 
   return {
     brand,
@@ -212,6 +225,7 @@ const SUPPORT_AGENT_PROLANE_NAME_MAP = {
   Nik: "Noah Webster",
   Leo: "Max Williams",
   Tony: "Kevin Wilson",
+  Alex: "Jason Morgan",
   // Handle both spellings just in case
   Dipshika: "Dips",
   Dipsikha: "Dips",
@@ -219,13 +233,13 @@ const SUPPORT_AGENT_PROLANE_NAME_MAP = {
 
 // Brand-aware support display name:
 // - For 50STARS: use cleaned firstName as-is
-// - For PROLANE: map 50STARS firstName → PROLANE display name when available
+// - For PROLANE/PROTP: map 50STARS firstName → PROLANE display name when available
 const getSupportDisplayName = (rawFirstName, req) => {
   const cleaned = cleanFirstName(rawFirstName);
   const brand = getBrand(req);
 
   if (!cleaned) return "Auto Parts Group";
-  if (brand !== "PROLANE") return cleaned;
+  if (brand !== "PROLANE" && brand !== "PROTP") return cleaned;
 
   const firstToken = cleaned.split(" ")[0];
   return (

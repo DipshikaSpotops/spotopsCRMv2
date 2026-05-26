@@ -187,9 +187,9 @@ export default function EditOrder() {
 
       // Filter agents based on mapping if user has a mapping
       let filteredAgents = [];
+      // PROTP uses same agents as PROLANE
+      const effectiveBrand = brand === "PROTP" ? "PROLANE" : brand;
       if (storedFirstName && AGENT_BRAND_MAPPING[storedFirstName]) {
-        // User is mapped (e.g., Richard -> Victor)
-        // Show only: user's 50STARS agent + mapped PROLANE agent
         const mappedAgent = AGENT_BRAND_MAPPING[storedFirstName];
         const user50STARS = allAgents.find(a => a.firstName === storedFirstName && a.brand === "50STARS");
         const mappedPROLANE = allAgents.find(a => a.firstName === mappedAgent && a.brand === "PROLANE");
@@ -199,7 +199,7 @@ export default function EditOrder() {
       } else {
         // No mapping or user not in mapping - show all agents from current brand
         filteredAgents = allAgents
-          .filter(agent => agent.brand === brand)
+          .filter(agent => agent.brand === effectiveBrand)
           .map(agent => agent.firstName);
       }
 

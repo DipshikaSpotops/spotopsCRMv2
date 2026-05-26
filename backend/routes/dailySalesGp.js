@@ -105,7 +105,7 @@ router.get("/", requireAuth, allow("Admin", "Sales"), async (req, res) => {
         console.warn("[dailySalesGp] Sales user has no firstName, skipping salesAgent filter");
       } else {
         const mappedFirstName =
-          req.brand === "PROLANE" && AGENT_BRAND_MAPPING[firstName] ? AGENT_BRAND_MAPPING[firstName] : firstName;
+          (req.brand === "PROLANE" || req.brand === "PROTP") && AGENT_BRAND_MAPPING[firstName] ? AGENT_BRAND_MAPPING[firstName] : firstName;
 
         const escapedFirstName = firstName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
         const escapedMappedName = mappedFirstName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");

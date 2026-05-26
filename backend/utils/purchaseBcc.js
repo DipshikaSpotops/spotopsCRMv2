@@ -4,7 +4,9 @@
  */
 
 function getBrand(req) {
-  return req?.brand === "PROLANE" ? "PROLANE" : "50STARS";
+  const b = String(req?.brand || "").toUpperCase();
+  if (b === "PROLANE" || b === "PROTP") return b;
+  return "50STARS";
 }
 
 export function bccFromEnv(...keys) {
@@ -23,7 +25,7 @@ export function bccFromEnv(...keys) {
 }
 
 function purchaseDisplayAddress(brand) {
-  return brand === "PROLANE"
+  return brand === "PROLANE" || brand === "PROTP"
     ? "purchase@prolaneautoparts.com"
     : "purchase@auto-partsgroup.com";
 }
@@ -31,7 +33,7 @@ function purchaseDisplayAddress(brand) {
 export function getPurchaseBcc(req) {
   const brand = getBrand(req);
   const fromEnv =
-    brand === "PROLANE"
+    brand === "PROLANE" || brand === "PROTP"
       ? bccFromEnv("PURCHASE_BCC_PROLANE")
       : bccFromEnv("PURCHASE_BCC");
   if (fromEnv) return fromEnv;

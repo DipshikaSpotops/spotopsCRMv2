@@ -148,12 +148,12 @@ export default function AddOrder() {
   const [salesAgentsMap, setSalesAgentsMap] = useState({}); // firstName -> fullName mapping
   const [currentBrand, setCurrentBrand] = useState(() => getCurrentBrand());
   
-  // Fetch sales agents from database (both brands, filtered by mapping)
+  // Fetch sales agents from database (all brands, filtered by mapping)
   const fetchSalesAgents = useCallback(async (brand) => {
     try {
       const storedFirstName = getStoredFirstName();
       
-      // Fetch agents from both brands using custom headers
+      // Fetch agents from both brands using custom headers (PROTP shares agents with PROLANE)
       const [data50STARS, dataPROLANE] = await Promise.all([
         API.get("/salesAgents", { headers: { "x-brand": "50STARS" } }).catch(() => ({ data: [] })),
         API.get("/salesAgents", { headers: { "x-brand": "PROLANE" } }).catch(() => ({ data: [] })),
@@ -175,9 +175,9 @@ export default function AddOrder() {
 
       // Filter agents based on mapping if user has a mapping
       let filteredAgents = [];
+      // PROTP uses same agents as PROLANE
+      const effectiveBrand = brand === "PROTP" ? "PROLANE" : brand;
       if (storedFirstName && AGENT_BRAND_MAPPING[storedFirstName]) {
-        // User is mapped (e.g., Richard -> Victor)
-        // Show only: user's 50STARS agent + mapped PROLANE agent
         const mappedAgent = AGENT_BRAND_MAPPING[storedFirstName];
         const user50STARS = allAgents.find(a => a.firstName === storedFirstName && a.brand === "50STARS");
         const mappedPROLANE = allAgents.find(a => a.firstName === mappedAgent && a.brand === "PROLANE");
@@ -187,7 +187,7 @@ export default function AddOrder() {
       } else {
         // No mapping or user not in mapping - show all agents from current brand
         filteredAgents = allAgents
-          .filter(agent => agent.brand === brand)
+          .filter(agent => agent.brand === effectiveBrand)
           .map(agent => agent.firstName);
       }
 
@@ -195,7 +195,6 @@ export default function AddOrder() {
       setSalesAgents(filteredAgents.sort());
     } catch (err) {
       console.error("Error fetching sales agents:", err);
-      // Fallback to empty array if API fails
       setSalesAgents([]);
       setSalesAgentsMap({});
     }
@@ -547,18 +546,17 @@ export default function AddOrder() {
       return;
     }
 
-    const brandForApi =
-      String(getCurrentBrand() || "50STARS").toUpperCase() === "PROLANE"
-        ? "PROLANE"
-        : "50STARS";
+    const rawBrand = String(getCurrentBrand() || "50STARS").toUpperCase();
+    const brandForApi = rawBrand === "PROLANE" ? "PROLANE" : rawBrand === "PROTP" ? "PROTP" : "50STARS";
 
     const compactOrderNo = String(formData.orderNo ?? "")
       .trim()
       .toUpperCase()
       .replace(/\s+/g, "");
     let inferredOrderBrand = null;
-    if (compactOrderNo.startsWith("50STARS")) inferredOrderBrand = "50STARS";
+    if (compactOrderNo.startsWith("PROTP")) inferredOrderBrand = "PROTP";
     else if (compactOrderNo.startsWith("PROLANE")) inferredOrderBrand = "PROLANE";
+    else if (compactOrderNo.startsWith("50STARS")) inferredOrderBrand = "50STARS";
 
     if (inferredOrderBrand && inferredOrderBrand !== brandForApi) {
       setToast({
@@ -568,21 +566,15 @@ export default function AddOrder() {
       return;
     }
 
-    if (brandForApi === "PROLANE" && compactOrderNo.includes("50STARS")) {
-      setToast({
-        message:
-          "Order number cannot contain 50STARS while on PROLANE. Switch to 50STARS or use a PROLANE order number.",
-        variant: "error",
-      });
-      return;
-    }
-    if (brandForApi === "50STARS" && compactOrderNo.includes("PROLANE")) {
-      setToast({
-        message:
-          "Order number cannot contain PROLANE while on 50STARS. Switch to PROLANE or use a 50STARS order number.",
-        variant: "error",
-      });
-      return;
+    const otherBrands = ["50STARS", "PROLANE", "PROTP"].filter(b => b !== brandForApi);
+    for (const ob of otherBrands) {
+      if (compactOrderNo.includes(ob)) {
+        setToast({
+          message: `Order number cannot contain ${ob} while on ${brandForApi}. Switch brand or correct the order number.`,
+          variant: "error",
+        });
+        return;
+      }
     }
 
     try {

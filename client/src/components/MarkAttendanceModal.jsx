@@ -21,7 +21,13 @@ function formatLoginHint(loginAt) {
   return m.format("h:mm A IST");
 }
 
-export default function MarkAttendanceModal({ isOpen, onClose, isDarkMode }) {
+function isBeforeShiftStart() {
+  const now = moment().tz(IST);
+  const mins = now.hour() * 60 + now.minute();
+  return mins < 18 * 60 + 30;
+}
+
+export default function MarkAttendanceModal({ isOpen, onClose, isDarkMode, blocking = false }) {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const [currentFirstName, setCurrentFirstName] = useState("");
@@ -115,6 +121,10 @@ export default function MarkAttendanceModal({ isOpen, onClose, isDarkMode }) {
       } catch {
         /* keep record from response above */
       }
+
+      if (blocking) {
+        setTimeout(() => onClose?.(), 1500);
+      }
     } catch (e) {
       setError(e?.response?.data?.message || e?.message || "Could not mark attendance");
     } finally {
@@ -150,24 +160,45 @@ export default function MarkAttendanceModal({ isOpen, onClose, isDarkMode }) {
     }
   };
 
+  const earlyLogin = useMemo(() => isBeforeShiftStart(), [isOpen]);
+
   if (!isOpen) return null;
+
+  const canClose = !blocking || !canMark;
+
   return (
       <div
         className="fixed inset-0 z-[100] flex items-start justify-center pt-24 sm:pt-28 px-4 pb-8 bg-black/50 backdrop-blur-sm"
-        onClick={onClose}
+        onClick={canClose ? onClose : undefined}
       >
         <div
-          className={`w-full max-w-md rounded-xl shadow-2xl border p-4 ${
+          className={`w-full max-w-md rounded-xl shadow-2xl border p-5 ${
             isDarkMode ? "bg-[#0f172a] text-white border-gray-600" : "bg-white text-gray-900 border-gray-200"
           }`}
           onClick={(e) => e.stopPropagation()}
         >
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-lg font-semibold">Mark Attendance</h2>
-            <button type="button" onClick={onClose} className="px-2 py-1 rounded hover:bg-black/10">
-              ✕
-            </button>
+            {canClose && (
+              <button type="button" onClick={onClose} className="px-2 py-1 rounded hover:bg-black/10">
+                ✕
+              </button>
+            )}
           </div>
+
+          {blocking && canMark && (
+            <p className="text-sm mb-3 opacity-80">
+              Please mark your attendance to continue to the CRM.
+            </p>
+          )}
+
+          {earlyLogin && canMark && (
+            <div className="flex items-center gap-2 mb-3 px-3 py-2 rounded-md bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300 text-sm font-medium">
+              <i className="fas fa-clock"></i>
+              Early Login — before 6:30 PM IST
+            </div>
+          )}
+
           {error && <div className="text-sm text-red-400 mb-3">{error}</div>}
           {status && <div className="text-sm text-green-400 mb-3">{status}</div>}
           {!isActiveAttendanceUser(currentFirstName) ? (
@@ -193,16 +224,18 @@ export default function MarkAttendanceModal({ isOpen, onClose, isDarkMode }) {
               </p>
             </div>
           )}
-          <div className="mt-4 pt-3 border-t border-black/10 dark:border-white/10">
-            <button
-              type="button"
-              onClick={handleLogout}
-              disabled={logoutBusy}
-              className="px-4 py-2 rounded-md text-sm font-medium text-white bg-[#8b0000] hover:bg-[#a40000] disabled:opacity-60"
-            >
-              {logoutBusy ? "Logging out..." : "Logout"}
-            </button>
-          </div>
+          {!blocking && (
+            <div className="mt-4 pt-3 border-t border-black/10 dark:border-white/10">
+              <button
+                type="button"
+                onClick={handleLogout}
+                disabled={logoutBusy}
+                className="px-4 py-2 rounded-md text-sm font-medium text-white bg-[#8b0000] hover:bg-[#a40000] disabled:opacity-60"
+              >
+                {logoutBusy ? "Logging out..." : "Logout"}
+              </button>
+            </div>
+          )}
         </div>
       </div>
   );

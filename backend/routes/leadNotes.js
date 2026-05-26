@@ -7,8 +7,11 @@ import { requireAuth, allow } from "../middleware/auth.js";
 const router = express.Router();
 
 // Normalize brand from request
-const getBrand = (req) =>
-  req.brand === "PROLANE" ? "PROLANE" : "50STARS";
+const getBrand = (req) => {
+  const b = String(req.brand || "").toUpperCase();
+  if (b === "PROLANE" || b === "PROTP") return b;
+  return "50STARS";
+};
 
 // Mapping from 50STARS agent firstName to PROLANE agent firstName
 const AGENT_BRAND_MAPPING = {
@@ -52,7 +55,7 @@ async function generateLeadNo(req, brand) {
   const index = (count || 0) + 1;
   const dateLabel = now.format("Do MMM"); // e.g. "27th Feb"
   const indexStr = String(index).padStart(2, "0"); // 01, 02, ...
-  const brandCode = brand === "PROLANE" ? "PAP" : "50SAP";
+  const brandCode = brand === "PROTP" ? "PTAP" : brand === "PROLANE" ? "PAP" : "50SAP";
   return `${dateLabel}, ${brandCode} - ${indexStr}`;
 }
 

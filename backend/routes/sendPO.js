@@ -18,12 +18,14 @@ dotenv.config();
  */
 
 
-// --- Brand-aware email config helpers (50STARS / PROLANE) ---
+// --- Brand-aware email config helpers (50STARS / PROLANE / PROTP) ---
 const DEFAULT_LOGO_URL =
   "https://assets-autoparts.s3.ap-south-1.amazonaws.com/images/logo.png";
 
 function getBrand(req) {
-  return (req.brand === "PROLANE" ? "PROLANE" : "50STARS");
+  const b = String(req.brand || "").toUpperCase();
+  if (b === "PROLANE" || b === "PROTP") return b;
+  return "50STARS";
 }
 
 function pickEnv(baseKey, brand) {
@@ -31,7 +33,9 @@ function pickEnv(baseKey, brand) {
   const base = String(baseKey).trim();
   if (!base) return "";
 
-  if (brand === "PROLANE") {
+  // PROTP shares credentials with PROLANE
+  const envBrand = brand === "PROTP" ? "PROLANE" : brand;
+  if (envBrand === "PROLANE") {
     const brandKey = `${base}_PROLANE`;
     if (process.env[brandKey]) return process.env[brandKey];
   }
@@ -40,11 +44,11 @@ function pickEnv(baseKey, brand) {
 
 // Card details used on the PO PDF:
 // - 50STARS: NEW_CARD_NUMBER / NEW_CARD_EXPIRY / NEW_CVV
-// - PROLANE: PROLANE_CARD_NUMBER / PROLANE_CARD_EXPIRY / PROLANE_CVV
+// - PROLANE/PROTP: PROLANE_CARD_NUMBER / PROLANE_CARD_EXPIRY / PROLANE_CVV
 function getCardConfig(req) {
   const brand = getBrand(req);
 
-  if (brand === "PROLANE") {
+  if (brand === "PROLANE" || brand === "PROTP") {
     return {
       cardNumber: process.env.PROLANE_CARD_NUMBER || "**** **** **** 0000",
       cardExpiry: process.env.PROLANE_CARD_EXPIRY || "**/**",
@@ -68,30 +72,32 @@ function getEmailBrandConfig(req) {
 
   // Logo: allow a dedicated PROLANE_LOGO env var to override LOGO_URL_PROLANE
   let logoUrl = pickEnv("LOGO_URL", brand) || DEFAULT_LOGO_URL;
-  if (brand === "PROLANE" && process.env.PROLANE_LOGO) {
+  if ((brand === "PROLANE" || brand === "PROTP") && process.env.PROLANE_LOGO) {
     logoUrl = process.env.PROLANE_LOGO;
   }
 
   // Brand-specific company details
   const companyName =
-    brand === "PROLANE" ? "American Auto Supply" : "Auto Parts Group Corp";
-  // Per request: use the same address for both brands
+    brand === "PROLANE" || brand === "PROTP" ? "American Auto Supply" : "Auto Parts Group Corp";
   const companyAddress = "5306 Blaney Way, Dallas, Texas, 75227";
 
   // Phone for PO (purchase-side):
+  // - PROTP: fixed number
   // - PROLANE: use PROLANE_PURCHASE_NO if set, else PROLANE_SERVICE_NO, else default
   // - 50STARS: use historical purchase phone
   let companyPhone = "+1 (888) 732-8680";
-  if (brand === "PROLANE") {
+  if (brand === "PROTP") {
+    companyPhone = "+1 (888) 343-7670";
+  } else if (brand === "PROLANE") {
     companyPhone =
       process.env.PROLANE_PURCHASE_NO ||
       process.env.PROLANE_SERVICE_NO ||
       "+1 (866) 207-5533";
   }
-  const purchaseEmailAddress = brand === "PROLANE"
+  const purchaseEmailAddress = brand === "PROLANE" || brand === "PROTP"
     ? "purchase@prolaneautoparts.com"
     : "purchase@auto-partsgroup.com";
-  const websiteUrl = brand === "PROLANE"
+  const websiteUrl = brand === "PROLANE" || brand === "PROTP"
     ? "www.prolaneautoparts.com"
     : "www.50starsautoparts.com";
 
@@ -134,6 +140,7 @@ const SUPPORT_AGENT_PROLANE_NAME_MAP = {
   Nik: "Noah Webster",
   Leo: "Max Williams",
   Tony: "Kevin Wilson",
+  Alex: "Jason Morgan",
   // Handle both spellings for safety
   Dipshika: "Dips",
   Dipsikha: "Dips",
@@ -158,7 +165,7 @@ const getSupportDisplayName = (rawFirstName, req) => {
   if (!cleaned) return "Auto Parts Group";
 
   // For 50STARS keep as-is
-  if (brand !== "PROLANE") return cleaned;
+  if (brand !== "PROLANE" && brand !== "PROTP") return cleaned;
 
   const firstToken = cleaned.split(" ")[0];
   return (

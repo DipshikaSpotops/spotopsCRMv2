@@ -879,7 +879,7 @@ const AddLeadNotes = ({ embedded = false, prefill }) => {
                   Brand
                 </label>
                 <AgentDropdown
-                  options={["Select", "50STARS", "PROLANE"]}
+                  options={["Select", "50STARS", "PROLANE", "PROTP"]}
                   value={form.brand || "Select"}
                   onChange={async (val) => {
                     const brandValue = val === "Select" ? "" : val;

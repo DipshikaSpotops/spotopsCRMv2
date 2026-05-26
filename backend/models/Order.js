@@ -273,10 +273,18 @@ export const ProlaneOrderModel = mongoose.model(
   "prolane_orders"
 );
 
+// Collection for PROTP (Prolane Truck Parts)
+export const ProTPOrderModel = mongoose.model(
+  "ProTPOrder",
+  orderSchema,
+  "proTPorders"
+);
+
 // Helper to get the correct model for a given brand
 export function getOrderModelForBrand(brand = "50STARS") {
   const normalized = String(brand || "").toUpperCase();
   if (normalized === "PROLANE") return ProlaneOrderModel;
+  if (normalized === "PROTP") return ProTPOrderModel;
   return OrderModel;
 }
 

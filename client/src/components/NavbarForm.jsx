@@ -120,11 +120,13 @@ export default function NavbarForm() {
             />
           </button>
 
-          {/* Active brand for this session (50STARS / PROLANE) */}
+          {/* Active brand for this session (50STARS / PROLANE / PROTP) */}
           <span
             className={`px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wide shadow-sm ${
               brand === "PROLANE"
                 ? "bg-[#c40505] text-white"
+                : brand === "PROTP"
+                ? "bg-[#e67e22] text-white"
                 : "bg-[#04356d] text-white"
             }`}
           >

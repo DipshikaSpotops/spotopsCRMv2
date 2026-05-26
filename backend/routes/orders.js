@@ -59,8 +59,9 @@ function inferBrandFromOrderNo(orderNo) {
     .toUpperCase()
     .replace(/\s+/g, "");
   if (!compact) return null;
-  if (compact.startsWith("50STARS")) return "50STARS";
+  if (compact.startsWith("PROTP")) return "PROTP";
   if (compact.startsWith("PROLANE")) return "PROLANE";
+  if (compact.startsWith("50STARS")) return "50STARS";
   return null;
 }
 
@@ -661,11 +662,11 @@ router.post("/orders", async (req, res) => {
   const formattedDateTime = central.format("D MMM, YYYY HH:mm");
 
   try {
-    // Brand guard: client sends _expectedBrand; must match header-derived req.brand (50STARS vs PROLANE DB)
+    // Brand guard: client sends _expectedBrand; must match header-derived req.brand
     const expectedRaw = req.body?._expectedBrand ?? req.body?.expectedBrand;
     if (expectedRaw != null && String(expectedRaw).trim() !== "") {
-      const normalizedExpected =
-        String(expectedRaw).trim().toUpperCase() === "PROLANE" ? "PROLANE" : "50STARS";
+      const expUpper = String(expectedRaw).trim().toUpperCase();
+      const normalizedExpected = expUpper === "PROLANE" ? "PROLANE" : expUpper === "PROTP" ? "PROTP" : "50STARS";
       if (normalizedExpected !== req.brand) {
         return res.status(400).json({
           message: `Brand mismatch: form expected ${normalizedExpected} but the request was routed as ${req.brand}. Switch brand in the app header and try again.`,
@@ -685,15 +686,13 @@ router.post("/orders", async (req, res) => {
     }
 
     const compactNo = orderNoStr.toUpperCase().replace(/\s+/g, "");
-    if (req.brand === "PROLANE" && compactNo.includes("50STARS")) {
-      return res.status(400).json({
-        message: `Order number cannot contain 50STARS on PROLANE. Switch to 50STARS or use a PROLANE order number.`,
-      });
-    }
-    if (req.brand === "50STARS" && compactNo.includes("PROLANE")) {
-      return res.status(400).json({
-        message: `Order number cannot contain PROLANE on 50STARS. Switch to PROLANE or use a 50STARS order number.`,
-      });
+    const otherBrands = ["50STARS", "PROLANE", "PROTP"].filter(b => b !== req.brand);
+    for (const ob of otherBrands) {
+      if (compactNo.includes(ob)) {
+        return res.status(400).json({
+          message: `Order number cannot contain ${ob} on ${req.brand}. Switch brand or correct the order number.`,
+        });
+      }
     }
 
     // Get brand-specific Order model

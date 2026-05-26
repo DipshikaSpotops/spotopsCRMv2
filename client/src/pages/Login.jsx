@@ -161,10 +161,17 @@ const Login = () => {
         persistStoredAuth(authPayload);
         dispatch(setCredentials(authPayload));
 
+        const userRole = (res.data.user.role || "").toLowerCase();
+        const todayKey = new Date().toISOString().slice(0, 10);
+        const alreadyShownToday = localStorage.getItem("attendancePopupShownDate") === todayKey;
+        if (userRole !== "admin" && !alreadyShownToday) {
+          sessionStorage.setItem("showAttendancePopup", "true");
+          localStorage.setItem("attendancePopupShownDate", todayKey);
+        }
+
         if (res.data.user.appAccessUnlocked === false) {
           navigate("/dashboard", { replace: true });
         } else {
-          alert(`Welcome ${res.data.user.firstName}!`);
           navigate("/dashboard", { replace: true });
         }
       }

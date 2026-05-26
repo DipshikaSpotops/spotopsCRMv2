@@ -36,17 +36,18 @@ API.interceptors.request.use((cfg) => {
     cfg.headers.Authorization = `Bearer ${token}`;
   }
 
-  // Brand: 50STARS (default) or PROLANE — do not overwrite if caller set x-brand (e.g. Add Order submit)
+  // Brand: 50STARS / PROLANE / PROTP — do not overwrite if caller set x-brand (e.g. Add Order submit)
   try {
     cfg.headers = cfg.headers || {};
+    const VALID_BRANDS = new Set(["50STARS", "PROLANE", "PROTP"]);
     const existing =
       cfg.headers["x-brand"] ?? cfg.headers["X-Brand"] ?? cfg.headers["X-BRAND"];
     if (existing != null && String(existing).trim() !== "") {
       const n = String(existing).trim().toUpperCase();
-      cfg.headers["x-brand"] = n === "PROLANE" ? "PROLANE" : "50STARS";
+      cfg.headers["x-brand"] = VALID_BRANDS.has(n) ? n : "50STARS";
     } else {
       const brand = String(getCurrentBrand() || "50STARS").toUpperCase();
-      cfg.headers["x-brand"] = brand === "PROLANE" ? "PROLANE" : "50STARS";
+      cfg.headers["x-brand"] = VALID_BRANDS.has(brand) ? brand : "50STARS";
     }
   } catch {
     // fallback: keep header off, server will default to 50STARS
