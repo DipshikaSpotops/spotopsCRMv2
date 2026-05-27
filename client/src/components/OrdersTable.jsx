@@ -327,6 +327,8 @@ export default function OrdersTable({
   subheaderExtra = null,
   /** When no saved filter in localStorage, use this (e.g. today-only for Daily Sales GP) */
   defaultFilter = null,
+  defaultSortBy = "orderDate",
+  defaultSortOrder = "desc",
 }) {
   const navigate = useNavigate();
   const brand = useBrand(); // 50STARS / PROLANE
@@ -375,8 +377,8 @@ export default function OrdersTable({
   );
 
   // sort - restore from localStorage
-  const [sortBy, setSortBy] = useState(getLS(LS_SORT_BY_KEY, "orderDate"));
-  const [sortOrder, setSortOrder] = useState(getLS(LS_SORT_ORDER_KEY, "desc"));
+  const [sortBy, setSortBy] = useState(getLS(LS_SORT_BY_KEY, defaultSortBy));
+  const [sortOrder, setSortOrder] = useState(getLS(LS_SORT_ORDER_KEY, defaultSortOrder));
 
   // highlight
   const [highlightedOrderNo, setHighlightedOrderNo] = useState(

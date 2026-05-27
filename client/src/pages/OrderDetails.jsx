@@ -27,6 +27,7 @@ import RefundOrderModal from "../components/order/modals/RefundOrderModal";
 import YardEscalationModal from "../components/order/modals/YardEscalationModal";
 import API from "../api";
 import { normalizeYardName } from "@spotops/shared";
+import { getCurrentUserFirstName } from "../utils/authStorage";
 
 // popup intaed of alert or confirm:
 function ConfirmModal({
@@ -1168,39 +1169,32 @@ export default function OrderDetails() {
 
     handleAddYardRef.current = true;
     try {
-      const firstName = localStorage.getItem("firstName") || "Unknown";
+      const firstName = getCurrentUserFirstName();
       const normalizedYardName = normalizeYardName(
         formData?.yardName,
         formData?.city,
         formData?.state
       );
 
-      // 1) Check if yard already exists
-      const yardCheck = await API.get(`/yards/search`, {
-        params: { name: normalizedYardName },
+      // 1) Upsert master yard record (create or update, always records updatedBy)
+      await API.post(`/yards`, {
+        yardName: normalizedYardName,
+        agentName: formData.agentName,
+        agentPhone: formData.agentPhone,
+        yardRating: formData.yardRating,
+        phone: formData.phone,
+        altNo: formData.altPhone,
+        email: formData.email,
+        street: formData.street,
+        city: formData.city,
+        state: formData.state,
+        zipcode: formData.zipcode,
+        country: formData.country,
+        miles: formData.miles,
+        updatedBy: firstName,
       });
-      const existingYards = yardCheck.data || [];
 
-      // 2) Add new yard only if it doesn't exist
-      if (existingYards.length === 0) {
-        await API.post(`/yards`, {
-          yardName: normalizedYardName,
-          agentName: formData.agentName,
-          agentPhone: formData.agentPhone,
-          yardRating: formData.yardRating,
-          phone: formData.phone,
-          altNo: formData.altPhone,
-          email: formData.email,
-          street: formData.street,
-          city: formData.city,
-          state: formData.state,
-          zipcode: formData.zipcode,
-          country: formData.country,
-          updatedBy: firstName,
-        });
-      }
-
-      // 3) Add yard info to this order (updates order.additionalInfo)
+      // 2) Add yard info to this order (updates order.additionalInfo)
       const payload = {
         ...formData,
         yardName: normalizedYardName,

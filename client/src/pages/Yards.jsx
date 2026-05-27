@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useMemo, useRef, useCallback } from "react";
 import API from "../api";
+import { getCurrentUserFirstName } from "../utils/authStorage";
 import { formatInTimeZone } from "date-fns-tz";
 import { FaSort, FaSortUp, FaSortDown, FaChevronLeft, FaChevronRight, FaEdit, FaTrash } from "react-icons/fa";
 
@@ -169,7 +170,7 @@ function YardFormFields({ form, setForm }) {
 
 const Yards = () => {
   const { role, email } = useMemo(() => readAuthFromStorage(), []);
-  const updatedByUser = localStorage.getItem("firstName") || "Unknown";
+  const updatedByUser = getCurrentUserFirstName();
   
   // Only allow Admin and specific email
   const isAdmin = role === "Admin";

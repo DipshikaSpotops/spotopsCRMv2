@@ -17,6 +17,7 @@ const additionalInfoSchema = new mongoose.Schema(
     expShipDate: String,
     address: String,
     country: String,
+    miles: Number,
     partPrice: Number,
     shippingDetails: String,
     yardExpedite: Boolean,

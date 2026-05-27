@@ -75,3 +75,26 @@ export function ensureLoginTimestamp(auth) {
   return auth;
 }
 
+/** firstName from localStorage / auth payload (used for Updated By, order history, etc.) */
+export function getCurrentUserFirstName() {
+  try {
+    const direct = localStorage.getItem("firstName");
+    if (direct && String(direct).trim()) return String(direct).trim();
+
+    const auth = readStoredAuth();
+    const fromAuth = auth?.user?.firstName;
+    if (fromAuth && String(fromAuth).trim()) return String(fromAuth).trim();
+
+    const userRaw = localStorage.getItem("user");
+    if (userRaw) {
+      const user = JSON.parse(userRaw);
+      if (user?.firstName && String(user.firstName).trim()) {
+        return String(user.firstName).trim();
+      }
+    }
+  } catch {
+    // ignore
+  }
+  return "Unknown";
+}
+

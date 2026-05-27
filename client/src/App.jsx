@@ -53,6 +53,7 @@ const OrderStatistics = lazy(() => import("./pages/OrderStatistics"));
 const MakeStatistics = lazy(() => import("./pages/MakeStatistics"));
 const CardCharged = lazy(() => import("./pages/CardCharged"));
 const JunkParts = lazy(() => import("./pages/JunkParts"));
+const YardStatistics = lazy(() => import("./pages/YardStatistics"));
 const IncentivesReport = lazy(() => import("./pages/IncentivesReport"));
 const Attendance = lazy(() => import("./pages/Attendance"));
 const AccessCodes = lazy(() => import("./pages/AccessCodes"));
@@ -436,6 +437,14 @@ function App() {
           element={withLayout(
             <Suspense fallback={<PageLoader />}>
               <Yards />
+            </Suspense>
+          )}
+        />
+        <Route
+          path="/yard-statistics"
+          element={withLayout(
+            <Suspense fallback={<PageLoader />}>
+              <YardStatistics />
             </Suspense>
           )}
         />

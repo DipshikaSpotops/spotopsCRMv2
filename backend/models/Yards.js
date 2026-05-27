@@ -12,6 +12,7 @@ const yardsSchema = new mongoose.Schema(
     state: { type: String, trim: true },
     zipcode: { type: String, trim: true },
     country: { type: String, trim: true, default: "US" },
+    miles: { type: Number },
     // Optional list of known agents for this yard with their direct phone numbers
     agents: [
       {

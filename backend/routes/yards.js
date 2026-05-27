@@ -3,15 +3,22 @@ import express from "express";
 import Yard from "../models/Yards.js"; // your Yard model
 import moment from "moment-timezone";
 import { normalizeYardName } from "../../shared/utils/yardName.js";
+import { requireAuth } from "../middleware/auth.js";
 
 const router = express.Router();
+
+function resolveUpdatedBy(req) {
+  const fromBody = String(req.body?.updatedBy ?? "").trim();
+  const fromUser = String(req.user?.firstName ?? "").trim();
+  return fromBody || fromUser || "Unknown";
+}
 
 // Get all yards (for dropdown)
 router.get("/", async (req, res) => {
   try {
     const yards = await Yard.find(
       {},
-      "yardName yardRating phone altNo email street city state zipcode country agents"
+      "yardName yardRating phone altNo email street city state zipcode country miles agents"
     );
     res.json(yards);
   } catch (err) {
@@ -204,7 +211,7 @@ router.get("/:id", async (req, res) => {
   }
 });
 // 🔹 POST /api/yards → add if not exists, update if exists (unique yardName)
-router.post("/", async (req, res) => {
+router.post("/", requireAuth, async (req, res) => {
   try {
     const {
       yardName,
@@ -217,17 +224,23 @@ router.post("/", async (req, res) => {
       state,
       zipcode,
       country = "US",
+      miles,
       agentName,
       agentPhone,
-      updatedBy,
     } = req.body;
+
+    const milesNum =
+      miles !== undefined && miles !== null && String(miles).trim() !== ""
+        ? Number(miles)
+        : undefined;
+    const milesValue = Number.isFinite(milesNum) ? milesNum : undefined;
 
     if (!yardName || !yardName.trim()) {
       return res.status(400).json({ message: "yardName is required" });
     }
 
     const normalizedYardName = normalizeYardName(yardName, city, state);
-    const updatedByTrimmed = String(updatedBy || "").trim() || undefined;
+    const updatedByValue = resolveUpdatedBy(req);
 
     // Normalize name for consistent matching like “G & T” vs “G&T”
     const normalize = (name) =>
@@ -281,7 +294,8 @@ router.post("/", async (req, res) => {
           state,
           zipcode,
           country,
-          ...(updatedByTrimmed ? { updatedBy: updatedByTrimmed } : {}),
+          ...(milesValue !== undefined ? { miles: milesValue } : {}),
+          updatedBy: updatedByValue,
         },
       };
 
@@ -331,8 +345,9 @@ router.post("/", async (req, res) => {
       state,
       zipcode,
       country,
+      ...(milesValue !== undefined ? { miles: milesValue } : {}),
       agents: agent ? [agent] : [],
-      ...(updatedByTrimmed ? { updatedBy: updatedByTrimmed } : {}),
+      updatedBy: updatedByValue,
     });
 
     await newYard.save();
@@ -348,7 +363,7 @@ router.post("/", async (req, res) => {
 });
 
 // PUT /api/yards/:id - Update a yard
-router.put("/:id", async (req, res) => {
+router.put("/:id", requireAuth, async (req, res) => {
   try {
     const { id } = req.params;
     const {
@@ -362,10 +377,16 @@ router.put("/:id", async (req, res) => {
       state,
       zipcode,
       country,
+      miles,
       agentName,
       agentPhone,
-      updatedBy,
     } = req.body;
+
+    const milesNumPut =
+      miles !== undefined && miles !== null && String(miles).trim() !== ""
+        ? Number(miles)
+        : undefined;
+    const milesValuePut = Number.isFinite(milesNumPut) ? milesNumPut : undefined;
 
     // Build agent object if agentName is provided (phone is optional)
     const agentNameTrimmed = agentName ? String(agentName).trim() : "";
@@ -388,7 +409,7 @@ router.put("/:id", async (req, res) => {
       city ?? yard.city,
       state ?? yard.state
     );
-    const updatedByTrimmed = String(updatedBy || "").trim() || undefined;
+    const updatedByValue = resolveUpdatedBy(req);
 
     const updateDoc = {
       $set: {
@@ -402,7 +423,8 @@ router.put("/:id", async (req, res) => {
         state,
         zipcode,
         country,
-        ...(updatedByTrimmed ? { updatedBy: updatedByTrimmed } : {}),
+        ...(milesValuePut !== undefined ? { miles: milesValuePut } : {}),
+        updatedBy: updatedByValue,
       },
     };
 

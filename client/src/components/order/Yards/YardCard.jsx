@@ -219,6 +219,20 @@ export default function YardCard({
         </span>
       </div>
     )}
+
+    {y.miles !== undefined &&
+      y.miles !== null &&
+      String(y.miles).trim() !== "" &&
+      !Number.isNaN(Number(y.miles)) && (
+        <div className="mt-1 inline-flex items-center rounded-md border border-green-700 bg-green-600 px-2.5 py-1 shadow-sm">
+          <span className="font-semibold text-white mr-1 underline decoration-white/90">
+            Miles:
+          </span>
+          <span className="font-semibold text-white">
+            {Number(y.miles)}
+          </span>
+        </div>
+      )}
   </div>
 </div>
 

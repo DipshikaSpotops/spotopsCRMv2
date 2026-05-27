@@ -9,6 +9,7 @@ import Select, {
 } from "../../ui/Select";
 import API from "../../../api";
 import { extractOwn, extractYard } from "../../../utils/yards";
+import { getCurrentUserFirstName } from "../../../utils/authStorage";
 
 const ALLOWED_COUNTRIES = ["US", "Canada"];
 const normalizeCountry = (value) => {
@@ -58,6 +59,7 @@ export default function YardEditModal({ open, initial, order, orderNo, yardIndex
     state: "",
     zipcode: "",
     country: "US",
+    miles: "",
     partPrice: "",
     status: "Yard located",
     ownShipping: "",
@@ -133,6 +135,10 @@ export default function YardEditModal({ open, initial, order, orderNo, yardIndex
       state: initial?.state || "",
       zipcode: initial?.zipcode || "",
       country: normalizeCountry(initial?.country || "US"),
+      miles:
+        initial?.miles !== undefined && initial?.miles !== null && initial?.miles !== ""
+          ? String(initial.miles)
+          : "",
       partPrice: initial?.partPrice || "",
       status: initial?.status || "Yard located",
       // For shipping, treat shippingDetails as the single source of truth.
@@ -204,6 +210,7 @@ export default function YardEditModal({ open, initial, order, orderNo, yardIndex
     "city",
     "state",
     "zipcode",
+    "miles",
     "partPrice",
   ];
 
@@ -212,6 +219,12 @@ export default function YardEditModal({ open, initial, order, orderNo, yardIndex
     req.forEach((k) => {
       if (!String(form[k] || "").trim()) e[k] = "Required";
     });
+    const milesTrim = String(form.miles ?? "").trim();
+    if (!milesTrim) {
+      e.miles = "Required";
+    } else if (Number.isNaN(Number(milesTrim))) {
+      e.miles = "Enter a valid number";
+    }
     const bothSet =
       String(form.ownShipping ?? "").trim() !== "" &&
       String(form.yardShipping ?? "").trim() !== "" &&
@@ -250,7 +263,7 @@ export default function YardEditModal({ open, initial, order, orderNo, yardIndex
   const handleSave = async () => {
     if (!validate()) return;
 
-    const firstName = localStorage.getItem("firstName");
+    const firstName = getCurrentUserFirstName();
     const orderNo = order?.orderNo;
 
     const changedFields = {};
@@ -307,6 +320,10 @@ export default function YardEditModal({ open, initial, order, orderNo, yardIndex
       return;
     }
 
+    if (changedFields.miles !== undefined) {
+      changedFields.miles = Number(form.miles);
+    }
+
     if (
       changedFields.street ||
       changedFields.city ||
@@ -333,35 +350,30 @@ export default function YardEditModal({ open, initial, order, orderNo, yardIndex
         { params: { firstName } }
       );
 
-      // If agentName or agentPhone changed, also update the Yards collection
-      if ((changedFields.agentName !== undefined || changedFields.agentPhone !== undefined) && form.yardName) {
+      // Sync agent/miles changes to the master Yards collection
+      if (
+        form.yardName &&
+        (changedFields.agentName !== undefined ||
+          changedFields.agentPhone !== undefined ||
+          changedFields.miles !== undefined)
+      ) {
         try {
-          // Find the yard by name
-          const yardSearchRes = await API.get(`/yards/search`, {
-            params: { name: form.yardName },
+          await API.post(`/yards`, {
+            yardName: form.yardName,
+            yardRating: form.yardRating,
+            phone: form.phone,
+            altNo: form.altPhone,
+            email: form.email,
+            street: form.street,
+            city: form.city,
+            state: form.state,
+            zipcode: form.zipcode,
+            country: form.country,
+            miles: Number(form.miles),
+            agentName: form.agentName || "",
+            agentPhone: form.agentPhone || "",
+            updatedBy: firstName || "Unknown",
           });
-          const existingYards = yardSearchRes.data || [];
-          
-          if (existingYards.length > 0) {
-            // Get the existing yard to preserve other fields
-            const existingYard = existingYards[0];
-            // Update only the agent info in the Yards collection
-            await API.put(`/yards/${existingYard._id}`, {
-              yardName: existingYard.yardName,
-              yardRating: existingYard.yardRating,
-              phone: existingYard.phone,
-              altNo: existingYard.altNo,
-              email: existingYard.email,
-              street: existingYard.street,
-              city: existingYard.city,
-              state: existingYard.state,
-              zipcode: existingYard.zipcode,
-              country: existingYard.country,
-              agentName: form.agentName || "",
-              agentPhone: form.agentPhone || "",
-              updatedBy: firstName || "Unknown",
-            });
-          }
         } catch (yardErr) {
           console.error("Error updating yard in Yards collection:", yardErr);
           // Don't fail the whole operation if yard update fails
@@ -398,6 +410,12 @@ export default function YardEditModal({ open, initial, order, orderNo, yardIndex
             state: latestYard.state || "",
             zipcode: latestYard.zipcode || "",
             country: normalizeCountry(latestYard.country || "US"),
+            miles:
+              latestYard.miles !== undefined &&
+              latestYard.miles !== null &&
+              latestYard.miles !== ""
+                ? String(latestYard.miles)
+                : "",
             partPrice: latestYard.partPrice || "",
             status: latestYard.status || "Yard located",
             // Same logic here: when shippingDetails is present, ignore legacy fields
@@ -620,7 +638,18 @@ export default function YardEditModal({ open, initial, order, orderNo, yardIndex
                 </SelectContent>
               </Select>
             </Field>
-            <div />
+            <Field label="Miles">
+              <Input
+                type="number"
+                min="0"
+                step="any"
+                value={form.miles}
+                onChange={set("miles")}
+              />
+              {errors.miles && (
+                <p className="text-xs text-red-200 mt-1 dark:text-red-200">{errors.miles}</p>
+              )}
+            </Field>
           </div>
 
           {/* Pricing / misc */}

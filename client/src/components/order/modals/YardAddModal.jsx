@@ -32,6 +32,7 @@ export default function YardAddModal({ open, onClose, onSubmit, order }) {
     state: "",
     zipcode: "",
     country: "US",
+    miles: "",
     partPrice: "",
     status: "Yard located",
     ownShipping: "",
@@ -237,6 +238,7 @@ export default function YardAddModal({ open, onClose, onSubmit, order }) {
     "city",
     "state",
     "zipcode",
+    "miles",
     "partPrice",
   ];
 
@@ -262,6 +264,12 @@ export default function YardAddModal({ open, onClose, onSubmit, order }) {
     }
     if (yardTrim && !yardIsNumber) {
       e.yardShipping = "Enter a valid number";
+    }
+    const milesTrim = String(form.miles ?? "").trim();
+    if (!milesTrim) {
+      e.miles = "Required";
+    } else if (Number.isNaN(Number(milesTrim))) {
+      e.miles = "Enter a valid number";
     }
     setErrors(e);
     
@@ -304,6 +312,10 @@ export default function YardAddModal({ open, onClose, onSubmit, order }) {
       state: yard.state,
       zipcode: yard.zipcode,
       country: yard.country,
+      miles:
+        yard.miles !== undefined && yard.miles !== null && yard.miles !== ""
+          ? String(yard.miles)
+          : p.miles,
     }));
     setDropdownOpen(false);
     setFilterText(yard.yardName);
@@ -554,6 +566,7 @@ export default function YardAddModal({ open, onClose, onSubmit, order }) {
           state: "",
           zipcode: "",
           country: "US",
+          miles: "",
           partPrice: "",
           status: "Yard located",
           ownShipping: "",
@@ -583,6 +596,10 @@ export default function YardAddModal({ open, onClose, onSubmit, order }) {
           state: selected.state,
           zipcode: selected.zipcode,
           country: normalizeCountry(selected.country),
+          miles:
+            selected.miles !== undefined && selected.miles !== null && selected.miles !== ""
+              ? String(selected.miles)
+              : p.miles,
           yardWarrantyField: selected.yardWarrantyField || "days",
           warranty: selected.warranty || "",
         }));
@@ -609,6 +626,7 @@ export default function YardAddModal({ open, onClose, onSubmit, order }) {
           state: "",
           zipcode: "",
           country: "US",
+          miles: "",
           warranty: "",
           yardWarrantyField: "days",
         }));
@@ -647,6 +665,7 @@ export default function YardAddModal({ open, onClose, onSubmit, order }) {
             state: "",
             zipcode: "",
             country: "US",
+            miles: "",
           }));
         }
       }}
@@ -895,7 +914,18 @@ export default function YardAddModal({ open, onClose, onSubmit, order }) {
                 </SelectContent>
               </Select>
             </Field>
-            <div />
+            <Field label="Miles">
+              <Input
+                type="number"
+                min="0"
+                step="any"
+                value={form.miles}
+                onChange={set("miles")}
+              />
+              {errors.miles && (
+                <p className="text-xs text-red-200 dark:text-red-200">{errors.miles}</p>
+              )}
+            </Field>
           </div>
 
           {/* Price & misc */}
@@ -1020,6 +1050,7 @@ export default function YardAddModal({ open, onClose, onSubmit, order }) {
                   ...form,
                   yardExpedite: !!form.yardExpedite,
                   country: normalizedCountry,
+                  miles: Number(form.miles),
                   ownShipping: ownTrim,
                   yardShipping: yardTrim,
                   address: `${form.street} ${form.city} ${form.state} ${form.zipcode}`.trim(),

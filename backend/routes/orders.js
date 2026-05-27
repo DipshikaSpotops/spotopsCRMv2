@@ -1354,6 +1354,7 @@ router.post("/:orderNo/additionalInfo", async (req, res) => {
       zipcode,
       address,
       country,
+      miles,
       partPrice,
       ownShipping,
       yardShipping,
@@ -1396,11 +1397,17 @@ router.post("/:orderNo/additionalInfo", async (req, res) => {
 
     const parsedExpedite = parseOptionalBooleanFlag(yardExpedite);
     const expediteFlag = parsedExpedite === undefined ? false : parsedExpedite;
+    const milesNum =
+      miles !== undefined && miles !== null && String(miles).trim() !== ""
+        ? Number(miles)
+        : undefined;
     const yardEntry = {
       yardName: normalizedYardName, agentName, agentPhone, yardRating, phone, altPhone, ext, email,
       street, city, state, zipcode,
       address: address || [street, city, state, zipcode].filter(Boolean).join(" "),
-      country, partPrice,
+      country,
+      miles: Number.isFinite(milesNum) ? milesNum : undefined,
+      partPrice,
       ownShipping:  ownSet  ? ownShipping  : undefined,
       yardShipping: yardSet ? yardShipping : undefined,
       shippingDetails, others, faxNo, expShipDate, warranty, yardWarrantyField, stockNo,
@@ -1453,7 +1460,7 @@ const ORDER_STATUS_MAP = {
   "PO cancelled": "Yard Processing",
   "Part shipped": "In Transit",
   "Part delivered": "Order Fulfilled",
-  Escalation: "Escalation",
+  "Escalation": "Escalation",
 };
 
 /* ---------------- PUT /orders/:orderNo/additionalInfo/:index ----------------
@@ -1553,6 +1560,7 @@ router.put(
       "state",
       "zipcode",
       "country",
+      "miles",
       "partPrice",
       "status",
       "ownShipping",
@@ -2037,6 +2045,7 @@ router.patch("/:orderNo/additionalInfo/:index", async (req, res) => {
   state: "State",
   zipcode: "Zip Code",
   country: "Country",
+  miles: "Miles",
   partPrice: "Part Price",
   status: "Status",
   ownShipping: "Own Shipping",
