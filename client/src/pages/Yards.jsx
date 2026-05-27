@@ -169,6 +169,7 @@ function YardFormFields({ form, setForm }) {
 
 const Yards = () => {
   const { role, email } = useMemo(() => readAuthFromStorage(), []);
+  const updatedByUser = localStorage.getItem("firstName") || "Unknown";
   
   // Only allow Admin and specific email
   const isAdmin = role === "Admin";
@@ -390,7 +391,10 @@ const Yards = () => {
     if (!editingYard) return;
     
     try {
-      await API.put(`/yards/${editingYard._id}`, editForm);
+      await API.put(`/yards/${editingYard._id}`, {
+        ...editForm,
+        updatedBy: updatedByUser,
+      });
       setEditingYard(null);
       fetchYards(currentPage, appliedQuery, sortBy, sortOrder, { silent: true });
       alert("Yard updated successfully");
@@ -445,6 +449,7 @@ const Yards = () => {
         country: (addForm.country || "US").trim() || "US",
         agentName: addForm.agentName || "",
         agentPhone: addForm.agentPhone || "",
+        updatedBy: updatedByUser,
       };
       await API.post("/yards", payload);
       setAddYardOpen(false);
@@ -578,6 +583,7 @@ const Yards = () => {
                 { key: "state", label: "State" },
                 { key: "altNo", label: "Alt No" },
                 { key: "updatedAt", label: "Updated At" },
+                { key: "updatedBy", label: "Updated By" },
                 { key: "yardRating", label: "Yard Rating" },
               ].map((col) => (
                 <th
@@ -653,6 +659,9 @@ const Yards = () => {
                 </td>
                 <td className="p-2.5 border-r border-white/20 whitespace-nowrap text-[#e1ebeb]">
                   {formatDate(yard.updatedAt)}
+                </td>
+                <td className="p-2.5 border-r border-white/20 whitespace-nowrap text-[#e1ebeb]">
+                  {yard.updatedBy || "—"}
                 </td>
                 <td className="p-2.5 border-r border-white/20 whitespace-nowrap text-[#e1ebeb]">
                   {yard.yardRating || "—"}

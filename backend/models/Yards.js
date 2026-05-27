@@ -19,6 +19,7 @@ const yardsSchema = new mongoose.Schema(
         phone: { type: String, trim: true },
       },
     ],
+    updatedBy: { type: String, trim: true },
   },
   { timestamps: true }
 );

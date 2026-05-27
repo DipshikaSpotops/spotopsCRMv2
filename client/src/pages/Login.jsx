@@ -125,6 +125,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { useDispatch } from "react-redux";
 import API from "../api";
 import { clearStoredAuth, persistStoredAuth } from "../utils/authStorage";
+import { setCurrentBrand } from "../utils/brand";
 import { logout as logoutAction, setCredentials } from "../store/authSlice";
 
 const Login = () => {
@@ -138,6 +139,7 @@ const Login = () => {
   useEffect(() => {
     // Always start login from a clean client session so users don't need manual cache clears.
     clearStoredAuth();
+    setCurrentBrand("50STARS");
     dispatch(logoutAction());
   }, [dispatch]);
 
@@ -160,6 +162,7 @@ const Login = () => {
         };
         persistStoredAuth(authPayload);
         dispatch(setCredentials(authPayload));
+        setCurrentBrand("50STARS");
 
         const userRole = (res.data.user.role || "").toLowerCase();
         const todayKey = new Date().toISOString().slice(0, 10);

@@ -3,6 +3,7 @@ import axios from "axios";
 import API from "../api";
 import useOrdersRealtime from "../hooks/useOrdersRealtime";
 import useBrand from "../hooks/useBrand";
+import { setCurrentBrand } from "../utils/brand";
 
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -143,8 +144,12 @@ const getDallasNow = () => {
 /* --------------------------------- View ---------------------------------- */
 
 export default function Dashboard() {
-  const brand = useBrand(); // 50STARS / PROLANE
-  
+  const brand = useBrand(); // 50STARS / PROLANE / PROTP
+
+  useEffect(() => {
+    setCurrentBrand("50STARS");
+  }, []);
+
   // Defaults from Dallas time
   const dallasNow = useMemo(() => getDallasNow(), []);
   const defaultMonth = dallasNow.getMonth() + 1;

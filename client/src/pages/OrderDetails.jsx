@@ -26,6 +26,7 @@ import DisputeOrderModal from "../components/order/modals/DisputeOrderModal";
 import RefundOrderModal from "../components/order/modals/RefundOrderModal";
 import YardEscalationModal from "../components/order/modals/YardEscalationModal";
 import API from "../api";
+import { normalizeYardName } from "@spotops/shared";
 
 // popup intaed of alert or confirm:
 function ConfirmModal({
@@ -1168,15 +1169,11 @@ export default function OrderDetails() {
     handleAddYardRef.current = true;
     try {
       const firstName = localStorage.getItem("firstName") || "Unknown";
-      const baseYardName = String(formData?.yardName || "").trim();
-      const city = String(formData?.city || "").trim();
-      const state = String(formData?.state || "").trim();
-      const hasLocation = city && state;
-      const alreadyFormatted = /\([^)]+,\s*[^)]+\)\s*$/.test(baseYardName);
-      const normalizedYardName =
-        hasLocation && !alreadyFormatted
-          ? `${baseYardName} (${city}, ${state})`
-          : baseYardName;
+      const normalizedYardName = normalizeYardName(
+        formData?.yardName,
+        formData?.city,
+        formData?.state
+      );
 
       // 1) Check if yard already exists
       const yardCheck = await API.get(`/yards/search`, {
@@ -1199,6 +1196,7 @@ export default function OrderDetails() {
           state: formData.state,
           zipcode: formData.zipcode,
           country: formData.country,
+          updatedBy: firstName,
         });
       }
 

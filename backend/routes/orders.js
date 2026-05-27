@@ -10,6 +10,7 @@ const requireAuthAllRoles = [requireAuth, allow("Admin", "Sales", "Support")];
 import { getDateRange } from "../utils/dateRange.js";
 import { canonicalOrderStatus } from "../utils/canonicalOrderStatus.js";
 import { getWhen } from "../../shared/utils/timeUtils.js";
+import { normalizeYardName } from "../../shared/utils/yardName.js";
 import multer from "multer";
 import { uploadVoidLabelScreenshotToS3, uploadYardImageToS3 } from "../services/s3Upload.js";
 
@@ -1370,15 +1371,7 @@ router.post("/:orderNo/additionalInfo", async (req, res) => {
       status = "Yard located",
     } = req.body || {};
 
-    const baseYardName = String(yardName || "").trim();
-    const cityTrimmed = String(city || "").trim();
-    const stateTrimmed = String(state || "").trim();
-    const hasCityState = cityTrimmed && stateTrimmed;
-    const alreadyFormattedYardName = /\([^)]+,\s*[^)]+\)\s*$/.test(baseYardName);
-    const normalizedYardName =
-      hasCityState && !alreadyFormattedYardName
-        ? `${baseYardName} (${cityTrimmed}, ${stateTrimmed})`
-        : baseYardName;
+    const normalizedYardName = normalizeYardName(yardName, city, state);
 
     const ownSet  = ownShipping !== undefined && String(ownShipping).trim() !== "";
     const yardSet = yardShipping !== undefined && String(yardShipping).trim() !== "";

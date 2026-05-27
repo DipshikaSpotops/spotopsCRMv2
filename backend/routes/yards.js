@@ -2,6 +2,7 @@
 import express from "express";
 import Yard from "../models/Yards.js"; // your Yard model
 import moment from "moment-timezone";
+import { normalizeYardName } from "../../shared/utils/yardName.js";
 
 const router = express.Router();
 
@@ -150,6 +151,7 @@ router.get("/list", async (req, res) => {
           { phone: searchRegex },
           { altNo: searchRegex },
           { yardRating: searchRegex },
+          { updatedBy: searchRegex },
         ],
       };
       // Combine with existing query
@@ -174,7 +176,7 @@ router.get("/list", async (req, res) => {
       .sort(sortObj)
       .skip(skip)
       .limit(limit)
-      .select("yardName yardRating phone altNo email street city state zipcode country updatedAt agents");
+      .select("yardName yardRating phone altNo email street city state zipcode country updatedAt updatedBy agents");
 
     const totalPages = Math.ceil(filteredCount / limit);
 
@@ -217,21 +219,15 @@ router.post("/", async (req, res) => {
       country = "US",
       agentName,
       agentPhone,
+      updatedBy,
     } = req.body;
 
     if (!yardName || !yardName.trim()) {
       return res.status(400).json({ message: "yardName is required" });
     }
 
-    const baseYardName = String(yardName || "").trim();
-    const cityTrimmed = String(city || "").trim();
-    const stateTrimmed = String(state || "").trim();
-    const hasCityState = cityTrimmed && stateTrimmed;
-    const alreadyFormattedYardName = /\([^)]+,\s*[^)]+\)\s*$/.test(baseYardName);
-    const normalizedYardName =
-      hasCityState && !alreadyFormattedYardName
-        ? `${baseYardName} (${cityTrimmed}, ${stateTrimmed})`
-        : baseYardName;
+    const normalizedYardName = normalizeYardName(yardName, city, state);
+    const updatedByTrimmed = String(updatedBy || "").trim() || undefined;
 
     // Normalize name for consistent matching like “G & T” vs “G&T”
     const normalize = (name) =>
@@ -275,6 +271,7 @@ router.post("/", async (req, res) => {
       // Update the existing yard instead of throwing duplicate error
       const updateDoc = {
         $set: {
+          yardName: normalizedYardName,
           yardRating,
           phone,
           altNo,
@@ -284,6 +281,7 @@ router.post("/", async (req, res) => {
           state,
           zipcode,
           country,
+          ...(updatedByTrimmed ? { updatedBy: updatedByTrimmed } : {}),
         },
       };
 
@@ -334,6 +332,7 @@ router.post("/", async (req, res) => {
       zipcode,
       country,
       agents: agent ? [agent] : [],
+      ...(updatedByTrimmed ? { updatedBy: updatedByTrimmed } : {}),
     });
 
     await newYard.save();
@@ -365,6 +364,7 @@ router.put("/:id", async (req, res) => {
       country,
       agentName,
       agentPhone,
+      updatedBy,
     } = req.body;
 
     // Build agent object if agentName is provided (phone is optional)
@@ -383,9 +383,16 @@ router.put("/:id", async (req, res) => {
       return res.status(404).json({ message: "Yard not found" });
     }
 
+    const normalizedYardName = normalizeYardName(
+      yardName || yard.yardName,
+      city ?? yard.city,
+      state ?? yard.state
+    );
+    const updatedByTrimmed = String(updatedBy || "").trim() || undefined;
+
     const updateDoc = {
       $set: {
-        yardName: yardName?.trim(),
+        yardName: normalizedYardName,
         yardRating,
         phone,
         altNo,
@@ -395,6 +402,7 @@ router.put("/:id", async (req, res) => {
         state,
         zipcode,
         country,
+        ...(updatedByTrimmed ? { updatedBy: updatedByTrimmed } : {}),
       },
     };
 

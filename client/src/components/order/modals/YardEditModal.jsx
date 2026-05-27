@@ -359,6 +359,7 @@ export default function YardEditModal({ open, initial, order, orderNo, yardIndex
               country: existingYard.country,
               agentName: form.agentName || "",
               agentPhone: form.agentPhone || "",
+              updatedBy: firstName || "Unknown",
             });
           }
         } catch (yardErr) {
