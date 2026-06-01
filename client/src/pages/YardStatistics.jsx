@@ -31,7 +31,7 @@ function yardStatisticsTotals(_rows, { responseMeta } = {}) {
     { name: "Overall PO Cancelled", value: String(t.orderCancelled ?? 0) },
     { name: "Overall Junked", value: String(t.junkedParts ?? 0) },
     { name: "Overall Card Charged", value: currency(t.cardCharged) },
-    { name: "Overall Refunded", value: currency(t.refundCollected) },
+    { name: "Overall Refund Collected", value: currency(t.refundCollected) },
     { name: "Overall Store Credit", value: currency(t.storeCredit) },
   ];
 }
