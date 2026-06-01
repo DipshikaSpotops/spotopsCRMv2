@@ -1381,8 +1381,8 @@ export default function OrderDetails() {
           color: #1a1a1a !important;
         }
         
-        /* Field labels and text spans - Soft dark gray */
-        html:not(.dark) .order-details-page .flex.flex-col span,
+        /* Field labels and text spans - Soft dark gray (direct label children only; not GlassCard body) */
+        html:not(.dark) .order-details-page .flex.flex-col > label span,
         html:not(.dark) .order-details-page .grid span:not([class*="text-white"]) {
           color: #1a1a1a !important;
         }
@@ -1579,6 +1579,16 @@ export default function OrderDetails() {
           border-color: #1e3a8a !important;
         }
         html:not(.dark) .order-details-page .escalation-checkbox[class*="bg-\[#04356d\]"] > span {
+          color: #ffffff !important;
+        }
+
+        /* Yard miles badge — white text on green / orange / red */
+        html:not(.dark) .order-details-page .flex.flex-col .yard-miles-badge,
+        html:not(.dark) .order-details-page .flex.flex-col .yard-miles-badge span,
+        html:not(.dark) .order-details-page section .yard-miles-badge,
+        html:not(.dark) .order-details-page section .yard-miles-badge span,
+        html.dark .order-details-page .flex.flex-col .yard-miles-badge,
+        html.dark .order-details-page .flex.flex-col .yard-miles-badge span {
           color: #ffffff !important;
         }
       `}</style>

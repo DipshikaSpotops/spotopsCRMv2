@@ -103,6 +103,25 @@ export default function YardCard({
     rawExpediteValue === 1 ||
     rawExpediteValue === "1";
 
+  const milesValue = Number(y.miles);
+  const hasMiles =
+    y.miles !== undefined &&
+    y.miles !== null &&
+    String(y.miles).trim() !== "" &&
+    Number.isFinite(milesValue);
+
+  const milesBadgeStyle = (() => {
+    if (!hasMiles) return null;
+    const base = { color: "#ffffff" };
+    if (milesValue < 200) {
+      return { ...base, backgroundColor: "#16a34a", borderColor: "#15803d" };
+    }
+    if (milesValue < 500) {
+      return { ...base, backgroundColor: "#ea580c", borderColor: "#c2410c" };
+    }
+    return { ...base, backgroundColor: "#b91c1c", borderColor: "#991b1b" };
+  })();
+
   const fields = [
     makeField("Part Price", y.partPrice),
     makeField("Exp Shipping Date", y.expShipDate),
@@ -157,7 +176,7 @@ export default function YardCard({
       const fullAddress = buildAddress();
       return fullAddress ? (
         <div className="flex items-start">
-          <span className="font-semibold text-[#09325d] dark:text-white/80 mr-1 underline">
+          <span className="font-semibold text-[#09325d] dark:text-white/80 mr-1">
             Address:
           </span>
           <span className="break-words font-semibold text-[#021f4b] dark:text-white text-[0.95rem]">
@@ -170,7 +189,7 @@ export default function YardCard({
     {/* Phone row only */}
     {y.phone && (
       <div className="flex items-start">
-        <span className="font-semibold text-[#09325d] dark:text-white/80 mr-1 underline">
+        <span className="font-semibold text-[#09325d] dark:text-white/80 mr-1">
           Phone:
         </span>
         <span className="font-semibold text-[#021f4b] dark:text-white ml-1">
@@ -184,7 +203,7 @@ export default function YardCard({
       <div className="flex flex-wrap gap-x-4 gap-y-1">
         {y.email && (
           <div className="flex items-start">
-            <span className="font-semibold text-[#09325d] dark:text-white/80 mr-1 underline">
+            <span className="font-semibold text-[#09325d] dark:text-white/80 mr-1">
               Email:
             </span>
             <a
@@ -197,7 +216,7 @@ export default function YardCard({
         )}
         {y.faxNo && (
           <div className="flex items-start">
-            <span className="font-semibold text-[#09325d] dark:text-white/80 mr-1 underline">
+            <span className="font-semibold text-[#09325d] dark:text-white/80 mr-1">
               Fax:
             </span>
             <span className="font-semibold text-[#021f4b] dark:text-white ml-1">
@@ -211,7 +230,7 @@ export default function YardCard({
     {/* Agent - separate row, bold value */}
     {y.agentName && (
       <div className="flex items-start">
-        <span className="font-semibold text-[#09325d] dark:text-white/80 mr-1 underline">
+        <span className="font-semibold text-[#09325d] dark:text-white/80 mr-1">
           Agent:
         </span>
         <span className="font-semibold text-[#021f4b] dark:text-white ml-1">
@@ -220,20 +239,16 @@ export default function YardCard({
       </div>
     )}
 
-    {y.miles !== undefined &&
-      y.miles !== null &&
-      String(y.miles).trim() !== "" &&
-      !Number.isNaN(Number(y.miles)) && (
-        <div className="mt-1 inline-flex items-center rounded-md border border-green-700 bg-green-600 px-2.5 py-1 shadow-sm">
-          <span className="font-semibold text-white mr-1 underline decoration-white/90">
-            Miles:
-          </span>
-          <span className="font-semibold text-white">
-            {Number(y.miles)}
-          </span>
-        </div>
-      )}
   </div>
+
+  {hasMiles && milesBadgeStyle && (
+    <div
+      className="yard-miles-badge mt-2 inline-block rounded-md border px-2.5 py-1 text-sm font-semibold shadow-sm"
+      style={milesBadgeStyle}
+    >
+      Miles: {milesValue}
+    </div>
+  )}
 </div>
 
 

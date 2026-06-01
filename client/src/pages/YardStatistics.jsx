@@ -1,12 +1,18 @@
 import React, { useCallback } from "react";
 import OrdersTable from "../components/OrdersTable";
 
+/** Green used on yard miles badge / positive indicators */
+const REFUND_COLLECTED_GREEN = "bg-[#16a34a] text-white";
+
 const columns = [
   { key: "yardName", label: "Yard Name" },
-  { key: "noOrderPlaced", label: "No Order Placed" },
-  { key: "orderCancelled", label: "Order Cancelled" },
+  { key: "yardPoSent", label: "Yard PO Sent" },
+  { key: "orderCancelled", label: "PO Cancelled" },
   { key: "junkedParts", label: "Junked Parts" },
-  { key: "yardStoreCredit", label: "Yard Store Credit" },
+  { key: "cardCharged", label: "Card Charged" },
+  { key: "refundToBeCollected", label: "Refund to Be Collected" },
+  { key: "refundCollected", label: "Refund Collected" },
+  { key: "storeCredit", label: "Store Credit" },
   { key: "failedOrders", label: "Failed Orders" },
   { key: "successRate", label: "Success Rate" },
 ];
@@ -18,13 +24,17 @@ export default function YardStatistics() {
     switch (key) {
       case "yardName":
         return row.yardName || "—";
-      case "noOrderPlaced":
+      case "yardPoSent":
+        return Number(row.yardPoSent ?? row.ordersPlaced ?? 0);
       case "orderCancelled":
       case "junkedParts":
       case "failedOrders":
         return row[key] ?? 0;
-      case "yardStoreCredit":
-        return currency(row.yardStoreCredit);
+      case "cardCharged":
+      case "refundToBeCollected":
+      case "refundCollected":
+      case "storeCredit":
+        return currency(row[key]);
       case "successRate": {
         const rate = Number(row.successRate);
         return Number.isFinite(rate) ? `${rate.toFixed(2)}%` : "—";
@@ -32,6 +42,13 @@ export default function YardStatistics() {
       default:
         return row[key] ?? "—";
     }
+  }, []);
+
+  const getCellClassName = useCallback((row, key) => {
+    if (key === "refundCollected" && Number(row.refundCollected) > 0) {
+      return REFUND_COLLECTED_GREEN;
+    }
+    return "";
   }, []);
 
   return (
@@ -46,6 +63,7 @@ export default function YardStatistics() {
       }}
       columns={columns}
       renderCell={renderCell}
+      getCellClassName={getCellClassName}
       showAgentFilter
       showGP={false}
       hideDefaultActions

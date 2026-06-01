@@ -329,6 +329,7 @@ export default function OrdersTable({
   defaultFilter = null,
   defaultSortBy = "orderDate",
   defaultSortOrder = "desc",
+  getCellClassName,
 }) {
   const navigate = useNavigate();
   const brand = useBrand(); // 50STARS / PROLANE
@@ -1256,7 +1257,7 @@ export default function OrdersTable({
                     {columns.map((col) => (
                       <td
                         key={col.key}
-                        className="p-2.5 border-r border-white/20 whitespace-nowrap"
+                        className={`p-2.5 border-r border-white/20 whitespace-nowrap ${getCellClassName?.(row, col.key) || col.cellClassName || ""}`}
                       >
                         {renderCell
                           ? renderCell(row, col.key, formatDateSafe, currency)

@@ -43,32 +43,108 @@ function buildDateRange({ start, end, month, year }) {
   throw new Error("Provide either start/end or month/year");
 }
 
+function norm(s) {
+  return String(s ?? "").trim().toLowerCase();
+}
+
 function isPoCancelledStatus(status) {
-  const s = String(status || "").trim().toLowerCase();
-  return (
-    s === "po cancelled" ||
-    s === "po canceled" ||
-    s === "po cancel"
-  );
+  const s = norm(status);
+  return s === "po cancelled" || s === "po canceled" || s === "po cancel";
 }
 
 function isEscalationStatus(status) {
-  return String(status || "").trim().toLowerCase() === "escalation";
+  return norm(status) === "escalation";
 }
 
-function isNoOrderPlacedStatus(status) {
-  return String(status || "").trim().toLowerCase() === "yard located";
+/** Match "Yard 2" but not "Yard 20" when yardNum is 2. */
+function lineMatchesYard(line, yardNum) {
+  return new RegExp(`\\bYard ${yardNum}\\b`, "i").test(String(line || ""));
 }
 
+/** Yard statuses that only apply after a PO was sent to the yard. */
+const YARD_STATUS_IMPLIES_PO_SENT = new Set([
+  "yard po sent",
+  "label created",
+  "part shipped",
+  "part delivered",
+  "part lost with shipping partner",
+]);
+
+function isPoSentHistoryLine(line) {
+  const text = String(line || "");
+  if (!/\bpo sent\b/i.test(text)) return false;
+  if (/po sent by\b/i.test(text)) return true;
+  if (/status updated to\s+yard po sent/i.test(text)) return true;
+  return false;
+}
+
+/**
+ * Derive yard lifecycle from orderHistory (1-based yard index).
+ */
+function analyzeYardHistory(orderHistory, yardNum) {
+  let poSentCount = 0;
+  let poCancelled = false;
+  let escalation = false;
+
+  for (const raw of orderHistory || []) {
+    const line = String(raw || "");
+    if (!lineMatchesYard(line, yardNum)) continue;
+
+    if (isPoSentHistoryLine(line)) {
+      poSentCount += 1;
+    }
+    if (/status updated to\s+po cancel/i.test(line)) {
+      poCancelled = true;
+    }
+    if (/status updated to\s+escalation/i.test(line)) {
+      escalation = true;
+    }
+  }
+
+  return { poSentCount, poCancelled, escalation };
+}
+
+function yardHasPoSentDate(yard) {
+  const raw = yard?.poSentDate;
+  if (raw === undefined || raw === null) return false;
+  return String(raw).trim() !== "";
+}
+
+function yardStatusImpliesPoSent(yard) {
+  const st = norm(yard?.status);
+  if (YARD_STATUS_IMPLIES_PO_SENT.has(st)) return true;
+  // PO was sent before it could be cancelled
+  if (isPoCancelledStatus(yard?.status)) return true;
+  return false;
+}
+
+/** How many times a PO was sent for this yard slot on this order (min 0 or 1). */
+function countYardPoSent(history, yardNum, yard) {
+  const events = analyzeYardHistory(history, yardNum);
+  if (events.poSentCount > 0) return events.poSentCount;
+  if (yardHasPoSentDate(yard) || yardStatusImpliesPoSent(yard)) return 1;
+  return 0;
+}
+
+function yardPoWasCancelled(history, yardNum, yard) {
+  const events = analyzeYardHistory(history, yardNum);
+  return events.poCancelled || isPoCancelledStatus(yard?.status);
+}
+
+function yardWasEscalation(history, yardNum, yard) {
+  const events = analyzeYardHistory(history, yardNum);
+  return events.escalation || isEscalationStatus(yard?.status);
+}
+
+/** Same rules as Junk Parts report (junkPartsOrders route). */
 function isJunkYard(yard) {
+  if (norm(yard?.escTicked) !== "yes") return false;
   const process = String(yard?.escalationProcess || "").trim();
   const reason = String(yard?.custReason || "").trim();
-  return process === "Junk" || (process === "Replacement" && reason === "Junked");
-}
-
-function isOrderCancelled(orderStatus) {
-  const s = String(orderStatus || "").trim();
-  return s === "Order Cancelled" || s === "Cancelled";
+  return (
+    process === "Junk" ||
+    (process === "Replacement" && reason === "Junked")
+  );
 }
 
 function toNumber(v) {
@@ -76,17 +152,68 @@ function toNumber(v) {
   return Number.isFinite(n) ? n : 0;
 }
 
+function parseShippingAmount(shippingDetails) {
+  const s = String(shippingDetails || "");
+  if (!s) return 0;
+  const match = s.match(/(?:Own shipping|Yard shipping):\s*([\d.]+)/i);
+  return match ? toNumber(match[1]) : 0;
+}
+
+function isCardCharged(yard) {
+  return String(yard?.paymentStatus || "").trim().toLowerCase() === "card charged";
+}
+
+function isRefundCollected(yard) {
+  return String(yard?.refundStatus || "")
+    .trim()
+    .toLowerCase()
+    .includes("refund collected");
+}
+
+function cardChargedAmount(yard) {
+  if (!isCardCharged(yard)) return 0;
+  const part = toNumber(yard.partPrice);
+  const ship = parseShippingAmount(yard.shippingDetails);
+  const others = toNumber(yard.others);
+  const refunded = toNumber(yard.refundedAmount);
+  return Math.max(0, part + ship + others - refunded);
+}
+
+/** Same rules as Collect Refund page */
+function refundToCollectAmount(yard) {
+  if (String(yard?.collectRefundCheckbox || "").trim() !== "Ticked") return 0;
+  const toCollect = toNumber(yard.refundToCollect);
+  const refunded = toNumber(yard.refundedAmount);
+  if (refunded > 0 || toCollect <= 0) return 0;
+  return toCollect;
+}
+
+function refundCollectedAmount(yard) {
+  if (!isRefundCollected(yard)) return 0;
+  return toNumber(yard.refundedAmount);
+}
+
+function storeCreditAmount(yard) {
+  return Math.max(0, toNumber(yard.storeCredit));
+}
+
+function roundMoney(n) {
+  return Math.round(n * 100) / 100;
+}
+
 function emptyRow(yardName) {
   return {
     _id: yardName,
     yardName,
-    noOrderPlaced: 0,
+    yardPoSent: 0,
     orderCancelled: 0,
     junkedParts: 0,
-    yardStoreCredit: 0,
+    cardCharged: 0,
+    refundToBeCollected: 0,
+    refundCollected: 0,
+    storeCredit: 0,
     failedOrders: 0,
     successRate: 0,
-    ordersPlaced: 0,
   };
 }
 
@@ -110,7 +237,7 @@ router.get("/", requireAuth, allow("Admin", "Sales", "Support"), async (req, res
     const pageSize = Math.max(parseInt(limit, 10) || 25, 1);
     const search = String(q || "").trim().toLowerCase();
 
-    const Order = getOrderModelForBrand(req);
+    const Order = getOrderModelForBrand(req.brand);
     const query = {
       orderDate: { $gte: startDate, $lt: endExclusive },
       "additionalInfo.0": { $exists: true },
@@ -121,38 +248,45 @@ router.get("/", requireAuth, allow("Admin", "Sales", "Support"), async (req, res
     }
 
     const orders = await Order.find(query)
-      .select({ orderStatus: 1, additionalInfo: 1 })
+      .select("orderStatus additionalInfo orderHistory")
       .lean();
 
     const statsMap = new Map();
+    const history = (order) =>
+      Array.isArray(order?.orderHistory) ? order.orderHistory : [];
 
     for (const order of orders) {
-      const orderCancelled = isOrderCancelled(order.orderStatus);
       const yards = Array.isArray(order.additionalInfo) ? order.additionalInfo : [];
+      const orderHistory = history(order);
 
-      for (const yard of yards) {
+      for (let yardIndex = 0; yardIndex < yards.length; yardIndex++) {
+        const yard = yards[yardIndex];
         const yardName = String(yard?.yardName || "").trim();
         if (!yardName) continue;
         if (search && !yardName.toLowerCase().includes(search)) continue;
 
+        const yardNum = yardIndex + 1;
+        const poSentCount = countYardPoSent(orderHistory, yardNum, yard);
+        const poCancelled = yardPoWasCancelled(orderHistory, yardNum, yard);
+        const escalated = yardWasEscalation(orderHistory, yardNum, yard);
+
         let row = statsMap.get(yardName);
         if (!row) row = emptyRow(yardName);
 
-        row.ordersPlaced += 1;
-
-        if (isNoOrderPlacedStatus(yard.status)) {
-          row.noOrderPlaced += 1;
-        }
-        if (orderCancelled) {
+        row.yardPoSent += poSentCount;
+        if (poCancelled) {
           row.orderCancelled += 1;
         }
         if (isJunkYard(yard)) {
           row.junkedParts += 1;
         }
 
-        row.yardStoreCredit += toNumber(yard.refundedAmount);
+        row.cardCharged += cardChargedAmount(yard);
+        row.refundToBeCollected += refundToCollectAmount(yard);
+        row.refundCollected += refundCollectedAmount(yard);
+        row.storeCredit += storeCreditAmount(yard);
 
-        if (isPoCancelledStatus(yard.status) || isEscalationStatus(yard.status)) {
+        if (poCancelled || escalated) {
           row.failedOrders += 1;
         }
 
@@ -161,15 +295,18 @@ router.get("/", requireAuth, allow("Admin", "Sales", "Support"), async (req, res
     }
 
     let rows = Array.from(statsMap.values()).map((row) => {
-      const placed = row.ordersPlaced;
+      const poSentCount = row.yardPoSent;
       const failed = row.failedOrders;
       const successRate =
-        placed > 0
-          ? Math.round(((placed - failed) / placed) * 10000) / 100
+        poSentCount > 0
+          ? Math.round(((poSentCount - failed) / poSentCount) * 10000) / 100
           : 0;
       return {
         ...row,
-        yardStoreCredit: Math.round(row.yardStoreCredit * 100) / 100,
+        cardCharged: roundMoney(row.cardCharged),
+        refundToBeCollected: roundMoney(row.refundToBeCollected),
+        refundCollected: roundMoney(row.refundCollected),
+        storeCredit: roundMoney(row.storeCredit),
         successRate,
       };
     });
