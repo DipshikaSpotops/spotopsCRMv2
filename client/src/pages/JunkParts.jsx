@@ -4,6 +4,7 @@ import OrdersTable from "../components/OrdersTable";
 import useOrdersRealtime from "../hooks/useOrdersRealtime";
 import useBrand from "../hooks/useBrand";
 import { useNavigate } from "react-router-dom";
+import { isJunkEscalationOutcome } from "@spotops/shared";
 
 /* ---------- Columns (order matters) ---------- */
 const columns = [
@@ -15,9 +16,7 @@ const columns = [
 ];
 
 function isJunkYard(yard) {
-  const process = (yard?.escalationProcess || "").trim();
-  const reason = (yard?.custReason || "").trim();
-  return process === "Junk" || (process === "Replacement" && reason === "Junked");
+  return isJunkEscalationOutcome(yard);
 }
 
 /**

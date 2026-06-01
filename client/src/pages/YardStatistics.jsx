@@ -19,6 +19,23 @@ const columns = [
 
 const currency = (n) => `$${(Number(n) || 0).toFixed(2)}`;
 
+/** Eye-icon totals: all yards in the filtered range (not just the current page). */
+function yardStatisticsTotals(_rows, { responseMeta } = {}) {
+  const t = responseMeta?.grandTotals || {};
+  return [
+    { name: "Total Yards", value: String(t.yardCount ?? responseMeta?.totalCount ?? 0) },
+    {
+      name: "Overall Placed Orders",
+      value: String(t.yardPoSent ?? 0),
+    },
+    { name: "Overall PO Cancelled", value: String(t.orderCancelled ?? 0) },
+    { name: "Overall Junked", value: String(t.junkedParts ?? 0) },
+    { name: "Overall Card Charged", value: currency(t.cardCharged) },
+    { name: "Overall Refunded", value: currency(t.refundCollected) },
+    { name: "Overall Store Credit", value: currency(t.storeCredit) },
+  ];
+}
+
 export default function YardStatistics() {
   const renderCell = useCallback((row, key) => {
     switch (key) {
@@ -64,12 +81,14 @@ export default function YardStatistics() {
       columns={columns}
       renderCell={renderCell}
       getCellClassName={getCellClassName}
-      showAgentFilter
+      showAgentFilter={false}
       showGP={false}
       hideDefaultActions
       tableId="yardStatistics"
       defaultSortBy="yardName"
       defaultSortOrder="asc"
+      showOrdersCountInTotals={false}
+      extraTotals={yardStatisticsTotals}
     />
   );
 }

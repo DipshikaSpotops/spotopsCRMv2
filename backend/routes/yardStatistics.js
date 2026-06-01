@@ -1,5 +1,6 @@
 import express from "express";
 import moment from "moment-timezone";
+import { isJunkedPartYard } from "../../shared/utils/junkYard.js";
 import { getOrderModelForBrand } from "../models/Order.js";
 import { requireAuth, allow } from "../middleware/auth.js";
 
@@ -136,17 +137,6 @@ function yardWasEscalation(history, yardNum, yard) {
   return events.escalation || isEscalationStatus(yard?.status);
 }
 
-/** Same rules as Junk Parts report (junkPartsOrders route). */
-function isJunkYard(yard) {
-  if (norm(yard?.escTicked) !== "yes") return false;
-  const process = String(yard?.escalationProcess || "").trim();
-  const reason = String(yard?.custReason || "").trim();
-  return (
-    process === "Junk" ||
-    (process === "Replacement" && reason === "Junked")
-  );
-}
-
 function toNumber(v) {
   const n = Number(v);
   return Number.isFinite(n) ? n : 0;
@@ -201,6 +191,36 @@ function roundMoney(n) {
   return Math.round(n * 100) / 100;
 }
 
+function computeGrandTotals(rows) {
+  const totals = {
+    yardCount: rows.length,
+    yardPoSent: 0,
+    orderCancelled: 0,
+    junkedParts: 0,
+    cardCharged: 0,
+    refundToBeCollected: 0,
+    refundCollected: 0,
+    storeCredit: 0,
+  };
+
+  for (const row of rows) {
+    totals.yardPoSent += Number(row.yardPoSent) || 0;
+    totals.orderCancelled += Number(row.orderCancelled) || 0;
+    totals.junkedParts += Number(row.junkedParts) || 0;
+    totals.cardCharged += Number(row.cardCharged) || 0;
+    totals.refundToBeCollected += Number(row.refundToBeCollected) || 0;
+    totals.refundCollected += Number(row.refundCollected) || 0;
+    totals.storeCredit += Number(row.storeCredit) || 0;
+  }
+
+  totals.cardCharged = roundMoney(totals.cardCharged);
+  totals.refundToBeCollected = roundMoney(totals.refundToBeCollected);
+  totals.refundCollected = roundMoney(totals.refundCollected);
+  totals.storeCredit = roundMoney(totals.storeCredit);
+
+  return totals;
+}
+
 function emptyRow(yardName) {
   return {
     _id: yardName,
@@ -225,7 +245,6 @@ router.get("/", requireAuth, allow("Admin", "Sales", "Support"), async (req, res
       q,
       sortBy = "yardName",
       sortOrder = "asc",
-      salesAgent,
       start,
       end,
       month,
@@ -242,10 +261,6 @@ router.get("/", requireAuth, allow("Admin", "Sales", "Support"), async (req, res
       orderDate: { $gte: startDate, $lt: endExclusive },
       "additionalInfo.0": { $exists: true },
     };
-
-    if (salesAgent && salesAgent !== "Select" && salesAgent !== "All") {
-      query.salesAgent = salesAgent;
-    }
 
     const orders = await Order.find(query)
       .select("orderStatus additionalInfo orderHistory")
@@ -277,7 +292,7 @@ router.get("/", requireAuth, allow("Admin", "Sales", "Support"), async (req, res
         if (poCancelled) {
           row.orderCancelled += 1;
         }
-        if (isJunkYard(yard)) {
+        if (isJunkedPartYard(yard, { history: orderHistory, yardNum })) {
           row.junkedParts += 1;
         }
 
@@ -330,12 +345,14 @@ router.get("/", requireAuth, allow("Admin", "Sales", "Support"), async (req, res
     const safePage = Math.min(pageNum, totalPages);
     const skip = (safePage - 1) * pageSize;
     const pageRows = rows.slice(skip, skip + pageSize);
+    const grandTotals = computeGrandTotals(rows);
 
     res.json({
       orders: pageRows,
       totalCount,
       totalPages,
       currentPage: safePage,
+      grandTotals,
     });
   } catch (err) {
     console.error("GET /orders/yardStatistics failed:", err);

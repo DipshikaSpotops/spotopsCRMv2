@@ -77,11 +77,8 @@ router.get("/", async (req, res) => {
         $elemMatch: {
           escTicked: "Yes",
           $or: [
-            { escalationProcess: "Junk" },
-            {
-              escalationProcess: "Replacement",
-              custReason: "Junked",
-            },
+            { escalationProcess: /^junk$/i },
+            { custReason: /^junked$/i },
           ],
           // Exclude if refundStatus is "Refund collected" (case-insensitive)
           $nor: [
