@@ -183,6 +183,23 @@ const getSupportDisplayName = (rawFirstName, req) => {
   );
 };
 
+/** PO payment: card (default), payment_link, zelle */
+function normalizePoPaymentMethod(raw) {
+  const s = String(raw || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, "_");
+  if (s === "payment_link" || s === "paymentlink") return "payment_link";
+  if (s === "zelle") return "zelle";
+  return "card";
+}
+
+function poPaymentMethodLabel(method) {
+  if (method === "payment_link") return "Payment Link";
+  if (method === "zelle") return "Zelle";
+  return null;
+}
+
 const router = express.Router();
 const upload = multer();
 
@@ -317,8 +334,19 @@ router.post("/sendPOEmailYard/:orderNo", upload.any(), async (req, res) => {
         ? "NA"
         : `${warrantyValue} ${getWarrantyUnitLabel()}`;
 
-    // Brand-aware card details for the PDF
-    const card = getCardConfig(req);
+    const paymentMethod = normalizePoPaymentMethod(req.body.paymentMethod);
+    const isCardPayment = paymentMethod === "card";
+    const paymentMethodLabel = poPaymentMethodLabel(paymentMethod);
+
+    // Brand-aware card details for the PDF (blank when not paying by card)
+    const cardConfig = getCardConfig(req);
+    const card = isCardPayment
+      ? cardConfig
+      : { cardNumber: "", cardExpiry: "", cardCvv: "" };
+
+    const cardChargeFooterLine = isCardPayment
+      ? '- Charging the card confirms agreement with our T&Cs.<br>'
+      : "";
 
     // Full PO HTML template
     const html = `
@@ -560,7 +588,7 @@ router.post("/sendPOEmailYard/:orderNo", upload.any(), async (req, res) => {
         - Pack the part carefully. We are not accountable for shipping damage.<br>
         - Ensure "No Tags or Labels" — this is blind shipping.<br>
         - Send tracking and carrier info to our email.<br>
-        - Charging the card confirms agreement with our T&Cs.
+        ${cardChargeFooterLine}
       </div>
     </div>
   </body>
@@ -614,6 +642,20 @@ router.post("/sendPOEmailYard/:orderNo", upload.any(), async (req, res) => {
     // Brand-aware support display name for signature
     const firstNameTrimmed = getSupportDisplayName(firstName, req);
 
+    const paymentMethodListItem = paymentMethodLabel
+      ? `<li><strong>Payment method:</strong> ${paymentMethodLabel}</li>`
+      : "";
+
+    const poNotesBlock = isCardPayment
+      ? `Please provide the transaction receipt after you have charged our card.<br>
+          Also, make sure it's blind shipping, and don't add any tags or labels during the shipment.<br>
+          Please ensure that the items are delivered as specified above and in accordance with the agreed-upon terms and conditions.<br>
+          If there are any discrepancies or questions regarding this order, please contact us immediately.`
+      : `Payment is to be made via <strong>${paymentMethodLabel}</strong>. Card details are not included on the attached PO.<br>
+          Also, make sure it's blind shipping, and don't add any tags or labels during the shipment.<br>
+          Please ensure that the items are delivered as specified above and in accordance with the agreed-upon terms and conditions.<br>
+          If there are any discrepancies or questions regarding this order, please contact us immediately.`;
+
     const htmlContent = `
         <p style="font-size: 14px;">Dear ${yard.agentName || "Team"},</p>
         <p style="font-size: 14px;">Please find attached the Purchase Order for the following:</p>
@@ -626,6 +668,7 @@ router.post("/sendPOEmailYard/:orderNo", upload.any(), async (req, res) => {
           <li><strong>Part No:</strong> ${partNo || "NA"}</li>
           <li><strong>Stock No:</strong> ${stockNo}</li>
           <li><strong>Warranty:</strong> ${warrantyDisplay}</li>
+          ${paymentMethodListItem}
         </ul>
         <p><strong>Purchase Order To:</strong> ${yard.yardName}<br>
         <strong>Part Price:</strong> $${partPrice.toFixed(2)}<br>
@@ -633,10 +676,7 @@ router.post("/sendPOEmailYard/:orderNo", upload.any(), async (req, res) => {
 
         <p style="font-size: 14px;">
           Notes:<br>
-          Please provide the transaction receipt after you have charged our card.<br>
-          Also, make sure it's blind shipping, and don't add any tags or labels during the shipment.<br>
-          Please ensure that the items are delivered as specified above and in accordance with the agreed-upon terms and conditions.<br>
-          If there are any discrepancies or questions regarding this order, please contact us immediately.
+          ${poNotesBlock}
         </p>
 
         <p>

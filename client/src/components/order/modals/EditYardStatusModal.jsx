@@ -55,6 +55,12 @@ const SHIPPERS = [
   "Others",
 ];
 
+const PO_PAYMENT_OPTIONS = [
+  { value: "card", label: "Credit card/Debit card" },
+  { value: "payment_link", label: "Payment Link" },
+  { value: "zelle", label: "Zelle" },
+];
+
 export default function EditYardStatusModal({
   open,
   yard,
@@ -78,6 +84,7 @@ export default function EditYardStatusModal({
   const [trackingLink, setTrackingLink] = useState(yard?.trackingLink || "");
 
   const [showPO, setShowPO] = useState(false);
+  const [poPaymentMethod, setPoPaymentMethod] = useState("card");
   const [showTracking, setShowTracking] = useState(false);
   const [showEsc, setShowEsc] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -150,6 +157,7 @@ export default function EditYardStatusModal({
 
     const st = yard?.status || "";
     setShowPO(st === "Yard PO Sent");
+    setPoPaymentMethod("card");
     setShowTracking(st === "Label created" || st === "Part shipped");
     setShowEsc(st === "Escalation");
   }, [open, yard]);
@@ -540,6 +548,7 @@ export default function EditYardStatusModal({
       setSavingAction("sendPO");
       const formData = new FormData();
       formData.append("yardIndex", String(yardIndex));
+      formData.append("paymentMethod", poPaymentMethod);
 
       const files = fileInputRef.current?.files || [];
       for (let i = 0; i < files.length; i++) {
@@ -736,7 +745,27 @@ export default function EditYardStatusModal({
               <p className="mb-2">
                 <strong>Note:</strong> You can send PO with or without images.
               </p>
-              <div className="flex gap-2">
+              <fieldset className="mb-3 space-y-1.5">
+                <legend className="text-sm font-semibold mb-1">Payment method</legend>
+                {PO_PAYMENT_OPTIONS.map((opt) => (
+                  <label
+                    key={opt.value}
+                    className="flex items-center gap-2 cursor-pointer text-sm"
+                  >
+                    <input
+                      type="radio"
+                      name="poPaymentMethod"
+                      value={opt.value}
+                      checked={poPaymentMethod === opt.value}
+                      onChange={() => setPoPaymentMethod(opt.value)}
+                      disabled={savingAction === "sendPO"}
+                      className="accent-blue-600"
+                    />
+                    <span>{opt.label}</span>
+                  </label>
+                ))}
+              </fieldset>
+              <div className="flex gap-2 flex-wrap items-center">
                 <button
                   type="button"
                   onClick={sendPO}
