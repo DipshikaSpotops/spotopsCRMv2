@@ -23,7 +23,16 @@ const ACTIVE_ATTENDANCE_NAMES = [
   "Suzanne",
   "Tony",
   "Dipsikha",
+  "Alex Morgan",
+  "Hannah Presley",
+  "Natasha Spencer",
 ];
+
+function rosterEntryKey(rosterName) {
+  const firstToken = String(rosterName || "").trim().split(/\s+/)[0];
+  const lower = firstToken.toLowerCase();
+  return lower === "dipshika" ? "dipsikha" : lower;
+}
 
 function canonicalFirstName(name) {
   const raw = String(name || "").trim();
@@ -31,10 +40,7 @@ function canonicalFirstName(name) {
   const firstToken = raw.split(/\s+/)[0];
   const lower = firstToken.toLowerCase();
   const key = lower === "dipshika" ? "dipsikha" : lower;
-  return (
-    ACTIVE_ATTENDANCE_NAMES.find((a) => a.toLowerCase() === key) ||
-    null
-  );
+  return ACTIVE_ATTENDANCE_NAMES.find((a) => rosterEntryKey(a) === key) || null;
 }
 
 /** Admin edits: roster spelling when active; otherwise raw first token (retired / legacy rows). */

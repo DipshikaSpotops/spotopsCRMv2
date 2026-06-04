@@ -15,6 +15,9 @@ export const ACTIVE_ATTENDANCE_USER_LIST = [
   "Suzanne",
   "Tony",
   "Dipsikha",
+  "Alex Morgan",
+  "Hannah Presley",
+  "Natasha Spencer",
 ];
 
 /** Lookup object: firstName -> { firstName } */
@@ -28,7 +31,7 @@ function normalizeAttendanceFirstNameKey(firstName) {
   return n;
 }
 
-/** Match roster to first word (e.g. "Richard Parker" → Richard). */
+/** Match roster to first word (e.g. "Richard Parker" → Richard, "Alex" → Alex Morgan). */
 function rosterKeyFromUserFirstName(firstName) {
   const raw = String(firstName || "").trim();
   if (!raw) return "";
@@ -36,17 +39,19 @@ function rosterKeyFromUserFirstName(firstName) {
   return normalizeAttendanceFirstNameKey(firstToken);
 }
 
+function rosterEntryKey(rosterName) {
+  const firstToken = String(rosterName || "").trim().split(/\s+/)[0];
+  return normalizeAttendanceFirstNameKey(firstToken);
+}
+
 export function isActiveAttendanceUser(firstName) {
   const key = rosterKeyFromUserFirstName(firstName);
   if (!key) return false;
-  return ACTIVE_ATTENDANCE_USER_LIST.some((a) => a.toLowerCase() === key);
+  return ACTIVE_ATTENDANCE_USER_LIST.some((a) => rosterEntryKey(a) === key);
 }
 
 export function canonicalAttendanceName(firstName) {
   const key = rosterKeyFromUserFirstName(firstName);
   if (!key) return null;
-  return (
-    ACTIVE_ATTENDANCE_USER_LIST.find((a) => a.toLowerCase() === key) ||
-    null
-  );
+  return ACTIVE_ATTENDANCE_USER_LIST.find((a) => rosterEntryKey(a) === key) || null;
 }
