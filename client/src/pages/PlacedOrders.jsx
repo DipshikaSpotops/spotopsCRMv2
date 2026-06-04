@@ -6,6 +6,7 @@ import { formatInTimeZone } from "date-fns-tz";
 import moment from "moment-timezone";
 import API from "../api";
 import useOrdersRealtime from "../hooks/useOrdersRealtime";
+import useBrand from "../hooks/useBrand";
 
 const prettyFilterLabel = (filter) => {
   if (!filter) return "";
@@ -123,6 +124,7 @@ const dallasToISO = (value) => {
 };
 
 const PlacedOrders = () => {
+  const brand = useBrand();
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -213,6 +215,11 @@ const PlacedOrders = () => {
     const base = currentFilter || {};
     fetchOrders({ ...base, q: q || undefined });
   };
+
+  useEffect(() => {
+    const base = currentFilter || {};
+    fetchOrders({ ...base, q: searchTerm.trim() || undefined });
+  }, [brand]);
 
   // Realtime updates: when any order is created/updated anywhere,
   // refetch this list with the current filter + search in the background.

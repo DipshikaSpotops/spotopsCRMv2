@@ -102,6 +102,8 @@ const additionalInfoSchema = new mongoose.Schema(
     voidLabelScreenshot: String,
     // general yard-level images (e.g., damage photos, label photos)
     yardImages: [String],
+    // true when driving license was attached on a Yard PO email
+    sentDL: Boolean,
     // saving dates for bol in escalation
     escRetTrackingDate: String,
     escRepCustTrackingDate: String,
@@ -288,6 +290,18 @@ export function getOrderModelForBrand(brand = "50STARS") {
   if (normalized === "PROLANE") return ProlaneOrderModel;
   if (normalized === "PROTP") return ProTPOrderModel;
   return OrderModel;
+}
+
+/** MongoDB collection name per brand (for raw collection queries). */
+export function getOrdersCollectionNameForBrand(brand = "50STARS") {
+  const normalized = String(brand || "").toUpperCase();
+  if (normalized === "PROLANE") return "prolane_orders";
+  if (normalized === "PROTP") return "proTPorders";
+  return "orders";
+}
+
+export function getOrdersCollectionForBrand(brand = "50STARS") {
+  return mongoose.connection.collection(getOrdersCollectionNameForBrand(brand));
 }
 
 // Default export kept for backwards compatibility (50STARS)

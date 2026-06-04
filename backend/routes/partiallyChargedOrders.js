@@ -1,5 +1,5 @@
 import express from "express";
-import Order from "../models/Order.js";
+import { getOrderModelForBrand } from "../models/Order.js";
 import moment from "moment-timezone";
 import { requireAuth, allow } from "../middleware/auth.js";
 
@@ -121,9 +121,10 @@ router.get("/", requireAuth, allow("Admin", "Sales", "Support"), async (req, res
         console.warn('[partiallyChargedOrders] Sales user has no firstName, skipping salesAgent filter');
       } else {
         // Get mapped agent name for PROLANE brand
-        const mappedFirstName = (req.brand === 'PROLANE' && AGENT_BRAND_MAPPING[firstName]) 
-          ? AGENT_BRAND_MAPPING[firstName] 
-          : firstName;
+        const mappedFirstName =
+          (req.brand === "PROLANE" || req.brand === "PROTP") && AGENT_BRAND_MAPPING[firstName]
+            ? AGENT_BRAND_MAPPING[firstName]
+            : firstName;
         
         // Build regex patterns for both the original and mapped firstName
         const escapedFirstName = firstName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -203,6 +204,8 @@ router.get("/", requireAuth, allow("Admin", "Sales", "Support"), async (req, res
     const pageNum = Math.max(1, parseInt(page, 10));
     const limitNum = Math.max(1, parseInt(limit, 10));
     const skip = (pageNum - 1) * limitNum;
+
+    const Order = getOrderModelForBrand(req.brand);
 
     const totalOrders = await Order.countDocuments(query);
 

@@ -1,6 +1,7 @@
 // /src/pages/PartiallyChargedOrders.jsx
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import OrdersTable from "../components/OrdersTable";
+import useBrand from "../hooks/useBrand";
 
 /* ---------- Columns (order matters) ---------- */
 const columns = [
@@ -67,6 +68,7 @@ function computeYardDerived(yard) {
 
 /* ---------- Page ---------- */
 export default function PartiallyChargedOrders() {
+  const brand = useBrand();
   const [expandedIds, setExpandedIds] = useState(() => new Set());
 
   const toggleExpand = useCallback((row) => {
@@ -202,10 +204,15 @@ export default function PartiallyChargedOrders() {
     return params;
   }, []);
 
+  useEffect(() => {
+    window.__ordersTableRefs?.partiallyChargedOrders?.refetch?.();
+  }, [brand]);
+
   return (
     <OrdersTable
       title="Partially Charged Orders"
       endpoint="/orders/partially-charged"
+      tableId="partiallyChargedOrders"
       storageKeys={{
         page: "partiallyChargedOrdersPage",
         search: "partiallyChargedOrdersSearch",

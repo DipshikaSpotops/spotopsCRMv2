@@ -1,6 +1,7 @@
 import express from "express";
 import puppeteer from "puppeteer";
 import { getOrderModelForBrand } from "../models/Order.js";
+import { fetchDrivingLicenseAttachmentBuffer } from "../services/s3Upload.js";
 import nodemailer from "nodemailer";
 import moment from "moment-timezone";
 import multer from "multer";
@@ -340,6 +341,10 @@ router.post("/sendPOEmailYard/:orderNo", upload.any(), async (req, res) => {
     const isCardPayment = paymentMethod === "card";
     const paymentMethodLabel = poPaymentMethodLabel(paymentMethod);
 
+    const sendDrivingLicense =
+      req.body.sendDrivingLicense === "true" ||
+      req.body.sendDrivingLicense === true;
+
     // Brand-aware card details for the PDF (blank when not paying by card)
     const cardConfig = getCardConfig(req);
     const card = isCardPayment
@@ -637,6 +642,24 @@ router.post("/sendPOEmailYard/:orderNo", upload.any(), async (req, res) => {
       })),
     ];
 
+    if (sendDrivingLicense) {
+      try {
+        const dlBuffer = await fetchDrivingLicenseAttachmentBuffer();
+        attachments.push({
+          filename: "Driving-License-Salomon-Rodriguez.png",
+          content: dlBuffer,
+          contentType: "image/png",
+        });
+      } catch (dlErr) {
+        console.error("[sendPO] Driving license fetch failed:", dlErr);
+        return res.status(400).json({
+          message:
+            dlErr?.message ||
+            "Driving license image could not be loaded. PO was not sent.",
+        });
+      }
+    }
+
     const { year, make, model, pReq, desc, vin, partNo, attention, fName, lName } =
       order;
 
@@ -737,6 +760,9 @@ const yardLabel = `Yard ${yardIndex + 1}`;
 // Update yard status and add poSentDate
 order.additionalInfo[yardIndex].status = "Yard PO Sent";
 order.additionalInfo[yardIndex].poSentDate = isoDallas;
+if (sendDrivingLicense) {
+  order.additionalInfo[yardIndex].sentDL = true;
+}
 
 // ensure notes array exists
 order.additionalInfo[yardIndex].notes = order.additionalInfo[yardIndex].notes || [];
@@ -751,8 +777,9 @@ if (firstNameStr.includes(",")) {
   firstNameStr = [...new Set(parts)].join(", ");
 }
 
+const dlNote = sendDrivingLicense ? " (driving license attached)" : "";
 order.additionalInfo[yardIndex].notes.push(
-  `${yardLabel} PO sent by ${firstNameStr} on ${formattedDate}`
+  `${yardLabel} PO sent by ${firstNameStr} on ${formattedDate}${dlNote}`
 );
 
 // Update main order fields

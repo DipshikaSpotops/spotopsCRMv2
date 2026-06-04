@@ -85,6 +85,7 @@ export default function EditYardStatusModal({
 
   const [showPO, setShowPO] = useState(false);
   const [poPaymentMethod, setPoPaymentMethod] = useState("card");
+  const [sendDrivingLicense, setSendDrivingLicense] = useState(!!yard?.sentDL);
   const [showTracking, setShowTracking] = useState(false);
   const [showEsc, setShowEsc] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -158,6 +159,7 @@ export default function EditYardStatusModal({
     const st = yard?.status || "";
     setShowPO(st === "Yard PO Sent");
     setPoPaymentMethod("card");
+    setSendDrivingLicense(!!yard?.sentDL);
     setShowTracking(st === "Label created" || st === "Part shipped");
     setShowEsc(st === "Escalation");
   }, [open, yard]);
@@ -549,6 +551,7 @@ export default function EditYardStatusModal({
       const formData = new FormData();
       formData.append("yardIndex", String(yardIndex));
       formData.append("paymentMethod", poPaymentMethod);
+      formData.append("sendDrivingLicense", sendDrivingLicense ? "true" : "false");
 
       const files = fileInputRef.current?.files || [];
       for (let i = 0; i < files.length; i++) {
@@ -573,6 +576,9 @@ export default function EditYardStatusModal({
       } else {
         // Backend already updates status to "Yard PO Sent" - just update local state
         setStatus("Yard PO Sent");
+        if (sendDrivingLicense) {
+          setSendDrivingLicense(true);
+        }
         setToast(data?.message || "PO sent successfully and status updated!");
         // Close popup after a short delay
         setTimeout(() => {
@@ -804,6 +810,16 @@ export default function EditYardStatusModal({
                     "Send PO"
                   )}
                 </button>
+                <label className="flex items-center gap-2 cursor-pointer text-sm whitespace-nowrap">
+                  <input
+                    type="checkbox"
+                    checked={sendDrivingLicense}
+                    onChange={(e) => setSendDrivingLicense(e.target.checked)}
+                    disabled={savingAction === "sendPO"}
+                    className="accent-blue-600"
+                  />
+                  <span>Send Driving License</span>
+                </label>
                 <input ref={fileInputRef} type="file" multiple accept="image/*" className="text-xs" />
               </div>
             </div>

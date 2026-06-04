@@ -920,6 +920,16 @@ export default function OrdersTable({
   useEffect(() => {
     if (typeof onRowsChange === "function") onRowsChange(sortedRows);
   }, [sortedRows, onRowsChange]);
+
+  // Refetch when header brand changes (50STARS / PROLANE / PROTP)
+  const prevBrandRef = useRef(brand);
+  useEffect(() => {
+    if (prevBrandRef.current === brand) return;
+    prevBrandRef.current = brand;
+    setCurrentPage(1);
+    if (activeFilter) fetchOrders(activeFilter);
+  }, [brand, activeFilter, fetchOrders]);
+
   useEffect(() => {
     if (!isServerPaginated || !activeFilter) return;
     fetchOrders(activeFilter);

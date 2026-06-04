@@ -1,5 +1,5 @@
 import express from "express";
-import mongoose from "mongoose";
+import { getOrdersCollectionForBrand } from "../models/Order.js";
 
 const router = express.Router();
 
@@ -69,7 +69,7 @@ router.get("/ordersPerPage", async (req, res) => {
   try {
     const { page, limit, skip } = getPaging(req);
     let searchTerm = (req.query.searchTerm || "").trim();
-    const coll = mongoose.connection.collection("orders");
+    const coll = getOrdersCollectionForBrand(req.brand);
 
     // Handle "Dispute AC" search - also search for "Dispute 2"
     // If user searches for "Dispute AC", we want to find orders with status "Dispute 2"

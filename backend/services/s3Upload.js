@@ -1,4 +1,4 @@
-import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
 import crypto from "crypto";
 import dotenv from "dotenv";
 
@@ -156,4 +156,52 @@ export async function uploadLogoToS3(buffer, mimeType, logoName = "logo", bucket
   await s3Client.send(putCommand);  // Construct public URL
   const url = `https://${targetBucket}.s3.${targetRegion}.amazonaws.com/${key}`;
   return url;
+}
+
+/** Fixed PO driving-license object (same file for all orders when checkbox is checked). */
+export const DRIVING_LICENSE_PO_S3_KEY =
+  process.env.DRIVING_LICENSE_S3_KEY ||
+  "Label_Voided_Images/Driving+License+Salomon+Rodriguez.png";
+
+async function streamToBuffer(body) {
+  const chunks = [];
+  for await (const chunk of body) {
+    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+  }
+  return Buffer.concat(chunks);
+}
+
+/**
+ * Fetch the fixed driving license image from S3 for PO email attachment.
+ */
+export async function fetchDrivingLicenseAttachmentBuffer() {
+  if (!bucket) {
+    throw new Error("S3_LABEL_VOIDED_BUCKET is not configured");
+  }
+
+  const candidates = [
+    DRIVING_LICENSE_PO_S3_KEY,
+    DRIVING_LICENSE_PO_S3_KEY.replace(/\+/g, " "),
+  ];
+  const seen = new Set();
+
+  for (const key of candidates) {
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    try {
+      const res = await s3Client.send(
+        new GetObjectCommand({ Bucket: bucket, Key: key })
+      );
+      if (!res.Body) continue;
+      return await streamToBuffer(res.Body);
+    } catch (err) {
+      const code = err?.name || err?.Code;
+      if (code === "NoSuchKey" || code === "NotFound") continue;
+      throw err;
+    }
+  }
+
+  throw new Error(
+    "Driving license image could not be loaded from S3. Check DRIVING_LICENSE_S3_KEY and bucket access."
+  );
 }

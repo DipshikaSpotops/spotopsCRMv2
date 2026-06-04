@@ -1,5 +1,5 @@
 import express from "express";
-import mongoose from "mongoose";
+import { getOrdersCollectionForBrand } from "../models/Order.js";
 import { zonedTimeToUtc } from "date-fns-tz";
 
 const router = express.Router();
@@ -102,7 +102,7 @@ router.get("/", async (req, res) => {
       endUTC = e;
     }
 
-    const coll = mongoose.connection.collection("orders");
+    const coll = getOrdersCollectionForBrand(req.brand);
 
     // FAST PATH: no/short search → simple paginate within month
     if (searchTerm.length < 2) {
