@@ -293,6 +293,7 @@ const GlassModal = ({ title, subtitle, onClose, children, actions, wide = false 
    - columns              : [{key, label}] (display order)
    - renderCell(row,key)  : function to render cell content
    - showAgentFilter      : boolean (Admin-only dropdown)
+   - showAddressTypeFilter: boolean (Business / Residential; all roles)
    - showGP               : boolean (enables GP totals and derived _currentGP/_actualGP)
    - navigateTo           : function(row) -> path  (default `/order-details?orderNo=...`)
    - extraTotals          : optional function(sortedRows) => [{name, value}] or { columns, rows }
@@ -306,6 +307,7 @@ export default function OrdersTable({
   columns = [],
   renderCell,
   showAgentFilter = false,
+  showAddressTypeFilter = false,
   showGP = false,
   navigateTo,
   extraTotals,
@@ -340,6 +342,8 @@ export default function OrdersTable({
   const LS_FILTER_KEY = storageKeys?.filter || "ordersTableFilter";
   const LS_HILITE_KEY = storageKeys?.hilite || "ordersTableHilite";
   const LS_AGENT_KEY = `${LS_PAGE_KEY}_agent`;
+  const LS_ADDRESS_TYPE_KEY = `${LS_PAGE_KEY}_addressType`;
+  const ADDRESS_TYPE_FILTER_OPTIONS = ["Select", "Business", "Residential"];
   const LS_SORT_BY_KEY = `${LS_PAGE_KEY}_sortBy`;
   const LS_SORT_ORDER_KEY = `${LS_PAGE_KEY}_sortOrder`;
   const SCROLL_KEY = `${LS_PAGE_KEY}_scrollTop`;
@@ -369,6 +373,9 @@ export default function OrdersTable({
     getJSON(LS_FILTER_KEY) || defaultFilter || buildDefaultFilter()
   );
   const [selectedAgent, setSelectedAgent] = useState(getLS(LS_AGENT_KEY, "Select"));
+  const [selectedAddressType, setSelectedAddressType] = useState(
+    getLS(LS_ADDRESS_TYPE_KEY, "Select")
+  );
 
   const [searchInput, setSearchInput] = useState(getLS(LS_SEARCH_KEY, ""));
   const [appliedQuery, setAppliedQuery] = useState(getLS(LS_SEARCH_KEY, ""));
@@ -499,6 +506,14 @@ export default function OrdersTable({
         ) {
           params.salesAgent = selectedAgent;
         }
+        if (
+          selectedAddressType &&
+          selectedAddressType !== "Select" &&
+          selectedAddressType !== "All" &&
+          params.addressType == null
+        ) {
+          params.addressType = selectedAddressType;
+        }
 
         let data = [];
         let meta = {};
@@ -575,7 +590,7 @@ export default function OrdersTable({
         }
       }
     },
-    [activeFilter, endpointURL, appliedQuery, sortBy, sortOrder, selectedAgent, userRole, firstName, fetchOverride, paramsBuilder, highlightedOrderNo, currentPage, requestedRowsPerPage]
+    [activeFilter, endpointURL, appliedQuery, sortBy, sortOrder, selectedAgent, selectedAddressType, userRole, firstName, fetchOverride, paramsBuilder, highlightedOrderNo, currentPage, requestedRowsPerPage]
   );
 
   // Optional: expose a simple global refetch handle for realtime integrations
@@ -916,6 +931,7 @@ export default function OrdersTable({
     sortBy,
     sortOrder,
     selectedAgent,
+    selectedAddressType,
     userRole,
     firstName,
     fetchOrders,
@@ -1067,6 +1083,23 @@ export default function OrdersTable({
                 }
                 setCurrentPage(1);
               }}
+              className="ml-2"
+            />
+          )}
+          {showAddressTypeFilter && (
+            <AgentDropdown
+              options={ADDRESS_TYPE_FILTER_OPTIONS}
+              value={selectedAddressType}
+              onChange={(val) => {
+                setSelectedAddressType(val);
+                if (val && val !== "Select" && val !== "All") {
+                  setLS(LS_ADDRESS_TYPE_KEY, val);
+                } else {
+                  setLS(LS_ADDRESS_TYPE_KEY, null);
+                }
+                setCurrentPage(1);
+              }}
+              placeholder="Select Address Type"
               className="ml-2"
             />
           )}
@@ -1490,6 +1523,9 @@ export default function OrdersTable({
             <>
               Filters: {prettyFilterLabel(activeFilter)}
               {selectedAgent !== "Select" ? ` • Agent: ${selectedAgent}` : ""}
+              {selectedAddressType !== "Select"
+                ? ` • Address Type: ${selectedAddressType}`
+                : ""}
               {appliedQuery ? ` • Search: “${appliedQuery}”` : ""}
             </>
           }

@@ -75,6 +75,7 @@ router.get('/', requireAuth, allow('Admin', 'Sales', 'Support'), async (req, res
       sortBy,
       sortOrder = 'asc',
       salesAgent, // optional query param (Admin only)
+      addressType, // optional: Residential | Business
       hasYards,
       anyYardPaymentStatus,
       yardExpediteOnly,
@@ -239,6 +240,14 @@ router.get('/', requireAuth, allow('Admin', 'Sales', 'Support'), async (req, res
       // Admin can filter by any agent via query
       query.salesAgent = new RegExp(salesAgent.trim(), 'i');
     }
+
+    if (addressType) {
+      const at = String(addressType).trim();
+      if (at && at !== 'Select' && at !== 'All') {
+        const escaped = at.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        query.addressType = new RegExp(`^${escaped}$`, 'i');
+      }
+    }
     // Support: no extra restriction (only date/search)
 
     // 5) Sorting
@@ -286,6 +295,8 @@ router.get('/', requireAuth, allow('Admin', 'Sales', 'Support'), async (req, res
       sAddressZip: 1,
       sAddressStreet: 1,
       sAddressAcountry: 1,
+      addressType: 1,
+      businessName: 1,
       desc: 1,
       partNo: 1,
       warranty: 1,

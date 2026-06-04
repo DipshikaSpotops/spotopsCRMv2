@@ -432,6 +432,7 @@ export default function MonthlyOrders() {
       columns={columns}
       renderCell={renderCell}
       showAgentFilter={true}
+      showAddressTypeFilter={true}
       showGP={false}
       showTotalsButton={true}
       extraTotals={paymentSourceTotals}

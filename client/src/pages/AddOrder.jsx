@@ -31,6 +31,7 @@ const REQUIRED_FIELD_LABELS = {
   sAddressState: "Shipping State",
   sAddressZip: "Shipping Zip",
   sAddressAcountry: "Shipping Country",
+  addressType: "Address Type",
   make: "Make",
   model: "Model",
   year: "Year",
@@ -86,6 +87,7 @@ const buildInitialFormData = (defaultSalesAgent = "") => ({
   sAddressZip: "",
   sAddressAcountry: "",
   businessName: "",
+  addressType: "",
 
   // Part Info
   make: "",
@@ -794,39 +796,50 @@ export default function AddOrder() {
             </Section>
 
             {/* Shipping Info */}
-            <Section title="Shipping Info">
-              <Checkbox
-                label="Same as Billing"
-                checked={formData.sameAsBilling}
-                onChange={(e) => {
-                  const isChecked = e.target.checked;
-                  setFormData((prev) => ({
-                    ...prev,
-                    sameAsBilling: isChecked,
-                    ...(isChecked
-                      ? {
-                        sAttention: prev.bName,
-                        sAddressStreet: prev.bAddressStreet,
-                        sAddressCity: prev.bAddressCity,
-                        sAddressState: prev.bAddressState,
-                        sAddressZip: prev.bAddressZip,
-                        sAddressAcountry: prev.bAddressAcountry,
-                      }
-                      : {
-                        sAttention: "",
-                        sAddressStreet: "",
-                        sAddressCity: "",
-                        sAddressState: "",
-                        sAddressZip: "",
-                        sAddressAcountry: "",
-                      }),
-                  }));
-                }}
-              />
-              <Input 
-                placeholder="Business Name" 
+            <Section
+              title="Shipping Info"
+              headerRight={
+                <Checkbox
+                  label="Same as Billing"
+                  checked={formData.sameAsBilling}
+                  onChange={(e) => {
+                    const isChecked = e.target.checked;
+                    setFormData((prev) => ({
+                      ...prev,
+                      sameAsBilling: isChecked,
+                      ...(isChecked
+                        ? {
+                            sAttention: prev.bName,
+                            sAddressStreet: prev.bAddressStreet,
+                            sAddressCity: prev.bAddressCity,
+                            sAddressState: prev.bAddressState,
+                            sAddressZip: prev.bAddressZip,
+                            sAddressAcountry: prev.bAddressAcountry,
+                          }
+                        : {
+                            sAttention: "",
+                            sAddressStreet: "",
+                            sAddressCity: "",
+                            sAddressState: "",
+                            sAddressZip: "",
+                            sAddressAcountry: "",
+                          }),
+                    }));
+                  }}
+                />
+              }
+            >
+              <Input
+                placeholder="Business Name"
                 value={formData.businessName}
                 onChange={(e) => setFormData({ ...formData, businessName: e.target.value })}
+              />
+              <Dropdown
+                placeholder="Select Address Type"
+                options={["Residential", "Business"]}
+                value={formData.addressType}
+                onChange={(e) => handleFieldChange("addressType", e.target.value)}
+                error={fieldErrors.has("addressType")}
               />
               <Input 
                 placeholder="Attention" 
@@ -1086,10 +1099,13 @@ export default function AddOrder() {
 }
 
 /* COMPONENTS */
-function Section({ title, children }) {
+function Section({ title, headerRight, children }) {
   return (
     <div className="bg-white/30 dark:bg-white/5 text-white p-4 rounded-2xl shadow-md backdrop-blur-sm flex flex-col gap-2">
-      <h3 className="text-md font-semibold mb-1">{title}</h3>
+      <div className="flex items-center justify-between gap-2 mb-1">
+        <h3 className="text-md font-semibold shrink-0">{title}</h3>
+        {headerRight ? <div className="shrink-0 text-sm">{headerRight}</div> : null}
+      </div>
       {children}
     </div>
   );
