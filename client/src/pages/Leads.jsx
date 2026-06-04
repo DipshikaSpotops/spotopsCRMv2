@@ -390,10 +390,10 @@ export default function Leads() {
   // Only allow Admin and Sales roles to access this page
   const isAdmin = role === "Admin";
   const isSales = role === "Sales";
-  const isAuthorizedEmail = email?.toLowerCase() === "50starsauto110@gmail.com";
-  const canUnclaimLead = isAdmin || isAuthorizedEmail;
-  const isAuthorized = isAdmin || isSales || isAuthorizedEmail;
-  
+  const isBlockedEmail = email?.toLowerCase() === "50starsauto110@gmail.com";
+  const canUnclaimLead = isAdmin && !isBlockedEmail;
+  const isAuthorized = (isAdmin || isSales) && !isBlockedEmail;
+
   // Show unauthorized message if user doesn't have access
   if (!isAuthorized) {
     return (
@@ -401,7 +401,7 @@ export default function Leads() {
         <div className="text-center">
           <h1 className="text-3xl font-bold text-red-400 mb-4">Access Denied</h1>
           <p className="text-white/70">
-            This page is only accessible to Admin/Sales roles or authorized email users.
+            This page is only accessible to Admin and Sales roles.
           </p>
           <p className="text-white/50 mt-2">Your current role: {role || "Not set"}</p>
         </div>

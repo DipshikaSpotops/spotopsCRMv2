@@ -74,7 +74,7 @@ export default function Sidebar() {
     { text: "Daily Sales GP", to: "/daily-sales-gp", roles: ["Admin", "Sales"] },
     { text: "Sales Data", to: "/sales-data", roles: ["Admin", "Sales"] },
     { text: "Sales Origin", to: "/sales-origin", roles: ["Admin", "Sales"], emailAccess: "50starsauto110@gmail.com" },
-    { text: "Leads", to: "/leads", roles: ["Admin", "Sales"], emailAccess: "50starsauto110@gmail.com" },
+    { text: "Leads", to: "/leads", roles: ["Admin", "Sales"], denyEmail: "50starsauto110@gmail.com" },
     { text: "Authorization Code", to: "/authorization-codes", emailAccess: "50starsauto110@gmail.com", adminOnly: true },
     { text: "View All Orders", to: "/view-all-orders" },
     { text: "View Orders-Monthly", to: "/monthly-orders" },
@@ -170,6 +170,11 @@ export default function Sidebar() {
   // Helper function to check if a link should be shown based on role, email, and link properties
   const shouldShowLink = (link, userRole, userEmail, currentBrand) => {
     const isAdmin = normalizeRole(userRole) === "Admin";
+    const normalizedEmail = String(userEmail || "").toLowerCase();
+
+    if (link.denyEmail && normalizedEmail === String(link.denyEmail).toLowerCase()) {
+      return false;
+    }
 
     // Brand-specific visibility
     if (link.brandOnly && String(currentBrand || "").toUpperCase() !== link.brandOnly) {
@@ -180,7 +185,7 @@ export default function Sidebar() {
       // Admin can always see
       if (isAdmin) return true;
       // Check if email matches (works for ANY role)
-      const isAuthorizedEmail = userEmail === link.emailAccess.toLowerCase();
+      const isAuthorizedEmail = normalizedEmail === link.emailAccess.toLowerCase();
       if (isAuthorizedEmail) return true;
       // Otherwise, deny access
       return false;
@@ -188,7 +193,7 @@ export default function Sidebar() {
 
     // Check email-based access (overrides other restrictions - works for ANY role)
     if (link.emailAccess) {
-      const isAuthorizedEmail = userEmail === link.emailAccess.toLowerCase();
+      const isAuthorizedEmail = normalizedEmail === link.emailAccess.toLowerCase();
       if (isAuthorizedEmail) return true; // Email access grants permission regardless of role
     }
 
