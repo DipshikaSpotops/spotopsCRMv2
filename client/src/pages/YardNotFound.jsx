@@ -238,7 +238,7 @@ export default function YardNotFound() {
       columns={columns}
       renderCell={renderCell}
       showAgentFilter={true}
-      showAddressTypeFilter={true}
+      showAddressTypeFilter={false}
       showGP={false}
       showTotalsButton={true}
       paramsBuilder={paramsBuilder}
