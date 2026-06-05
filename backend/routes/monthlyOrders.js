@@ -88,6 +88,7 @@ router.get('/', requireAuth, allow('Admin', 'Sales', 'Support'), async (req, res
       end,
       month,
       year,
+      orderStatus,
     } = req.query;
 
     // 1) Date range
@@ -194,6 +195,10 @@ router.get('/', requireAuth, allow('Admin', 'Sales', 'Support'), async (req, res
           },
         ],
       };
+    }
+    if (orderStatus && String(orderStatus).trim()) {
+      const escapedOrderStatus = String(orderStatus).trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      query.orderStatus = new RegExp(`^${escapedOrderStatus}$`, 'i');
     }
     if (additionalInfoElemMatch) {
       query.additionalInfo = {
