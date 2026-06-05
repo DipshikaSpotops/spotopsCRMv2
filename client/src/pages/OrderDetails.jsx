@@ -488,6 +488,7 @@ export default function OrderDetails() {
     { label: "Partially Charged Order", value: "Partially charged order" },
     { label: "Customer Approved", value: "Customer approved" },
     { label: "Yard Processing", value: "Yard Processing" },
+    { label: "Yard Not Found", value: "Yard Not Found" },
     { label: "In Transit", value: "In Transit" },
     { label: "Escalation", value: "Escalation" },
     { label: "Order Fulfilled", value: "Order Fulfilled" },

@@ -100,6 +100,7 @@ export default function Sidebar() {
         { text: "Yard Statistics", to: "/yard-statistics" },
         { text: "CX Approved Orders", to: "/customer-approved" },
         { text: "Yard Processing Orders", to: "/yard-processing" },
+        { text: "Yard Not Found", to: "/yard-not-found" },
         { text: "Priority Orders", to: "/priority-orders" },
         { text: "Own Shipping", to: "/own-shipping-orders" },
         { text: "Expedite Shipping", to: "/yard-expedite" },
