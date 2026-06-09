@@ -24,8 +24,10 @@ const ACTIVE_ATTENDANCE_NAMES = [
   "Tony",
   "Dipsikha",
   "Alex Morgan",
-  "Hannah Presley",
-  "Natasha Spencer",
+  "Hannah",
+  "Natasha",
+  "Stella",
+  "Hardin",
 ];
 
 function rosterEntryKey(rosterName) {

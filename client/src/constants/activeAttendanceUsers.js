@@ -18,6 +18,8 @@ export const ACTIVE_ATTENDANCE_USER_LIST = [
   "Alex Morgan",
   "Hannah Presley",
   "Natasha Spencer",
+  "Stella Allen",
+  "Hardin Scott",
 ];
 
 /** Lookup object: firstName -> { firstName } */

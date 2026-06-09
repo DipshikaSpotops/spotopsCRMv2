@@ -992,13 +992,24 @@ export default function EditOrder() {
               />
               <Dropdown
                 placeholder="Payment Source"
-                options={[
+                options={[ 
+                  "247 - PRO Payments",
+                  "Affirm",
+                  "Bank/Wire Transfer",
+                 " Both (VPS & SA Authorized)",
+                 " Both (VPS & SA Payment)",
                   "Paypal",
-                  "Zelle",
-                  "VPS Authorized and VPS Payment Link",
-                  "SA Authorized and SA Payment Link",
+                  "RP Authorize",
+                  "RP Payment",
+                  "SA Authorized",
+                  "SA Payment Link",
                   "SSP Autorized",
                   "SSP Payment Link",
+                  "VP2 Authorized",
+                  "VP2 Payment Link",
+                  "VPS Authorized",
+                  "VPS Payment Link",
+                  "Zelle",
                 ]}
                 value={formData.paymentSource}
                 onChange={(e) => handleFieldChange("paymentSource", e.target.value)}

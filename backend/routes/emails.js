@@ -234,7 +234,7 @@ const SUPPORT_AGENT_PROLANE_NAME_MAP = {
   Tristan: "Jonathan Whitmore",
   James: "Justin Time",
   Jessie: "Ace Ryder",
-  Peter: "Jerry Miller",
+  Hardin: "Henry Scott",
   Suzanne: "Luna Brown",
   Emily: "Rev Rhode",
   Ashley: "Gloria Sky",
@@ -244,6 +244,7 @@ const SUPPORT_AGENT_PROLANE_NAME_MAP = {
   Alex: "Jason Morgan",
   Hannah: "Alice Presley",
   Natasha: "Sophia Roberts",
+  Stella: "Zoe Harris",
   // Handle both spellings just in case
   Dipshika: "Dips",
   Dipsikha: "Dips",
@@ -1156,6 +1157,11 @@ router.post("/orders/po-cancelled/:orderNo", async (req, res) => {
   }
 });
 
+const PART_RETURN_POLICY_HTML = `
+  <p>Please return the part within 7 days for replacement or refund.*</p>
+  <p style="font-size:14px;color:#555;margin-top:0;"><em>* In case you have 2 parts in your possession, your card will be charged again for having 2 parts if you did not ship the part back to its original location within 7 days.</em></p>
+`;
+
 /* ---------------- Replacement Emails ---------------- */
 router.post("/orders/sendReplaceEmailCustomerShipping/:orderNo", async (req, res) => {
   try {
@@ -1229,6 +1235,7 @@ router.post("/orders/sendReplaceEmailCustomerShipping/:orderNo", async (req, res
         <p>We are sorry to hear that there was an issue with the ABS module you received. We are happy to offer a replacement to ensure you receive a fully functional part.</p>
         <p>Please return the part to the following address:</p>
         <p>${formattedAddress}</p>
+        ${PART_RETURN_POLICY_HTML}
         <p>Please note that the shipping costs for the return are your responsibility. Once we receive the part, we will process and ship out the replacement within 1-3 business days. We will notify you with tracking information once the replacement part is on its way.</p>
         <p>If you have any questions about the process or need further assistance, please feel free to contact us.</p>
         <p>Thank you for giving us an opportunity to make this right.</p>
@@ -1310,6 +1317,7 @@ router.post(
         html: `<div style="font-size:16px;line-height:1.7;">
           <p>Dear ${customerName},</p>
           <p>Please find the attached shipping document for the replacement of your part. Kindly print and include it with the package when it is handed over to the carrier.</p>
+          ${PART_RETURN_POLICY_HTML}
           <p><img src="cid:logo" alt="logo" style="width: 180px; height: 100px;"></p>
           <p>${firstName}<br/>Customer Service Team<br/>${companyName}<br/>${phoneNumber}<br/>${serviceEmailAddress}<br/><a href="https://${websiteUrl}">${websiteUrl}</a></p>
         </div>`,
@@ -1407,6 +1415,7 @@ router.post("/orders/sendReturnEmailCustomerShipping/:orderNo", async (req, res)
         <p>Dear ${customerName},</p>
         <p>Please ship the part back to the following address so we can continue processing your return:</p>
         <p>${formattedAddress}</p>
+        ${PART_RETURN_POLICY_HTML}
         <p>Kindly share the tracking number once the package is on its way. As soon as we receive and inspect the part, we will continue with the necessary next steps.</p>
         <p><img src="cid:logo" alt="logo" style="width: 180px; height: 100px;"></p>
         <p>${firstName}<br/>Customer Service Team<br/>${companyName}<br/>${phoneNumber}<br/>${serviceEmailAddress}<br/><a href="https://${websiteUrl}">${websiteUrl}</a></p>
@@ -1493,6 +1502,7 @@ router.post(
           <p>Dear ${customerName},</p>
           <p>Please find the attached shipping document for the return of your part. Kindly attach it to the package before handing it over to the carrier.</p>
           <p>Return Address: ${formattedAddress}</p>
+          ${PART_RETURN_POLICY_HTML}
           <p><img src="cid:logo" alt="logo" style="width: 180px; height: 100px;"></p>
           <p>${firstName}<br/>Customer Service Team<br/>${companyName}<br/>${phoneNumber}<br/>${serviceEmailAddress}<br/><a href="https://${websiteUrl}">${websiteUrl}</a></p>
         </div>`,
