@@ -21,6 +21,7 @@ const YardNotFound = lazy(() => import("./pages/YardNotFound"));
 const PriorityOrders = lazy(() => import("./pages/PriorityOrders"));
 const OwnShippingOrders = lazy(() => import("./pages/OwnShippingOrders"));
 const InTransitOrders = lazy(() => import("./pages/InTransit"));
+const ReturnInTransitOrders = lazy(() => import("./pages/ReturnInTransit"));
 const CancelledOrders = lazy(() => import("./pages/CancelledOrders"));
 const RefundedOrders = lazy(() => import("./pages/RefundedOrders"));
 const ToBeReimbursed = lazy(() => import("./pages/ToBeReimbursed"));
@@ -198,6 +199,14 @@ function App() {
           element={withLayout(
             <Suspense fallback={<PageLoader />}>
               <InTransitOrders />
+            </Suspense>
+          )}
+        />
+        <Route
+          path="/return-in-transit"
+          element={withLayout(
+            <Suspense fallback={<PageLoader />}>
+              <ReturnInTransitOrders />
             </Suspense>
           )}
         />
