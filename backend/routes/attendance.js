@@ -23,26 +23,43 @@ const ACTIVE_ATTENDANCE_NAMES = [
   "Suzanne",
   "Tony",
   "Dipsikha",
-  "Alex Morgan",
+  "Alex",
   "Hannah",
   "Natasha",
   "Stella",
   "Hardin",
 ];
 
+function displayFirstName(name) {
+  const token = String(name || "").trim().split(/\s+/)[0];
+  return token || "";
+}
+
+function attendanceNameKey(name) {
+  const key = displayFirstName(name).toLowerCase();
+  return key === "dipshika" ? "dipsikha" : key;
+}
+
 function rosterEntryKey(rosterName) {
-  const firstToken = String(rosterName || "").trim().split(/\s+/)[0];
-  const lower = firstToken.toLowerCase();
-  return lower === "dipshika" ? "dipsikha" : lower;
+  return attendanceNameKey(rosterName);
 }
 
 function canonicalFirstName(name) {
-  const raw = String(name || "").trim();
-  if (!raw) return null;
-  const firstToken = raw.split(/\s+/)[0];
-  const lower = firstToken.toLowerCase();
-  const key = lower === "dipshika" ? "dipsikha" : lower;
+  const key = attendanceNameKey(name);
+  if (!key) return null;
   return ACTIVE_ATTENDANCE_NAMES.find((a) => rosterEntryKey(a) === key) || null;
+}
+
+async function findAttendanceDoc(dateKey, name) {
+  const targetKey = attendanceNameKey(name);
+  if (!targetKey) return null;
+  const docs = await Attendance.find({ dateKey });
+  return docs.find((d) => attendanceNameKey(d.firstName) === targetKey) || null;
+}
+
+function normalizeDocFirstName(doc, canonical) {
+  if (!doc || !canonical) return;
+  if (doc.firstName !== canonical) doc.firstName = canonical;
 }
 
 /** Admin edits: roster spelling when active; otherwise raw first token (retired / legacy rows). */
@@ -53,22 +70,21 @@ function resolveFirstNameForAdmin(raw) {
   return token || null;
 }
 
-/** Active roster order first, then any other firstNames present in `docs` (sorted). */
+/** Active roster order first, then any other firstNames present in `docs` (sorted, first name only). */
 function displayAttendanceNamesFromDocs(activeNames, docs) {
-  const activeLower = new Set(activeNames.map((n) => String(n).toLowerCase()));
+  const activeKeys = new Set(activeNames.map((n) => attendanceNameKey(n)));
   const extras = [];
-  const seenExtraLower = new Set();
+  const seenKeys = new Set(activeKeys);
   for (const d of docs) {
-    const fn = String(d.firstName ?? "").trim();
+    const fn = displayFirstName(d.firstName);
     if (!fn) continue;
-    const low = fn.toLowerCase();
-    if (activeLower.has(low)) continue;
-    if (seenExtraLower.has(low)) continue;
-    seenExtraLower.add(low);
+    const key = attendanceNameKey(fn);
+    if (seenKeys.has(key)) continue;
+    seenKeys.add(key);
     extras.push(fn);
   }
   extras.sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
-  return [...activeNames, ...extras];
+  return [...activeNames.map((n) => displayFirstName(n)), ...extras];
 }
 
 /** Shift-attendance date key (matches mark-present / today logic). */
@@ -209,18 +225,18 @@ router.get("/", requireAuth, async (req, res) => {
       const byKeyName = new Map();
       for (const d of docs) {
         const dk = String(d.dateKey ?? "").trim();
-        const fn = String(d.firstName ?? "").trim();
+        const fn = displayFirstName(d.firstName);
         if (!dk || !fn) continue;
-        byKeyName.set(`${dk}|${fn}`, d);
+        byKeyName.set(`${dk}|${attendanceNameKey(fn)}`, d);
       }
 
       const merged = [];
       for (const dateKey of dateKeys) {
         for (const firstName of displayNames) {
-          const doc = byKeyName.get(`${dateKey}|${firstName.trim()}`);
+          const doc = byKeyName.get(`${dateKey}|${attendanceNameKey(firstName)}`);
           const base = {
             dateKey,
-            firstName,
+            firstName: displayFirstName(firstName),
             loginAt: doc?.loginAt || null,
             logoutAt: doc?.logoutAt || null,
           };
@@ -256,14 +272,17 @@ router.get("/", requireAuth, async (req, res) => {
       ACTIVE_ATTENDANCE_NAMES,
       rows
     );
-    const byName = new Map(
-      rows.map((r) => [String(r.firstName ?? "").trim(), r]).filter(([k]) => k)
-    );
+    const byName = new Map();
+    for (const r of rows) {
+      const fn = displayFirstName(r.firstName);
+      if (!fn) continue;
+      byName.set(attendanceNameKey(fn), r);
+    }
 
     const merged = displayNames.map((firstName) => {
-      const doc = byName.get(String(firstName).trim());
+      const doc = byName.get(attendanceNameKey(firstName));
       const base = {
-        firstName,
+        firstName: displayFirstName(firstName),
         dateKey,
         loginAt: doc?.loginAt || null,
         logoutAt: doc?.logoutAt || null,
@@ -302,7 +321,7 @@ router.post("/mark-present", requireAuth, async (req, res) => {
     // Navbar / self "Mark Present" — actual clock-in time (not fixed 6:30 PM).
     const now = new Date();
 
-    let doc = await Attendance.findOne({ dateKey, firstName: canonical });
+    let doc = await findAttendanceDoc(dateKey, canonical);
     if (doc?.loginAt) {
       return res.status(200).json({
         message: "Already marked present for today.",
@@ -314,6 +333,8 @@ router.post("/mark-present", requireAuth, async (req, res) => {
     const prevLogout = doc?.logoutAt ?? null;
     if (!doc) {
       doc = new Attendance({ dateKey, firstName: canonical, changeLog: [] });
+    } else {
+      normalizeDocFirstName(doc, canonical);
     }
     ensureChangeLog(doc);
     doc.loginAt = now;
@@ -345,10 +366,12 @@ router.patch("/logout", requireAuth, async (req, res) => {
 
     const now = new Date();
 
-    const doc = await Attendance.findOne({
-      firstName: canonical,
-      loginAt: { $ne: null },
-    }).sort({ loginAt: -1 });
+    const recentLogins = await Attendance.find({ loginAt: { $ne: null } })
+      .sort({ loginAt: -1 })
+      .limit(100);
+    const doc =
+      recentLogins.find((d) => attendanceNameKey(d.firstName) === attendanceNameKey(canonical)) ||
+      null;
     if (!doc || !doc.loginAt) {
       return res.status(200).json({ message: "No login record; nothing to update." });
     }
@@ -356,6 +379,7 @@ router.patch("/logout", requireAuth, async (req, res) => {
     const prevLogin = doc.loginAt;
     const prevLogout = doc.logoutAt;
     ensureChangeLog(doc);
+    normalizeDocFirstName(doc, canonical);
     doc.logoutAt = now;
     doc.changeLog.push(
       buildLogEntry(
@@ -406,11 +430,13 @@ router.patch("/admin/entry", requireAuth, async (req, res) => {
       return res.status(400).json({ message: "Invalid at; use ISO 8601 datetime." });
     }
 
-    let doc = await Attendance.findOne({ dateKey, firstName });
+    let doc = await findAttendanceDoc(dateKey, firstName);
     const prevLogin = doc?.loginAt ?? null;
     const prevLogout = doc?.logoutAt ?? null;
     if (!doc) {
       doc = new Attendance({ dateKey, firstName, changeLog: [] });
+    } else {
+      normalizeDocFirstName(doc, firstName);
     }
     ensureChangeLog(doc);
 

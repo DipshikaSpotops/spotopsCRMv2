@@ -28,6 +28,17 @@ import useBrand from "../hooks/useBrand";
    ========================= */
 const TZ = "America/Chicago";
 const ROWS_PER_PAGE = 25;
+
+function isInteractiveRowTarget(el) {
+  return !!el?.closest?.(
+    'button, a, input, select, textarea, label, [role="button"]'
+  );
+}
+
+function hasActiveTextSelection() {
+  const sel = window.getSelection();
+  return !!(sel && sel.type === "Range" && sel.toString().trim().length > 0);
+}
 const BAD_STATUSES = new Set(["Order Cancelled", "Refunded", "Dispute"]);
 
 // Mapping from 50STARS agent firstName to PROLANE agent firstName
@@ -417,6 +428,37 @@ export default function OrdersTable({
       setLS(LS_HILITE_KEY, next);
       return next;
     });
+  };
+
+  // Track pointer movement so drag-to-select/copy does not toggle row highlight
+  const rowPointerRef = useRef(null);
+
+  const onRowPointerDown = (e) => {
+    if (isInteractiveRowTarget(e.target)) {
+      rowPointerRef.current = null;
+      return;
+    }
+    rowPointerRef.current = {
+      x: e.clientX,
+      y: e.clientY,
+      moved: false,
+    };
+  };
+
+  const onRowPointerMove = (e) => {
+    const p = rowPointerRef.current;
+    if (!p) return;
+    if (Math.abs(e.clientX - p.x) > 4 || Math.abs(e.clientY - p.y) > 4) {
+      p.moved = true;
+    }
+  };
+
+  const handleRowHighlightClick = (e, orderNo) => {
+    if (!orderNo || isInteractiveRowTarget(e.target)) return;
+    if (e.detail >= 2) return;
+    if (rowPointerRef.current?.moved) return;
+    if (hasActiveTextSelection()) return;
+    toggleHighlight(orderNo);
   };
 
   // modals
@@ -1335,11 +1377,13 @@ export default function OrdersTable({
                   <tr
                     key={rowId}
                     id={`row-${rowId}`}
-                    onClick={() => {
-                      if (row.orderNo) toggleHighlight(row.orderNo);
-                      else if (row._id) toggleHighlight(row._id);
+                    onMouseDown={onRowPointerDown}
+                    onMouseMove={onRowPointerMove}
+                    onClick={(e) => {
+                      if (row.orderNo) handleRowHighlightClick(e, row.orderNo);
+                      else if (row._id) handleRowHighlightClick(e, row._id);
                     }}
-                    className={`transition text-sm cursor-pointer ${isHighlighted
+                    className={`transition text-sm ${isHighlighted
                       ? "bg-yellow-500/20 ring-2 ring-yellow-400"
                       : "even:bg-white/5 odd:bg-white/10 hover:bg-white/20"
                       }`}
@@ -1347,7 +1391,7 @@ export default function OrdersTable({
                     {columns.map((col) => (
                       <td
                         key={col.key}
-                        className={`p-2.5 border-r border-white/20 whitespace-nowrap ${getCellClassName?.(row, col.key) || col.cellClassName || ""}`}
+                        className={`p-2.5 border-r border-white/20 whitespace-nowrap select-text cursor-text ${getCellClassName?.(row, col.key) || col.cellClassName || ""}`}
                       >
                         {renderCell
                           ? renderCell(row, col.key, formatDateSafe, currency)
@@ -1455,8 +1499,10 @@ export default function OrdersTable({
               <div
                 key={row.orderNo || `${row.orderDate}-${Math.random()}`}
                 id={`row-${row.orderNo}`}
-                onClick={() => toggleHighlight(row.orderNo)}
-                className={`rounded-xl p-4 backdrop-blur-md border text-white transition ${isHighlighted
+                onMouseDown={onRowPointerDown}
+                onMouseMove={onRowPointerMove}
+                onClick={(e) => handleRowHighlightClick(e, row.orderNo)}
+                className={`rounded-xl p-4 backdrop-blur-md border text-white transition select-text ${isHighlighted
                   ? "bg-yellow-500/20 ring-2 ring-yellow-400 border-white/15"
                   : "bg-white/10 border-white/15"
                   }`}

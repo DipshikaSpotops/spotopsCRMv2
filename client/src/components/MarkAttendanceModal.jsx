@@ -3,6 +3,7 @@ import moment from "moment-timezone";
 import { useDispatch } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import {
+  attendanceNameKey,
   canonicalAttendanceName,
   isActiveAttendanceUser,
 } from "../constants/activeAttendanceUsers";
@@ -68,7 +69,9 @@ export default function MarkAttendanceModal({ isOpen, onClose, isDarkMode, block
         if (cancelled) return;
         const canonical = canonicalAttendanceName(name);
         const row = canonical
-          ? (data?.rows || []).find((r) => r.firstName === canonical) || null
+          ? (data?.rows || []).find(
+              (r) => attendanceNameKey(r.firstName) === attendanceNameKey(canonical)
+            ) || null
           : null;
         setMyRow(row);
       } catch (e) {
@@ -115,7 +118,9 @@ export default function MarkAttendanceModal({ isOpen, onClose, isDarkMode, block
       try {
         const data = await fetchAttendance(dateKey);
         const row = canonical
-          ? (data?.rows || []).find((r) => r.firstName === canonical) || null
+          ? (data?.rows || []).find(
+              (r) => attendanceNameKey(r.firstName) === attendanceNameKey(canonical)
+            ) || null
           : null;
         if (row?.loginAt) setMyRow(row);
       } catch {

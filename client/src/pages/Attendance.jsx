@@ -11,6 +11,10 @@ import {
   shortAttendanceLabel,
 } from "../utils/attendanceStatus";
 import {
+  displayAttendanceFirstName,
+  attendanceNameKey,
+} from "../constants/activeAttendanceUsers";
+import {
   adminUpdateAttendanceEntry,
   fetchAttendance,
 } from "../utils/attendanceApi";
@@ -68,7 +72,10 @@ function dateToDatetimeLocalValue(d) {
 function formatAuditCell(log) {
   if (!Array.isArray(log) || log.length === 0) return "—";
   const lines = [...log].reverse().map((e) => {
-    const who = e.editorFirstName || e.editorEmail || "Unknown";
+    const who =
+      displayAttendanceFirstName(e.editorFirstName) ||
+      e.editorEmail ||
+      "Unknown";
     const when = e.at ? new Date(e.at).toLocaleString() : "";
     const what = ACTION_LABEL[e.action] || e.action;
     return `${when} — ${who} (${e.editorRole || "?"}): ${what}`;
@@ -160,7 +167,7 @@ export default function Attendance() {
   const rowByDateAndName = useMemo(() => {
     const m = new Map();
     for (const r of rows) {
-      m.set(`${r.dateKey}|${r.firstName}`, r);
+      m.set(`${r.dateKey}|${attendanceNameKey(r.firstName)}`, r);
     }
     return m;
   }, [rows]);
@@ -183,11 +190,14 @@ export default function Attendance() {
     const lines = [header.join(",")];
     for (const firstName of names) {
       const cells = keys.map((dk) => {
-        const r = rowByDateAndName.get(`${dk}|${firstName}`);
+        const r = rowByDateAndName.get(`${dk}|${attendanceNameKey(firstName)}`);
         const status = formatAttendanceStatus(r || {}, dk).replace(/"/g, '""');
         return `"${status}"`;
       });
-      lines.push([`"${firstName.replace(/"/g, '""')}"`, ...cells].join(","));
+      lines.push([
+        `"${displayAttendanceFirstName(firstName).replace(/"/g, '""')}"`,
+        ...cells,
+      ].join(","));
     }
     const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
@@ -375,16 +385,19 @@ export default function Attendance() {
                       present_other: 0,
                     };
                     for (const dk of monthOverviewDateKeys) {
-                      const row = rowByDateAndName.get(`${dk}|${firstName}`) || {};
+                      const row =
+                        rowByDateAndName.get(`${dk}|${attendanceNameKey(firstName)}`) || {};
                       uc[getMonthOverviewCellBucket(row, dk)]++;
                     }
                     return (
                       <tr key={firstName} className="border-t border-white/10 bg-white/[0.03]">
                         <td className="px-2 py-1.5 font-medium border-r border-white/10 sticky left-0 bg-[#162d4a] z-10 whitespace-nowrap">
-                          {firstName}
+                          {displayAttendanceFirstName(firstName)}
                         </td>
                         {monthOverviewDateKeys.map((dk) => {
-                          const cell = rowByDateAndName.get(`${dk}|${firstName}`);
+                          const cell = rowByDateAndName.get(
+                            `${dk}|${attendanceNameKey(firstName)}`
+                          );
                           const cat = getAttendanceRowCategory(cell || {}, dk);
                           return (
                             <td
@@ -400,7 +413,7 @@ export default function Attendance() {
                         })}
                         <td
                           className="px-2 py-1.5 text-left align-top border-l border-white/25 sticky right-0 bg-[#162d4a] z-10 text-[10px] sm:text-xs shadow-[-6px_0_12px_rgba(0,0,0,0.25)]"
-                          title={`${firstName}: Abs ${uc.absent}, Weekend ${uc.weekend}, On time ${uc.on_time}, Half day ${uc.half_day}, Late ${uc.late}${uc.present_other ? `, Other ${uc.present_other}` : ""}`}
+                          title={`${displayAttendanceFirstName(firstName)}: Abs ${uc.absent}, Weekend ${uc.weekend}, On time ${uc.on_time}, Half day ${uc.half_day}, Late ${uc.late}${uc.present_other ? `, Other ${uc.present_other}` : ""}`}
                         >
                           <div className="space-y-0.5 leading-snug text-white/95">
                             <div>
@@ -541,7 +554,10 @@ export default function Attendance() {
               {adminTimeModal.action === "markPresentNow" ? "Set login time" : "Set logout time"}
             </h3>
             <p className="text-sm text-white/75 mb-4">
-              <span className="font-medium">{adminTimeModal.firstName}</span> · shift day{" "}
+              <span className="font-medium">
+                {displayAttendanceFirstName(adminTimeModal.firstName)}
+              </span>{" "}
+              · shift day{" "}
               <span className="font-mono">{adminTimeModal.dateKey}</span>
             </p>
             <label htmlFor="admin-attendance-datetime" className="block text-xs text-white/80 mb-1">

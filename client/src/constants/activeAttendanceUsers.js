@@ -15,12 +15,25 @@ export const ACTIVE_ATTENDANCE_USER_LIST = [
   "Suzanne",
   "Tony",
   "Dipsikha",
-  "Alex Morgan",
-  "Hannah Presley",
-  "Natasha Spencer",
-  "Stella Allen",
-  "Hardin Scott",
+  "Alex",
+  "Hannah",
+  "Natasha",
+  "Stella",
+  "Hardin",
 ];
+
+/** First token only — used for attendance table display. */
+export function displayAttendanceFirstName(firstName) {
+  const token = String(firstName || "").trim().split(/\s+/)[0];
+  return token || "";
+}
+
+/** Stable key for matching roster rows (handles Dipshika/Dipsikha). */
+export function attendanceNameKey(firstName) {
+  const key = displayAttendanceFirstName(firstName).toLowerCase();
+  if (key === "dipshika") return "dipsikha";
+  return key;
+}
 
 /** Lookup object: firstName -> { firstName } */
 export const activeAttendanceUsers = Object.fromEntries(
@@ -33,17 +46,13 @@ function normalizeAttendanceFirstNameKey(firstName) {
   return n;
 }
 
-/** Match roster to first word (e.g. "Richard Parker" → Richard, "Alex" → Alex Morgan). */
+/** Match roster to first word (e.g. "Richard Parker" → Richard, "Alex Morgan" → Alex). */
 function rosterKeyFromUserFirstName(firstName) {
-  const raw = String(firstName || "").trim();
-  if (!raw) return "";
-  const firstToken = raw.split(/\s+/)[0];
-  return normalizeAttendanceFirstNameKey(firstToken);
+  return attendanceNameKey(firstName);
 }
 
 function rosterEntryKey(rosterName) {
-  const firstToken = String(rosterName || "").trim().split(/\s+/)[0];
-  return normalizeAttendanceFirstNameKey(firstToken);
+  return attendanceNameKey(rosterName);
 }
 
 export function isActiveAttendanceUser(firstName) {
