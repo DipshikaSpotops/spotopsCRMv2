@@ -256,6 +256,7 @@ export default function TrackingInfo() {
       columns={columns}
       renderCell={renderCell}
       showAgentFilter={true}
+      showTrackingLabelFilter={true}
       showTotalsButton={true}
       extraTotals={extraTotals}
       paramsBuilder={paramsBuilder}

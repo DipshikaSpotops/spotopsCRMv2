@@ -85,6 +85,7 @@ export default function Sidebar() {
         { text: "Placed Orders", to: "/placed-orders" },
         { text: "Partially Charged Orders", to: "/partially-charged-orders" },
         { text: "In-Transit Orders", to: "/in-transit" },
+        { text: "Tracking Report", to: "/tracking-info" },
         { text: "Fulfilled Orders", to: "/fulfilled-orders" },
         { text: "Refunded Orders", to: "/refunded-orders" },
         { text: "To Be Reimbursed", to: "/to-be-reimbursed" },

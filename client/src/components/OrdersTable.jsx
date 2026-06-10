@@ -294,6 +294,7 @@ const GlassModal = ({ title, subtitle, onClose, children, actions, wide = false 
    - renderCell(row,key)  : function to render cell content
    - showAgentFilter      : boolean (Admin-only dropdown)
    - showAddressTypeFilter: boolean (Business / Residential; all roles)
+   - showTrackingLabelFilter: boolean (Tracking Report label types; all roles)
    - showGP               : boolean (enables GP totals and derived _currentGP/_actualGP)
    - navigateTo           : function(row) -> path  (default `/order-details?orderNo=...`)
    - extraTotals          : optional function(sortedRows) => [{name, value}] or { columns, rows }
@@ -308,6 +309,7 @@ export default function OrdersTable({
   renderCell,
   showAgentFilter = false,
   showAddressTypeFilter = false,
+  showTrackingLabelFilter = false,
   showGP = false,
   navigateTo,
   extraTotals,
@@ -343,7 +345,17 @@ export default function OrdersTable({
   const LS_HILITE_KEY = storageKeys?.hilite || "ordersTableHilite";
   const LS_AGENT_KEY = `${LS_PAGE_KEY}_agent`;
   const LS_ADDRESS_TYPE_KEY = `${LS_PAGE_KEY}_addressType`;
+  const LS_TRACKING_LABEL_KEY = `${LS_PAGE_KEY}_trackingLabel`;
   const ADDRESS_TYPE_FILTER_OPTIONS = ["Select", "Business", "Residential"];
+  const TRACKING_LABEL_FILTER_OPTIONS = [
+    "Select",
+    "All",
+    "Tracking No",
+    "Replacement Tracking (Yard)",
+    "Replacement Tracking (Cust)",
+    "Return Tracking",
+    "Return Tracking No",
+  ];
   const LS_SORT_BY_KEY = `${LS_PAGE_KEY}_sortBy`;
   const LS_SORT_ORDER_KEY = `${LS_PAGE_KEY}_sortOrder`;
   const SCROLL_KEY = `${LS_PAGE_KEY}_scrollTop`;
@@ -375,6 +387,9 @@ export default function OrdersTable({
   const [selectedAgent, setSelectedAgent] = useState(getLS(LS_AGENT_KEY, "Select"));
   const [selectedAddressType, setSelectedAddressType] = useState(
     getLS(LS_ADDRESS_TYPE_KEY, "Select")
+  );
+  const [selectedTrackingLabel, setSelectedTrackingLabel] = useState(
+    getLS(LS_TRACKING_LABEL_KEY, "Select")
   );
 
   const [searchInput, setSearchInput] = useState(getLS(LS_SEARCH_KEY, ""));
@@ -737,6 +752,21 @@ export default function OrdersTable({
       };
     });
   }, [orders, showGP]);
+
+  const rowsAfterTrackingLabelFilter = useMemo(() => {
+    if (!showTrackingLabelFilter) return rowsWithDerived;
+    if (
+      !selectedTrackingLabel ||
+      selectedTrackingLabel === "Select" ||
+      selectedTrackingLabel === "All"
+    ) {
+      return rowsWithDerived;
+    }
+    return rowsWithDerived.filter(
+      (row) => row?.trackingLabel === selectedTrackingLabel
+    );
+  }, [rowsWithDerived, showTrackingLabelFilter, selectedTrackingLabel]);
+
   const isServerPaginated = useMemo(() => {
     const tp = Number(responseMeta?.totalPages);
     const tc = Number(responseMeta?.totalCount ?? responseMeta?.totalOrders);
@@ -746,18 +776,18 @@ export default function OrdersTable({
   // agent options
   const agentOptions = useMemo(() => {
     const set = new Set();
-    rowsWithDerived.forEach((o) => {
+    rowsAfterTrackingLabelFilter.forEach((o) => {
       const a = (o?.salesAgent || "").trim();
       if (a) set.add(a);
     });
     const arr = Array.from(set).sort((a, b) => a.localeCompare(b));
     return ["Select", "All", ...arr];
-  }, [rowsWithDerived]);
+  }, [rowsAfterTrackingLabelFilter]);
 
   // agent filter
   const filteredByRole = useMemo(() => {
     if (isServerPaginated) {
-      return rowsWithDerived;
+      return rowsAfterTrackingLabelFilter;
     }
     if ((userRole || "").toLowerCase() === "sales") {
       const me = firstName.toLowerCase();
@@ -767,7 +797,7 @@ export default function OrdersTable({
         : firstName;
       const mappedMe = mappedFirstName.toLowerCase();
       
-      return rowsWithDerived.filter((o) => {
+      return rowsAfterTrackingLabelFilter.filter((o) => {
         const agent = (o?.salesAgent || "").toLowerCase().trim();
         // Match exact firstName OR full name starting with firstName
         // Also match mapped agent name if brand is PROLANE
@@ -780,8 +810,8 @@ export default function OrdersTable({
       });
     }
     // Admin & Support see everything
-    return rowsWithDerived;
-  }, [rowsWithDerived, userRole, firstName, brand, isServerPaginated]);
+    return rowsAfterTrackingLabelFilter;
+  }, [rowsAfterTrackingLabelFilter, userRole, firstName, brand, isServerPaginated]);
 
   // 2) Admin-only agent narrowing (Select/All=no narrowing)
   const agentFiltered = useMemo(() => {
@@ -1110,6 +1140,23 @@ export default function OrdersTable({
                 setCurrentPage(1);
               }}
               placeholder="Select Address Type"
+              className="ml-2"
+            />
+          )}
+          {showTrackingLabelFilter && (
+            <AgentDropdown
+              options={TRACKING_LABEL_FILTER_OPTIONS}
+              value={selectedTrackingLabel}
+              onChange={(val) => {
+                setSelectedTrackingLabel(val);
+                if (val && val !== "Select" && val !== "All") {
+                  setLS(LS_TRACKING_LABEL_KEY, val);
+                } else {
+                  setLS(LS_TRACKING_LABEL_KEY, null);
+                }
+                setCurrentPage(1);
+              }}
+              placeholder="Select Tracking Label"
               className="ml-2"
             />
           )}
@@ -1535,6 +1582,9 @@ export default function OrdersTable({
               {selectedAgent !== "Select" ? ` • Agent: ${selectedAgent}` : ""}
               {selectedAddressType !== "Select"
                 ? ` • Address Type: ${selectedAddressType}`
+                : ""}
+              {selectedTrackingLabel !== "Select" && selectedTrackingLabel !== "All"
+                ? ` • Tracking Label: ${selectedTrackingLabel}`
                 : ""}
               {appliedQuery ? ` • Search: “${appliedQuery}”` : ""}
             </>
