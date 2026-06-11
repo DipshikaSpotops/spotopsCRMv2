@@ -77,11 +77,6 @@ function getEmailBrandConfig(req, brandOverride) {
   const companyName =
     brand === "PROLANE" || brand === "PROTP" ? "Prolane Auto Parts" : "50 Stars Auto Parts";
 
-  const websiteUrl =
-    brand === "PROLANE" || brand === "PROTP"
-      ? "www.prolaneautoparts.com"
-      : "www.50starsautoparts.com";
-
   // Phone: PROTP uses PHONE_PROLANE_TRUCK env, PROLANE uses PROLANE_SERVICE_NO, 50STARS uses fixed
   let phoneNumber = "+1 (866) 207-5533";
   if (brand === "PROTP") {
@@ -121,7 +116,6 @@ function getEmailBrandConfig(req, brandOverride) {
     purchasePass,
     companyName,
     customerFacingName,
-    websiteUrl,
     phoneNumber,
     purchaseDisplayName,
     serviceEmailAddress,
@@ -130,16 +124,12 @@ function getEmailBrandConfig(req, brandOverride) {
 }
 
 function buildCustomerSignatureHtml(firstName, cfg) {
-  const {
-    companyName,
-    phoneNumber,
-    serviceEmailAddress,
-    websiteUrl,
-  } = cfg;
-  const siteHref = String(websiteUrl || "").startsWith("http")
-    ? websiteUrl
-    : `https://${websiteUrl}`;
-  return `<p>${firstName || "Team Member"}<br/>Customer Service Team<br/>${companyName}<br/>${phoneNumber}<br/>${serviceEmailAddress}<br/><a href="${siteHref}">${websiteUrl}</a></p>`;
+  const { companyName, phoneNumber, serviceEmailAddress } = cfg;
+  return `<p>${firstName || "Team Member"}<br/>Customer Service Team<br/>${companyName}<br/>${phoneNumber}<br/>${serviceEmailAddress}</p>`;
+}
+
+function buildPurchaseSignatureHtml(firstName, purchaseDisplayName, phoneNumber, purchaseEmailAddress) {
+  return `<p>${firstName}<br/>Customer Service Team<br/>${purchaseDisplayName}<br/>${phoneNumber}<br/>${purchaseEmailAddress}</p>`;
 }
 
 const cardNumber = process.env.CARD_NUMBER || "**** **** **** 7195";
@@ -292,7 +282,6 @@ router.post("/order-cancel/:orderNo", async (req, res) => {
       customerFacingName,
       phoneNumber,
       serviceEmailAddress,
-      websiteUrl,
     } = emailCfg;
 
     const transporter = nodemailer.createTransport({
@@ -362,7 +351,6 @@ router.post("/sendReimburseEmail/:orderNo", handleReimbursementAttachmentUpload,
       companyName,
       phoneNumber,
       serviceEmailAddress,
-      websiteUrl,
     } = getEmailBrandConfig(req);
 
     const transporter = nodemailer.createTransport({
@@ -419,7 +407,7 @@ router.post("/sendReimburseEmail/:orderNo", handleReimbursementAttachmentUpload,
   )} toward the issue you faced.</p>
   <p>Please note that in the event of a future order cancellation, any reimbursement amount already issued will be deducted from the refund. Additionally, we do not provide any guarantee or warranty on labor-related work.</p>
   ${emailLogoHtml(logoUrl)}
-  <p>${firstName}<br/>Customer Service Team<br/>${companyName}<br/>${phoneNumber}<br/>${serviceEmailAddress}<br/>${websiteUrl}</p>
+  <p>${firstName}<br/>Customer Service Team<br/>${companyName}<br/>${phoneNumber}<br/>${serviceEmailAddress}</p>
 </div>`,
       attachments,
     });
@@ -463,7 +451,6 @@ router.post("/sendToBeReimbursedEmail/:orderNo", async (req, res) => {
       companyName,
       phoneNumber,
       serviceEmailAddress,
-      websiteUrl,
     } = getEmailBrandConfig(req);
 
     const transporter = nodemailer.createTransport({
@@ -498,7 +485,7 @@ router.post("/sendToBeReimbursedEmail/:orderNo", async (req, res) => {
   )} toward the issue you faced.</p>
   <p>Please note that in the event of a future order cancellation, any reimbursement amount already issued will be deducted from the refund. Additionally, we do not provide any guarantee or warranty on labor-related work.</p>
   ${emailLogoHtml(logoUrl)}
-  <p>${firstName}<br/>Customer Service Team<br/>${companyName}<br/>${phoneNumber}<br/>${serviceEmailAddress}<br/>${websiteUrl}</p>
+  <p>${firstName}<br/>Customer Service Team<br/>${companyName}<br/>${phoneNumber}<br/>${serviceEmailAddress}</p>
 </div>`,
       attachments: withEmailLogoAttachment(logoUrl),
     });
@@ -542,7 +529,6 @@ router.post("/orders/sendRefundConfirmation/:orderNo", upload.single("pdfFile"),
       customerFacingName,
       phoneNumber,
       serviceEmailAddress,
-      websiteUrl,
     } = emailCfg;
 
     const transporter = nodemailer.createTransport({
@@ -646,7 +632,7 @@ router.post("/customer-delivered/:orderNo", async (req, res) => {
     const toEmail = (order.email || "").trim();
     if (!toEmail) return res.status(400).json({ message: "No customer email on file" });
 
-    const { serviceEmail, servicePass, supportBcc, logoUrl, companyName, phoneNumber, serviceEmailAddress, websiteUrl } = getEmailBrandConfig(req);
+    const { serviceEmail, servicePass, supportBcc, logoUrl, companyName, phoneNumber, serviceEmailAddress } = getEmailBrandConfig(req);
 
     // Create transporter from env (same style as your other routes)
     const transporter = nodemailer.createTransport({
@@ -671,7 +657,7 @@ router.post("/customer-delivered/:orderNo", async (req, res) => {
         <p>If there's anything you need, or if you have any questions about your order, feel free to reach out — we're always happy to help.</p>
         <p>Thanks once again for shopping with us. We look forward to helping you with your auto parts needs in the future!</p>
         ${emailLogoHtml(logoUrl)}
-        <p>${firstName}<br/>Customer Service Team<br/>${companyName}<br/>${phoneNumber}<br/>${serviceEmailAddress}<br/><a href="https://${websiteUrl}">${websiteUrl}</a></p>
+        <p>${firstName}<br/>Customer Service Team<br/>${companyName}<br/>${phoneNumber}<br/>${serviceEmailAddress}</p>
       </div>`;
 
     await transporter.sendMail({
@@ -731,7 +717,7 @@ router.post("/orders/sendTrackingInfo/:orderNo", async (req, res) => {
     const firstName = getSupportDisplayName(rawFirstName ?? "", req);
     const customerName = cleanCustomerName(order.customerName || order.fName || "Customer");
 
-    const { serviceEmail, servicePass, supportBcc, logoUrl, companyName, phoneNumber, serviceEmailAddress, websiteUrl } = getEmailBrandConfig(req);
+    const { serviceEmail, servicePass, supportBcc, logoUrl, companyName, phoneNumber, serviceEmailAddress } = getEmailBrandConfig(req);
 
     const transporter = nodemailer.createTransport({
       service: "gmail",
@@ -790,7 +776,7 @@ router.post("/orders/sendTrackingInfo/:orderNo", async (req, res) => {
       emailLogoHtml(logoUrl)
     );
     htmlSections.push(
-      `<p>${firstName}<br/>Customer Service Team<br/>${companyName}<br/>${phoneNumber}<br/>${serviceEmailAddress}<br/><a href="https://${websiteUrl}">${websiteUrl}</a></p>`
+      `<p>${firstName}<br/>Customer Service Team<br/>${companyName}<br/>${phoneNumber}<br/>${serviceEmailAddress}</p>`
     );
     const htmlBody = `<div style="font-size:16px;line-height:1.7;">${htmlSections.join("\n")}</div>`;
 
@@ -877,7 +863,6 @@ router.post("/orders/sendRefundEmail/:orderNo", upload.single("pdfFile"), async 
       purchaseEmail,
       purchasePass,
       companyName,
-      websiteUrl,
       phoneNumber,
       purchaseDisplayName,
       purchaseEmailAddress,
@@ -957,7 +942,7 @@ router.post("/orders/sendRefundEmail/:orderNo", upload.single("pdfFile"), async 
           has been attached below for your reference.
         </p>
         ${emailLogoHtml(yardEmailLogo)}
-        <p>${firstName}<br/>Customer Service Team<br/>${purchaseDisplayName}<br/>${phoneNumber}<br/>${purchaseEmailAddress}<br/><a href="https://${websiteUrl}">${websiteUrl}</a></p>
+        ${buildPurchaseSignatureHtml(firstName, purchaseDisplayName, phoneNumber, purchaseEmailAddress)}
       </div>`,
       attachments: withEmailLogoAttachment(yardEmailLogo, [
         {
@@ -1011,7 +996,6 @@ router.post("/orders/po-cancelled/:orderNo", async (req, res) => {
       purchaseEmail,
       purchasePass,
       purchaseDisplayName,
-      websiteUrl,
       purchaseEmailAddress,
     } = getEmailBrandConfig(req, brand);
     const yardEmailLogo = logoForYardFacingEmail(brand);
@@ -1045,8 +1029,6 @@ router.post("/orders/po-cancelled/:orderNo", async (req, res) => {
     // Brand-aware signature details
     let signaturePhone;
     let signatureEmail = purchaseEmailAddress || purchaseEmail;
-    let signatureWebsite = websiteUrl || "www.50starsautoparts.com";
-
     if (brand === "PROLANE") {
       // Prefer dedicated PROLANE_PURCHASE_NO, fallback to service, then default
       signaturePhone =
@@ -1085,11 +1067,7 @@ router.post("/orders/po-cancelled/:orderNo", async (req, res) => {
         <p>${firstName}<br/>
            ${purchaseDisplayName}
         </p>
-        <p>${signaturePhone} | ${signatureEmail}<br/><a href="https://${
-          signatureWebsite.startsWith("http")
-            ? signatureWebsite.replace(/^https?:\/\//, "")
-            : signatureWebsite
-        }">${signatureWebsite}</a></p>
+        <p>${signaturePhone} | ${signatureEmail}</p>
         
       </div>`,
       attachments: withEmailLogoAttachment(yardEmailLogo),
@@ -1132,7 +1110,6 @@ router.post("/orders/sendReplaceEmailCustomerShipping/:orderNo", async (req, res
       supportBcc,
       logoUrl,
       companyName,
-      websiteUrl,
       phoneNumber,
       serviceEmailAddress,
     } = getEmailBrandConfig(req);
@@ -1188,7 +1165,7 @@ router.post("/orders/sendReplaceEmailCustomerShipping/:orderNo", async (req, res
         <p>If you have any questions about the process or need further assistance, please feel free to contact us.</p>
         <p>Thank you for giving us an opportunity to make this right.</p>
         ${emailLogoHtml(logoUrl)}
-        <p>${firstName}<br/>Customer Service Team<br/>${companyName}<br/>${phoneNumber}<br/>${serviceEmailAddress}<br/><a href="https://${websiteUrl}">${websiteUrl}</a></p>
+        <p>${firstName}<br/>Customer Service Team<br/>${companyName}<br/>${phoneNumber}<br/>${serviceEmailAddress}</p>
       </div>`,
       attachments: withEmailLogoAttachment(logoUrl),
     };
@@ -1228,7 +1205,6 @@ router.post(
         supportBcc,
         logoUrl,
         companyName,
-        websiteUrl,
         phoneNumber,
         serviceEmailAddress,
       } = getEmailBrandConfig(req);
@@ -1261,7 +1237,7 @@ router.post(
           <p>Please find the attached shipping document for the replacement of your part. Kindly print and include it with the package when it is handed over to the carrier.</p>
           ${PART_RETURN_POLICY_HTML}
           ${emailLogoHtml(logoUrl)}
-          <p>${firstName}<br/>Customer Service Team<br/>${companyName}<br/>${phoneNumber}<br/>${serviceEmailAddress}<br/><a href="https://${websiteUrl}">${websiteUrl}</a></p>
+          <p>${firstName}<br/>Customer Service Team<br/>${companyName}<br/>${phoneNumber}<br/>${serviceEmailAddress}</p>
         </div>`,
         attachments: withEmailLogoAttachment(logoUrl, [
           {
@@ -1302,7 +1278,6 @@ router.post("/orders/sendReturnEmailCustomerShipping/:orderNo", async (req, res)
       supportBcc,
       logoUrl,
       companyName,
-      websiteUrl,
       phoneNumber,
       serviceEmailAddress,
     } = getEmailBrandConfig(req);
@@ -1355,7 +1330,7 @@ router.post("/orders/sendReturnEmailCustomerShipping/:orderNo", async (req, res)
         ${PART_RETURN_POLICY_HTML}
         <p>Kindly share the tracking number once the package is on its way. As soon as we receive and inspect the part, we will continue with the necessary next steps.</p>
         ${emailLogoHtml(logoUrl)}
-        <p>${firstName}<br/>Customer Service Team<br/>${companyName}<br/>${phoneNumber}<br/>${serviceEmailAddress}<br/><a href="https://${websiteUrl}">${websiteUrl}</a></p>
+        <p>${firstName}<br/>Customer Service Team<br/>${companyName}<br/>${phoneNumber}<br/>${serviceEmailAddress}</p>
       </div>`,
       attachments: withEmailLogoAttachment(logoUrl),
     };
@@ -1396,7 +1371,6 @@ router.post(
         supportBcc,
         logoUrl,
         companyName,
-        websiteUrl,
         phoneNumber,
         serviceEmailAddress,
       } = getEmailBrandConfig(req);
@@ -1435,7 +1409,7 @@ router.post(
           <p>Return Address: ${formattedAddress}</p>
           ${PART_RETURN_POLICY_HTML}
           ${emailLogoHtml(logoUrl)}
-          <p>${firstName}<br/>Customer Service Team<br/>${companyName}<br/>${phoneNumber}<br/>${serviceEmailAddress}<br/><a href="https://${websiteUrl}">${websiteUrl}</a></p>
+          <p>${firstName}<br/>Customer Service Team<br/>${companyName}<br/>${phoneNumber}<br/>${serviceEmailAddress}</p>
         </div>`,
         attachments: withEmailLogoAttachment(logoUrl, [
           {

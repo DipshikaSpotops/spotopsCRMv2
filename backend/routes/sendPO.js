@@ -103,10 +103,6 @@ function getEmailBrandConfig(req) {
     : brand === "PROLANE"
     ? "purchase@prolaneautoparts.com"
     : "purchase@auto-partsgroup.com";
-  const websiteUrl = brand === "PROLANE" || brand === "PROTP"
-    ? "www.prolaneautoparts.com"
-    : "www.50starsautoparts.com";
-
   return {
     brand,
     purchaseEmail,
@@ -115,7 +111,6 @@ function getEmailBrandConfig(req) {
     companyAddress,
     companyPhone,
     purchaseEmailAddress,
-    websiteUrl,
   };
 }
 
