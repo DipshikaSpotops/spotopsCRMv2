@@ -2,6 +2,10 @@
 export const PROTP_YARD_LOGO_DEFAULT =
   "https://prolanelogo.s3.ap-south-1.amazonaws.com/american_AS_img.png";
 
+/** Prolane Truck Parts — PROTP customer-facing emails only. */
+export const PROTP_CUSTOMER_LOGO_DEFAULT =
+  "https://prolanelogo.s3.ap-south-1.amazonaws.com/PROLANE+TRUCKS+PARTS+DARK+LOGO.png";
+
 function pickEnv(baseKey, brand) {
   if (!baseKey) return "";
   const base = String(baseKey).trim();
@@ -31,18 +35,27 @@ export function resolveBrandFromOrderNo(orderNo, fallbackBrand = "50STARS") {
   return "50STARS";
 }
 
-/** Customer / service emails (never uses PROTP_LOGO / American AS). No fallback image. */
+/** PROTP customer emails — Prolane Truck Parts dark logo. */
+export function logoForProtpCustomerEmail() {
+  return trimUrl(process.env.PROTP_CUSTOMER_LOGO) || PROTP_CUSTOMER_LOGO_DEFAULT;
+}
+
+/** Customer / service emails. No fallback image when unset. */
 export function resolveCustomerLogoUrl(brand) {
   const b = String(brand || "").toUpperCase();
 
-  if (b === "PROLANE" || b === "PROTP") {
+  if (b === "PROTP") {
+    return logoForProtpCustomerEmail();
+  }
+
+  if (b === "PROLANE") {
     return trimUrl(process.env.PROLANE_LOGO) || trimUrl(pickEnv("LOGO_URL", "PROLANE"));
   }
 
   return trimUrl(pickEnv("LOGO_URL", b));
 }
 
-/** PROTP yard emails only — American Auto Supply logo. */
+/** PROTP yard emails only — American Auto Supply logo (PROTP_LOGO). */
 export function logoForProtpYardEmail() {
   return trimUrl(process.env.PROTP_LOGO) || PROTP_YARD_LOGO_DEFAULT;
 }

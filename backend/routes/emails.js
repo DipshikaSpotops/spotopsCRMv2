@@ -75,7 +75,11 @@ function getEmailBrandConfig(req, brandOverride) {
 
   // Brand-specific display details
   const companyName =
-    brand === "PROLANE" || brand === "PROTP" ? "Prolane Auto Parts" : "50 Stars Auto Parts";
+    brand === "PROTP"
+      ? "Prolane Truck Parts"
+      : brand === "PROLANE"
+      ? "Prolane Auto Parts"
+      : "50 Stars Auto Parts";
 
   // Phone: PROTP uses PHONE_PROLANE_TRUCK env, PROLANE uses PROLANE_SERVICE_NO, 50STARS uses fixed
   let phoneNumber = "+1 (866) 207-5533";
@@ -104,7 +108,11 @@ function getEmailBrandConfig(req, brandOverride) {
       : "purchase@auto-partsgroup.com";
 
   const customerFacingName =
-    brand === "PROLANE" || brand === "PROTP" ? "Prolane Auto Parts" : "50 Stars Auto Parts";
+    brand === "PROTP"
+      ? "Prolane Truck Parts"
+      : brand === "PROLANE"
+      ? "Prolane Auto Parts"
+      : "50 Stars Auto Parts";
 
   return {
     brand,
@@ -328,7 +336,8 @@ router.post("/sendReimburseEmail/:orderNo", handleReimbursementAttachmentUpload,
     const reimburesementValue = req.query.reimburesementValue ?? "0";
     const firstName = getSupportDisplayName(req.query.firstName ?? "", req);
 
-    const Order = getOrderModel(req);
+    const brand = resolveBrandFromOrderNo(orderNo, getBrand(req));
+    const Order = getOrderModelForBrand(brand);
     const order = await Order.findOne({ orderNo });
     if (!order) return res.status(404).json({ message: "Order not found" });
 
@@ -351,7 +360,7 @@ router.post("/sendReimburseEmail/:orderNo", handleReimbursementAttachmentUpload,
       companyName,
       phoneNumber,
       serviceEmailAddress,
-    } = getEmailBrandConfig(req);
+    } = getEmailBrandConfig(req, brand);
 
     const transporter = nodemailer.createTransport({
       service: "gmail",
@@ -428,7 +437,8 @@ router.post("/sendToBeReimbursedEmail/:orderNo", async (req, res) => {
     const reimburesementValue = req.query.reimburesementValue ?? "0";
     const firstName = getSupportDisplayName(req.query.firstName ?? "", req);
 
-    const Order = getOrderModel(req);
+    const brand = resolveBrandFromOrderNo(orderNo, getBrand(req));
+    const Order = getOrderModelForBrand(brand);
     const order = await Order.findOne({ orderNo });
     if (!order) return res.status(404).json({ message: "Order not found" });
 
@@ -451,7 +461,7 @@ router.post("/sendToBeReimbursedEmail/:orderNo", async (req, res) => {
       companyName,
       phoneNumber,
       serviceEmailAddress,
-    } = getEmailBrandConfig(req);
+    } = getEmailBrandConfig(req, brand);
 
     const transporter = nodemailer.createTransport({
       service: "gmail",
@@ -610,7 +620,8 @@ router.post("/customer-delivered/:orderNo", async (req, res) => {
       return res.status(400).json({ message: "yardIndex (1-based) is required" });
     }
 
-    const Order = getOrderModel(req);
+    const brand = resolveBrandFromOrderNo(orderNo, getBrand(req));
+    const Order = getOrderModelForBrand(brand);
     const order = await Order.findOne({ orderNo });
     if (!order) return res.status(404).json({ message: "Order not found" });
 
@@ -632,7 +643,7 @@ router.post("/customer-delivered/:orderNo", async (req, res) => {
     const toEmail = (order.email || "").trim();
     if (!toEmail) return res.status(400).json({ message: "No customer email on file" });
 
-    const { serviceEmail, servicePass, supportBcc, logoUrl, companyName, phoneNumber, serviceEmailAddress } = getEmailBrandConfig(req);
+    const { serviceEmail, servicePass, supportBcc, logoUrl, companyName, phoneNumber, serviceEmailAddress } = getEmailBrandConfig(req, brand);
 
     // Create transporter from env (same style as your other routes)
     const transporter = nodemailer.createTransport({
@@ -708,8 +719,10 @@ const cleanCustomerName = (name) => {
 router.post("/orders/sendTrackingInfo/:orderNo", async (req, res) => {
   console.log("[emails] sendTrackingInfo hit");
   try {
-    const Order = getOrderModel(req);
-    const order = await Order.findOne({ orderNo: req.params.orderNo });
+    const { orderNo } = req.params;
+    const brand = resolveBrandFromOrderNo(orderNo, getBrand(req));
+    const Order = getOrderModelForBrand(brand);
+    const order = await Order.findOne({ orderNo });
     if (!order) return res.status(400).send("Order not found");
 
     const { trackingNo, eta, shipperName, link, firstName: rawFirstName } =
@@ -717,7 +730,7 @@ router.post("/orders/sendTrackingInfo/:orderNo", async (req, res) => {
     const firstName = getSupportDisplayName(rawFirstName ?? "", req);
     const customerName = cleanCustomerName(order.customerName || order.fName || "Customer");
 
-    const { serviceEmail, servicePass, supportBcc, logoUrl, companyName, phoneNumber, serviceEmailAddress } = getEmailBrandConfig(req);
+    const { serviceEmail, servicePass, supportBcc, logoUrl, companyName, phoneNumber, serviceEmailAddress } = getEmailBrandConfig(req, brand);
 
     const transporter = nodemailer.createTransport({
       service: "gmail",
@@ -1100,7 +1113,8 @@ router.post("/orders/sendReplaceEmailCustomerShipping/:orderNo", async (req, res
     );
     const retAddressReplacement = (req.query.retAddressReplacement ?? "").toString();
 
-    const Order = getOrderModel(req);
+    const brand = resolveBrandFromOrderNo(orderNo, getBrand(req));
+    const Order = getOrderModelForBrand(brand);
     const order = await Order.findOne({ orderNo });
     if (!order) return res.status(400).json({ message: "Order not found" });
 
@@ -1112,7 +1126,7 @@ router.post("/orders/sendReplaceEmailCustomerShipping/:orderNo", async (req, res
       companyName,
       phoneNumber,
       serviceEmailAddress,
-    } = getEmailBrandConfig(req);
+    } = getEmailBrandConfig(req, brand);
 
     if (!serviceEmail || !servicePass) {
       console.error("[emails] SERVICE_EMAIL or SERVICE_PASS not set in environment");
@@ -1195,7 +1209,8 @@ router.post(
         return res.status(400).json({ message: "Attach the required document (pdfFile)." });
       }
 
-      const Order = getOrderModel(req);
+      const brand = resolveBrandFromOrderNo(orderNo, getBrand(req));
+      const Order = getOrderModelForBrand(brand);
       const order = await Order.findOne({ orderNo });
       if (!order) return res.status(400).json({ message: "Order not found" });
 
@@ -1207,7 +1222,7 @@ router.post(
         companyName,
         phoneNumber,
         serviceEmailAddress,
-      } = getEmailBrandConfig(req);
+      } = getEmailBrandConfig(req, brand);
 
       if (!serviceEmail || !servicePass) {
         console.error("[emails] SERVICE_EMAIL or SERVICE_PASS not set in environment");
@@ -1268,7 +1283,8 @@ router.post("/orders/sendReturnEmailCustomerShipping/:orderNo", async (req, res)
     );
     const retAddress = (req.query.retAddress ?? "").toString();
 
-    const Order = getOrderModel(req);
+    const brand = resolveBrandFromOrderNo(orderNo, getBrand(req));
+    const Order = getOrderModelForBrand(brand);
     const order = await Order.findOne({ orderNo });
     if (!order) return res.status(400).json({ message: "Order not found" });
 
@@ -1280,7 +1296,7 @@ router.post("/orders/sendReturnEmailCustomerShipping/:orderNo", async (req, res)
       companyName,
       phoneNumber,
       serviceEmailAddress,
-    } = getEmailBrandConfig(req);
+    } = getEmailBrandConfig(req, brand);
 
     if (!serviceEmail || !servicePass) {
       console.error("[emails] SERVICE_EMAIL or SERVICE_PASS not set in environment");
@@ -1361,7 +1377,8 @@ router.post(
         return res.status(400).json({ message: "Attach the required document (pdfFile)." });
       }
 
-      const Order = getOrderModel(req);
+      const brand = resolveBrandFromOrderNo(orderNo, getBrand(req));
+      const Order = getOrderModelForBrand(brand);
       const order = await Order.findOne({ orderNo });
       if (!order) return res.status(400).json({ message: "Order not found" });
 
@@ -1373,7 +1390,7 @@ router.post(
         companyName,
         phoneNumber,
         serviceEmailAddress,
-      } = getEmailBrandConfig(req);
+      } = getEmailBrandConfig(req, brand);
 
       if (!serviceEmail || !servicePass) {
         console.error("[emails] SERVICE_EMAIL or SERVICE_PASS not set in environment");
