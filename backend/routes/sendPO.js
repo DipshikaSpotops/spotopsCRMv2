@@ -8,6 +8,12 @@ import multer from "multer";
 import dotenv from "dotenv";
 import { execSync } from "child_process";
 import { getPurchaseBcc } from "../utils/purchaseBcc.js";
+import {
+  emailLogoHtml,
+  logoForYardFacingEmail,
+  resolveBrandFromOrderNo,
+  withEmailLogoAttachment,
+} from "../utils/emailLogos.js";
 dotenv.config();
 
 /**
@@ -20,9 +26,6 @@ dotenv.config();
 
 
 // --- Brand-aware email config helpers (50STARS / PROLANE / PROTP) ---
-const DEFAULT_LOGO_URL =
-  "https://assets-autoparts.s3.ap-south-1.amazonaws.com/images/logo.png";
-
 function getBrand(req) {
   const b = String(req.brand || "").toUpperCase();
   if (b === "PROLANE" || b === "PROTP") return b;
@@ -77,12 +80,6 @@ function getEmailBrandConfig(req) {
     purchasePass = pickEnv("PURCHASE_PASS", brand);
   }
 
-  // Logo: allow a dedicated PROLANE_LOGO env var to override LOGO_URL_PROLANE
-  let logoUrl = pickEnv("LOGO_URL", brand) || DEFAULT_LOGO_URL;
-  if ((brand === "PROLANE" || brand === "PROTP") && process.env.PROLANE_LOGO) {
-    logoUrl = process.env.PROLANE_LOGO;
-  }
-
   // Brand-specific company details
   const companyName =
     brand === "PROLANE" || brand === "PROTP" ? "American Auto Supply" : "Auto Parts Group Corp";
@@ -114,7 +111,6 @@ function getEmailBrandConfig(req) {
     brand,
     purchaseEmail,
     purchasePass,
-    logoUrl,
     companyName,
     companyAddress,
     companyPhone,
@@ -142,7 +138,7 @@ const SUPPORT_AGENT_PROLANE_NAME_MAP = {
   Tristan: "Jonathan Whitmore",
   James: "Justin Time",
   Jessie: "Ace Ryder",
-  Peter: "Jerry Miller",
+  Hardin  : "Henry Scott",
   Suzanne: "Luna Brown",
   Emily: "Rev Rhode",
   Ashley: "Gloria Sky",
@@ -152,6 +148,7 @@ const SUPPORT_AGENT_PROLANE_NAME_MAP = {
   Alex: "Jason Morgan",
   Hannah: "Alice Presley",
   Natasha: "Sophia Roberts",
+  Stella: "Zoe Harris",
   // Handle both spellings for safety
   Dipshika: "Dips",
   Dipsikha: "Dips",
@@ -263,11 +260,14 @@ router.post("/sendPOEmailYard/:orderNo", upload.any(), async (req, res) => {
       return res.status(400).json({ message: "Invalid yard index" });
     }
 
+    const brand = resolveBrandFromOrderNo(orderNo, getBrand(req));
+
     // Get brand-aware config
-    const brandConfig = getEmailBrandConfig(req);
+    const brandConfig = getEmailBrandConfig({ ...req, brand });
+    const yardEmailLogo = logoForYardFacingEmail(brand);
 
     // Use brand-aware model
-    const Order = getOrderModelForBrand(req.brand || "50STARS");
+    const Order = getOrderModelForBrand(brand);
     const order = await Order.findOne({ orderNo });
     if (!order) {
       console.error("[sendPO] Order not found:", orderNo, "in brand:", req.brand || "50STARS");
@@ -713,7 +713,7 @@ router.post("/sendPOEmailYard/:orderNo", upload.any(), async (req, res) => {
           </strong>
         </p>
 
-        <p><img src="cid:logo" alt="logo" style="width: 180px; height: 100px;"></p>
+        ${emailLogoHtml(yardEmailLogo)}
         <p style="font-size: 16px;">
           ${firstNameTrimmed}<br>
           ${brandConfig.companyName}<br>
@@ -733,14 +733,7 @@ router.post("/sendPOEmailYard/:orderNo", upload.any(), async (req, res) => {
       headers: {
         "X-Mailer": `${brandConfig.companyName} CRM`,
       },
-      attachments: [
-        ...attachments,
-        {
-          filename: "logo.png",
-          path: brandConfig.logoUrl,
-          cid: "logo",
-        },
-      ],
+      attachments: withEmailLogoAttachment(yardEmailLogo, attachments),
     });
     } catch (emailErr) {
       console.error("[sendPO] Email sending error:", emailErr);

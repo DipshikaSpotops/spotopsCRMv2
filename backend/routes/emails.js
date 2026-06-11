@@ -9,11 +9,16 @@ import moment from "moment-timezone";
 import multer from "multer";
 import dotenv from "dotenv";
 import { getPurchaseBcc } from "../utils/purchaseBcc.js";
+import {
+  emailLogoHtml,
+  logoForYardFacingEmail,
+  resolveBrandFromOrderNo,
+  resolveCustomerLogoUrl,
+  withEmailLogoAttachment,
+} from "../utils/emailLogos.js";
 dotenv.config();
 
 // --- Brand-aware email config helpers (50STARS / PROLANE / PROTP) ---
-const DEFAULT_LOGO_URL =
-  "https://assets-autoparts.s3.ap-south-1.amazonaws.com/images/logo.png";
 
 function getBrand(req) {
   const b = String(req.brand || "").toUpperCase();
@@ -41,18 +46,6 @@ function pickEnv(baseKey, brand) {
   return process.env[base] || "";
 }
 
-/** Prefer order-number prefix so PROLANE0160 always uses Prolane branding. */
-function resolveBrandFromOrderNo(orderNo, fallbackBrand = "50STARS") {
-  const no = String(orderNo || "").trim().toUpperCase();
-  if (no.startsWith("PROTP")) return "PROTP";
-  if (no.startsWith("PROLANE")) return "PROLANE";
-  if (no.startsWith("50STARS")) return "50STARS";
-  const normalized = String(fallbackBrand || "").toUpperCase();
-  if (normalized === "PROLANE") return "PROLANE";
-  if (normalized === "PROTP") return "PROTP";
-  return "50STARS";
-}
-
 function getEmailBrandConfig(req, brandOverride) {
   const brand = brandOverride || getBrand(req);
 
@@ -69,11 +62,7 @@ function getEmailBrandConfig(req, brandOverride) {
   }
   const supportBcc = pickEnv("SUPPORT_BCC", envBrand);
 
-  // Logo: allow a dedicated PROLANE_LOGO env var to override LOGO_URL_PROLANE
-  let logoUrl = pickEnv("LOGO_URL", envBrand) || DEFAULT_LOGO_URL;
-  if ((brand === "PROLANE" || brand === "PROTP") && process.env.PROLANE_LOGO) {
-    logoUrl = process.env.PROLANE_LOGO;
-  }
+  const logoUrl = resolveCustomerLogoUrl(brand);
 
   let purchaseEmail, purchasePass;
   if (brand === "PROTP") {
@@ -328,16 +317,10 @@ router.post("/order-cancel/:orderNo", async (req, res) => {
         <p>We understand the importance of timely and efficient service, and we sincerely apologize for any inconvenience this cancellation may have caused. Our team is working diligently to prevent such occurrences in the future.</p>
         <p>If you have any questions or require further assistance, please don't hesitate to contact our customer support team at <b>${phoneNumber}</b>. We are here to assist you in any way we can. Thank you for your understanding and continued support.</p>
         <p><b>Please reply to this email with a quick confirmation to acknowledge and approve this cancellation request.</b></p>
-        <p><img src="cid:logo" alt="logo" style="width: 180px; height: 100px;"></p>
+        ${emailLogoHtml(logoUrl)}
         ${buildCustomerSignatureHtml(firstName, emailCfg)}
       </div>`,
-      attachments: [
-        {
-          filename: "logo.png",
-          path: logoUrl,
-          cid: "logo",
-        },
-      ],
+      attachments: withEmailLogoAttachment(logoUrl),
     });
 
     res.json({ message: "Cancellation email sent successfully" });
@@ -390,14 +373,7 @@ router.post("/sendReimburseEmail/:orderNo", handleReimbursementAttachmentUpload,
       },
     });
 
-    // Base attachments (always include logo)
-    const attachments = [
-      {
-        filename: "logo.png",
-        path: logoUrl,
-        cid: "logo",
-      },
-    ];
+    let attachments = withEmailLogoAttachment(logoUrl);
 
     // Optional reimbursement attachment (PDF or image)
     const attachmentFile = req.file;
@@ -442,7 +418,7 @@ router.post("/sendReimburseEmail/:orderNo", handleReimbursementAttachmentUpload,
     2
   )} toward the issue you faced.</p>
   <p>Please note that in the event of a future order cancellation, any reimbursement amount already issued will be deducted from the refund. Additionally, we do not provide any guarantee or warranty on labor-related work.</p>
-  <p><img src="cid:logo" alt="logo" style="width: 180px; height: 100px;"></p>
+  ${emailLogoHtml(logoUrl)}
   <p>${firstName}<br/>Customer Service Team<br/>${companyName}<br/>${phoneNumber}<br/>${serviceEmailAddress}<br/>${websiteUrl}</p>
 </div>`,
       attachments,
@@ -521,16 +497,10 @@ router.post("/sendToBeReimbursedEmail/:orderNo", async (req, res) => {
     2
   )} toward the issue you faced.</p>
   <p>Please note that in the event of a future order cancellation, any reimbursement amount already issued will be deducted from the refund. Additionally, we do not provide any guarantee or warranty on labor-related work.</p>
-  <p><img src="cid:logo" alt="logo" style="width: 180px; height: 100px;"></p>
+  ${emailLogoHtml(logoUrl)}
   <p>${firstName}<br/>Customer Service Team<br/>${companyName}<br/>${phoneNumber}<br/>${serviceEmailAddress}<br/>${websiteUrl}</p>
 </div>`,
-      attachments: [
-        {
-          filename: "logo.png",
-          path: logoUrl,
-          cid: "logo",
-        },
-      ],
+      attachments: withEmailLogoAttachment(logoUrl),
     });
 
     return res.json({ message: "To Be Reimbursed email sent successfully" });
@@ -600,7 +570,7 @@ router.post("/orders/sendRefundConfirmation/:orderNo", upload.single("pdfFile"),
         <p>Please allow <b>3–5 business days</b> for the refund to reflect on your original payment method, as processing times may vary based on your financial institution.</p>
         <p>If you have any questions or require further assistance, please feel free to reach out — we're happy to help.</p>
         <p>Thank you for choosing <b>${customerFacingName}</b>. We appreciate your business and look forward to serving you again.</p>
-        <p><img src="cid:logo" alt="logo" style="width: 180px; height: 100px;"></p>
+        ${emailLogoHtml(logoUrl)}
         ${buildCustomerSignatureHtml(firstName, emailCfg)}
       </div>`;
 
@@ -614,17 +584,12 @@ router.post("/orders/sendRefundConfirmation/:orderNo", upload.single("pdfFile"),
       headers: {
         "X-Mailer": `${companyName} CRM`,
       },
-      attachments: [
+      attachments: withEmailLogoAttachment(logoUrl, [
         {
           filename: pdfFile.originalname,
           content: pdfFile.buffer,
         },
-        {
-          filename: "logo.png",
-          path: logoUrl,
-          cid: "logo",
-        },
-      ],
+      ]),
     };
 
     console.log("[emails] refund confirmation mailOptions prepared:", {
@@ -705,7 +670,7 @@ router.post("/customer-delivered/:orderNo", async (req, res) => {
           <strong>Tracking Link:</strong> ${cxShipperName || ""} ${trackingLink ? `- <a href="${trackingLink}" target="_blank" rel="noopener noreferrer">${trackingLink}</a>` : ""}</p>
         <p>If there's anything you need, or if you have any questions about your order, feel free to reach out — we're always happy to help.</p>
         <p>Thanks once again for shopping with us. We look forward to helping you with your auto parts needs in the future!</p>
-        <p><img src="cid:logo" alt="logo" style="width: 180px; height: 100px;"></p>
+        ${emailLogoHtml(logoUrl)}
         <p>${firstName}<br/>Customer Service Team<br/>${companyName}<br/>${phoneNumber}<br/>${serviceEmailAddress}<br/><a href="https://${websiteUrl}">${websiteUrl}</a></p>
       </div>`;
 
@@ -720,9 +685,7 @@ router.post("/customer-delivered/:orderNo", async (req, res) => {
       headers: {
         "X-Mailer": `${companyName} CRM`,
       },
-      attachments: [
-        { filename: "logo.png", path: logoUrl, cid: "logo" }
-      ],
+      attachments: withEmailLogoAttachment(logoUrl),
     });
 
     // Emit websocket event to notify frontend that email was sent
@@ -824,7 +787,7 @@ router.post("/orders/sendTrackingInfo/:orderNo", async (req, res) => {
     );
     htmlSections.push("<p>Feel free to call us if you have any questions.</p>");
     htmlSections.push(
-      `<p><img src="cid:logo" alt="logo" style="width: 180px; height: 100px;"></p>`
+      emailLogoHtml(logoUrl)
     );
     htmlSections.push(
       `<p>${firstName}<br/>Customer Service Team<br/>${companyName}<br/>${phoneNumber}<br/>${serviceEmailAddress}<br/><a href="https://${websiteUrl}">${websiteUrl}</a></p>`
@@ -848,13 +811,7 @@ router.post("/orders/sendTrackingInfo/:orderNo", async (req, res) => {
         "X-Mailer": `${companyName} CRM`,
       },
 
-      attachments: [
-        {
-          filename: "logo.png",
-          path: logoUrl,
-          cid: "logo",
-        },
-      ],
+      attachments: withEmailLogoAttachment(logoUrl),
     };
 
     console.log("mail", mailOptions);
@@ -915,7 +872,17 @@ router.post("/orders/sendRefundEmail/:orderNo", upload.single("pdfFile"), async 
     const pdfFile = req.file;
     if (!pdfFile) return res.status(400).send("No PDF file uploaded");
 
-    const { purchaseEmail, purchasePass, logoUrl } = getEmailBrandConfig(req);
+    const brand = resolveBrandFromOrderNo(orderNo, getBrand(req));
+    const {
+      purchaseEmail,
+      purchasePass,
+      companyName,
+      websiteUrl,
+      phoneNumber,
+      purchaseDisplayName,
+      purchaseEmailAddress,
+    } = getEmailBrandConfig(req, brand);
+    const yardEmailLogo = logoForYardFacingEmail(brand);
 
     if (!purchaseEmail || !purchasePass) {
       console.error("[emails] PURCHASE_EMAIL or PURCHASE_PASS not set in environment");
@@ -954,14 +921,6 @@ router.post("/orders/sendRefundEmail/:orderNo", upload.single("pdfFile"), async 
       return res.status(400).json({ message: "No yard email found for this yard entry" });
     }
 
-    const {
-      companyName,
-      websiteUrl,
-      phoneNumber,
-      purchaseDisplayName,
-      purchaseEmailAddress,
-    } = getEmailBrandConfig(req);
-
     const fromAddress = `"${purchaseDisplayName}" <${purchaseEmail}>`;
     console.log("[emails] Sending refund email from:", fromAddress);
 
@@ -997,20 +956,15 @@ router.post("/orders/sendRefundEmail/:orderNo", upload.single("pdfFile"), async 
           Note: If you have another company name or DBA, please let us know. The Purchase Order
           has been attached below for your reference.
         </p>
-        <p><img src="cid:logo" alt="logo" style="width: 180px; height: 100px;"></p>
+        ${emailLogoHtml(yardEmailLogo)}
         <p>${firstName}<br/>Customer Service Team<br/>${purchaseDisplayName}<br/>${phoneNumber}<br/>${purchaseEmailAddress}<br/><a href="https://${websiteUrl}">${websiteUrl}</a></p>
       </div>`,
-      attachments: [
+      attachments: withEmailLogoAttachment(yardEmailLogo, [
         {
           filename: pdfFile.originalname,
           content: pdfFile.buffer,
         },
-        {
-          filename: "logo.png",
-          path: logoUrl,
-          cid: "logo",
-        },
-      ],
+      ]),
     };
 
     console.log("[emails] refund mailOptions prepared:", {
@@ -1052,15 +1006,15 @@ router.post("/orders/po-cancelled/:orderNo", async (req, res) => {
         .json({ message: "No yard email found for this yard entry. PO cancelled email not sent." });
     }
 
+    const brand = resolveBrandFromOrderNo(orderNo, getBrand(req));
     const {
-      brand,
       purchaseEmail,
       purchasePass,
-      logoUrl,
       purchaseDisplayName,
       websiteUrl,
       purchaseEmailAddress,
-    } = getEmailBrandConfig(req);
+    } = getEmailBrandConfig(req, brand);
+    const yardEmailLogo = logoForYardFacingEmail(brand);
 
     if (!purchaseEmail || !purchasePass) {
       console.error("[emails] PURCHASE_EMAIL or PURCHASE_PASS not set in environment");
@@ -1126,7 +1080,7 @@ router.post("/orders/po-cancelled/:orderNo", async (req, res) => {
           Please confirm once the PO has been cancelled and the refund has been initiated.
         </p>
         <p>Thank you for your assistance.</p>
-        <p><img src="cid:logo" alt="logo" style="width: 180px; height: 100px;"></p>
+        ${emailLogoHtml(yardEmailLogo)}
         <p>Best regards,</p>
         <p>${firstName}<br/>
            ${purchaseDisplayName}
@@ -1138,13 +1092,7 @@ router.post("/orders/po-cancelled/:orderNo", async (req, res) => {
         }">${signatureWebsite}</a></p>
         
       </div>`,
-      attachments: [
-        {
-          filename: "logo.png",
-          path: logoUrl,
-          cid: "logo",
-        },
-      ],
+      attachments: withEmailLogoAttachment(yardEmailLogo),
     };
 
     await transporter.sendMail(mailOptions);
@@ -1239,16 +1187,10 @@ router.post("/orders/sendReplaceEmailCustomerShipping/:orderNo", async (req, res
         <p>Please note that the shipping costs for the return are your responsibility. Once we receive the part, we will process and ship out the replacement within 1-3 business days. We will notify you with tracking information once the replacement part is on its way.</p>
         <p>If you have any questions about the process or need further assistance, please feel free to contact us.</p>
         <p>Thank you for giving us an opportunity to make this right.</p>
-        <p><img src="cid:logo" alt="logo" style="width: 180px; height: 100px;"></p>
+        ${emailLogoHtml(logoUrl)}
         <p>${firstName}<br/>Customer Service Team<br/>${companyName}<br/>${phoneNumber}<br/>${serviceEmailAddress}<br/><a href="https://${websiteUrl}">${websiteUrl}</a></p>
       </div>`,
-      attachments: [
-        {
-          filename: "logo.png",
-          path: logoUrl,
-          cid: "logo",
-        },
-      ],
+      attachments: withEmailLogoAttachment(logoUrl),
     };
 
     await transporter.sendMail(mailOptions);
@@ -1318,20 +1260,15 @@ router.post(
           <p>Dear ${customerName},</p>
           <p>Please find the attached shipping document for the replacement of your part. Kindly print and include it with the package when it is handed over to the carrier.</p>
           ${PART_RETURN_POLICY_HTML}
-          <p><img src="cid:logo" alt="logo" style="width: 180px; height: 100px;"></p>
+          ${emailLogoHtml(logoUrl)}
           <p>${firstName}<br/>Customer Service Team<br/>${companyName}<br/>${phoneNumber}<br/>${serviceEmailAddress}<br/><a href="https://${websiteUrl}">${websiteUrl}</a></p>
         </div>`,
-        attachments: [
+        attachments: withEmailLogoAttachment(logoUrl, [
           {
             filename: req.file.originalname || "replacement.pdf",
             content: req.file.buffer,
           },
-          {
-            filename: "logo.png",
-            path: logoUrl,
-            cid: "logo",
-          },
-        ],
+        ]),
       };
 
       await transporter.sendMail(mailOptions);
@@ -1417,16 +1354,10 @@ router.post("/orders/sendReturnEmailCustomerShipping/:orderNo", async (req, res)
         <p>${formattedAddress}</p>
         ${PART_RETURN_POLICY_HTML}
         <p>Kindly share the tracking number once the package is on its way. As soon as we receive and inspect the part, we will continue with the necessary next steps.</p>
-        <p><img src="cid:logo" alt="logo" style="width: 180px; height: 100px;"></p>
+        ${emailLogoHtml(logoUrl)}
         <p>${firstName}<br/>Customer Service Team<br/>${companyName}<br/>${phoneNumber}<br/>${serviceEmailAddress}<br/><a href="https://${websiteUrl}">${websiteUrl}</a></p>
       </div>`,
-      attachments: [
-        {
-          filename: "logo.png",
-          path: logoUrl,
-          cid: "logo",
-        },
-      ],
+      attachments: withEmailLogoAttachment(logoUrl),
     };
 
     await transporter.sendMail(mailOptions);
@@ -1503,20 +1434,15 @@ router.post(
           <p>Please find the attached shipping document for the return of your part. Kindly attach it to the package before handing it over to the carrier.</p>
           <p>Return Address: ${formattedAddress}</p>
           ${PART_RETURN_POLICY_HTML}
-          <p><img src="cid:logo" alt="logo" style="width: 180px; height: 100px;"></p>
+          ${emailLogoHtml(logoUrl)}
           <p>${firstName}<br/>Customer Service Team<br/>${companyName}<br/>${phoneNumber}<br/>${serviceEmailAddress}<br/><a href="https://${websiteUrl}">${websiteUrl}</a></p>
         </div>`,
-        attachments: [
+        attachments: withEmailLogoAttachment(logoUrl, [
           {
             filename: req.file.originalname || "return-label.pdf",
             content: req.file.buffer,
           },
-          {
-            filename: "logo.png",
-            path: logoUrl,
-            cid: "logo",
-          },
-        ],
+        ]),
       };
 
       await transporter.sendMail(mailOptions);
