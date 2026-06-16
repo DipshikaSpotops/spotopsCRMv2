@@ -17,7 +17,6 @@ const ACTIVE_ATTENDANCE_NAMES = [
   "James",
   "Mark",
   "Richard",
-  "Ashley",
   "Max",
   "Guru",
   "Suzanne",

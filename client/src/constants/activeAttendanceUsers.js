@@ -9,7 +9,6 @@ export const ACTIVE_ATTENDANCE_USER_LIST = [
   "James",
   "Mark",
   "Richard",
-  "Ashley",
   "Max",
   "Guru",
   "Suzanne",
