@@ -1,10 +1,13 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import API from "../api";
 import {
   FaSort, FaSortUp, FaSortDown, FaChevronLeft, FaChevronRight, FaPlus, FaEdit, FaSave, FaTimes, FaEye, FaEyeSlash
 } from "react-icons/fa";
 import { formatInTimeZone } from "date-fns-tz";
 import useSort from "../hooks/useSort";
+import TableScrollViewport, {
+  handleTableHorizontalWheel,
+} from "../components/TableScrollViewport";
 
 const PAGE_SIZE = 20;
 const TEAMS = ["Shankar", "Vinutha"];
@@ -52,6 +55,9 @@ export default function ViewUsers() {
   });
   const [showPwd, setShowPwd] = useState(false);
   const [saving, setSaving] = useState(false);
+  const tableOuterRef = useRef(null);
+  const tableScrollRef = useRef(null);
+  const onTableWheel = (e) => handleTableHorizontalWheel(e, tableOuterRef);
 
   // sort: default by createdAt desc
   const { sortBy, sortOrder, handleSort, sortData } = useSort("createdAt", "desc");
@@ -258,9 +264,14 @@ export default function ViewUsers() {
       </div>
 
       {/* Table - matching OrdersTable style */}
-      <div className="hidden md:block max-h-[76vh] overflow-y-auto overflow-x-auto rounded-xl ring-1 ring-white/10 shadow
-                   scrollbar scrollbar-thin scrollbar-thumb-[#4986bf] scrollbar-track-[#98addb]">
-        <table className="min-w-[1000px] w-full bg-black/20 backdrop-blur-md text-white">
+      <TableScrollViewport
+        outerRef={tableOuterRef}
+        innerRef={tableScrollRef}
+        onInnerWheel={onTableWheel}
+        outerClassName="hidden md:block"
+        minTableWidth="1000px"
+      >
+        <table className="min-w-full w-max bg-black/20 backdrop-blur-md text-white">
           <thead className="sticky top-0 bg-[#5c8bc1] z-20 text-black">
             <tr>
               {[
@@ -415,7 +426,7 @@ export default function ViewUsers() {
             )}
           </tbody>
         </table>
-      </div>
+      </TableScrollViewport>
 
       {/* Pagination - matching OrdersTable style */}
       <div className="mt-4 flex items-center justify-end gap-2 text-white font-medium">

@@ -2,7 +2,9 @@ import React, { useEffect, useState, useMemo, useRef, useCallback } from "react"
 import API from "../api";
 import { getCurrentUserFirstName } from "../utils/authStorage";
 import { formatInTimeZone } from "date-fns-tz";
-import { FaSort, FaSortUp, FaSortDown, FaChevronLeft, FaChevronRight, FaEdit, FaTrash } from "react-icons/fa";
+import TableScrollViewport, {
+  handleTableHorizontalWheel,
+} from "../components/TableScrollViewport";
 
 const rowsPerPage = 25;
 
@@ -221,6 +223,9 @@ const Yards = () => {
 
   const addZipTimer = useRef(null);
   const editZipTimer = useRef(null);
+  const tableOuterRef = useRef(null);
+  const tableScrollRef = useRef(null);
+  const onTableWheel = (e) => handleTableHorizontalWheel(e, tableOuterRef);
 
   const fetchZipDetails = useCallback(async (zipRaw) => {
     const trimmed = (zipRaw || "").trim();
@@ -568,8 +573,12 @@ const Yards = () => {
       </div>
 
       {/* Table */}
-      <div className="max-h-[76vh] overflow-y-auto overflow-x-auto rounded-xl ring-1 ring-white/10 shadow scrollbar scrollbar-thin scrollbar-thumb-[#4986bf] scrollbar-track-[#98addb]">
-        <table className="min-w-[1200px] w-full bg-black/20 backdrop-blur-md text-white">
+      <TableScrollViewport
+        outerRef={tableOuterRef}
+        innerRef={tableScrollRef}
+        onInnerWheel={onTableWheel}
+      >
+        <table className="min-w-full w-max bg-black/20 backdrop-blur-md text-white">
           <thead className="sticky top-0 bg-[#5c8bc1] z-20">
             <tr>
               {[
@@ -689,7 +698,7 @@ const Yards = () => {
             ))}
           </tbody>
         </table>
-      </div>
+      </TableScrollViewport>
 
       {/* Edit Modal */}
       {editingYard && (

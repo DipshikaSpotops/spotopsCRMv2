@@ -1,8 +1,11 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { formatDistanceToNow, format } from "date-fns";
 import { formatInTimeZone } from "date-fns-tz";
 import API from "../api";
 import AgentDropdown from "../components/AgentDropdown";
+import TableScrollViewport, {
+  handleTableHorizontalWheel,
+} from "../components/TableScrollViewport";
 
 function readAuthFromStorage() {
   try {
@@ -60,6 +63,9 @@ export default function EmailLeads() {
   const [limit, setLimit] = useState(50);
   const [lastUpdated, setLastUpdated] = useState(null);
   const [claimingId, setClaimingId] = useState(null);
+  const tableOuterRef = useRef(null);
+  const tableScrollRef = useRef(null);
+  const onTableWheel = (e) => handleTableHorizontalWheel(e, tableOuterRef);
 
   const normalizedEmail = email?.toLowerCase();
 
@@ -304,14 +310,18 @@ export default function EmailLeads() {
         </div>
       </section>
 
-      <section className="hidden md:block max-h-[76vh] overflow-y-auto overflow-x-auto rounded-xl ring-1 ring-white/10 shadow
-                   scrollbar scrollbar-thin scrollbar-thumb-[#4986bf] scrollbar-track-[#98addb]">
+      <section className="hidden md:block">
         {error && (
-          <div className="border-b border-red-500/30 bg-red-900/40 px-4 py-2 text-sm text-red-200">
+          <div className="mb-2 rounded-lg border border-red-500/30 bg-red-900/40 px-4 py-2 text-sm text-red-200">
             {error}
           </div>
         )}
-        <table className="min-w-[1200px] w-full bg-black/20 backdrop-blur-md text-white">
+        <TableScrollViewport
+          outerRef={tableOuterRef}
+          innerRef={tableScrollRef}
+          onInnerWheel={onTableWheel}
+        >
+          <table className="min-w-full w-max bg-black/20 backdrop-blur-md text-white">
           <thead className="sticky top-0 bg-[#5c8bc1] z-20 text-black">
             <tr>
               <Th>Received</Th>
@@ -427,6 +437,7 @@ export default function EmailLeads() {
             )}
           </tbody>
         </table>
+        </TableScrollViewport>
       </section>
     </div>
   );
