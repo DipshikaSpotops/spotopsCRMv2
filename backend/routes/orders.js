@@ -14,8 +14,8 @@ import { normalizeYardName } from "../../shared/utils/yardName.js";
 import multer from "multer";
 import { uploadVoidLabelScreenshotToS3, uploadYardImageToS3 } from "../services/s3Upload.js";
 import {
-  calcActualGP,
   recalculateAndSaveActualGP,
+  shouldApplyOrderLevelReimbursement,
 } from "../utils/calcActualGP.js";
 
 const router = express.Router();
@@ -1211,26 +1211,6 @@ router.get("/:orderNo", ...requireAuthAllRoles, async (req, res) => {
     
     if (!order) {
       return res.status(404).json({ message: "Order not found" });
-    }
-
-    // Reimbursed orders: keep stored actualGP in sync (lists/reports read DB value).
-    if (order.reimbursementDate && parseFloat(order.reimbursementAmount) > 0) {
-      const computed = calcActualGP(order);
-      if (Math.abs(Number(order.actualGP ?? 0) - computed) > 0.0001) {
-        const doc = await Order.findOne({ orderNo: order.orderNo });
-        if (doc) {
-          const editor =
-            req.user?.firstName || req.query.firstName || "CRM";
-          await recalculateAndSaveActualGP(doc, {
-            firstName: editor,
-            req,
-            publish,
-            broadcastOrder,
-          });
-          order.actualGP = doc.actualGP;
-          order.orderHistory = doc.orderHistory;
-        }
-      }
     }
 
     res.json(attachSalesOrigin(order));
@@ -2553,14 +2533,18 @@ router.put("/:orderNo/reimbursement", async (req, res) => {
       return res.status(404).json({ message: "Order not found" });
     }
 
-    const editor =
-      req.user?.firstName || req.query.firstName || "CRM";
-    await recalculateAndSaveActualGP(order, {
-      firstName: editor,
-      req,
-      publish,
-      broadcastOrder,
-    });
+    // New reimbursement flow only: recalc GP when a dated reimbursement is recorded.
+    // Legacy to-be-reimbursed / yard-level reimbursement is unchanged.
+    if (shouldApplyOrderLevelReimbursement(order)) {
+      const editor =
+        req.user?.firstName || req.query.firstName || "CRM";
+      await recalculateAndSaveActualGP(order, {
+        firstName: editor,
+        req,
+        publish,
+        broadcastOrder,
+      });
+    }
 
     publish(req, orderNo, {
       type: "REIMBURSEMENT_UPDATED",

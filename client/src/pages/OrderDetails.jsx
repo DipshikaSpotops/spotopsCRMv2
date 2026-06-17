@@ -219,7 +219,11 @@ const calcActualGP = (orderLike) => {
       const yardRefundAmountRaw = parseFloat(yard.refundedAmount) || 0;
       const yardRefundAmount = isRefundCollected ? yardRefundAmountRaw : 0;
 
-      const escReimbursement = parseFloat(yard.reimbursementAmount) || 0;
+      // Legacy: yard-level reimbursement in yard spend. New flow: order-level date+amount only.
+      const escReimbursement =
+        orderReimbursement > 0
+          ? 0
+          : parseFloat(yard.reimbursementAmount) || 0;
 
       const yardSpent =
         yardPP +
@@ -1262,7 +1266,27 @@ export default function OrderDetails() {
       return;
     }
 
-    const shouldUpdate = Math.abs(currentGP - actualGP) > 0.0001;
+    // Legacy guard: only auto-persist when card charged, special status, prior GP, or new order-level reimbursement.
+    const hasCardChargedYard =
+      Array.isArray(order.additionalInfo) &&
+      order.additionalInfo.some((yard) => {
+        const paymentStatus = (yard.paymentStatus || "").trim();
+        return paymentStatus === "Card charged";
+      });
+
+    const status = normalizeStatusForCalc(order.orderStatus);
+    const isDispute = ["Dispute", "Dispute after Cancellation"].includes(status);
+    const isCancelledOrRefunded =
+      status === "Order Cancelled" || status === "Refunded";
+    const hasSpecialStatus = isDispute || isCancelledOrRefunded;
+    const hasOrderReimbursement = isOrderReimbursementRecorded(order);
+
+    const shouldUpdate =
+      Math.abs(currentGP - actualGP) > 0.0001 &&
+      (hasCardChargedYard ||
+        hasSpecialStatus ||
+        Math.abs(currentGP) > 0.0001 ||
+        hasOrderReimbursement);
 
     if (shouldUpdate) {
       const firstName = localStorage.getItem("firstName");

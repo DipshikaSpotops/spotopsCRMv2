@@ -70,7 +70,11 @@ export function calcActualGP(orderLike) {
       const yardOwnShippingReplacement = parseFloat(yard.yardOwnShipping) || 0;
       const yardRefundAmountRaw = parseFloat(yard.refundedAmount) || 0;
       const yardRefundAmount = isRefundCollected ? yardRefundAmountRaw : 0;
-      const escReimbursement = parseFloat(yard.reimbursementAmount) || 0;
+      // Legacy: yard-level reimbursement in yard spend. New flow: order-level date+amount only.
+      const escReimbursement =
+        orderReimbursement > 0
+          ? 0
+          : parseFloat(yard.reimbursementAmount) || 0;
 
       totalSum +=
         yardPP +
@@ -106,6 +110,11 @@ export function calcActualGP(orderLike) {
   }
 
   return (Number.isFinite(actualGP) ? actualGP : 0) - orderReimbursement;
+}
+
+/** True when order-level reimbursement (new UI) should affect actual GP. */
+export function shouldApplyOrderLevelReimbursement(orderLike) {
+  return orderLevelReimbursementDeduction(orderLike) > 0;
 }
 
 /** Persist actualGP when computed value differs from stored value. */
