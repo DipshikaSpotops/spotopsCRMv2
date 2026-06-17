@@ -1,5 +1,5 @@
 // routes/attendance.js — IST calendar day + roster (sync ACTIVE_ATTENDANCE_NAMES with client activeAttendanceUsers.js).
-// GET merges stored rows for names no longer on the roster so historical attendance still appears.
+// GET may append other stored firstNames in the range (historical rows), except EXCLUDED_ATTENDANCE_NAMES.
 import express from "express";
 import moment from "moment-timezone";
 import Attendance from "../models/Attendance.js";
@@ -28,6 +28,15 @@ const ACTIVE_ATTENDANCE_NAMES = [
   "Stella",
   "Hardin",
 ];
+
+/** Removed from roster — never shown on the attendance sheet (even if DB has rows). */
+const EXCLUDED_ATTENDANCE_NAMES = ["Ashley"];
+
+function isExcludedAttendanceName(name) {
+  const key = attendanceNameKey(name);
+  if (!key) return false;
+  return EXCLUDED_ATTENDANCE_NAMES.some((n) => attendanceNameKey(n) === key);
+}
 
 function displayFirstName(name) {
   const token = String(name || "").trim().split(/\s+/)[0];
@@ -76,14 +85,17 @@ function displayAttendanceNamesFromDocs(activeNames, docs) {
   const seenKeys = new Set(activeKeys);
   for (const d of docs) {
     const fn = displayFirstName(d.firstName);
-    if (!fn) continue;
+    if (!fn || isExcludedAttendanceName(fn)) continue;
     const key = attendanceNameKey(fn);
     if (seenKeys.has(key)) continue;
     seenKeys.add(key);
     extras.push(fn);
   }
   extras.sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
-  return [...activeNames.map((n) => displayFirstName(n)), ...extras];
+  const activeDisplay = activeNames
+    .map((n) => displayFirstName(n))
+    .filter((n) => n && !isExcludedAttendanceName(n));
+  return [...activeDisplay, ...extras];
 }
 
 /** Shift-attendance date key (matches mark-present / today logic). */

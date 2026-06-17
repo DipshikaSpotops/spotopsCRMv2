@@ -131,9 +131,18 @@ const normalizeStatusForCalc = (raw) => {
   return s;
 };
 
+/** Order-level reimbursement with a date — goodwill payout, reduces actual GP. */
+function orderLevelReimbursementDeduction(orderLike) {
+  if (!orderLike?.reimbursementDate) return 0;
+  const amount = parseFloat(orderLike.reimbursementAmount);
+  return Number.isFinite(amount) && amount > 0 ? amount : 0;
+}
+
 /** Single source of truth for Actual GP math */
 const calcActualGP = (orderLike) => {
   if (!orderLike) return 0;
+
+  const orderReimbursement = orderLevelReimbursementDeduction(orderLike);
 
   const sp = parseFloat(orderLike.soldP) || 0;
   const tax = parseFloat(orderLike.salestax) || 0;
@@ -163,12 +172,12 @@ const calcActualGP = (orderLike) => {
       custRefundedAmount,
     });
     if (isDispute) {
-      return 0 - tax;
+      return 0 - tax - orderReimbursement;
     } else if (isRefunded || isCancelled) {
       // For refunded/cancelled orders with no yards - include custRefundedAmount
-      return sp - custRefundedAmount - tax;
+      return sp - custRefundedAmount - tax - orderReimbursement;
     } else {
-      return 0;
+      return 0 - orderReimbursement;
     }
   }
 
@@ -251,6 +260,7 @@ const calcActualGP = (orderLike) => {
     spMinusTax,
     custRefundedAmount,
     totalSum,
+    orderReimbursement,
     allYardsNotCharged,
     hasYards: additionalInfo.length > 0,
   });
@@ -301,7 +311,7 @@ const calcActualGP = (orderLike) => {
     }
   }
 
-  return Number.isFinite(actualGP) ? actualGP : 0;
+  return (Number.isFinite(actualGP) ? actualGP : 0) - orderReimbursement;
 };
 
 export default function OrderDetails() {
@@ -1236,26 +1246,7 @@ export default function OrderDetails() {
       return;
     }
 
-    // Only update if there's a meaningful difference AND at least one yard has "Card charged"
-    // OR if it's a cancelled/refunded/dispute order (which have special GP calculations)
-    const hasCardChargedYard = Array.isArray(order.additionalInfo) && 
-      order.additionalInfo.some((yard) => {
-        const paymentStatus = (yard.paymentStatus || "").trim();
-        return paymentStatus === "Card charged";
-      });
-
-    const status = normalizeStatusForCalc(order.orderStatus);
-    const isDispute = ["Dispute", "Dispute after Cancellation"].includes(status);
-    const isCancelledOrRefunded = status === "Order Cancelled" || status === "Refunded";
-    const hasSpecialStatus = isDispute || isCancelledOrRefunded;
-
-    // Only auto-update if:
-    // 1. There's a meaningful difference, AND
-    // 2. Either there's a "Card charged" yard, OR
-    //    it's a cancelled/refunded/dispute order (which need special GP calculations), OR
-    //    the currentGP is non-zero (meaning it was previously calculated and might need correction)
-    const shouldUpdate = Math.abs(currentGP - actualGP) > 0.0001 && 
-      (hasCardChargedYard || hasSpecialStatus || Math.abs(currentGP) > 0.0001);
+    const shouldUpdate = Math.abs(currentGP - actualGP) > 0.0001;
 
     if (shouldUpdate) {
       const firstName = localStorage.getItem("firstName");
@@ -1292,16 +1283,9 @@ export default function OrderDetails() {
     order?.cancelledRefAmount,
     order?.additionalInfo,
     order?.reimbursementAmount,
+    order?.reimbursementDate,
     refresh,
   ]);
-
-  // Mirror server value into view on arrival
-  useEffect(() => {
-    if (!order?.actualGP) return;
-    setActualGPView(Number(order.actualGP).toFixed(2));
-    const gpField = document.querySelector("#actualGP");
-    if (gpField) gpField.value = Number(order.actualGP).toFixed(2);
-  }, [order?.actualGP]);
 
   return (
     <>
