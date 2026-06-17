@@ -338,6 +338,8 @@ export default function OrdersTable({
   rowsPerPage = ROWS_PER_PAGE, // allow per-page override
   tableId, // optional: identifier so realtime hooks can trigger refetch
   customFilters, // optional: custom filter components to render next to agent filter
+  mapRows, // optional: (orders[]) => orders[] — enrich rows after fetch
+  getSortValue, // optional: (row, columnKey) => sortable value for client-side sort
   /** Rendered beside UnifiedDatePicker in the subheader row (e.g. Send Sales Report). */
   subheaderExtra = null,
   /** When no saved filter in localStorage, use this (e.g. today-only for Daily Sales GP) */
@@ -451,6 +453,12 @@ export default function OrdersTable({
     if (Math.abs(e.clientX - p.x) > 4 || Math.abs(e.clientY - p.y) > 4) {
       p.moved = true;
     }
+  };
+
+  const onRowPointerUp = () => {
+    setTimeout(() => {
+      rowPointerRef.current = null;
+    }, 0);
   };
 
   const handleRowHighlightClick = (e, orderNo) => {
@@ -605,7 +613,7 @@ export default function OrdersTable({
             meta = res.data || {};
           }
         }
-        setOrders(data);
+        setOrders(typeof mapRows === "function" ? mapRows(data) : data);
         setResponseMeta(meta);
         
         // Restore scroll position and highlight after background refresh
@@ -647,7 +655,7 @@ export default function OrdersTable({
         }
       }
     },
-    [activeFilter, endpointURL, appliedQuery, sortBy, sortOrder, selectedAgent, selectedAddressType, userRole, firstName, fetchOverride, paramsBuilder, highlightedOrderNo, currentPage, requestedRowsPerPage]
+    [activeFilter, endpointURL, appliedQuery, sortBy, sortOrder, selectedAgent, selectedAddressType, userRole, firstName, fetchOverride, paramsBuilder, highlightedOrderNo, currentPage, requestedRowsPerPage, mapRows]
   );
 
   // Optional: expose a simple global refetch handle for realtime integrations
@@ -657,7 +665,10 @@ export default function OrdersTable({
       window.__ordersTableRefs = {};
     }
     window.__ordersTableRefs[tableId] = {
-      refetch: () => fetchOrders(activeFilter, { background: true }),
+      refetch: () => {
+        if (hasActiveTextSelection() || rowPointerRef.current) return;
+        fetchOrders(activeFilter, { background: true });
+      },
     };
     return () => {
       if (window.__ordersTableRefs) {
@@ -960,6 +971,10 @@ export default function OrdersTable({
     const key = sortBy;
 
     const toVal = (row) => {
+      if (typeof getSortValue === "function") {
+        const custom = getSortValue(row, key);
+        if (custom !== undefined && custom !== null) return custom;
+      }
       let v = row[key];
       if (sortBy === "customerInfo") v = row.customerName;
       if (sortBy === "customerName") v = row._customerName;
@@ -987,7 +1002,7 @@ export default function OrdersTable({
         : String(B).localeCompare(String(A));
     });
     return arr;
-  }, [searchedRows, sortBy, sortOrder, isServerPaginated]);
+  }, [searchedRows, sortBy, sortOrder, isServerPaginated, getSortValue]);
   // NEW: notify parent whenever the visible, sorted rows change
   useEffect(() => {
     if (typeof onRowsChange === "function") onRowsChange(sortedRows);
@@ -1083,6 +1098,7 @@ export default function OrdersTable({
   useEffect(() => {
     if (!highlightedOrderNo || !tableScrollRef.current) return;
     if (restoredScroll) return;
+    if (hasActiveTextSelection()) return;
     
     // First, check if the order is in the current page
     let match = pageRows.find((o) => String(o.orderNo) === String(highlightedOrderNo));
@@ -1379,6 +1395,7 @@ export default function OrdersTable({
                     id={`row-${rowId}`}
                     onMouseDown={onRowPointerDown}
                     onMouseMove={onRowPointerMove}
+                    onMouseUp={onRowPointerUp}
                     onClick={(e) => {
                       if (row.orderNo) handleRowHighlightClick(e, row.orderNo);
                       else if (row._id) handleRowHighlightClick(e, row._id);
@@ -1501,6 +1518,7 @@ export default function OrdersTable({
                 id={`row-${row.orderNo}`}
                 onMouseDown={onRowPointerDown}
                 onMouseMove={onRowPointerMove}
+                onMouseUp={onRowPointerUp}
                 onClick={(e) => handleRowHighlightClick(e, row.orderNo)}
                 className={`rounded-xl p-4 backdrop-blur-md border text-white transition select-text ${isHighlighted
                   ? "bg-yellow-500/20 ring-2 ring-yellow-400 border-white/15"

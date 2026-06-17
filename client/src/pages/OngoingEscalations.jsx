@@ -3,6 +3,13 @@ import React, { useEffect } from "react";
 import OrdersTable from "../components/OrdersTable";
 import useOrdersRealtime from "../hooks/useOrdersRealtime";
 import useBrand from "../hooks/useBrand";
+import { formatInTimeZone } from "date-fns-tz";
+import {
+  enrichOrderWithEscalationFields,
+  parseFirstEscalationMoment,
+} from "../utils/escalationHistory";
+
+const TZ = "America/Chicago";
 
 /* ---------- Helpers ---------- */
 /**
@@ -26,20 +33,33 @@ const STORAGE_KEYS = {
 // Columns for this page
 const COLUMNS = [
   { key: "orderDate",        label: "Order Date" },
+  { key: "escDate",          label: "Esc Date" },
   { key: "orderNo",          label: "Order No" },
   { key: "pReq",             label: "Part Name" },
   { key: "salesAgent",       label: "Sales Agent" },
   { key: "customerName",     label: "Customer Name" },
   { key: "escalationStatus", label: "Escalation Status" },
   { key: "lastComment",      label: "Last Comment" },
+  { key: "escDays",          label: "No of Days" },
   { key: "orderStatus",      label: "Order Status" },
 ];
+
+function formatEscDate(row) {
+  const date = row?._escDate;
+  if (!date) return "—";
+  const d = date instanceof Date ? date : new Date(date);
+  if (Number.isNaN(d.getTime())) return "—";
+  return formatInTimeZone(d, TZ, "do MMM, yyyy");
+}
 
 // Page-specific cell rendering (derive a couple of fields)
 function renderCell(row, key, formatDateSafe /*, currency */) {
   switch (key) {
     case "orderDate":
       return formatDateSafe(row.orderDate);
+
+    case "escDate":
+      return formatEscDate(row);
 
     case "orderNo":
       return row.orderNo || "—";
@@ -112,12 +132,39 @@ function renderCell(row, key, formatDateSafe /*, currency */) {
       );
     }
 
+    case "escDays":
+      return row._escDays != null ? String(row._escDays) : "—";
+
     case "orderStatus":
       return formatOrderStatus(row.orderStatus) || "";
 
     default:
       return row[key] ?? "—";
   }
+}
+
+function mapRows(orders) {
+  return (Array.isArray(orders) ? orders : []).map(enrichOrderWithEscalationFields);
+}
+
+function getSortValue(row, key) {
+  if (key === "escDate") {
+    const m = parseFirstEscalationMoment(row?.orderHistory);
+    return m ? m.valueOf() : 0;
+  }
+  if (key === "escDays") {
+    return row._escDays != null ? row._escDays : -1;
+  }
+  return undefined;
+}
+
+/** Orange/red shades aligned with yard miles badges and attendance colors. */
+function getCellClassName(row, key) {
+  if (key !== "escDays") return "";
+  const days = row._escDays;
+  if (days == null || days <= 3) return "";
+  if (days > 5) return "bg-[#b91c1c] text-white font-semibold";
+  return "bg-[#ea580c] text-white font-semibold";
 }
 
 // Keep View button behavior consistent with other pages
@@ -154,6 +201,9 @@ export default function OngoingEscalationOrders() {
       storageKeys={STORAGE_KEYS}
       columns={COLUMNS}
       renderCell={renderCell}
+      mapRows={mapRows}
+      getSortValue={getSortValue}
+      getCellClassName={getCellClassName}
       showTotalsButton={false}   // hide totals eye for this page
       showAgentFilter={false}    // flip to true if you want Admin agent narrowing
       showGP={false}             // no GP math needed here
