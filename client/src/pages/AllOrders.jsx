@@ -3,9 +3,7 @@ import API from "../api";
 import { formatInTimeZone } from "date-fns-tz";
 import { FaSort, FaSortUp, FaSortDown, FaChevronLeft, FaChevronRight, FaEye } from "react-icons/fa";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import TableScrollViewport, {
-  handleTableHorizontalWheel,
-} from "../components/TableScrollViewport";
+import StickyXScrollbar from "../components/StickyXScrollbar";
 import useOrdersRealtime from "../hooks/useOrdersRealtime";
 import useBrand from "../hooks/useBrand";
 
@@ -298,9 +296,7 @@ const AllOrders = () => {
     );
   }, []);
 
-  const tableOuterRef = useRef(null);
   const tableScrollRef = useRef(null);
-  const onTableWheel = (e) => handleTableHorizontalWheel(e, tableOuterRef);
 
   const totals = useMemo(
     () => ({
@@ -403,12 +399,11 @@ const AllOrders = () => {
       </div>
 
       {/* Table */}
-      <TableScrollViewport
-        outerRef={tableOuterRef}
-        innerRef={tableScrollRef}
-        onInnerWheel={onTableWheel}
+      <div
+        ref={tableScrollRef}
+        className="max-h-[76vh] overflow-y-auto overflow-x-auto rounded-xl ring-1 ring-white/10 shadow scrollbar scrollbar-thin scrollbar-thumb-[#4986bf] scrollbar-track-[#98addb]"
       >
-        <table className="min-w-full w-max bg-black/20 backdrop-blur-md text-white">
+        <table className="min-w-[1200px] w-full bg-black/20 backdrop-blur-md text-white">
           <thead className="sticky top-0 bg-[#5c8bc1] z-20">
             <tr>
               {[
@@ -562,7 +557,8 @@ const AllOrders = () => {
             ))}
           </tbody>
         </table>
-      </TableScrollViewport>
+      </div>
+      <StickyXScrollbar targetRef={tableScrollRef} bottom={0} height={14} />
 
       {showTotalsModal && (
         <div

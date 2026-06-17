@@ -21,9 +21,6 @@ import {
   FaSortUp,
 } from "react-icons/fa";
 import useBrand from "../hooks/useBrand";
-import TableScrollViewport, {
-  handleTableHorizontalWheel,
-} from "./TableScrollViewport";
 
 /* =========================
    Constants / helpers
@@ -1360,13 +1357,12 @@ export default function OrdersTable({
         </div>
       </div>
       {/* ===== Desktop table ===== */}
-      <TableScrollViewport
-        outerRef={tableOuterRef}
-        innerRef={tableScrollRef}
-        onInnerWheel={onTableBodyWheel}
-        outerClassName="hidden md:block"
+      <div
+        ref={tableScrollRef}
+        className="hidden md:block max-h-[76vh] overflow-y-auto overflow-x-auto rounded-xl ring-1 ring-white/10 shadow
+                   scrollbar scrollbar-thin scrollbar-thumb-[#4986bf] scrollbar-track-[#98addb]"
       >
-        <table className="min-w-full w-max bg-black/20 backdrop-blur-md text-white">
+        <table className="min-w-[1200px] w-full bg-black/20 backdrop-blur-md text-white">
           <thead className="sticky top-0 bg-[#5c8bc1] z-20 text-black">
             <tr>
               {columns.map((col) => (
@@ -1506,7 +1502,7 @@ export default function OrdersTable({
             )}
           </tbody>
         </table>
-      </TableScrollViewport>
+      </div>
       {/* ===== Mobile cards ===== */}
       <div className="md:hidden flex-1 min-h-0 overflow-y-auto space-y-3 mt-4">
         {pageRows.length === 0 ? (
