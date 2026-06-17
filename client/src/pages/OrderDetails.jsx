@@ -138,6 +138,13 @@ function orderLevelReimbursementDeduction(orderLike) {
   return Number.isFinite(amount) && amount > 0 ? amount : 0;
 }
 
+/** Reimbursement recorded on the order (amount + date saved). */
+function isOrderReimbursementRecorded(orderLike) {
+  if (!orderLike?.reimbursementDate) return false;
+  const amount = parseFloat(orderLike.reimbursementAmount);
+  return Number.isFinite(amount) && amount > 0;
+}
+
 /** Single source of truth for Actual GP math */
 const calcActualGP = (orderLike) => {
   if (!orderLike) return 0;
@@ -575,9 +582,10 @@ export default function OrderDetails() {
     );
     const tbr =
       order?.toBeReimbursed === true || order?.toBeReimbursed === "true";
+    const recorded = isOrderReimbursementRecorded(order);
     setToBeReimbursed(tbr);
-    setToBeReimbursedSaved(tbr);
-    setReimbursementSaved(false);
+    setToBeReimbursedSaved(tbr && !recorded);
+    setReimbursementSaved(recorded);
   }, [order?.reimbursementAmount, order?.reimbursementDate, order?.toBeReimbursed]);
 
   // Track active users viewing this order - use Map for stable deduplication
@@ -1081,6 +1089,14 @@ export default function OrderDetails() {
   const hasReimbursementDate = Boolean(reimbursementDate);
   const canProceedWithReimbursement =
     Boolean(orderNo) && hasValidReimbursementAmount && hasReimbursementDate;
+  const reimbursementComplete =
+    reimbursementSaved || isOrderReimbursementRecorded(order);
+  const reimbursementPending = toBeReimbursedSaved && !reimbursementComplete;
+  const reimbursementColorState = reimbursementComplete
+    ? "saved"
+    : reimbursementPending
+    ? "pending"
+    : "default";
 
   const handleSaveReimbursement = async ({ sendEmail = false } = {}) => {
     if (!orderNo) {
@@ -1862,9 +1878,7 @@ export default function OrderDetails() {
                   </button>
                   <button
                     onClick={() => handleSaveReimbursement({ sendEmail: false })}
-                    data-color-state={
-                      reimbursementSaved ? "saved" : toBeReimbursedSaved ? "pending" : "default"
-                    }
+                    data-color-state={reimbursementColorState}
                     disabled={
                       savingReimbursement ||
                       savingToBeReimbursed ||
@@ -1873,9 +1887,9 @@ export default function OrderDetails() {
                     className={`reimbursement-reimbursed-btn px-4 py-2 rounded-md text-sm font-medium border transition shadow-sm hover:shadow-md ${
                       savingReimbursement
                         ? "bg-sky-200/80 text-gray-500 border-blue-300 cursor-not-allowed dark:bg-transparent dark:text-white/50 dark:border-white/30"
-                        : reimbursementSaved
+                        : reimbursementComplete
                         ? "text-white border-[#0a8f2a] bg-[#13a538] hover:bg-[#0f8d30]"
-                        : toBeReimbursedSaved
+                        : reimbursementPending
                         ? "text-white border-[#c40505] bg-[#c40505] hover:bg-[#a30404]"
                         : "text-white border-[#1d4ed8] bg-[#2563eb] hover:bg-[#1d4ed8]"
                     }`}
@@ -1884,9 +1898,7 @@ export default function OrderDetails() {
                   </button>
                   <button
                     onClick={() => handleSaveReimbursement({ sendEmail: true })}
-                    data-color-state={
-                      reimbursementSaved ? "saved" : toBeReimbursedSaved ? "pending" : "default"
-                    }
+                    data-color-state={reimbursementColorState}
                     disabled={
                       savingReimbursement ||
                       savingToBeReimbursed ||
@@ -1896,9 +1908,9 @@ export default function OrderDetails() {
                     className={`reimbursement-send-email-btn px-4 py-2 rounded-md text-sm font-medium border transition shadow-sm hover:shadow-md ${
                       savingReimbursement
                         ? "bg-sky-200/80 text-gray-500 border-blue-300 cursor-not-allowed dark:bg-transparent dark:text-white/50 dark:border-white/30"
-                        : reimbursementSaved
+                        : reimbursementComplete
                         ? "text-white border-[#0a8f2a] bg-[#13a538] hover:bg-[#0f8d30]"
-                        : toBeReimbursedSaved
+                        : reimbursementPending
                         ? "text-white border-[#c40505] bg-[#8f0404] hover:bg-[#760303]"
                         : "bg-[#04356d] hover:bg-[#021f4b] text-white border-[#04356d]"
                     }`}
