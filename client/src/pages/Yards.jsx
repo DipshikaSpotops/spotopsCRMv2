@@ -2,6 +2,7 @@ import React, { useEffect, useState, useMemo, useRef, useCallback } from "react"
 import API from "../api";
 import { getCurrentUserFirstName } from "../utils/authStorage";
 import { formatInTimeZone } from "date-fns-tz";
+import { FaSort, FaSortUp, FaSortDown, FaChevronLeft, FaChevronRight, FaEdit, FaTrash } from "react-icons/fa";
 import TableScrollViewport, {
   handleTableHorizontalWheel,
 } from "../components/TableScrollViewport";
