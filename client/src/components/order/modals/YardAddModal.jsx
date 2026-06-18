@@ -1,7 +1,11 @@
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useEffect, useState, useRef, useCallback, useMemo } from "react";
 import API from "../../../api";
 import Field from "../../ui/Field";
 import Input from "../../ui/Input";
+import {
+  findBlockedYardMatch,
+  formatBlockedYardLabel,
+} from "@spotops/shared/utils/blockedYards.js";
 import Select, {
   SelectContent,
   SelectItem,
@@ -17,6 +21,7 @@ const normalizeCountry = (value) => {
 
 export default function YardAddModal({ open, onClose, onSubmit, order }) {
   const [yards, setYards] = useState([]);
+  const [blockedYards, setBlockedYards] = useState([]);
   const [storeCreditsByYard, setStoreCreditsByYard] = useState({});
   const [form, setForm] = useState({
     yardName: "",
@@ -69,6 +74,15 @@ export default function YardAddModal({ open, onClose, onSubmit, order }) {
           setYards(sorted);
         })
         .catch((err) => console.error("Failed to load yards", err));
+
+      API.get("/blocked-yards")
+        .then((res) => {
+          setBlockedYards(Array.isArray(res.data?.yards) ? res.data.yards : []);
+        })
+        .catch((err) => {
+          console.error("Failed to load blocked yards", err);
+          setBlockedYards([]);
+        });
 
       // Fetch store credits and build a history map keyed by yardName
       (async () => {
@@ -182,6 +196,50 @@ export default function YardAddModal({ open, onClose, onSubmit, order }) {
     };
   }, [form.zipcode, fetchZipDetails]);
 
+  const yardSnapshot = useCallback(
+    (yard) => ({
+      yardName: yard?.yardName || "",
+      street: yard?.street || "",
+      city: yard?.city || "",
+      state: yard?.state || "",
+      zipcode: yard?.zipcode || "",
+      phone: yard?.phone || yard?.altNo || "",
+    }),
+    []
+  );
+
+  const formSnapshot = useMemo(
+    () => ({
+      yardName: form.yardName,
+      street: form.street,
+      city: form.city,
+      state: form.state,
+      zipcode: form.zipcode,
+      phone: form.phone || form.altPhone,
+    }),
+    [form]
+  );
+
+  const selectableYards = useMemo(
+    () =>
+      yards.filter((y) => !findBlockedYardMatch(yardSnapshot(y), blockedYards)),
+    [yards, blockedYards, yardSnapshot]
+  );
+
+  const blockedMatch = useMemo(
+    () => findBlockedYardMatch(formSnapshot, blockedYards),
+    [formSnapshot, blockedYards]
+  );
+
+  const rejectBlockedYard = (yard) => {
+    const match = findBlockedYardMatch(yardSnapshot(yard), blockedYards);
+    if (!match) return false;
+    alert(
+      `This yard is on the blocked list and cannot be used:\n${formatBlockedYardLabel(match)}`
+    );
+    return true;
+  };
+
   const ownSet =
     String(form.ownShipping ?? "").trim() !== "" &&
     !Number.isNaN(Number(form.ownShipping));
@@ -265,6 +323,10 @@ export default function YardAddModal({ open, onClose, onSubmit, order }) {
     if (yardTrim && !yardIsNumber) {
       e.yardShipping = "Enter a valid number";
     }
+    if (blockedMatch) {
+      e.yardName =
+        "This yard is on the blocked list and cannot be used.";
+    }
     const milesTrim = String(form.miles ?? "").trim();
     if (!milesTrim) {
       e.miles = "Required";
@@ -294,12 +356,13 @@ export default function YardAddModal({ open, onClose, onSubmit, order }) {
   };
 
   // Filter yards dynamically as user types in dropdown
-  const filteredYards = yards.filter((y) =>
+  const filteredYards = selectableYards.filter((y) =>
     y.yardName.toLowerCase().includes(filterText.toLowerCase())
   );
 
   const selectYard = (yard) => {
     if (!yard) return;
+    if (rejectBlockedYard(yard)) return;
     setForm((p) => ({
       ...p,
       yardName: yard.yardName,
@@ -547,7 +610,7 @@ export default function YardAddModal({ open, onClose, onSubmit, order }) {
             <Field label="Yard Name (Select or Add New)">
   <select
     className="w-full p-2 rounded-md text-white mb-2 bg-[#2b2d68] hover:bg-[#090c6c] yard-select-dark-bg dark:bg-[#2b2d68] dark:hover:bg-[#090c6c] dark:text-white"
-    value={yards.find((y) => y.yardName === form.yardName)?._id || "new"}
+    value={selectableYards.find((y) => y.yardName === form.yardName)?._id || "new"}
     onChange={(e) => {
       const yardId = e.target.value;
 
@@ -582,8 +645,9 @@ export default function YardAddModal({ open, onClose, onSubmit, order }) {
       }
 
       // Otherwise, autofill form using selected yard
-      const selected = yards.find((y) => y._id === yardId);
+      const selected = selectableYards.find((y) => y._id === yardId);
       if (selected) {
+        if (rejectBlockedYard(selected)) return;
         setForm((p) => ({
           ...p,
           yardName: selected.yardName,
@@ -634,7 +698,7 @@ export default function YardAddModal({ open, onClose, onSubmit, order }) {
     }}
   >
     <option value="new">+ Add New Yard</option>
-    {yards
+    {selectableYards
       .slice()
       .sort((a, b) => a.yardName.localeCompare(b.yardName))
       .map((y) => (
@@ -645,7 +709,7 @@ export default function YardAddModal({ open, onClose, onSubmit, order }) {
   </select>
 
   {/* Input for adding a new yard */}
-  {!yards.find((y) => y.yardName === form.yardName) && (
+  {!selectableYards.find((y) => y.yardName === form.yardName) && (
     <Input
       value={form.yardName}
       onChange={(e) => {
@@ -675,6 +739,11 @@ export default function YardAddModal({ open, onClose, onSubmit, order }) {
 
   {errors.yardName && (
     <p className="text-xs text-red-200 mt-1 dark:text-red-200">{errors.yardName}</p>
+  )}
+  {blockedMatch && (
+    <p className="text-xs text-red-300 mt-1 font-medium">
+      Blocked yard: {formatBlockedYardLabel(blockedMatch)}. This yard cannot be added to an order.
+    </p>
   )}
 </Field>
 

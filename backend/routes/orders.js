@@ -11,6 +11,7 @@ import { getDateRange } from "../utils/dateRange.js";
 import { canonicalOrderStatus } from "../utils/canonicalOrderStatus.js";
 import { getWhen } from "../../shared/utils/timeUtils.js";
 import { normalizeYardName } from "../../shared/utils/yardName.js";
+import { assertYardNotBlocked } from "../services/blockedYardService.js";
 import multer from "multer";
 import { uploadVoidLabelScreenshotToS3, uploadYardImageToS3 } from "../services/s3Upload.js";
 import {
@@ -1377,6 +1378,14 @@ router.post("/:orderNo/additionalInfo", async (req, res) => {
     } = req.body || {};
 
     const normalizedYardName = normalizeYardName(yardName, city, state);
+    await assertYardNotBlocked({
+      yardName: normalizedYardName,
+      street,
+      city,
+      state,
+      zipcode,
+      phone: phone || altPhone,
+    });
 
     const ownSet  = ownShipping !== undefined && String(ownShipping).trim() !== "";
     const yardSet = yardShipping !== undefined && String(yardShipping).trim() !== "";
@@ -1454,6 +1463,12 @@ router.post("/:orderNo/additionalInfo", async (req, res) => {
     res.json(attachSalesOrigin(order.toObject ? order.toObject() : order));
   } catch (error) {
     console.error("POST /orders/:orderNo/additionalInfo failed", error);
+    if (error?.statusCode === 403) {
+      return res.status(403).json({
+        message: error.message,
+        blockedYardName: error.blockedYardName,
+      });
+    }
     res.status(500).json({ message: "Server error", error: error?.message || String(error) });
   }
 });

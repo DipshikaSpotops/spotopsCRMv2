@@ -1,0 +1,1713 @@
+[
+  {
+    "yardName": "Ace Auto Wreckers",
+    "street": "1028 Long Island Ave",
+    "city": "Deer Park",
+    "state": "NY",
+    "zipcode": "11729",
+    "phone": "+1 631-667-3331"
+  },
+  {
+    "yardName": "Highway Auto Salvage",
+    "street": "182 Mt Tom Rd",
+    "city": "Northampton",
+    "state": "MA",
+    "zipcode": "01060"
+  },
+  {
+    "yardName": "Riverside Used Auto Parts, Inc.",
+    "street": "4604 River Rd",
+    "city": "Marrero",
+    "state": "LA",
+    "zipcode": "70072",
+    "phone": "+1 504-341-6304"
+  },
+  {
+    "yardName": "Central Avenue Auto Parts",
+    "street": "3022 Central St",
+    "city": "Detroit",
+    "state": "MI",
+    "zipcode": "48209",
+    "phone": "+1 313-843-7580"
+  },
+  {
+    "yardName": "Allgeier Auto Parts",
+    "street": "7650 Harrison Ave",
+    "city": "Cincinnati",
+    "state": "OH",
+    "zipcode": "45247",
+    "phone": "+1 513-353-3377"
+  },
+  {
+    "yardName": "Henry's Auto Parts, LLC",
+    "street": "676 Rathbun St",
+    "city": "Blackstone",
+    "state": "MA",
+    "zipcode": "01504",
+    "phone": "+1 508-883-7300"
+  },
+  {
+    "yardName": "Tyrone Auto Salvage",
+    "street": "5053 E Pleasant Valley Blvd",
+    "city": "Tyrone",
+    "state": "PA",
+    "zipcode": "16686",
+    "phone": "+1 814-684-0310"
+  },
+  {
+    "yardName": "Scholz Auto Recycler",
+    "street": "14445 Koehn Rd",
+    "city": "Capac",
+    "state": "MI",
+    "zipcode": "48014",
+    "phone": "+1 810-841-1680"
+  },
+  {
+    "yardName": "Marsh Auto Salvage",
+    "street": "885 Banning Rd",
+    "city": "Dawson",
+    "state": "PA",
+    "zipcode": "15428",
+    "phone": "+1 724-529-0922"
+  },
+  {
+    "yardName": "Sunline Inc",
+    "street": "4400 6th St SW Building 12 Building 12",
+    "city": "Cedar Rapids",
+    "state": "IA",
+    "zipcode": "52404",
+    "phone": "+1 319-364-4000"
+  },
+  {
+    "yardName": "Allied Auto Wrecking Inc.",
+    "street": "32 Dustin Tavern Rd",
+    "city": "Weare",
+    "state": "NH",
+    "zipcode": "03281",
+    "phone": "+1 603-529-7211"
+  },
+  {
+    "yardName": "R & W Auto Sales",
+    "street": "1836 S Huron Rd",
+    "city": "Kawkawlin",
+    "state": "MI",
+    "zipcode": "48631",
+    "phone": "+1 989-684-3310"
+  },
+  {
+    "yardName": "Glen's Car & Truck Parts",
+    "street": "16000 Telegraph Rd",
+    "city": "Taylor",
+    "state": "MI",
+    "zipcode": "48180",
+    "phone": "+1 734-946-5050"
+  },
+  {
+    "yardName": "REAL CITY AUTO SALVAGE",
+    "street": "1213 Randall Ave",
+    "city": "Bronx",
+    "state": "NY",
+    "zipcode": "10474",
+    "phone": "+1 718-861-6555"
+  },
+  {
+    "yardName": "Remington Auto Parts Inc",
+    "street": "12250 Strodes Mill Rd",
+    "city": "Remington",
+    "state": "VA",
+    "zipcode": "22734",
+    "phone": "+1 540-439-8099"
+  },
+  {
+    "yardName": "Eagle Auto Parts",
+    "street": "2744 Eagle School Rd",
+    "city": "Martinsburg",
+    "state": "WV",
+    "zipcode": "25404",
+    "phone": "+1 304-263-6664"
+  },
+  {
+    "yardName": "49 Hopkins Auto Parts",
+    "street": "49 Hopkins St",
+    "city": "Buffalo",
+    "state": "NY",
+    "zipcode": "14220",
+    "phone": "+1 716-826-7278"
+  },
+  {
+    "yardName": "Central Jersey Auto Salvage",
+    "street": "378 W Commodore Blvd",
+    "city": "Jackson Township",
+    "state": "NJ",
+    "zipcode": "08527",
+    "phone": "+1 732-928-2904"
+  },
+  {
+    "yardName": "M-45 Auto Parts",
+    "street": "15133 Lake Michigan Dr",
+    "city": "West Olive",
+    "state": "MI",
+    "zipcode": "49460",
+    "phone": "+1 616-842-0213"
+  },
+  {
+    "yardName": "Conrad's Auto Salvage Inc",
+    "street": "10466 S Central Expy",
+    "city": "Dallas",
+    "state": "TX",
+    "zipcode": "75241",
+    "phone": "+1 972-225-8604"
+  },
+  {
+    "yardName": "Grady's Auto & Truck Parts",
+    "street": "250 Pine St",
+    "city": "Seekonk",
+    "state": "MA",
+    "zipcode": "02771",
+    "phone": "+1 508-761-8694"
+  },
+  {
+    "yardName": "Johnson Auto Recycling",
+    "street": "64 Wedgefield Dr",
+    "city": "Asheville",
+    "state": "NC",
+    "zipcode": "28806",
+    "phone": "+1 828-667-2053"
+  },
+  {
+    "yardName": "Wheeler Auto Parts",
+    "street": "8391 E Monroe Rd",
+    "city": "Wheeler",
+    "state": "MI",
+    "zipcode": "48662",
+    "phone": "+1 989-842-3158"
+  },
+  {
+    "yardName": "Global Auto Recycling",
+    "street": "31W450 Spaulding Rd",
+    "city": "Elgin",
+    "state": "IL",
+    "zipcode": "60120",
+    "phone": "+1 847-608-4700"
+  },
+  {
+    "yardName": "Wandel Auto Salvage",
+    "street": "2200 Welch Rd",
+    "city": "Ionia",
+    "state": "MI",
+    "zipcode": "48846",
+    "phone": "+1 616-527-3792"
+  },
+  {
+    "yardName": "Josh's Auto Parts",
+    "street": "2670 Territorial Rd",
+    "city": "Benton Harbor",
+    "state": "MI",
+    "zipcode": "49022",
+    "phone": "+1 269-925-3800"
+  },
+  {
+    "yardName": "AAA Auto Recyclers",
+    "street": "1753 S Beltline Rd",
+    "city": "Dallas",
+    "state": "TX",
+    "zipcode": "75253",
+    "phone": "+1 214-565-7800"
+  },
+  {
+    "yardName": "Hulsey's Auto Parts",
+    "street": "1609 Candler Rd",
+    "city": "Gainesville",
+    "state": "GA",
+    "zipcode": "30507",
+    "phone": "+1 770-536-3341"
+  },
+  {
+    "yardName": "A1 Auto & Truck Recyclers",
+    "street": "62651 US-50",
+    "city": "Penrose",
+    "state": "CO",
+    "zipcode": "81240",
+    "phone": "+1 719-372-6588"
+  },
+  {
+    "yardName": "Allied American Auto Parts",
+    "street": "9194 New Laredo Hwy",
+    "city": "San Antonio",
+    "state": "TX",
+    "zipcode": "78211",
+    "phone": "+1 210-623-3385"
+  },
+  {
+    "yardName": "East Coast Auto Salvage Inc",
+    "street": "733 Killingworth Rd",
+    "city": "Higganum",
+    "state": "CT",
+    "zipcode": "06441",
+    "phone": "+1 860-345-4591"
+  },
+  {
+    "yardName": "Alex Auto Parts",
+    "street": "327 Bryant Ave",
+    "city": "Bronx",
+    "state": "NY",
+    "zipcode": "10474",
+    "phone": "+1 718-842-2500"
+  },
+  {
+    "yardName": "Riverside Auto & Truck Salvage",
+    "street": "6800 SW 15th St #2013",
+    "city": "Oklahoma City",
+    "state": "OK",
+    "zipcode": "73128",
+    "phone": "+1 405-789-7177"
+  },
+  {
+    "yardName": "Berkley Used Auto Parts, Inc",
+    "street": "124 Bryant St",
+    "city": "Berkley",
+    "state": "MA",
+    "zipcode": "02779",
+    "phone": "+1 508-823-8136"
+  },
+  {
+    "yardName": "Walter's Auto Wrecking LLC",
+    "street": "403 Walters Ln",
+    "city": "Hollidaysburg",
+    "state": "PA",
+    "zipcode": "16648",
+    "phone": "+1 814-696-0310"
+  },
+  {
+    "yardName": "Sligo Auto Salvage",
+    "street": "12057 PA-68",
+    "city": "Rimersburg",
+    "state": "PA",
+    "zipcode": "16248",
+    "phone": "+1 814-745-3300"
+  },
+  {
+    "yardName": "Toll Gate Auto Parts",
+    "street": "194 Tollgate Hill Rd",
+    "city": "Greensburg",
+    "state": "PA",
+    "zipcode": "15601",
+    "phone": "+1 724-834-5800"
+  },
+  {
+    "yardName": "Key Auto Parts",
+    "street": "1850 KY-121",
+    "city": "Murray",
+    "state": "KY",
+    "zipcode": "42071",
+    "phone": "+1 270-753-5500"
+  },
+  {
+    "yardName": "Big Mikes 2 Used Auto Parts",
+    "street": "42800 Yost Rd",
+    "city": "Canton",
+    "state": "MI",
+    "zipcode": "48188",
+    "phone": "+1 734-397-2200"
+  },
+  {
+    "yardName": "CHOP SHOP AUTO PARTS",
+    "street": "279 Meadowbrook Dr",
+    "city": "Forest City",
+    "state": "NC",
+    "zipcode": "28043",
+    "phone": "+1 828-247-4111"
+  },
+  {
+    "yardName": "Tom's Used Auto Parts",
+    "street": "578 Terryville Rd",
+    "city": "Bristol",
+    "state": "CT",
+    "zipcode": "06010",
+    "phone": "+1 860-582-7056"
+  },
+  {
+    "yardName": "Hartlaub & Sons Used Auto Parts",
+    "street": "270 Kuhn Rd",
+    "city": "Littlestown",
+    "state": "PA",
+    "zipcode": "17340",
+    "phone": "+1 717-359-7573"
+  },
+  {
+    "yardName": "David's Auto Salvage",
+    "street": "4301 Pine St",
+    "city": "Abilene",
+    "state": "TX",
+    "zipcode": "79601",
+    "phone": "+1 325-672-3410"
+  },
+  {
+    "yardName": "Auto Salvage Co",
+    "street": "230 Royle Rd",
+    "city": "Ladson",
+    "state": "SC",
+    "zipcode": "29456",
+    "phone": "+1 843-821-1989"
+  },
+  {
+    "yardName": "Perk Auto Parts & Salvage Inc",
+    "street": "166 10th St",
+    "city": "Plainwell",
+    "state": "MI",
+    "zipcode": "49080",
+    "phone": "+1 269-685-9835"
+  },
+  {
+    "yardName": "ACL AUTO PARTS",
+    "street": "10717 US-92",
+    "city": "Tampa",
+    "state": "FL",
+    "zipcode": "33610",
+    "phone": "+1 813-577-2000"
+  },
+  {
+    "yardName": "Solutions Auto Parts Corp -no shipping",
+    "street": "5016 Denver St",
+    "city": "Tampa",
+    "state": "FL",
+    "zipcode": "33619",
+    "phone": "+1 813-402-2554"
+  },
+  {
+    "yardName": "Spivey's Auto Salvage",
+    "street": "4201 Recker Hwy",
+    "city": "Winter Haven",
+    "state": "FL",
+    "zipcode": "33880",
+    "phone": "+1 863-299-9000"
+  },
+  {
+    "yardName": "Lane Road Auto Salvage & Sales, Inc.",
+    "street": "1555 Lane Rd",
+    "city": "Paducah",
+    "state": "KY",
+    "zipcode": "42003",
+    "phone": "+1 270-443-3438"
+  },
+  {
+    "yardName": "Roscommon Auto Recyclers",
+    "street": "290 Federal Hwy",
+    "city": "Roscommon",
+    "state": "MI",
+    "zipcode": "48653",
+    "phone": "+1 989-206-0011"
+  },
+  {
+    "yardName": "French Lake Auto Parts, Inc.",
+    "street": "3531 County Rd 3 NW",
+    "city": "Annandale",
+    "state": "MN",
+    "zipcode": "55302",
+    "phone": "+1 320-274-8497"
+  },
+  {
+    "yardName": "Andrews Auto Salvage",
+    "street": "5377 PA-446",
+    "city": "Eldred",
+    "state": "PA",
+    "zipcode": "16731",
+    "phone": "+1 814-225-4646"
+  },
+  {
+    "yardName": "Al's Auto Salvage",
+    "street": "10942 S 124th St",
+    "city": "Franklin",
+    "state": "WI",
+    "zipcode": "53132",
+    "phone": "+1 414-425-1890"
+  },
+  {
+    "yardName": "Northwest Auto Parts",
+    "street": "5700 Camelot Dr",
+    "city": "Anchorage",
+    "state": "AK",
+    "zipcode": "99504",
+    "phone": "+1 800-770-6531"
+  },
+  {
+    "yardName": "21 Motors",
+    "street": "2117 US-21",
+    "city": "Hamptonville",
+    "state": "NC",
+    "zipcode": "27020",
+    "phone": "+1 336-468-8257"
+  },
+  {
+    "yardName": "K & R Auto Salvage",
+    "street": "950 Smithfield Rd",
+    "city": "North Providence",
+    "state": "RI",
+    "zipcode": "02904",
+    "phone": "+1 401-353-9200"
+  },
+  {
+    "yardName": "Columbus Auto Parts LLC.",
+    "street": "2981 Lazar Rd",
+    "city": "Grove City",
+    "state": "OH",
+    "zipcode": "43123",
+    "phone": "+1 614-875-2800"
+  },
+  {
+    "yardName": "D & D Used Cars/Used Parts & Service Center",
+    "street": "1801 Beverly Ln",
+    "city": "Clinton",
+    "state": "OK",
+    "zipcode": "73601"
+  },
+  {
+    "yardName": "D & V Late Model Salvage",
+    "street": "16940 Co Rd 3480",
+    "city": "Ada",
+    "state": "OK",
+    "zipcode": "74820",
+    "phone": "+1 580-332-0770"
+  },
+  {
+    "yardName": "Pickup City Inc",
+    "street": "131 Middletown Rd",
+    "city": "Fairmont",
+    "state": "WV",
+    "zipcode": "26554",
+    "phone": "+1 304-366-7998"
+  },
+  {
+    "yardName": "Mitchell's Used Auto Parts Inc",
+    "street": "2701 Flat Shoals Rd SE",
+    "city": "Conyers",
+    "state": "GA",
+    "zipcode": "30013",
+    "phone": "+1 770-483-4716"
+  },
+  {
+    "yardName": "Barefield's Auto Salvage",
+    "street": "3316 Bernice Ave",
+    "city": "Russellville",
+    "state": "AR",
+    "zipcode": "72802",
+    "phone": "+1 479-967-3263"
+  },
+  {
+    "yardName": "Jordan Auto Parts",
+    "street": "217 Moffit Rd",
+    "city": "Dilliner",
+    "state": "PA",
+    "zipcode": "15327",
+    "phone": "+1 724-943-3522"
+  },
+  {
+    "yardName": "Auto Parts R Us",
+    "street": "1974 US-441",
+    "city": "Dublin",
+    "state": "GA",
+    "zipcode": "31021",
+    "phone": "+1 478-275-2877"
+  },
+  {
+    "yardName": "Brother's Auto Wrecking",
+    "street": "2091 W Stonehurst Dr",
+    "city": "Rialto",
+    "state": "CA",
+    "zipcode": "92377",
+    "phone": "+1 909-574-1212"
+  },
+  {
+    "yardName": "Energy Auto Dismantlers",
+    "street": "356 N 5th St",
+    "city": "Orlando",
+    "state": "FL",
+    "zipcode": "32833",
+    "phone": "+1 321-804-7190"
+  },
+  {
+    "yardName": "Auto Parts of Shelby",
+    "street": "1021 County Home Rd",
+    "city": "Shelby",
+    "state": "NC",
+    "zipcode": "28152",
+    "phone": "+1 704-487-5234"
+  },
+  {
+    "yardName": "Masterson's Auto Parts & Salvage",
+    "street": "1752 KY-79",
+    "city": "Irvington",
+    "state": "KY",
+    "zipcode": "40146",
+    "phone": "+1 800-405-0963"
+  },
+  {
+    "yardName": "Roberts Salvage Inc",
+    "street": "500 Grand Ave",
+    "city": "Moffett",
+    "state": "OK",
+    "zipcode": "74946",
+    "phone": "+1 918-875-3191"
+  },
+  {
+    "yardName": "American Pick-Up Salvage",
+    "street": "157 Greene 802 Road",
+    "city": "Paragould",
+    "state": "AR",
+    "zipcode": "72450",
+    "phone": "+1 870-236-8392"
+  },
+  {
+    "yardName": "McCoy Auto Parts",
+    "street": "2301 S Pulaski Rd",
+    "city": "Chicago",
+    "state": "IL",
+    "zipcode": "60623",
+    "phone": "+1 773-277-0111"
+  },
+  {
+    "yardName": "Acre Auto Parts & Scrap",
+    "street": "5035 Williams Lake Rd",
+    "city": "Waterford Twp",
+    "state": "MI",
+    "zipcode": "48329",
+    "phone": "-248-674-4851"
+  },
+  {
+    "yardName": "J.B.'s Auto Sales & Salvage, LLC",
+    "street": "7018 Peters Rd",
+    "city": "Jacksonville",
+    "state": "AR",
+    "zipcode": "72076",
+    "phone": "800-325-4442"
+  },
+  {
+    "yardName": "Appleton Auto Recyclers",
+    "street": "W4982 County Rd O",
+    "city": "Appleton",
+    "state": "WI",
+    "zipcode": "54913",
+    "phone": "+1 920-730-1055"
+  },
+  {
+    "yardName": "Route 51 Auto & Truck Parts",
+    "street": "907 Old Rte 51",
+    "city": "Smock",
+    "state": "PA",
+    "zipcode": "15480",
+    "phone": "+1 724-677-4646"
+  },
+  {
+    "yardName": "Prestige Auto Parts",
+    "street": "20500 Mound Rd",
+    "city": "Detroit",
+    "state": "MI",
+    "zipcode": "48234",
+    "phone": "+1 313-893-1000"
+  },
+  {
+    "yardName": "Mack's Auto Recycling",
+    "street": "1309 Kerr Ave",
+    "city": "Urbana",
+    "state": "IL",
+    "zipcode": "61802",
+    "phone": "+1 217-367-6219"
+  },
+  {
+    "yardName": "Available U Auto & Truck Parts",
+    "street": "2670 N Woodford St #4711",
+    "city": "Decatur",
+    "state": "IL",
+    "zipcode": "62526",
+    "phone": "+1 217-877-1000"
+  },
+  {
+    "yardName": "Rastro MR Used Auto Parts",
+    "street": "12881 Port Said Rd",
+    "city": "Opa-locka",
+    "state": "FL",
+    "zipcode": "33054",
+    "phone": "+1 786-438-9552"
+  },
+  {
+    "yardName": "Smith Auto, Inc.",
+    "street": "70971 621 Blvd",
+    "city": "Pawnee City",
+    "state": "NE",
+    "zipcode": "68420",
+    "phone": "+1 402-852-2190"
+  },
+  {
+    "yardName": "Everett's Auto Parts",
+    "street": "553 Thatcher St",
+    "city": "Brockton",
+    "state": "MA",
+    "zipcode": "02302",
+    "phone": "+1 508-583-7478"
+  },
+  {
+    "yardName": "Danser's Auto U Pull",
+    "street": "259 Horsemans Rd",
+    "city": "Blairsville",
+    "state": "PA",
+    "zipcode": "15717",
+    "phone": "+1 724-459-6448"
+  },
+  {
+    "yardName": "Complete Auto & Truck Parts",
+    "street": "3401 Dort Hwy",
+    "city": "Flint",
+    "state": "MI",
+    "zipcode": "48506",
+    "phone": "+1 810-235-9166"
+  },
+  {
+    "yardName": "W & W Auto Parts",
+    "street": "12301 Vincennes Rd",
+    "city": "Blue Island",
+    "state": "IL",
+    "zipcode": "60406",
+    "phone": "+1 708-385-4000"
+  },
+  {
+    "yardName": "Mac's Used Auto Parts",
+    "street": "280 Melody Ln W",
+    "city": "Casselberry",
+    "state": "FL",
+    "zipcode": "32707",
+    "phone": "+1 407-260-6363"
+  },
+  {
+    "yardName": "Legacy Auto Parts LLC",
+    "street": "2528 W Broadway Rd",
+    "city": "Phoenix",
+    "state": "AZ",
+    "zipcode": "85041",
+    "phone": "+1 602-237-5551"
+  },
+  {
+    "yardName": "Marsh Auto Salvage",
+    "street": "885 Banning Rd",
+    "city": "Dawson",
+    "state": "PA",
+    "zipcode": "15428",
+    "phone": "+1 724-529-0922"
+  },
+  {
+    "yardName": "Pickup City Inc",
+    "street": "131 Middletown Rd",
+    "city": "Fairmont",
+    "state": "WV",
+    "zipcode": "26554",
+    "phone": "+1 304-366-7998"
+  },
+  {
+    "yardName": "Kar Parts LLC",
+    "street": "1200 Crown St",
+    "city": "Garner",
+    "state": "IA",
+    "zipcode": "50438",
+    "phone": "+1 641-925-1250"
+  },
+  {
+    "yardName": "Wally's Auto, Inc.",
+    "street": "W7354 WI-33",
+    "city": "Beaver Dam",
+    "state": "WI",
+    "zipcode": "53916",
+    "phone": "+1 920-887-0200"
+  },
+  {
+    "yardName": "City Auto Parts & Glass",
+    "street": "1901 Dolton Rd",
+    "city": "Calumet City",
+    "state": "IL",
+    "zipcode": "60409",
+    "phone": "+1 708-862-2700"
+  },
+  {
+    "yardName": "Chattanooga Valley Used Cars and Parts",
+    "street": "135 Chattanooga Valley Rd",
+    "city": "Flintstone",
+    "state": "GA",
+    "zipcode": "30725",
+    "phone": "+1 706-820-1581"
+  },
+  {
+    "yardName": "Parts are Us",
+    "street": "1937 Flushing Ave",
+    "city": "Ridgewood",
+    "state": "NY",
+    "zipcode": "11385",
+    "phone": "+1 718-497-3900"
+  },
+  {
+    "yardName": "Auto Parts City",
+    "street": "25958 IN-2",
+    "city": "South Bend",
+    "state": "IN",
+    "zipcode": "46619",
+    "phone": "+1 574-289-1200"
+  },
+  {
+    "yardName": "Bishop's Auto Parts Inc.",
+    "street": "120 Stantack Rd",
+    "city": "Middletown",
+    "state": "CT",
+    "zipcode": "06457",
+    "phone": "+1 860-346-2336"
+  },
+  {
+    "yardName": "Columbia Auto Salvage Inc",
+    "street": "1694 Co Rd 252",
+    "city": "Lake City",
+    "state": "FL",
+    "zipcode": "32025",
+    "phone": "+1 386-752-1611"
+  },
+  {
+    "yardName": "Al's Auto Parts & Service",
+    "street": "4339 Old Lincoln Hwy",
+    "city": "Trevose",
+    "state": "PA",
+    "zipcode": "19053",
+    "phone": "+1 215-322-2199"
+  },
+  {
+    "yardName": "Interior Auto Salvage",
+    "street": "3230 Van Horn Rd",
+    "city": "Fairbanks",
+    "state": "AK",
+    "zipcode": "99709",
+    "phone": "+1 907-479-4266"
+  },
+  {
+    "yardName": "Columbia Used Auto Parts",
+    "street": "4176 Glenwood Rd",
+    "city": "Decatur",
+    "state": "GA",
+    "zipcode": "30032",
+    "phone": "+1 404-289-2711"
+  },
+  {
+    "yardName": "Chuck's Auto Salvage",
+    "street": "30187 E Bass Lake Rd",
+    "city": "Grand Rapids",
+    "state": "MN",
+    "zipcode": "55744",
+    "phone": "+1 218-328-6281"
+  },
+  {
+    "yardName": "S & H Auto Parts",
+    "street": "24102 Middlebelt Rd",
+    "city": "New Boston",
+    "state": "MI",
+    "zipcode": "48164",
+    "phone": "+1 734-782-2807"
+  },
+  {
+    "yardName": "East Bay Auto Parts-South",
+    "street": "20852 Honor Hwy",
+    "city": "Interlochen",
+    "state": "MI",
+    "zipcode": "49643",
+    "phone": "+1 231-275-7888"
+  },
+  {
+    "yardName": "Go Go Auto Parts",
+    "street": "7709 Kingsbury Rd",
+    "city": "Delton",
+    "state": "MI",
+    "zipcode": "49046",
+    "phone": "+1 269-623-2775"
+  },
+  {
+    "yardName": "Jack's Auto Sales & Salvage",
+    "street": "2106 N Main St",
+    "city": "St Charles",
+    "state": "MO",
+    "zipcode": "63301",
+    "phone": "+1 636-947-6005"
+  },
+  {
+    "yardName": "Johannes Auto Sales Inc",
+    "street": "3239 E Jackson Blvd",
+    "city": "Jackson",
+    "state": "MO",
+    "zipcode": "63755",
+    "phone": "+1 573-243-3506"
+  },
+  {
+    "yardName": "Elgin Super Auto Parts",
+    "street": "270 Willard Ave",
+    "city": "Elgin",
+    "state": "IL",
+    "zipcode": "60120",
+    "phone": "+1 847-695-4000"
+  },
+  {
+    "yardName": "Petrillo's Used Auto Parts",
+    "street": "150 Middletown Ave",
+    "city": "New Haven",
+    "state": "CT",
+    "zipcode": "06513",
+    "phone": "+1 203-865-1749"
+  },
+  {
+    "yardName": "Auto Alex Used Parts",
+    "street": "11007 Tuxford St",
+    "city": "Sun Valley",
+    "state": "CA",
+    "zipcode": "91352",
+    "phone": "+1 818-768-6444"
+  },
+  {
+    "yardName": "GreenWay Auto Parts",
+    "street": "5801 N Henry Blvd",
+    "city": "Stockbridge",
+    "state": "GA",
+    "zipcode": "30281",
+    "phone": "+1 770-474-7999"
+  },
+  {
+    "yardName": "Witvoet Auto Parts",
+    "street": "18310 Dorchester Ave",
+    "city": "Lansing",
+    "state": "IL",
+    "zipcode": "60438",
+    "phone": "+1 708-474-1981"
+  },
+  {
+    "yardName": "Jantz's Yard 4 Inc",
+    "street": "2500 Washington Rd",
+    "city": "Kenosha",
+    "state": "WI",
+    "zipcode": "53140",
+    "phone": "+1 262-658-1392"
+  },
+  {
+    "yardName": "McDonough Used Auto Parts (south)",
+    "street": "129 Town Creek Rd",
+    "city": "Forsyth",
+    "state": "GA",
+    "zipcode": "31029",
+    "phone": "+1 478-992-9934"
+  },
+  {
+    "yardName": "Metro Auto Salvage, Inc.",
+    "street": "11710 263rd St E",
+    "city": "Lakeville",
+    "state": "MN",
+    "zipcode": "55044",
+    "phone": "+1 952-461-2186"
+  },
+  {
+    "yardName": "Condon's Auto Parts",
+    "street": "1218 Martin Dr",
+    "city": "Westminster",
+    "state": "MD",
+    "zipcode": "21157",
+    "phone": "+1 410-876-2177"
+  },
+  {
+    "yardName": "Lebarron's Auto Salvage Inc",
+    "street": "305 Zeigler Rd",
+    "city": "Dover",
+    "state": "PA",
+    "zipcode": "17315",
+    "phone": "+1 717-292-3159"
+  },
+  {
+    "yardName": "Junior Sinn Auto Parts",
+    "street": "588 Co Rd 649",
+    "city": "Cape Girardeau",
+    "state": "MO",
+    "zipcode": "63701",
+    "phone": "+1 573-335-0238"
+  },
+  {
+    "yardName": "Economy Auto Parts",
+    "street": "327 Co Rd 311",
+    "city": "Jonesboro",
+    "state": "AR",
+    "zipcode": "72401",
+    "phone": "+1 870-932-3789"
+  },
+  {
+    "yardName": "Rich Industries Import Auto Parts",
+    "street": "4120 Winchester Ave",
+    "city": "Kansas City",
+    "state": "MO",
+    "zipcode": "64129",
+    "phone": "+1 816-861-3200"
+  },
+  {
+    "yardName": "Sam's Used Parts-Cobb Auto Salvage",
+    "street": "55 Moss Dr",
+    "city": "Mableton",
+    "state": "GA",
+    "zipcode": "30126",
+    "phone": "+1 770-739-7815"
+  },
+  {
+    "yardName": "A & A Auto Recycling",
+    "street": "5507 9th St E",
+    "city": "Bradenton",
+    "state": "FL",
+    "zipcode": "34203",
+    "phone": "+1 941-751-2690"
+  },
+  {
+    "yardName": "Matrix Auto Wreckers LLC",
+    "street": "461 Sonora Ave A",
+    "city": "Modesto",
+    "state": "CA",
+    "zipcode": "95351",
+    "phone": "+1 209-529-1697"
+  },
+  {
+    "yardName": "All Star Imports",
+    "street": "7701 Mansfield Hwy",
+    "city": "Kennedale",
+    "state": "TX",
+    "zipcode": "76060",
+    "phone": "+1 817-572-5008"
+  },
+  {
+    "yardName": "Auto Network, Inc.",
+    "street": "301 N Elm St",
+    "city": "Fairmount",
+    "state": "IN",
+    "zipcode": "46928",
+    "phone": "+1 765-948-3659"
+  },
+  {
+    "yardName": "Carthage Auto Parts Co",
+    "street": "433 W North Bend Rd",
+    "city": "Cincinnati",
+    "state": "OH",
+    "zipcode": "45216",
+    "phone": "1 513-761-4887"
+  },
+  {
+    "yardName": "Aumiller's Auto Parts, Inc.",
+    "street": "250 S River Rd",
+    "city": "Halifax",
+    "state": "PA",
+    "zipcode": "17032",
+    "phone": "+1 717-896-3994"
+  },
+  {
+    "yardName": "Collins Truck Parts",
+    "street": "4078 U.S. Hwy 51",
+    "city": "Tamaroa",
+    "state": "IL",
+    "zipcode": "62888",
+    "phone": "+1 618-496-5003"
+  },
+  {
+    "yardName": "Fagan's Auto",
+    "street": "2417 US-278",
+    "city": "Piedmont",
+    "state": "AL",
+    "zipcode": "36272",
+    "phone": "+1 256-447-8698"
+  },
+  {
+    "yardName": "C & H Auto Salvage",
+    "street": "2837 NY-207",
+    "city": "Campbell Hall",
+    "state": "NY",
+    "zipcode": "10916",
+    "phone": "+1 845-457-1420"
+  },
+  {
+    "yardName": "A-Abco Fridley Auto Parts",
+    "street": "7300 Central Ave NE",
+    "city": "Fridley",
+    "state": "MN",
+    "zipcode": "55432",
+    "phone": "+1 763-784-8890"
+  },
+  {
+    "yardName": "Black River Auto Salvage",
+    "street": "447 Oberlin Elyria Rd",
+    "city": "Elyria",
+    "state": "OH",
+    "zipcode": "44035",
+    "phone": "+1 440-322-7173"
+  },
+  {
+    "yardName": "Box Auto Salvage",
+    "street": "4209 E Hwy 80",
+    "city": "Midland",
+    "state": "TX",
+    "zipcode": "79705",
+    "phone": "+1 432-683-9200"
+  },
+  {
+    "yardName": "Westgate Auto Parts",
+    "street": "156 S Newburgh Rd",
+    "city": "Westland",
+    "state": "MI",
+    "zipcode": "48186",
+    "phone": "+1 734-728-4930"
+  },
+  {
+    "yardName": "Southern Auto Salvage",
+    "street": "3623 Grant Rd",
+    "city": "Ellenwood",
+    "state": "GA",
+    "zipcode": "30294",
+    "phone": "+1 404-362-0671"
+  },
+  {
+    "yardName": "Chesney Auto Salvage",
+    "street": "6250 Beaver River Rd",
+    "city": "Duluth",
+    "state": "MN",
+    "zipcode": "55803",
+    "phone": "+1 218-206-6390"
+  },
+  {
+    "yardName": "S & S Auto Salvage",
+    "street": "26698 State Hwy 30",
+    "city": "Hayfield",
+    "state": "MN",
+    "zipcode": "55940",
+    "phone": "+1 507-365-8885"
+  },
+  {
+    "yardName": "M & J Auto Parts LLC",
+    "street": "2701 S McColl Rd",
+    "city": "Hidalgo",
+    "state": "TX",
+    "zipcode": "78557",
+    "phone": "+1 956-843-9553"
+  },
+  {
+    "yardName": "Nelson's Auto Parts",
+    "street": "12280 Montauk St",
+    "city": "Jamaica",
+    "state": "NY",
+    "zipcode": "11413",
+    "phone": "+1 718-276-4294"
+  },
+  {
+    "yardName": "Bugs Stevens Freetown Auto",
+    "street": "190 Slab Bridge Rd",
+    "city": "Assonet",
+    "state": "MA",
+    "zipcode": "02702",
+    "phone": "+1 508-763-9337"
+  },
+  {
+    "yardName": "Barren Co Auto Salvage & Used Cars",
+    "street": "5424 Happy Valley Rd",
+    "city": "Cave City",
+    "state": "KY",
+    "zipcode": "42127",
+    "phone": "+1 270-678-9500"
+  },
+  {
+    "yardName": "Bavarian Auto Parts",
+    "street": "565 E 37th St",
+    "city": "Paterson",
+    "state": "NJ",
+    "zipcode": "07513"
+  },
+  {
+    "yardName": "Hawkeye Auto Salvage",
+    "street": "36620 N Avenue",
+    "city": "De Soto",
+    "state": "IA",
+    "zipcode": "50069",
+    "phone": "+1 515-834-2436"
+  },
+  {
+    "yardName": "Town and Country Auto Parts",
+    "street": "10080 Cincinnati-Zanesville Rd SW",
+    "city": "Amanda",
+    "state": "OH",
+    "zipcode": "43102",
+    "phone": "+1 740-969-2112"
+  },
+  {
+    "yardName": "Dos Amigos Auto",
+    "street": "22323 Co Rd 1160",
+    "city": "Verona",
+    "state": "MO",
+    "zipcode": "65769",
+    "phone": "+1 800-778-1992"
+  },
+  {
+    "yardName": "AAA Auto Parts",
+    "street": "2871 160th St W",
+    "city": "Rosemount",
+    "state": "MN",
+    "zipcode": "55068",
+    "phone": "+1 651-423-2432"
+  },
+  {
+    "yardName": "AA Auto Parts",
+    "street": "8125 AR-161",
+    "city": "North Little Rock",
+    "state": "AR",
+    "zipcode": "72117",
+    "phone": "+1 501-835-5209"
+  },
+  {
+    "yardName": "JAG Salvage",
+    "street": "95 Privilege St",
+    "city": "Woonsocket",
+    "state": "RI",
+    "zipcode": "02895",
+    "phone": "+1 401-766-0000"
+  },
+  {
+    "yardName": "Suffolk Used Auto Parts",
+    "street": "965 Portsmouth Blvd",
+    "city": "Suffolk",
+    "state": "VA",
+    "zipcode": "23434",
+    "phone": "+1 757-934-1976"
+  },
+  {
+    "yardName": "H & W AUTO SALVAGE",
+    "city": "Springfield",
+    "state": "Missouri"
+  },
+  {
+    "yardName": "Seymour New Auto Parts",
+    "street": "30085 Charlotte Hall Rd",
+    "city": "Charlotte Hall",
+    "state": "MD",
+    "zipcode": "20622",
+    "phone": "+1 301-870-3734"
+  },
+  {
+    "yardName": "Wasson Auto Parts",
+    "street": "180 Shaffer Ln",
+    "city": "Jersey Shore",
+    "state": "PA",
+    "zipcode": "17740",
+    "phone": "+1 570-398-2886"
+  },
+  {
+    "yardName": "AAA Crain's Auto Salvage LLC",
+    "street": "3300 Van Horn Ave",
+    "city": "Fort Worth",
+    "state": "TX",
+    "zipcode": "76111",
+    "phone": "+1 469-230-5864"
+  },
+  {
+    "yardName": "Highway Auto Parts",
+    "street": "29231 Groesbeck Hwy",
+    "city": "Roseville",
+    "state": "MI",
+    "zipcode": "48066",
+    "phone": "+1 586-778-7700"
+  },
+  {
+    "yardName": "US Auto Supply of Detroit",
+    "street": "2346 W Warren Ave",
+    "city": "Detroit",
+    "state": "MI",
+    "zipcode": "48208",
+    "phone": "+1 313-894-1194"
+  },
+  {
+    "yardName": "Gibson Iron & Metal, Inc.",
+    "street": "139 S Fieldcrest Dr",
+    "city": "Neenah",
+    "state": "WI",
+    "zipcode": "54956",
+    "phone": "+1 920-722-2821"
+  },
+  {
+    "yardName": "Miamitown Auto Parts & Recycling",
+    "street": "8379 Harrison Pike",
+    "city": "Cleves",
+    "state": "OH",
+    "zipcode": "45002",
+    "phone": "+1 513-353-1111"
+  },
+  {
+    "yardName": "Espaillat Motors Inc",
+    "street": "321 Barretto St",
+    "city": "Bronx",
+    "state": "NY",
+    "zipcode": "10474",
+    "phone": "+1 718-589-7376"
+  },
+  {
+    "yardName": "One Stop Auto Parts",
+    "street": "2550 E McNichols Rd",
+    "city": "Detroit",
+    "state": "MI",
+    "zipcode": "48212",
+    "phone": "+1 313-893-9600"
+  },
+  {
+    "yardName": "Crown Vehicle Salvage LLC",
+    "street": "287 Lackawanna Dr",
+    "city": "Byram Township",
+    "state": "NJ",
+    "zipcode": "07821"
+  },
+  {
+    "yardName": "Kelly Auto Parts",
+    "street": "1814 7th St NW",
+    "city": "Faribault",
+    "state": "MN",
+    "zipcode": "55021",
+    "phone": "+1 507-214-0437"
+  },
+  {
+    "yardName": "S & E Towing & Salvage",
+    "street": "560 Julienne St",
+    "city": "Jackson",
+    "state": "MS",
+    "zipcode": "39201",
+    "phone": "+1 601-944-1537"
+  },
+  {
+    "yardName": "Bj Used Auto Parts",
+    "street": "7000 Firestone Blvd",
+    "city": "Downey",
+    "state": "CA",
+    "zipcode": "90241",
+    "phone": "+1 562-927-8621"
+  },
+  {
+    "yardName": "West End Auto Parts",
+    "street": "29950 US-6",
+    "city": "Youngsville",
+    "state": "PA",
+    "zipcode": "16371",
+    "phone": "+1 814-563-7540"
+  },
+  {
+    "yardName": "Stewarts Used Auto Parts, Inc.",
+    "street": "109 New Hartford Rd",
+    "city": "Pleasant Valley",
+    "state": "CT",
+    "zipcode": "06063",
+    "phone": "+1 860-379-7541"
+  },
+  {
+    "yardName": "D & E Auto Parts",
+    "street": "N6396 US-12",
+    "city": "Elkhorn",
+    "state": "WI",
+    "zipcode": "53121",
+    "phone": "+1 262-742-2220"
+  },
+  {
+    "yardName": "Bill's S.S. & Auto Parts",
+    "street": "844 Tolland Stage Rd",
+    "city": "Tolland",
+    "state": "CT",
+    "zipcode": "06084",
+    "phone": "+1 860-875-6231"
+  },
+  {
+    "yardName": "Fox Valley Iron & Metal, Inc.",
+    "street": "9230 WI-54",
+    "city": "Wisconsin Rapids",
+    "state": "WI",
+    "zipcode": "54494",
+    "phone": "+1 715-423-8988"
+  },
+  {
+    "yardName": "Class A Cars-N-Parts",
+    "street": "477 Liberty Ave",
+    "city": "Brooklyn",
+    "state": "NY",
+    "zipcode": "11207",
+    "phone": "+1 718-348-0303"
+  },
+  {
+    "yardName": "Bib's Auto Parts",
+    "street": "54 Stover Ave",
+    "city": "Kearny",
+    "state": "NJ",
+    "zipcode": "07032",
+    "phone": "+1 201-991-4246"
+  },
+  {
+    "yardName": "Andy's Used Auto Parts",
+    "street": "4551 Tanglewood Dr",
+    "city": "Bladensburg",
+    "state": "MD",
+    "zipcode": "20710",
+    "phone": "+1 301-277-7100"
+  },
+  {
+    "yardName": "Westover Auto Salvage",
+    "street": "147 Bay Rd",
+    "city": "Belchertown",
+    "state": "MA",
+    "zipcode": "01007",
+    "phone": "+1 413-323-4210"
+  },
+  {
+    "yardName": "Wagner Auto Salvage Inc",
+    "city": "4115 South Alston Avenue Durham",
+    "state": "NC",
+    "zipcode": "27713"
+  },
+  {
+    "yardName": "Dan's Used Auto Parts",
+    "street": "11715 Veterans Memorial Dr #6",
+    "city": "Houston",
+    "state": "TX",
+    "zipcode": "77067",
+    "phone": "+1 281-580-7600"
+  },
+  {
+    "yardName": "A Plus Auto Salvage Inc.",
+    "street": "640 W Hoffman Ave",
+    "city": "Lindenhurst",
+    "state": "NY",
+    "zipcode": "11757",
+    "phone": "+1 631-226-0580"
+  },
+  {
+    "yardName": "Trenton Auto Parts",
+    "street": "462 W Jefferson Ave",
+    "city": "Trenton",
+    "state": "MI",
+    "zipcode": "48183",
+    "phone": "+1 734-283-0303"
+  },
+  {
+    "yardName": "Auto, Truck & Van Salvage",
+    "street": "8410 St Croix Trail",
+    "city": "North Branch",
+    "state": "MN",
+    "zipcode": "55056",
+    "phone": "+1 651-674-0000"
+  },
+  {
+    "yardName": "Bobby White Motors",
+    "street": "2795 Luke Moser Rd",
+    "city": "Columbia",
+    "state": "TN",
+    "zipcode": "38401",
+    "phone": "+1 931-359-5080"
+  },
+  {
+    "yardName": "E & J Used Auto Parts",
+    "street": "12960 Alexandria Dr",
+    "city": "Opa-locka",
+    "state": "FL",
+    "zipcode": "33054",
+    "phone": "+1 305-456-3335"
+  },
+  {
+    "yardName": "Arguelles Automotive Parts",
+    "street": "12351 N Oaklawn Ln",
+    "city": "Biloxi",
+    "state": "MS",
+    "zipcode": "39532",
+    "phone": "+1 228-392-4567"
+  },
+  {
+    "yardName": "Southern Auto Parts",
+    "street": "2249 Harry Byrd Hwy",
+    "city": "Darlington",
+    "state": "SC",
+    "zipcode": "29532",
+    "phone": "+1 843-393-3355"
+  },
+  {
+    "yardName": "Ripple's Auto Parts",
+    "street": "4904 Largo Rd",
+    "city": "Upper Marlboro",
+    "state": "MD",
+    "zipcode": "20772",
+    "phone": "+1 301-627-7333"
+  },
+  {
+    "yardName": "Phoenix Auto Wrecking 2",
+    "street": "831 N Waterman Ave",
+    "city": "San Bernardino",
+    "state": "CA",
+    "zipcode": "92410",
+    "phone": "+1 909-889-1400"
+  },
+  {
+    "yardName": "Crosstown Auto and Truck Parts LLC",
+    "street": "875 E Crosstown Pkwy",
+    "city": "Kalamazoo",
+    "state": "MI",
+    "zipcode": "49001",
+    "phone": "+1 269-381-9908"
+  },
+  {
+    "yardName": "Kramer's Auto Parts & Iron Co.",
+    "street": "3405 US-281",
+    "city": "Grand Island",
+    "state": "NE",
+    "zipcode": "68803",
+    "phone": "+1 308-384-1116"
+  },
+  {
+    "yardName": "AChase Recycling",
+    "street": "79 Garden St",
+    "city": "Cumberland",
+    "state": "RI",
+    "zipcode": "02864",
+    "phone": "+1 401-333-1033"
+  },
+  {
+    "yardName": "Stepp's Auto Parts",
+    "street": "11607 Ossie Murphy Rd",
+    "city": "San Antonio",
+    "state": "FL",
+    "zipcode": "33576",
+    "phone": "+1 352-588-3100"
+  },
+  {
+    "yardName": "Brownsburg Auto Parts",
+    "street": "9345 US Hwy 136",
+    "city": "Brownsburg",
+    "state": "IN",
+    "zipcode": "46112",
+    "phone": "+1 317-858-7950"
+  },
+  {
+    "yardName": "Clyde Auto Recycling",
+    "street": "6000 Main St",
+    "city": "South Amboy",
+    "state": "NJ",
+    "zipcode": "08879",
+    "phone": "+1 732-721-0746"
+  },
+  {
+    "yardName": "Dave's Automotive Enterprises",
+    "street": "42 Roxbury Rd",
+    "city": "Marlborough",
+    "state": "NH",
+    "zipcode": "03455",
+    "phone": "+1 603-876-3961"
+  },
+  {
+    "yardName": "Newcomer's Truck Parts Inc",
+    "street": "6405 Nunnery Rd",
+    "city": "Waynesboro",
+    "state": "PA",
+    "zipcode": "17268",
+    "phone": "+1 717-762-1532"
+  },
+  {
+    "yardName": "Fowler's Auto Wrecking Inc - Belltown Recycling Center",
+    "street": "24 Old Coach Rd",
+    "city": "East Hampton",
+    "state": "CT",
+    "zipcode": "06424",
+    "phone": "+1 860-267-7140"
+  },
+  {
+    "yardName": "Hearn's Salvage & Wrecker Company",
+    "street": "655 Arley Bypass",
+    "city": "Arley",
+    "state": "AL",
+    "zipcode": "35541",
+    "phone": "+1 205-387-7281"
+  },
+  {
+    "yardName": "Rt 117 Used Auto Parts",
+    "street": "2176 Main St",
+    "city": "Lancaster",
+    "state": "MA",
+    "zipcode": "01523",
+    "phone": "+1 978-534-1954"
+  },
+  {
+    "yardName": "Yeager Auto Salvage",
+    "street": "314 Industrial Park Rd",
+    "city": "Harrison",
+    "state": "AR",
+    "zipcode": "72601",
+    "phone": "+1 870-741-3500"
+  },
+  {
+    "yardName": "Sam's Auto Salvage",
+    "street": "8002 Furay Ave",
+    "city": "Houston",
+    "state": "TX",
+    "zipcode": "77016",
+    "phone": "+1 281-458-8888"
+  },
+  {
+    "yardName": "Bamber Lake Auto Recycling",
+    "street": "2834 Lacey Rd",
+    "city": "Forked River",
+    "state": "NJ",
+    "zipcode": "08731",
+    "phone": "+1 609-693-6500"
+  },
+  {
+    "yardName": "Bizarro's Erie Auto Salvage and Towing",
+    "street": "1626 Raspberry St",
+    "city": "Erie",
+    "state": "PA",
+    "zipcode": "16502",
+    "phone": "+1 814-455-5741"
+  },
+  {
+    "yardName": "Neely's Bend Auto Parts & Sale",
+    "street": "1327 Neelys Bend Rd",
+    "city": "Madison",
+    "state": "TN",
+    "zipcode": "37115",
+    "phone": "+1 615-870-1250"
+  },
+  {
+    "yardName": "1st Choice Auto Parts",
+    "street": "1950 W Broadway Rd",
+    "city": "Phoenix",
+    "state": "AZ",
+    "zipcode": "85041",
+    "phone": "+1 602-276-1318"
+  },
+  {
+    "yardName": "United Auto Parts",
+    "street": "2328 W Broadway Rd",
+    "city": "Phoenix",
+    "state": "AZ",
+    "zipcode": "85041",
+    "phone": "+1 602-243-3260"
+  },
+  {
+    "yardName": "Auto Parts Of Greenwood",
+    "street": "8316 Greenwood Rd",
+    "city": "Greenwood",
+    "state": "DE",
+    "zipcode": "19950",
+    "phone": "+1 302-349-9601"
+  },
+  {
+    "yardName": "Frankie's Auto Parts",
+    "street": "2308 Avenue C",
+    "city": "Birmingham",
+    "state": "AL",
+    "zipcode": "35218",
+    "phone": "+1 205-788-0070"
+  },
+  {
+    "yardName": "Bridgeville Auto Center",
+    "street": "20416 Sussex Hwy",
+    "city": "Bridgeville",
+    "state": "DE",
+    "zipcode": "19933",
+    "phone": "+1 302-337-3100"
+  },
+  {
+    "yardName": "Jones Auto Inc.",
+    "street": "226 W Quarry Rd",
+    "city": "Orleans",
+    "state": "IN",
+    "zipcode": "47452",
+    "phone": "+1 812-865-4161"
+  },
+  {
+    "yardName": "Auto Warehouse Inc.",
+    "street": "5426 Grant Line Rd",
+    "city": "New Albany",
+    "state": "IN",
+    "zipcode": "47150",
+    "phone": "+1 812-949-2323"
+  },
+  {
+    "yardName": "Peconic Auto Wreckers",
+    "street": "Jagger Path",
+    "city": "Speonk",
+    "state": "NY",
+    "zipcode": "11972",
+    "phone": "+1 631-325-0022"
+  },
+  {
+    "yardName": "Glen Cove Auto Salvage Inc",
+    "street": "232 Glen Cove Ave Unit 1",
+    "city": "Glen Cove",
+    "state": "NY",
+    "zipcode": "11542",
+    "phone": "+1 516-759-1400"
+  },
+  {
+    "yardName": "Keegan Bros. Auto Parts",
+    "street": "3261 NY-9H",
+    "city": "Valatie",
+    "state": "NY",
+    "zipcode": "12184",
+    "phone": "+1 518-758-6565"
+  },
+  {
+    "yardName": "Bizarro's Erie Auto Salvage and Towing",
+    "street": "1626 Raspberry St",
+    "city": "Erie",
+    "state": "PA",
+    "zipcode": "16502",
+    "phone": "+1 814-455-5741"
+  },
+  {
+    "yardName": "Erie Auto Salvage & Towinga",
+    "street": "1626 Raspberry St",
+    "city": "Erie",
+    "state": "PA",
+    "zipcode": "16502",
+    "phone": "+1 814-455-5741"
+  },
+  {
+    "yardName": "Swamp Fox Used Cars & Parts",
+    "street": "2030 US-501",
+    "city": "Marion",
+    "state": "SC",
+    "zipcode": "29571",
+    "phone": "+1 843-423-3961"
+  },
+  {
+    "yardName": "Shorty's Used Auto Parts",
+    "street": "311 W 4th St",
+    "city": "Bridgeport",
+    "state": "PA",
+    "zipcode": "19405",
+    "phone": "+1 610-270-9810"
+  },
+  {
+    "yardName": "Houston Auto and Truck Parts",
+    "street": "425 W Mt Houston Rd",
+    "city": "Houston",
+    "state": "TX",
+    "zipcode": "77038",
+    "phone": "+1 281-448-3000"
+  },
+  {
+    "yardName": "Levi's Auto & Metal Recycling",
+    "street": "958 E Niobrara Ave",
+    "city": "Chadron",
+    "state": "NE",
+    "zipcode": "69337",
+    "phone": "+1 308-432-4603"
+  },
+  {
+    "yardName": "Hernandez Auto Salvage",
+    "street": "Address: 2441 E University Dr",
+    "city": "McKinney",
+    "state": "TX",
+    "zipcode": "75069",
+    "phone": "+1 972-635-3186"
+  },
+  {
+    "yardName": "Smith Motors Inc",
+    "street": "Address: 117 Smith Motors Rd",
+    "city": "Belton",
+    "state": "SC",
+    "zipcode": "29627",
+    "phone": "+1 864-225-8258"
+  }
+]

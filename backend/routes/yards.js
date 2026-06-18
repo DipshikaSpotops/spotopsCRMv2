@@ -3,6 +3,7 @@ import express from "express";
 import Yard from "../models/Yards.js"; // your Yard model
 import moment from "moment-timezone";
 import { normalizeYardName } from "../../shared/utils/yardName.js";
+import { assertYardNotBlocked } from "../services/blockedYardService.js";
 import { requireAuth } from "../middleware/auth.js";
 
 const router = express.Router();
@@ -240,6 +241,14 @@ router.post("/", requireAuth, async (req, res) => {
     }
 
     const normalizedYardName = normalizeYardName(yardName, city, state);
+    await assertYardNotBlocked({
+      yardName: normalizedYardName,
+      street,
+      city,
+      state,
+      zipcode,
+      phone: phone || altNo,
+    });
     const updatedByValue = resolveUpdatedBy(req);
 
     // Normalize name for consistent matching like “G & T” vs “G&T”
@@ -353,6 +362,12 @@ router.post("/", requireAuth, async (req, res) => {
     await newYard.save();
     res.status(201).json({ message: "New yard added", yard: newYard });
   } catch (err) {
+    if (err?.statusCode === 403) {
+      return res.status(403).json({
+        message: err.message,
+        blockedYardName: err.blockedYardName,
+      });
+    }
     if (err.code === 11000) {
       // catch duplicate key gracefully
       return res.status(200).json({ message: "Yard already exists" });

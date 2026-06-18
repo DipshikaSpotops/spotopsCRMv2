@@ -1243,7 +1243,10 @@ export default function OrderDetails() {
       setToast(`Yard ${normalizedYardName} added successfully.`);
     } catch (err) {
       console.error("Error adding yard:", err);
-      setToast("Error adding yard. Please try again.");
+      const msg =
+        err?.response?.data?.message ||
+        "Error adding yard. Please try again.";
+      setToast(msg);
       throw err; // Re-throw to let modal handle it
     } finally {
       handleAddYardRef.current = false;

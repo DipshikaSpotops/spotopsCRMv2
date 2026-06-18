@@ -35,6 +35,7 @@ import emailsRouter from "./routes/emails.js";
 import ordersSearchRouter from "./routes/ordersSearch.js";
 import sendPORouter from "./routes/sendPO.js";
 import yardsRouter from "./routes/yards.js";
+import blockedYardsRouter from "./routes/blockedYards.js";
 import leadNotesRouter from "./routes/leadNotes.js";
 import zipLookupRouter from "./routes/zipLookup.js";
 import debugRouter from "./routes/debug.js";
@@ -43,6 +44,7 @@ import salesAgentsRouter from "./routes/salesAgents.js";
 import incentivesReportRouter from "./routes/incentivesReport.js";
 import attendanceRouter from "./routes/attendance.js";
 import { brandMiddleware } from "./middleware/brand.js";
+import { seedBlockedYardsFromFile } from "./services/blockedYardService.js";
 
 
 dotenv.config();
@@ -99,6 +101,7 @@ app.use("/orders", ordersSearchRouter);
 app.use("/", sendPORouter);
 app.use("/api", sendPORouter);
 app.use("/api/yards", yardsRouter);
+app.use("/api/blocked-yards", blockedYardsRouter);
 app.use("/api/lead-notes", leadNotesRouter);
 app.use("/api/utils/zip-lookup", zipLookupRouter);
 app.use("/debug", debugRouter);
@@ -453,6 +456,13 @@ async function checkAndRenewWatch() {
 // Initialize watch after MongoDB connects and server starts
 mongoose.connection.once("open", () => {
   console.log("[Gmail Watch] MongoDB connected, initializing Gmail watch...");
+  seedBlockedYardsFromFile()
+    .then((result) => {
+      console.log("[BlockedYards] Synced from seed file:", result);
+    })
+    .catch((err) => {
+      console.error("[BlockedYards] Startup seed failed:", err.message);
+    });
   // Wait a bit for everything to be ready
   setTimeout(initializeGmailWatch, 10000); // 10 seconds after MongoDB connects
 });
