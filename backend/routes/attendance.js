@@ -1,33 +1,22 @@
-// routes/attendance.js — IST calendar day + roster (sync ACTIVE_ATTENDANCE_NAMES with client activeAttendanceUsers.js).
+// routes/attendance.js — IST calendar day + roster (sync with shared/constants/activeAttendanceUsers.js).
 // GET may append other stored firstNames in the range (historical rows), except EXCLUDED_ATTENDANCE_NAMES.
 import express from "express";
 import moment from "moment-timezone";
 import Attendance from "../models/Attendance.js";
 import { requireAuth } from "../middleware/auth.js";
+import {
+  ACTIVE_ATTENDANCE_USER_LIST,
+  attendanceNameKey,
+  canonicalAttendanceName as sharedCanonicalAttendanceName,
+} from "../../shared/constants/activeAttendanceUsers.js";
 
 const router = express.Router();
 const IST = "Asia/Kolkata";
 const DALLAS = "America/Chicago";
 const EDITOR_EMAIL = "50starsauto110@gmail.com";
 
-/** @type {string[]} Same display order as client ACTIVE_ATTENDANCE_USER_LIST */
-const ACTIVE_ATTENDANCE_NAMES = [
-  "Nik",
-  "Tristan",
-  "James",
-  "Mark",
-  "Richard",
-  "Max",
-  "Guru",
-  "Suzanne",
-  "Tony",
-  "Dipsikha",
-  "Alex",
-  "Hannah",
-  "Natasha",
-  "Stella",
-  "Hardin",
-];
+/** @type {string[]} Same display order as shared ACTIVE_ATTENDANCE_USER_LIST */
+const ACTIVE_ATTENDANCE_NAMES = [...ACTIVE_ATTENDANCE_USER_LIST];
 
 /** Removed from roster — never shown on the attendance sheet (even if DB has rows). */
 const EXCLUDED_ATTENDANCE_NAMES = ["Ashley"];
@@ -43,19 +32,12 @@ function displayFirstName(name) {
   return token || "";
 }
 
-function attendanceNameKey(name) {
-  const key = displayFirstName(name).toLowerCase();
-  return key === "dipshika" ? "dipsikha" : key;
-}
-
 function rosterEntryKey(rosterName) {
   return attendanceNameKey(rosterName);
 }
 
 function canonicalFirstName(name) {
-  const key = attendanceNameKey(name);
-  if (!key) return null;
-  return ACTIVE_ATTENDANCE_NAMES.find((a) => rosterEntryKey(a) === key) || null;
+  return sharedCanonicalAttendanceName(name);
 }
 
 async function findAttendanceDoc(dateKey, name) {

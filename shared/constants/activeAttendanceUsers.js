@@ -1,5 +1,6 @@
 /**
- * Re-export shared attendance roster for the client app.
+ * Active roster for attendance sheet + authorization codes page.
+ * Add new names here only — backend attendance + client UI both use this file.
  */
 export const ACTIVE_ATTENDANCE_USER_LIST = [
   "Nik",
@@ -41,29 +42,18 @@ export const activeAttendanceUsers = Object.fromEntries(
   ACTIVE_ATTENDANCE_USER_LIST.map((firstName) => [firstName, { firstName }])
 );
 
-function normalizeAttendanceFirstNameKey(firstName) {
-  const n = String(firstName || "").trim().toLowerCase();
-  if (n === "dipshika") return "dipsikha";
-  return n;
-}
-
-/** Match roster to first word (e.g. "Richard Parker" → Richard, "Alex Morgan" → Alex). */
-function rosterKeyFromUserFirstName(firstName) {
-  return attendanceNameKey(firstName);
-}
-
-function rosterEntryKey(rosterName) {
-  return attendanceNameKey(rosterName);
-}
-
 export function isActiveAttendanceUser(firstName) {
-  const key = rosterKeyFromUserFirstName(firstName);
+  const key = attendanceNameKey(firstName);
   if (!key) return false;
-  return ACTIVE_ATTENDANCE_USER_LIST.some((a) => rosterEntryKey(a) === key);
+  return ACTIVE_ATTENDANCE_USER_LIST.some((a) => attendanceNameKey(a) === key);
 }
 
 export function canonicalAttendanceName(firstName) {
-  const key = rosterKeyFromUserFirstName(firstName);
+  const key = attendanceNameKey(firstName);
   if (!key) return null;
-  return ACTIVE_ATTENDANCE_USER_LIST.find((a) => rosterEntryKey(a) === key) || null;
+  return ACTIVE_ATTENDANCE_USER_LIST.find((a) => attendanceNameKey(a) === key) || null;
+}
+
+export function isOnAttendanceRoster(firstName) {
+  return isActiveAttendanceUser(firstName);
 }
