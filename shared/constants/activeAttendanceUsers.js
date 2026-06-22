@@ -21,7 +21,7 @@ export const ACTIVE_ATTENDANCE_USER_LIST = [
   "Amy",
   "Rhea",
   "Kylie",
-  "Ginny",
+  "Olivia",
 ];
 
 /** First token only — used for attendance table display. */

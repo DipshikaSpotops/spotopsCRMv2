@@ -127,7 +127,9 @@ export default function AuthorizationCodes() {
               {rows.map((row) => (
                 <tr key={row.userId} className="odd:bg-white/0 even:bg-white/5">
                   <td className="px-3 py-2 border-r border-white/10 text-white">
-                    {[row.firstName, row.lastName].filter(Boolean).join(" ") || "—"}
+                    {row.displayName ||
+                      [row.firstName, row.lastName].filter(Boolean).join(" ") ||
+                      "—"}
                   </td>
                   <td className="px-3 py-2 border-r border-white/10 text-white/80">{row.email}</td>
                   <td className="px-3 py-2 border-r border-white/10 text-white/80">{row.role || "—"}</td>

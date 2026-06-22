@@ -33,6 +33,7 @@ export function displayAttendanceFirstName(firstName) {
 export function attendanceNameKey(firstName) {
   const key = displayAttendanceFirstName(firstName).toLowerCase();
   if (key === "dipshika") return "dipsikha";
+  if (key === "ginny") return "olivia";
   return key;
 }
 
