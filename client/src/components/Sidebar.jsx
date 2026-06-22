@@ -97,7 +97,7 @@ export default function Sidebar() {
       text: "Yard Related",
       submenuKey: "yardRelated",
       children: [
-        { text: "Yard Data", to: "/yards", adminOnly: true, emailAccess: "50starsauto110@gmail.com" },
+        { text: "Yard Data", to: "/yards", roles: ["Admin", "Support"], emailAccess: "50starsauto110@gmail.com" },
         { text: "Yard Statistics", to: "/yard-statistics" },
         { text: "CX Approved Orders", to: "/customer-approved" },
         { text: "Yard Processing Orders", to: "/yard-processing" },
