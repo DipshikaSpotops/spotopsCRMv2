@@ -94,18 +94,21 @@ export default function ReturnInTransitOrders() {
                       <b>Payment status:</b> {y?.pamentStatus || y?.paymentStatus || "—"}
                     </div>
                     {returnTracking && (
-                      <div className="text-sm opacity-90">
-                        <b>Return Tracking:</b> {returnTracking}
+                      <div className="yard-tracking-row opacity-90">
+                        <span className="yard-tracking-label">Return Tracking:</span>{" "}
+                        <span className="yard-tracking-value">{returnTracking}</span>
                       </div>
                     )}
                     {replacementYard && (
-                      <div className="text-sm opacity-90">
-                        <b>Replacement Tracking (Yard):</b> {replacementYard}
+                      <div className="yard-tracking-row opacity-90">
+                        <span className="yard-tracking-label">Replacement Tracking (Yard):</span>{" "}
+                        <span className="yard-tracking-value">{replacementYard}</span>
                       </div>
                     )}
                     {replacementCust && (
-                      <div className="text-sm opacity-90">
-                        <b>Replacement Tracking (Cust):</b> {replacementCust}
+                      <div className="yard-tracking-row opacity-90">
+                        <span className="yard-tracking-label">Replacement Tracking (Cust):</span>{" "}
+                        <span className="yard-tracking-value">{replacementCust}</span>
                       </div>
                     )}
                   </div>
@@ -151,6 +154,17 @@ export default function ReturnInTransitOrders() {
           word-wrap: break-word !important;
           overflow-wrap: break-word !important;
           white-space: normal !important;
+          font-size: 0.9rem !important;
+        }
+        .return-in-transit-table-wrapper .yard-tracking-label {
+          font-size: 1.1rem !important;
+          font-weight: 600;
+          color: #4ade80;
+        }
+        .return-in-transit-table-wrapper .yard-tracking-value {
+          font-size: 0.875rem !important;
+        }
+        .return-in-transit-table-wrapper .yard-tracking-row {
           font-size: 0.9rem !important;
         }
         .return-in-transit-table-wrapper table th:nth-child(6),
