@@ -147,7 +147,7 @@ const SUPPORT_AGENT_PROLANE_NAME_MAP = {
   Amy: "Jessica Mitchell",
   Rhea: "Katherine Williams",
   Kylie: "Hailey Pitt",
-  Olivia: "Ginny Miller",
+  Olivia: "Carlie Phillips",
   // Handle both spellings for safety
   Dipshika: "Dips",
   Dipsikha: "Dips",
