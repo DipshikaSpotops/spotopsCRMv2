@@ -64,7 +64,7 @@ function buildBaseMatch({ startDate, endDate, q }) {
   return filter;
 }
 
-const lastYardPoCancelledStages = [
+const lastYardRelocateFilterStages = [
   {
     $addFields: {
       _lastYard: { $arrayElemAt: ["$additionalInfo", -1] },
@@ -75,11 +75,20 @@ const lastYardPoCancelledStages = [
       _lastYardStatusNorm: {
         $toLower: { $trim: { input: { $ifNull: ["$_lastYard.status", ""] } } },
       },
+      _lastYardEscProcessNorm: {
+        $toLower: { $trim: { input: { $ifNull: ["$_lastYard.escalationProcess", ""] } } },
+      },
     },
   },
   {
     $match: {
-      _lastYardStatusNorm: { $in: PO_CANCELLED_STATUSES },
+      $or: [
+        { _lastYardStatusNorm: { $in: PO_CANCELLED_STATUSES } },
+        {
+          _lastYardStatusNorm: "escalation",
+          _lastYardEscProcessNorm: "return",
+        },
+      ],
     },
   },
 ];
@@ -132,7 +141,7 @@ router.get("/", async (req, res) => {
 
     const countPipeline = [
       { $match: baseMatch },
-      ...lastYardPoCancelledStages,
+      ...lastYardRelocateFilterStages,
       { $count: "total" },
     ];
     const countResult = await Order.aggregate(countPipeline);
@@ -144,7 +153,7 @@ router.get("/", async (req, res) => {
     if (sortBy === "customerName") {
       pipeline = [
         { $match: baseMatch },
-        ...lastYardPoCancelledStages,
+        ...lastYardRelocateFilterStages,
         {
           $addFields: {
             fullName: {
@@ -167,7 +176,7 @@ router.get("/", async (req, res) => {
     } else if (sortBy === "yardName") {
       pipeline = [
         { $match: baseMatch },
-        ...lastYardPoCancelledStages,
+        ...lastYardRelocateFilterStages,
         {
           $addFields: {
             firstYardName: {
@@ -183,7 +192,7 @@ router.get("/", async (req, res) => {
     } else if (sortBy === "lastComment") {
       pipeline = [
         { $match: baseMatch },
-        ...lastYardPoCancelledStages,
+        ...lastYardRelocateFilterStages,
         {
           $addFields: {
             _lastIdx: { $subtract: [{ $size: { $ifNull: ["$supportNotes", []] } }, 1] },
@@ -215,7 +224,7 @@ router.get("/", async (req, res) => {
         : { orderDate: -1, _id: 1 };
       pipeline = [
         { $match: baseMatch },
-        ...lastYardPoCancelledStages,
+        ...lastYardRelocateFilterStages,
         { $sort: sortSpec },
         { $skip: skip },
         { $limit: pageSize },
