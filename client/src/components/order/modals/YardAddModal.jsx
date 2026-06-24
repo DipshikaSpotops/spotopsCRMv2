@@ -6,6 +6,11 @@ import {
   findBlockedYardMatch,
   formatBlockedYardLabel,
 } from "@spotops/shared/utils/blockedYards.js";
+import {
+  normalizeYardName,
+  stripLocationParenthetical,
+  yardStoreCreditMatchKey,
+} from "@spotops/shared/utils/yardName.js";
 import Select, {
   SelectContent,
   SelectItem,
@@ -18,6 +23,29 @@ const normalizeCountry = (value) => {
   const normalized = String(value ?? "").trim();
   return ALLOWED_COUNTRIES.includes(normalized) ? normalized : "US";
 };
+
+function yardStoreCreditKey(yardName, city = "", state = "") {
+  return yardStoreCreditMatchKey(yardName, city, state);
+}
+
+async function fetchAllStoreCreditOrders(headers) {
+  const allOrders = [];
+  let page = 1;
+  let totalPages = 1;
+
+  while (page <= totalPages) {
+    const res = await API.get("/orders/storeCredits", {
+      headers,
+      params: { page, limit: 200 },
+    });
+    const orders = Array.isArray(res.data?.orders) ? res.data.orders : [];
+    allOrders.push(...orders);
+    totalPages = Math.max(1, Number(res.data?.totalPages) || 1);
+    page += 1;
+  }
+
+  return allOrders;
+}
 
 export default function YardAddModal({ open, onClose, onSubmit, order }) {
   const [yards, setYards] = useState([]);
@@ -89,8 +117,7 @@ export default function YardAddModal({ open, onClose, onSubmit, order }) {
         try {
           const token = localStorage.getItem("token");
           const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
-          const res = await API.get("/orders/storeCredits", { headers });
-          const orders = Array.isArray(res.data) ? res.data : [];
+          const orders = await fetchAllStoreCreditOrders(headers);
 
           const map = {};
           orders.forEach((ord) => {
@@ -109,6 +136,8 @@ export default function YardAddModal({ open, onClose, onSubmit, order }) {
                   ? Number(ai.refundedAmount)
                   : 0;
               if (!name || !Number.isFinite(creditNum) || creditNum <= 0) return;
+
+              const key = yardStoreCreditKey(name, ai.city, ai.state);
 
               const used = Array.isArray(ai.storeCreditUsedFor)
                 ? ai.storeCreditUsedFor.reduce(
@@ -130,8 +159,12 @@ export default function YardAddModal({ open, onClose, onSubmit, order }) {
                   : [],
               };
 
-              if (!map[name]) {
-                map[name] = {
+              if (!map[key]) {
+                map[key] = {
+                  displayName:
+                    normalizeYardName(name, ai.city, ai.state) ||
+                    stripLocationParenthetical(name) ||
+                    name,
                   totalRemaining: 0,
                   totalUsed: 0,
                   totalRefunded: 0,
@@ -139,10 +172,10 @@ export default function YardAddModal({ open, onClose, onSubmit, order }) {
                 };
               }
 
-              map[name].entries.push(entry);
-              map[name].totalRemaining += creditNum;
-              map[name].totalUsed += used;
-              map[name].totalRefunded += entry.refunded;
+              map[key].entries.push(entry);
+              map[key].totalRemaining += creditNum;
+              map[key].totalUsed += used;
+              map[key].totalRefunded += entry.refunded;
             });
           });
 
@@ -230,6 +263,12 @@ export default function YardAddModal({ open, onClose, onSubmit, order }) {
     () => findBlockedYardMatch(formSnapshot, blockedYards),
     [formSnapshot, blockedYards]
   );
+
+  const selectedYardStoreCredit = useMemo(() => {
+    if (!form.yardName) return null;
+    const key = yardStoreCreditKey(form.yardName, form.city, form.state);
+    return storeCreditsByYard[key]?.entries?.length ? storeCreditsByYard[key] : null;
+  }, [form.yardName, form.city, form.state, storeCreditsByYard]);
 
   const rejectBlockedYard = (yard) => {
     const match = findBlockedYardMatch(yardSnapshot(yard), blockedYards);
@@ -363,9 +402,11 @@ export default function YardAddModal({ open, onClose, onSubmit, order }) {
   const selectYard = (yard) => {
     if (!yard) return;
     if (rejectBlockedYard(yard)) return;
+    const displayName =
+      normalizeYardName(yard.yardName, yard.city, yard.state) || yard.yardName;
     setForm((p) => ({
       ...p,
-      yardName: yard.yardName,
+      yardName: displayName,
       yardRating: yard.yardRating,
       phone: yard.phone,
       altPhone: yard.altNo,
@@ -381,7 +422,7 @@ export default function YardAddModal({ open, onClose, onSubmit, order }) {
           : p.miles,
     }));
     setDropdownOpen(false);
-    setFilterText(yard.yardName);
+    setFilterText(displayName);
   };
 
   if (!open) return null;
@@ -648,9 +689,12 @@ export default function YardAddModal({ open, onClose, onSubmit, order }) {
       const selected = selectableYards.find((y) => y._id === yardId);
       if (selected) {
         if (rejectBlockedYard(selected)) return;
+        const displayName =
+          normalizeYardName(selected.yardName, selected.city, selected.state) ||
+          selected.yardName;
         setForm((p) => ({
           ...p,
-          yardName: selected.yardName,
+          yardName: displayName,
           yardRating: selected.yardRating,
           phone: selected.phone,
           altPhone: selected.altNo,
@@ -748,13 +792,12 @@ export default function YardAddModal({ open, onClose, onSubmit, order }) {
 </Field>
 
             {/* Store credit history for selected yard, if any */}
-            {form.yardName &&
-              storeCreditsByYard[form.yardName] &&
-              storeCreditsByYard[form.yardName].entries.length > 0 && (
+            {selectedYardStoreCredit && (
                 <div className="md:col-span-3 text-xs rounded-lg border border-blue-200 bg-blue-50 text-[#09325d] shadow-sm space-y-1 dark:border-white/20 dark:bg-white/10 dark:text-white">
                   <div className="px-3 py-2 border-b border-blue-100/70 dark:border-white/15 flex items-center justify-between">
                     <span className="font-semibold">
-                      Store Credit History for {form.yardName}
+                      Store Credit History for{" "}
+                      {selectedYardStoreCredit.displayName || form.yardName}
                     </span>
                     <span className="text-[11px] font-medium uppercase tracking-wide text-blue-700 dark:text-blue-100">
                       Summary
@@ -764,20 +807,20 @@ export default function YardAddModal({ open, onClose, onSubmit, order }) {
                     <div className="grid grid-cols-3 gap-3 text-[11px] font-medium">
                       <div>
                         <span className="font-semibold">Total Refunded:</span>{" "}
-                        ${storeCreditsByYard[form.yardName].totalRefunded.toFixed(2)}
+                        ${selectedYardStoreCredit.totalRefunded.toFixed(2)}
                       </div>
                       <div>
                         <span className="font-semibold">Total Used:</span>{" "}
-                        ${storeCreditsByYard[form.yardName].totalUsed.toFixed(2)}
+                        ${selectedYardStoreCredit.totalUsed.toFixed(2)}
                       </div>
                       <div>
                         <span className="font-semibold">Store Credit Balance:</span>{" "}
-                        ${storeCreditsByYard[form.yardName].totalRemaining.toFixed(2)}
+                        ${selectedYardStoreCredit.totalRemaining.toFixed(2)}
                       </div>
                     </div>
 
                     <div className="max-h-40 overflow-y-auto mt-1 space-y-1">
-                      {storeCreditsByYard[form.yardName].entries.map((sc, idx) => (
+                      {selectedYardStoreCredit.entries.map((sc, idx) => (
                         <div
                           key={idx}
                           className="rounded-md bg-white/60 border border-blue-100 px-3 py-1.5 text-[11px] dark:bg-white/5 dark:border-white/15"

@@ -28,6 +28,30 @@ export function stripNonLocationParentheticals(yardName) {
   return name;
 }
 
+/** Remove trailing "(City, ST)" location suffix for matching yard names. */
+export function stripLocationParenthetical(yardName) {
+  let name = stripNonLocationParentheticals(yardName);
+  if (!name) return "";
+
+  for (;;) {
+    const match = name.match(/\s*\(([^)]*)\)\s*$/);
+    if (!match) break;
+    if (!isLocationParenthetical(match[1])) break;
+    name = name.slice(0, match.index).trim();
+  }
+  return name;
+}
+
+/** Canonical key for matching store credit across "Yard" vs "Yard (City, ST)". */
+export function yardStoreCreditMatchKey(yardName, city = "", state = "") {
+  const raw = String(yardName || "").trim();
+  const base = stripLocationParenthetical(raw) || stripNonLocationParentheticals(raw) || raw;
+  const normalized =
+    city && state ? normalizeYardName(base, city, state) : normalizeYardName(raw, city, state);
+  const candidate = stripLocationParenthetical(normalized) || base || raw;
+  return candidate.trim().toLowerCase();
+}
+
 export function hasCityStateSuffix(yardName, city, state) {
   const cityTrimmed = String(city || "").trim();
   const stateTrimmed = String(state || "").trim();

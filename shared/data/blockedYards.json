@@ -1709,5 +1709,12 @@
     "state": "SC",
     "zipcode": "29627",
     "phone": "+1 864-225-8258"
+  },
+  {
+    "yardName": "Sanford Auto Salvage",
+    "street": "1101 Albright Rd",
+    "city": "Sanford",
+    "state": "FL",
+    "zipcode": "32771"
   }
 ]

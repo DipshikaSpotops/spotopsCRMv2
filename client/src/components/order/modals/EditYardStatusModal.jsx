@@ -388,6 +388,7 @@ export default function EditYardStatusModal({
             // Show error toast
             const errorMessage = emailErr?.response?.data?.message || emailErr?.message || "Failed to send email";
             console.error("[EditYardStatusModal] Email error details:", errorMessage);
+            setToast(errorMessage);
           });
       }
 

@@ -46,6 +46,64 @@ function pickEnv(baseKey, brand) {
   return process.env[base] || "";
 }
 
+function normalizeGmailPass(pass) {
+  return String(pass || "").replace(/\s+/g, "").trim();
+}
+
+function pickCredential(...values) {
+  for (const value of values) {
+    const trimmed = String(value ?? "").trim();
+    if (trimmed) return trimmed;
+  }
+  return "";
+}
+
+function formatMailAuthError(error, { emailVar = "SERVICE_EMAIL", passVar = "SERVICE_PASS" } = {}) {
+  const msg = String(error?.message || error || "");
+  if (msg.includes("535") || /bad credentials|username and password not accepted/i.test(msg)) {
+    return `Gmail login failed for ${emailVar}. Regenerate the Google App Password for ${passVar} and restart the server.`;
+  }
+  if (/missing credentials|username and password are required/i.test(msg)) {
+    return `Email not configured. Set ${emailVar} and ${passVar} in the server environment.`;
+  }
+  return `Error sending mail: ${msg}`;
+}
+
+function createServiceTransporter(serviceEmail, servicePass) {
+  const user = String(serviceEmail || "").trim();
+  const pass = normalizeGmailPass(servicePass);
+  const startTls =
+    String(process.env.ACCESS_CODE_SMTP_STARTTLS ?? "").trim().toLowerCase() === "true";
+
+  if (startTls) {
+    return nodemailer.createTransport({
+      host: "smtp.gmail.com",
+      port: 587,
+      secure: false,
+      requireTLS: true,
+      auth: { user, pass },
+    });
+  }
+
+  return nodemailer.createTransport({
+    service: "gmail",
+    auth: { user, pass },
+  });
+}
+
+function assertServiceMailConfigured(serviceEmail, servicePass, brandLabel = "50STARS") {
+  const user = String(serviceEmail || "").trim();
+  const pass = normalizeGmailPass(servicePass);
+  if (!user || !pass) {
+    const err = new Error(
+      `Email not configured for ${brandLabel}. Set SERVICE_EMAIL and SERVICE_PASS (or SMTP_USER and SMTP_PASS).`
+    );
+    err.statusCode = 500;
+    throw err;
+  }
+  return { user, pass };
+}
+
 function getEmailBrandConfig(req, brandOverride) {
   const brand = brandOverride || getBrand(req);
 
@@ -54,11 +112,21 @@ function getEmailBrandConfig(req, brandOverride) {
 
   let serviceEmail, servicePass;
   if (brand === "PROTP") {
-    serviceEmail = process.env.EMAIL_PROLANE_TRUCK || pickEnv("SERVICE_EMAIL", "PROLANE");
-    servicePass = process.env.PASS_PROLANE_TRUCK || pickEnv("SERVICE_PASS", "PROLANE");
+    serviceEmail = pickCredential(
+      process.env.EMAIL_PROLANE_TRUCK,
+      pickEnv("SERVICE_EMAIL", "PROLANE")
+    );
+    servicePass = normalizeGmailPass(
+      pickCredential(process.env.PASS_PROLANE_TRUCK, pickEnv("SERVICE_PASS", "PROLANE"))
+    );
   } else {
-    serviceEmail = pickEnv("SERVICE_EMAIL", envBrand);
-    servicePass = pickEnv("SERVICE_PASS", envBrand);
+    serviceEmail = pickCredential(
+      pickEnv("SERVICE_EMAIL", envBrand),
+      process.env.SMTP_USER
+    );
+    servicePass = normalizeGmailPass(
+      pickCredential(pickEnv("SERVICE_PASS", envBrand), process.env.SMTP_PASS)
+    );
   }
   const supportBcc = pickEnv("SUPPORT_BCC", envBrand);
 
@@ -66,11 +134,16 @@ function getEmailBrandConfig(req, brandOverride) {
 
   let purchaseEmail, purchasePass;
   if (brand === "PROTP") {
-    purchaseEmail = process.env.EMAIL_PROLANE_TRUCK || pickEnv("PURCHASE_EMAIL", "PROLANE");
-    purchasePass = process.env.PASS_PROLANE_TRUCK || pickEnv("PURCHASE_PASS", "PROLANE");
+    purchaseEmail = pickCredential(
+      process.env.EMAIL_PROLANE_TRUCK,
+      pickEnv("PURCHASE_EMAIL", "PROLANE")
+    );
+    purchasePass = normalizeGmailPass(
+      pickCredential(process.env.PASS_PROLANE_TRUCK, pickEnv("PURCHASE_PASS", "PROLANE"))
+    );
   } else {
-    purchaseEmail = pickEnv("PURCHASE_EMAIL", envBrand);
-    purchasePass = pickEnv("PURCHASE_PASS", envBrand);
+    purchaseEmail = pickCredential(pickEnv("PURCHASE_EMAIL", envBrand));
+    purchasePass = normalizeGmailPass(pickEnv("PURCHASE_PASS", envBrand));
   }
 
   // Brand-specific display details
@@ -734,15 +807,10 @@ router.post("/orders/sendTrackingInfo/:orderNo", async (req, res) => {
     const firstName = getSupportDisplayName(rawFirstName ?? "", req);
     const customerName = cleanCustomerName(order.customerName || order.fName || "Customer");
 
-    const { serviceEmail, servicePass, supportBcc, logoUrl, companyName, phoneNumber, serviceEmailAddress } = getEmailBrandConfig(req, brand);
+    const { serviceEmail, servicePass, supportBcc, logoUrl, companyName, phoneNumber, serviceEmailAddress, brand: mailBrand } = getEmailBrandConfig(req, brand);
+    assertServiceMailConfigured(serviceEmail, servicePass, mailBrand);
 
-    const transporter = nodemailer.createTransport({
-      service: "gmail",
-      auth: {
-        user: serviceEmail,
-        pass: servicePass,
-      },
-    });
+    const transporter = createServiceTransporter(serviceEmail, servicePass);
 
     const textLines = [
       `Hi ${customerName},`,
@@ -845,7 +913,13 @@ router.post("/orders/sendTrackingInfo/:orderNo", async (req, res) => {
 
   } catch (error) {
     console.error("Error sending tracking email:", error);
-    res.status(500).json({ message: `Error sending mail: ${error.message}` });
+    const status = error?.statusCode || 500;
+    res.status(status).json({
+      message: formatMailAuthError(error, {
+        emailVar: "SERVICE_EMAIL",
+        passVar: "SERVICE_PASS",
+      }),
+    });
   }
 });
 // Send refund email to Yard (with PDF)
