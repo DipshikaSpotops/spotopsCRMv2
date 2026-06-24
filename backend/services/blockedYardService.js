@@ -129,3 +129,72 @@ export async function ensureBlockedYardsSeeded() {
   const result = await seedBlockedYardsFromFile();
   return { seeded: true, ...result };
 }
+
+const ADMIN_LIST_SORT_FIELDS = new Set([
+  "yardName",
+  "street",
+  "city",
+  "state",
+  "zipcode",
+  "phone",
+  "updatedAt",
+  "createdAt",
+]);
+
+export async function listBlockedYardsForAdmin({
+  page = 1,
+  limit = 25,
+  searchTerm = "",
+  sortBy = "yardName",
+  sortOrder = "asc",
+}) {
+  const pageNum = Math.max(parseInt(page, 10) || 1, 1);
+  const pageSize = Math.max(parseInt(limit, 10) || 25, 1);
+  const skip = (pageNum - 1) * pageSize;
+  const sortField = ADMIN_LIST_SORT_FIELDS.has(sortBy) ? sortBy : "yardName";
+  const sortDir = sortOrder === "desc" ? -1 : 1;
+
+  let query = { active: true };
+
+  if (searchTerm && String(searchTerm).trim()) {
+    const searchRegex = new RegExp(String(searchTerm).trim(), "i");
+    query = {
+      active: true,
+      $or: [
+        { yardName: searchRegex },
+        { street: searchRegex },
+        { city: searchRegex },
+        { state: searchRegex },
+        { zipcode: searchRegex },
+        { phone: searchRegex },
+        { notes: searchRegex },
+      ],
+    };
+  }
+
+  const totalCountAll = await BlockedYard.countDocuments({ active: true });
+  const filteredCount = await BlockedYard.countDocuments(query);
+  const yards = await BlockedYard.find(query)
+    .sort({ [sortField]: sortDir, _id: 1 })
+    .skip(skip)
+    .limit(pageSize)
+    .select(
+      "yardName street city state zipcode phone notes updatedAt createdAt"
+    )
+    .lean();
+
+  return {
+    yards,
+    currentPage: pageNum,
+    totalPages: Math.max(1, Math.ceil(filteredCount / pageSize)),
+    totalCount: filteredCount,
+    totalCountAll,
+  };
+}
+
+export async function unblockYardById(id) {
+  const deleted = await BlockedYard.findByIdAndDelete(id);
+  if (!deleted) return null;
+  invalidateBlockedYardCache();
+  return deleted;
+}

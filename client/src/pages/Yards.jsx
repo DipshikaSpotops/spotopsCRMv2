@@ -180,6 +180,7 @@ const Yards = () => {
   const isSupport = role === "Support";
   const isAuthorizedEmail = email?.toLowerCase() === "50starsauto110@gmail.com";
   const isAuthorized = isAdmin || isSupport || isAuthorizedEmail;
+  const canManageBlockedYards = isAdmin || isAuthorizedEmail;
   
   // Show unauthorized message if user doesn't have access
   if (!isAuthorized) {
@@ -221,7 +222,9 @@ const Yards = () => {
   const [addSaving, setAddSaving] = useState(false);
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
+  const [showUnblockConfirm, setShowUnblockConfirm] = useState(null);
   const [showTodayOnly, setShowTodayOnly] = useState(false);
+  const [showBlockedYards, setShowBlockedYards] = useState(false);
 
   const addZipTimer = useRef(null);
   const editZipTimer = useRef(null);
@@ -313,10 +316,56 @@ const Yards = () => {
     }
   };
 
+  const fetchBlockedYards = async (page = 1, q = appliedQuery, sBy = sortBy, sDir = sortOrder, opts = { silent: false }) => {
+    try {
+      if (!opts.silent && loading === false) setLoading(true);
+      if (opts.silent) setIsFetching(true);
+
+      const params = new URLSearchParams();
+      params.set("page", String(page));
+      params.set("limit", String(rowsPerPage));
+      if (q) params.set("searchTerm", q);
+      if (sBy) params.set("sortBy", sBy);
+      if (sDir) params.set("sortOrder", sDir);
+
+      const { data } = await API.get("/blocked-yards/list", { params });
+
+      setYards(data.yards || []);
+      setTotalPages(data.totalPages || 1);
+      setTotalYards(data.totalCount || 0);
+      setTotalYardsAll(data.totalCountAll || data.totalCount || 0);
+      setCurrentPage(data.currentPage || page);
+      localStorage.setItem("blockedYardsPage", String(data.currentPage || page));
+    } catch (err) {
+      console.error("Error fetching blocked yards:", err);
+      setError("Failed to load blocked yards.");
+    } finally {
+      setLoading(false);
+      setIsFetching(false);
+    }
+  };
+
+  const fetchCurrentView = (page, q, sBy, sDir, todayFilter, opts) => {
+    if (showBlockedYards) {
+      return fetchBlockedYards(page, q, sBy, sDir, opts);
+    }
+    return fetchYards(page, q, sBy, sDir, todayFilter, opts);
+  };
+
   useEffect(() => {
-    fetchYards(currentPage, appliedQuery, sortBy, sortOrder, showTodayOnly, { silent: currentPage !== 1 || !!appliedQuery || !!sortBy || showTodayOnly });
+    const page = showBlockedYards
+      ? parseInt(localStorage.getItem("blockedYardsPage") || "1", 10)
+      : currentPage;
+    fetchCurrentView(
+      page,
+      appliedQuery,
+      sortBy,
+      sortOrder,
+      showTodayOnly,
+      { silent: page !== 1 || !!appliedQuery || !!sortBy || showTodayOnly || showBlockedYards }
+    );
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentPage, appliedQuery, sortBy, sortOrder, showTodayOnly]);
+  }, [currentPage, appliedQuery, sortBy, sortOrder, showTodayOnly, showBlockedYards]);
 
   const handleSort = (field) => {
     if (field === "action") return;
@@ -325,7 +374,7 @@ const Yards = () => {
     setSortBy(nextSortBy);
     setSortOrder(nextSortOrder);
     setCurrentPage(1);
-    fetchYards(1, appliedQuery, nextSortBy, nextSortOrder, showTodayOnly, { silent: true });
+    fetchCurrentView(1, appliedQuery, nextSortBy, nextSortOrder, showTodayOnly, { silent: true });
   };
 
   const onSearchChange = (e) => {
@@ -333,9 +382,9 @@ const Yards = () => {
     setSearchInput(v);
     if (v.trim() === "" && appliedQuery !== "") {
       setAppliedQuery("");
-      localStorage.removeItem("yardsSearch");
+      localStorage.removeItem(showBlockedYards ? "blockedYardsSearch" : "yardsSearch");
       setCurrentPage(1);
-      fetchYards(1, "", sortBy, sortOrder, showTodayOnly, { silent: true });
+      fetchCurrentView(1, "", sortBy, sortOrder, showTodayOnly, { silent: true });
     }
   };
 
@@ -343,26 +392,27 @@ const Yards = () => {
     if (e.key === "Enter") {
       const q = searchInput.trim();
       setAppliedQuery(q);
-      if (q) localStorage.setItem("yardsSearch", q);
-      else localStorage.removeItem("yardsSearch");
+      const storageKey = showBlockedYards ? "blockedYardsSearch" : "yardsSearch";
+      if (q) localStorage.setItem(storageKey, q);
+      else localStorage.removeItem(storageKey);
       setCurrentPage(1);
-      fetchYards(1, q, sortBy, sortOrder, showTodayOnly, { silent: true });
+      fetchCurrentView(1, q, sortBy, sortOrder, showTodayOnly, { silent: true });
     }
     if (e.key === "Escape") {
       setSearchInput("");
       setAppliedQuery("");
-      localStorage.removeItem("yardsSearch");
+      localStorage.removeItem(showBlockedYards ? "blockedYardsSearch" : "yardsSearch");
       setCurrentPage(1);
-      fetchYards(1, "", sortBy, sortOrder, showTodayOnly, { silent: true });
+      fetchCurrentView(1, "", sortBy, sortOrder, showTodayOnly, { silent: true });
     }
   };
 
   const clearSearch = () => {
     setSearchInput("");
     setAppliedQuery("");
-    localStorage.removeItem("yardsSearch");
+    localStorage.removeItem(showBlockedYards ? "blockedYardsSearch" : "yardsSearch");
     setCurrentPage(1);
-    fetchYards(1, "", sortBy, sortOrder, showTodayOnly, { silent: true });
+    fetchCurrentView(1, "", sortBy, sortOrder, showTodayOnly, { silent: true });
   };
 
   const formatDate = (dateStr) => {
@@ -404,7 +454,7 @@ const Yards = () => {
         updatedBy: updatedByUser,
       });
       setEditingYard(null);
-      fetchYards(currentPage, appliedQuery, sortBy, sortOrder, { silent: true });
+      fetchCurrentView(currentPage, appliedQuery, sortBy, sortOrder, showTodayOnly, { silent: true });
       alert("Yard updated successfully");
     } catch (err) {
       console.error("Error updating yard:", err);
@@ -416,7 +466,7 @@ const Yards = () => {
     try {
       await API.delete(`/yards/${yardId}`);
       setShowDeleteConfirm(null);
-      fetchYards(currentPage, appliedQuery, sortBy, sortOrder, { silent: true });
+      fetchCurrentView(currentPage, appliedQuery, sortBy, sortOrder, showTodayOnly, { silent: true });
       alert("Yard deleted successfully");
     } catch (err) {
       console.error("Error deleting yard:", err);
@@ -428,7 +478,32 @@ const Yards = () => {
     const newValue = !showTodayOnly;
     setShowTodayOnly(newValue);
     setCurrentPage(1);
-    fetchYards(1, appliedQuery, sortBy, sortOrder, newValue, { silent: false });
+    fetchCurrentView(1, appliedQuery, sortBy, sortOrder, newValue, { silent: false });
+  };
+
+  const handleToggleBlockedYards = () => {
+    const nextValue = !showBlockedYards;
+    setShowBlockedYards(nextValue);
+    setShowTodayOnly(false);
+    setEditingYard(null);
+    setAddYardOpen(false);
+    setSearchInput(localStorage.getItem(nextValue ? "blockedYardsSearch" : "yardsSearch") || "");
+    setAppliedQuery(localStorage.getItem(nextValue ? "blockedYardsSearch" : "yardsSearch") || "");
+    localStorage.setItem(nextValue ? "blockedYardsPage" : "yardsPage", "1");
+    setCurrentPage(1);
+    setError("");
+  };
+
+  const handleUnblock = async (yardId) => {
+    try {
+      await API.delete(`/blocked-yards/${yardId}`);
+      setShowUnblockConfirm(null);
+      fetchBlockedYards(currentPage, appliedQuery, sortBy, sortOrder, { silent: true });
+      alert("Yard unblocked successfully.");
+    } catch (err) {
+      console.error("Error unblocking yard:", err);
+      alert(err?.response?.data?.message || "Failed to unblock yard. Please try again.");
+    }
   };
 
   const openAddYard = () => {
@@ -463,7 +538,7 @@ const Yards = () => {
       setAddYardOpen(false);
       setAddForm(emptyYardForm());
       setCurrentPage(1);
-      fetchYards(1, appliedQuery, sortBy, sortOrder, showTodayOnly, { silent: true });
+      fetchCurrentView(1, appliedQuery, sortBy, sortOrder, showTodayOnly, { silent: true });
       alert("Yard added successfully.");
     } catch (err) {
       console.error("Error adding yard:", err);
@@ -482,11 +557,23 @@ const Yards = () => {
       {/* Header */}
       <div className="mb-6 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
         <div className="flex flex-col">
-          <h2 className="text-3xl font-bold text-white underline decoration-1">Yards</h2>
+          <h2 className="text-3xl font-bold text-white underline decoration-1">
+            {showBlockedYards ? "Blocked Yards" : "Yards"}
+          </h2>
 
           <div className="mt-1 flex items-center gap-4">
             <p className="text-sm text-white/70">
-              {showTodayOnly ? (
+              {showBlockedYards ? (
+                appliedQuery ? (
+                  <>
+                    Showing: <strong>{totalYards}</strong> of <strong>{totalYardsAll}</strong> blocked yards
+                  </>
+                ) : (
+                  <>
+                    Total Blocked Yards: <strong>{totalYardsAll}</strong>
+                  </>
+                )
+              ) : showTodayOnly ? (
                 <>
                   Today's Yards: <strong>{totalYards}</strong>
                 </>
@@ -533,23 +620,40 @@ const Yards = () => {
 
         {/* Search and Today's Yards Button */}
         <div className="flex items-center gap-3">
-          <button
-            onClick={handleToggleTodayYards}
-            className={`px-4 py-2 rounded-lg font-medium transition whitespace-nowrap ${
-              showTodayOnly
-                ? "bg-green-700 hover:bg-green-800 text-white"
-                : "bg-green-600 hover:bg-green-700 text-white"
-            }`}
-          >
-            {showTodayOnly ? "Show All Yards" : "Today's Yards"}
-          </button>
-          <button
-            type="button"
-            onClick={openAddYard}
-            className="px-4 py-2 rounded-lg font-medium transition whitespace-nowrap bg-blue-600 hover:bg-blue-700 text-white"
-          >
-            Add Yard
-          </button>
+          {!showBlockedYards && (
+            <button
+              onClick={handleToggleTodayYards}
+              className={`px-4 py-2 rounded-lg font-medium transition whitespace-nowrap ${
+                showTodayOnly
+                  ? "bg-green-700 hover:bg-green-800 text-white"
+                  : "bg-green-600 hover:bg-green-700 text-white"
+              }`}
+            >
+              {showTodayOnly ? "Show All Yards" : "Today's Yards"}
+            </button>
+          )}
+          {canManageBlockedYards && (
+            <button
+              type="button"
+              onClick={handleToggleBlockedYards}
+              className={`px-4 py-2 rounded-lg font-medium transition whitespace-nowrap ${
+                showBlockedYards
+                  ? "bg-orange-700 hover:bg-orange-800 text-white"
+                  : "bg-orange-600 hover:bg-orange-700 text-white"
+              }`}
+            >
+              {showBlockedYards ? "Show All Yards" : "Blocked Yards"}
+            </button>
+          )}
+          {!showBlockedYards && (
+            <button
+              type="button"
+              onClick={openAddYard}
+              className="px-4 py-2 rounded-lg font-medium transition whitespace-nowrap bg-blue-600 hover:bg-blue-700 text-white"
+            >
+              Add Yard
+            </button>
+          )}
           <div className="w-full lg:w-[260px] relative">
             <input
               type="text"
@@ -679,22 +783,31 @@ const Yards = () => {
                   {yard.yardRating || "—"}
                 </td>
                 <td className="p-2.5 whitespace-nowrap">
-                  <div className="flex items-center gap-2">
+                  {showBlockedYards ? (
                     <button
-                      onClick={() => handleEdit(yard)}
-                      className="px-2 py-1 bg-blue-600 hover:bg-blue-700 rounded text-white text-xs flex items-center gap-1"
+                      onClick={() => setShowUnblockConfirm(yard._id)}
+                      className="px-2 py-1 bg-green-600 hover:bg-green-700 rounded text-white text-xs"
                     >
-                      <FaEdit size={12} />
-                      Edit
+                      Unblock
                     </button>
-                    <button
-                      onClick={() => setShowDeleteConfirm(yard._id)}
-                      className="px-2 py-1 bg-red-600 hover:bg-red-700 rounded text-white text-xs flex items-center gap-1"
-                    >
-                      <FaTrash size={12} />
-                      Delete
-                    </button>
-                  </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => handleEdit(yard)}
+                        className="px-2 py-1 bg-blue-600 hover:bg-blue-700 rounded text-white text-xs flex items-center gap-1"
+                      >
+                        <FaEdit size={12} />
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => setShowDeleteConfirm(yard._id)}
+                        className="px-2 py-1 bg-red-600 hover:bg-red-700 rounded text-white text-xs flex items-center gap-1"
+                      >
+                        <FaTrash size={12} />
+                        Delete
+                      </button>
+                    </div>
+                  )}
                 </td>
               </tr>
             ))}
@@ -807,6 +920,43 @@ const Yards = () => {
                 className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 transition"
               >
                 Delete
+              </button>
+            </footer>
+          </div>
+        </div>
+      )}
+
+      {/* Unblock Confirmation Modal */}
+      {showUnblockConfirm && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowUnblockConfirm(null)} />
+          <div className="relative w-full max-w-md rounded-2xl border border-white/20 bg-white/10 text-white backdrop-blur-xl shadow-2xl">
+            <header className="flex items-center justify-between px-5 py-3 border-b border-white/20">
+              <h3 className="text-lg font-semibold">Confirm Unblock</h3>
+              <button
+                onClick={() => setShowUnblockConfirm(null)}
+                className="px-2 py-1 rounded-md bg-white/10 border border-white/20 hover:bg-white/20"
+              >
+                ✕
+              </button>
+            </header>
+            <div className="p-5">
+              <p className="text-white/90">
+                Remove this yard from the blocked list? It will be allowed on orders again.
+              </p>
+            </div>
+            <footer className="flex items-center justify-end gap-2 px-5 py-3 border-t border-white/20">
+              <button
+                onClick={() => setShowUnblockConfirm(null)}
+                className="px-4 py-2 rounded-lg bg-white/10 border border-white/20 hover:bg-white/20 transition"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleUnblock(showUnblockConfirm)}
+                className="px-4 py-2 rounded-lg bg-green-600 hover:bg-green-700 transition"
+              >
+                Unblock
               </button>
             </footer>
           </div>
