@@ -28,6 +28,20 @@ function yardStoreCreditKey(yardName, city = "", state = "") {
   return yardStoreCreditMatchKey(yardName, city, state);
 }
 
+function yardsMatchByName(yard, yardName, city = "", state = "") {
+  if (!yard || !yardName) return false;
+  const left =
+    normalizeYardName(yard.yardName, yard.city, yard.state) || String(yard.yardName || "").trim();
+  const right = normalizeYardName(yardName, city, state) || String(yardName || "").trim();
+  if (left && right && left.toLowerCase() === right.toLowerCase()) return true;
+  return yardStoreCreditMatchKey(yard.yardName, yard.city, yard.state) ===
+    yardStoreCreditMatchKey(yardName, city, state);
+}
+
+function findYardInList(yardList, yardName, city = "", state = "") {
+  return yardList.find((yard) => yardsMatchByName(yard, yardName, city, state)) || null;
+}
+
 async function fetchAllStoreCreditOrders(headers) {
   const allOrders = [];
   let page = 1;
@@ -36,7 +50,7 @@ async function fetchAllStoreCreditOrders(headers) {
   while (page <= totalPages) {
     const res = await API.get("/orders/storeCredits", {
       headers,
-      params: { page, limit: 200 },
+      params: { page, limit: 200, scope: "all" },
     });
     const orders = Array.isArray(res.data?.orders) ? res.data.orders : [];
     allOrders.push(...orders);
@@ -51,6 +65,7 @@ export default function YardAddModal({ open, onClose, onSubmit, order }) {
   const [yards, setYards] = useState([]);
   const [blockedYards, setBlockedYards] = useState([]);
   const [storeCreditsByYard, setStoreCreditsByYard] = useState({});
+  const [yardCreditLookup, setYardCreditLookup] = useState(null);
   const [form, setForm] = useState({
     yardName: "",
     agentName: "",
@@ -187,8 +202,45 @@ export default function YardAddModal({ open, onClose, onSubmit, order }) {
       })();
     } else {
       setIsSubmitting(false); // Reset when modal closes
+      setYardCreditLookup(null);
     }
   }, [open]);
+
+  useEffect(() => {
+    if (!open || !String(form.yardName || "").trim()) {
+      setYardCreditLookup(null);
+      return undefined;
+    }
+
+    const key = yardStoreCreditKey(form.yardName, form.city, form.state);
+    if (storeCreditsByYard[key]?.entries?.length) {
+      setYardCreditLookup(null);
+      return undefined;
+    }
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await API.get("/orders/storeCredits/yard-balance", {
+          params: {
+            yardName: form.yardName,
+            city: form.city || undefined,
+            state: form.state || undefined,
+          },
+        });
+        if (!cancelled) {
+          setYardCreditLookup(res.data?.summary || null);
+        }
+      } catch (err) {
+        console.error("Failed to load yard store credit balance", err);
+        if (!cancelled) setYardCreditLookup(null);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [open, form.yardName, form.city, form.state, storeCreditsByYard]);
 
   const zipLookupTimer = useRef(null);
 
@@ -267,8 +319,14 @@ export default function YardAddModal({ open, onClose, onSubmit, order }) {
   const selectedYardStoreCredit = useMemo(() => {
     if (!form.yardName) return null;
     const key = yardStoreCreditKey(form.yardName, form.city, form.state);
-    return storeCreditsByYard[key]?.entries?.length ? storeCreditsByYard[key] : null;
-  }, [form.yardName, form.city, form.state, storeCreditsByYard]);
+    if (storeCreditsByYard[key]?.entries?.length) {
+      return storeCreditsByYard[key];
+    }
+    if (yardCreditLookup?.entries?.length) {
+      return yardCreditLookup;
+    }
+    return null;
+  }, [form.yardName, form.city, form.state, storeCreditsByYard, yardCreditLookup]);
 
   const rejectBlockedYard = (yard) => {
     const match = findBlockedYardMatch(yardSnapshot(yard), blockedYards);
@@ -316,10 +374,7 @@ export default function YardAddModal({ open, onClose, onSubmit, order }) {
   // Helpers to derive currently selected yard + its agents (if any)
   const trimmedYardName = String(form.yardName || "").trim();
   const currentYard =
-    trimmedYardName &&
-    yards.find(
-      (y) => String(y.yardName || "").trim() === trimmedYardName
-    );
+    trimmedYardName && findYardInList(yards, trimmedYardName, form.city, form.state);
   const currentYardAgents = Array.isArray(currentYard?.agents)
     ? currentYard.agents.filter(
         (a) => a && typeof a.name === "string" && a.name.trim().length > 0
@@ -651,7 +706,7 @@ export default function YardAddModal({ open, onClose, onSubmit, order }) {
             <Field label="Yard Name (Select or Add New)">
   <select
     className="w-full p-2 rounded-md text-white mb-2 bg-[#2b2d68] hover:bg-[#090c6c] yard-select-dark-bg dark:bg-[#2b2d68] dark:hover:bg-[#090c6c] dark:text-white"
-    value={selectableYards.find((y) => y.yardName === form.yardName)?._id || "new"}
+    value={findYardInList(selectableYards, form.yardName, form.city, form.state)?._id || "new"}
     onChange={(e) => {
       const yardId = e.target.value;
 
@@ -753,7 +808,7 @@ export default function YardAddModal({ open, onClose, onSubmit, order }) {
   </select>
 
   {/* Input for adding a new yard */}
-  {!selectableYards.find((y) => y.yardName === form.yardName) && (
+  {!findYardInList(selectableYards, form.yardName, form.city, form.state) && (
     <Input
       value={form.yardName}
       onChange={(e) => {

@@ -49,7 +49,11 @@ export function yardStoreCreditMatchKey(yardName, city = "", state = "") {
   const normalized =
     city && state ? normalizeYardName(base, city, state) : normalizeYardName(raw, city, state);
   const candidate = stripLocationParenthetical(normalized) || base || raw;
-  return candidate.trim().toLowerCase();
+  return candidate
+    .trim()
+    .toLowerCase()
+    .replace(/&/g, "and")
+    .replace(/[^a-z0-9]/g, "");
 }
 
 export function hasCityStateSuffix(yardName, city, state) {
