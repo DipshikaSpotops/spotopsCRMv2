@@ -2914,11 +2914,16 @@ router.put("/:orderNo/refundOnly", async (req, res) => {
 });
 
 /* PATCH /orders/:orderNo/storeCredits - Use store credit (brand-aware) */
-router.patch("/:orderNo/storeCredits", async (req, res) => {
+router.patch("/:orderNo/storeCredits", ...requireAuthAllRoles, async (req, res) => {
   try {
     const { orderNo } = req.params;
     const { usageType, amountUsed, orderNoUsedFor } = req.body;
-    const firstName = cleanFirstName(req.query.firstName || req.user?.firstName || "");
+    const firstName = cleanFirstName(
+      req.query.firstName ||
+        req.query.firstname ||
+        req.user?.firstName ||
+        ""
+    );
     if (!firstName) {
       return res.status(400).json({ message: "firstName is required" });
     }

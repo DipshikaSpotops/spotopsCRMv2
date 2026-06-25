@@ -6,6 +6,7 @@ import { formatInTimeZone } from "date-fns-tz";
 import { useNavigate } from "react-router-dom";
 import useOrdersRealtime from "../hooks/useOrdersRealtime";
 import useBrand from "../hooks/useBrand";
+import { getCurrentUserFirstName } from "../utils/authStorage";
 
 const TZ = "America/Chicago";
 
@@ -355,7 +356,10 @@ export default function StoreCredits() {
           amountUsed: amt,
           orderNoUsedFor: orderNoUsedFor.trim(),
         },
-        { headers }
+        {
+          headers,
+          params: { firstName: getCurrentUserFirstName() },
+        }
       );
       
       setUseModalOpen(false);
@@ -365,7 +369,9 @@ export default function StoreCredits() {
       }
     } catch (e) {
       console.error(e);
-      setUseError("Failed to update store credit. Try again.");
+      setUseError(
+        e?.response?.data?.message || "Failed to update store credit. Try again."
+      );
     } finally {
       setUseLoading(false);
     }
