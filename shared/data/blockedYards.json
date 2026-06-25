@@ -1716,5 +1716,13 @@
     "city": "Sanford",
     "state": "FL",
     "zipcode": "32771"
+  },
+  {
+    "yardName": "South Florida Auto Recycling",
+    "street": "4 NW 7th St",
+    "city": "Fort Lauderdale",
+    "state": "FL",
+    "zipcode": "33311",
+    "phone": "+1 954-318-7888"
   }
 ]
