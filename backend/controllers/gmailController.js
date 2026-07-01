@@ -25,6 +25,12 @@ import { labelsIncludeInvalidDisposition } from "../utils/invalidLeadDisposition
 import { normalizePartRequiredLabel } from "../utils/normalizePartRequiredLabel.js";
 import { getGmailClient, getAuthUrl, setTokensFromCode, getUserEmail, clearTokenCache } from "../services/googleAuth.js";
 import { sendLeadStatisticsDigest } from "../services/sendLeadStatisticsDigest.js";
+import {
+  isGmailLeadsEnabled,
+  gmailLeadsPausedResponse,
+  GMAIL_LEADS_PAUSED_MESSAGE,
+} from "../utils/gmailLeadsConfig.js";
+import LeadForOrders from "../models/LeadForOrders.js";
 
 // Get SALES_AGENT_EMAILS from environment
 const SALES_AGENT_EMAILS = (process.env.SALES_AGENT_EMAILS || "")
@@ -391,6 +397,10 @@ function decodePubSubMessage(message = {}) {
 
 export async function pubsubWebhook(req, res, next) {
   try {
+    if (!isGmailLeadsEnabled()) {
+      return res.status(204).send();
+    }
+
     const verifyToken = process.env.GMAIL_PUBSUB_VERIFY_TOKEN;
 
     if (verifyToken && req.query.token !== verifyToken) {
@@ -427,6 +437,15 @@ export async function startWatchHandler(req, res, next) {
 
 export async function manualSyncHandler(req, res, next) {
   try {
+    if (!isGmailLeadsEnabled()) {
+      return res.json({
+        message: GMAIL_LEADS_PAUSED_MESSAGE,
+        leadsPaused: true,
+        createdCount: 0,
+        method: "paused",
+      });
+    }
+
     const userEmail =
       req.body?.userEmail ||
       req.query.userEmail ||
@@ -557,6 +576,10 @@ export async function manualSyncHandler(req, res, next) {
 
 export async function listMessagesHandler(req, res, next) {
   try {
+    if (!isGmailLeadsEnabled()) {
+      return res.json(gmailLeadsPausedResponse());
+    }
+
     const { agentEmail, limit } = req.query;
     const parsedLimit = limit ? Math.min(Number(limit) || 50, 200) : 50;
     
@@ -1329,28 +1352,32 @@ export async function deleteTokenHandler(req, res, next) {
 
 export async function syncStateHandler(req, res, next) {
   try {
+    const leadsEnabled = isGmailLeadsEnabled();
+
     // Try to get email from OAuth2 first
     let oauthEmail = null;
-    try {
-      // If token.json exists, try to get Gmail client to extract email
-      if (fs.existsSync(TOKEN_PATH)) {
-        try {
-          const gmail = await getGmailClient();
-          // getGmailClient() will populate cachedUserEmail if token is valid
-          oauthEmail = getUserEmail();
-        } catch (gmailErr) {
-          console.log("[syncState] Could not get Gmail client:", gmailErr.message);
+    if (leadsEnabled) {
+      try {
+        // If token.json exists, try to get Gmail client to extract email
+        if (fs.existsSync(TOKEN_PATH)) {
+          try {
+            await getGmailClient();
+            // getGmailClient() will populate cachedUserEmail if token is valid
+            oauthEmail = getUserEmail();
+          } catch (gmailErr) {
+            console.log("[syncState] Could not get Gmail client:", gmailErr.message);
+          }
         }
+        // Fallback to direct getUserEmail() call
+        if (!oauthEmail) {
+          oauthEmail = getUserEmail();
+        }
+        if (oauthEmail) {
+          console.log("[syncState] Got email from OAuth2:", oauthEmail);
+        }
+      } catch (err) {
+        console.log("[syncState] OAuth2 not available:", err.message);
       }
-      // Fallback to direct getUserEmail() call
-      if (!oauthEmail) {
-        oauthEmail = getUserEmail();
-      }
-      if (oauthEmail) {
-        console.log("[syncState] Got email from OAuth2:", oauthEmail);
-      }
-    } catch (err) {
-      console.log("[syncState] OAuth2 not available:", err.message);
     }
     
     const configuredEmail = process.env.GMAIL_IMPERSONATED_USER || oauthEmail || null;
@@ -1361,11 +1388,11 @@ export async function syncStateHandler(req, res, next) {
     
     // Try to get email from Gmail API profile if not configured
     let emailFromGmailApi = null;
-    if (!configuredEmail && !oauthEmail) {
+    if (leadsEnabled && !configuredEmail && !oauthEmail) {
       try {
         // Check if token.json exists before trying to get Gmail client
         if (fs.existsSync(TOKEN_PATH)) {
-          const gmail = getGmailClient();
+          const gmail = await getGmailClient();
           const profile = await gmail.users.getProfile({ userId: "me" });
           if (profile?.data?.emailAddress) {
             emailFromGmailApi = profile.data.emailAddress;
@@ -1406,6 +1433,8 @@ export async function syncStateHandler(req, res, next) {
       configuredEmail: finalEmail,
       userEmail: finalEmail, // Also include as userEmail for compatibility
       email: finalEmail, // Additional alias for easier access
+      leadsEnabled,
+      leadsPaused: !leadsEnabled,
     });
   } catch (err) {
     return next(err);
@@ -1414,6 +1443,13 @@ export async function syncStateHandler(req, res, next) {
 
 export async function claimAndViewHandler(req, res, next) {
   try {
+    if (!isGmailLeadsEnabled()) {
+      return res.status(403).json({
+        message: GMAIL_LEADS_PAUSED_MESSAGE,
+        leadsPaused: true,
+      });
+    }
+
     const user = req.user;
     if (!user) {
       return res.status(401).json({ message: "Not authenticated" });
@@ -3009,6 +3045,33 @@ export async function addCommentHandler(req, res, next) {
     return res.json({
       _id: String(messageObj._id),
       ...messageObj,
+    });
+  } catch (err) {
+    return next(err);
+  }
+}
+
+export async function clearLeadsDataHandler(req, res, next) {
+  try {
+    if (req.user?.role !== "Admin") {
+      return res.status(403).json({ message: "Admin only" });
+    }
+
+    const [gmailMessages, leadsClaimed, leadsCollection, leadNotes] = await Promise.all([
+      GmailMessage.deleteMany({}),
+      Lead.deleteMany({}),
+      LeadForOrders.deleteMany({}),
+      LeadNote.deleteMany({}),
+    ]);
+
+    return res.json({
+      message: "All lead-related collections cleared",
+      deleted: {
+        gmailMessages: gmailMessages.deletedCount,
+        leadsClaimed: leadsClaimed.deletedCount,
+        leadsCollection: leadsCollection.deletedCount,
+        leadNotes: leadNotes.deletedCount,
+      },
     });
   } catch (err) {
     return next(err);

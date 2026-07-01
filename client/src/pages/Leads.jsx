@@ -428,6 +428,7 @@ export default function Leads() {
   const [labelSearch, setLabelSearch] = useState("");
   const [newLabel, setNewLabel] = useState("");
   const [sourceEmail, setSourceEmail] = useState("");
+  const [leadsPaused, setLeadsPaused] = useState(false);
   const [viewMode, setViewMode] = useState("leads"); // "leads" or "statistics"
   const [statistics, setStatistics] = useState(null);
   const [showStatsSummaryModal, setShowStatsSummaryModal] = useState(false);
@@ -681,6 +682,14 @@ export default function Leads() {
       // Only Admin uses agentEmail filter (when selecting a specific agent from dropdown)
       // Sales users will see all unclaimed leads, but only their own claimed/closed leads
       const { data } = await API.get("/gmail/messages", { params });
+      if (data?.leadsPaused) {
+        setLeadsPaused(true);
+        setMessages([]);
+        setLastUpdated(new Date());
+        if (!silent) setLoading(false);
+        return;
+      }
+      setLeadsPaused(false);
       let newMessages = data?.messages || [];
 
       // Sort messages so newest (by internalDate/enteredAt) appear first
@@ -1088,6 +1097,9 @@ export default function Leads() {
       try {
         const { data } = await API.get("/gmail/state");
         console.log("[Leads] Gmail state API response:", JSON.stringify(data, null, 2));
+        if (data?.leadsPaused) {
+          setLeadsPaused(true);
+        }
         // Try multiple possible fields for email
         const email = data?.configuredEmail || data?.email || data?.userEmail || data?.state?.userEmail;
         if (email) {
@@ -1874,6 +1886,13 @@ export default function Leads() {
             <p className="text-sm text-yellow-300/80 mt-1">
               ⚠️ Gmail source email not configured. Check backend environment variables.
             </p>
+          )}
+          {leadsPaused && (
+            <div className="mt-3 rounded-lg border border-amber-400/40 bg-amber-500/15 px-4 py-3 text-sm text-amber-100">
+              <strong className="font-semibold">Lead intake paused.</strong>{" "}
+              New leads from {sourceEmail || "the Gmail inbox"} are not being fetched or saved.
+              Set <code className="text-amber-200">GMAIL_LEADS_ENABLED=true</code> on the server to resume.
+            </div>
           )}
         </div>
         <div className="ml-auto flex flex-col md:flex-row md:items-center gap-3 w-full lg:w-auto">

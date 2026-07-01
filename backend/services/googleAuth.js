@@ -22,6 +22,23 @@ let cachedAuth;
 let cachedGmail;
 let cachedUserEmail = null;
 
+function readTokenFile() {
+  if (!fs.existsSync(TOKEN_PATH)) {
+    throw new Error("Missing token.json. Authorize via /api/gmail/oauth2/url first.");
+  }
+  const raw = fs.readFileSync(TOKEN_PATH, "utf-8").trim();
+  if (!raw) {
+    throw new Error("token.json is empty. Re-authorize via /api/gmail/oauth2/url");
+  }
+  try {
+    return JSON.parse(raw);
+  } catch (err) {
+    throw new Error(
+      `token.json is invalid. Re-authorize via /api/gmail/oauth2/url (${err.message})`
+    );
+  }
+}
+
 // Function to clear all cached tokens (useful after re-authorization)
 export function clearTokenCache() {
   cachedAuth = null;
@@ -62,7 +79,7 @@ export function getAuthUrl(redirectUriOverride = null, forceConsent = false) {
   let hasRefreshToken = false;
   if (fs.existsSync(TOKEN_PATH)) {
     try {
-      const existingTokens = JSON.parse(fs.readFileSync(TOKEN_PATH, "utf-8"));
+      const existingTokens = readTokenFile();
       hasRefreshToken = !!existingTokens.refresh_token;
     } catch (err) {
       // If we can't read token.json, assume no refresh token
@@ -214,7 +231,7 @@ export async function refreshAccessTokenIfNeeded() {
     throw new Error("Missing token.json. Authorize via /api/gmail/oauth2/url first.");
   }
 
-  const tokens = JSON.parse(fs.readFileSync(TOKEN_PATH, "utf-8"));
+  const tokens = readTokenFile();
   
   if (!tokens.refresh_token) {
     throw new Error("No refresh token available. Please re-authorize via /api/gmail/oauth2/url");
@@ -348,7 +365,7 @@ export async function getGmailClient() {
     throw new Error("Missing token.json. Authorize via /api/gmail/oauth2/url first.");
   }
   
-  const tokens = JSON.parse(fs.readFileSync(TOKEN_PATH, "utf-8"));
+  const tokens = readTokenFile();
   
   // Validate that we have a refresh_token
   if (!tokens.refresh_token) {
@@ -360,7 +377,13 @@ export async function getGmailClient() {
   oAuth2Client.on('tokens', (newTokens) => {
     console.log("[googleAuth] Tokens automatically refreshed by OAuth2 client");
     // Merge new tokens with existing ones (preserve refresh_token)
-    const currentTokens = JSON.parse(fs.readFileSync(TOKEN_PATH, "utf-8"));
+    let currentTokens;
+    try {
+      currentTokens = readTokenFile();
+    } catch (err) {
+      console.error("[googleAuth] Failed to read token.json during auto-refresh:", err.message);
+      return;
+    }
     const updatedTokens = { ...currentTokens, ...newTokens };
     if (!updatedTokens.refresh_token && currentTokens.refresh_token) {
       updatedTokens.refresh_token = currentTokens.refresh_token;

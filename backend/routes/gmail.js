@@ -19,6 +19,7 @@ import {
   checkTokenHandler,
   reparseLeadsHandler,
   deleteTokenHandler,
+  clearLeadsDataHandler,
 } from "../controllers/gmailController.js";
 import { requireAuth } from "../middleware/auth.js";
 import gmailHealthRouter from "./gmailHealth.js";
@@ -48,6 +49,7 @@ router.post("/messages/:id/comments", requireAuth, addCommentHandler);
 router.get("/statistics/daily", requireAuth, getDailyStatisticsHandler);
 router.post("/statistics/send-lead-digest", requireAuth, sendLeadDigestHandler);
 router.post("/reparse-leads", requireAuth, reparseLeadsHandler); // Admin only - re-parse existing leads
+router.post("/leads/clear-data", requireAuth, clearLeadsDataHandler); // Admin only - wipe lead collections
 
 // Health check route
 router.use("/", gmailHealthRouter);

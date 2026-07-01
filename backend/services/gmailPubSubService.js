@@ -1,5 +1,6 @@
 import GmailMessage from "../models/GmailMessage.js";
 import GmailSyncState from "../models/GmailSyncState.js";
+import { isGmailLeadsEnabled } from "../utils/gmailLeadsConfig.js";
 import { getGmailClient, getUserEmail } from "./googleAuth.js";
 
 const DEFAULT_LABELS = (process.env.GMAIL_WATCH_LABELS || "INBOX,UNREAD")
@@ -78,6 +79,9 @@ async function fetchMessage(gmail, messageId) {
 }
 
 export async function persistMessage(doc) {
+  if (!isGmailLeadsEnabled()) {
+    return null;
+  }
   // Reduced logging for performance - only log errors
   const result = await GmailMessage.findOneAndUpdate(
     { messageId: doc.messageId },
@@ -148,6 +152,9 @@ async function processHistoryEntry({ entry, gmail, userEmail }) {
 }
 
 export async function syncHistory({ userEmail, startHistoryId }) {
+  if (!isGmailLeadsEnabled()) {
+    return { createdCount: 0, latestHistoryId: startHistoryId, skipped: true };
+  }
   const gmail = await getGmailClient();
   
   // Use OAuth2 email if userEmail not provided
@@ -214,6 +221,9 @@ export async function syncHistory({ userEmail, startHistoryId }) {
 }
 
 export async function handlePubSubNotification(notification) {
+  if (!isGmailLeadsEnabled()) {
+    return { createdCount: 0, skipped: true };
+  }
   const { emailAddress, historyId } = notification || {};
   if (!emailAddress || !historyId) {
     throw new Error("Invalid Gmail notification payload");
@@ -255,6 +265,9 @@ export async function startWatch({
   labelIds = DEFAULT_LABELS,
   labelFilterAction = "include",
 }) {
+  if (!isGmailLeadsEnabled()) {
+    throw new Error("Gmail lead intake is paused (GMAIL_LEADS_ENABLED=false)");
+  }
   if (!topicName) {
     throw new Error("GMAIL_PUBSUB_TOPIC is required to start a watch");
   }

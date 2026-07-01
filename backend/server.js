@@ -50,6 +50,10 @@ import { seedBlockedYardsFromFile } from "./services/blockedYardService.js";
 
 dotenv.config();
 
+process.on("unhandledRejection", (reason) => {
+  console.error("[process] Unhandled promise rejection:", reason);
+});
+
 const app = express();
 
 // Determine brand (50STARS / PROLANE) for each request before anything else
@@ -364,12 +368,18 @@ import GmailSyncState from "./models/GmailSyncState.js";
 // Import token monitor and Gmail auth helpers
 import { getGmailClient } from "./services/googleAuth.js";
 import { startGmailTokenMonitor } from "./services/gmailTokenMonitor.js";
+import { isGmailLeadsEnabled } from "./utils/gmailLeadsConfig.js";
 
 // Start proactive Gmail token monitor (startup check + scheduled checks)
 startGmailTokenMonitor();
 
 // Gmail Watch Management: Auto-start and auto-renew watch
 async function initializeGmailWatch() {
+  if (!isGmailLeadsEnabled()) {
+    console.log("[Gmail Watch] GMAIL_LEADS_ENABLED=false, skipping watch initialization");
+    return;
+  }
+
   // Wait for MongoDB to be connected
   if (mongoose.connection.readyState !== 1) {
     console.log("[Gmail Watch] Waiting for MongoDB connection...");
@@ -428,6 +438,7 @@ async function initializeGmailWatch() {
 
 // Auto-renew watch before expiration (check every 6 hours)
 async function checkAndRenewWatch() {
+  if (!isGmailLeadsEnabled()) return;
   if (!process.env.GMAIL_PUBSUB_TOPIC) return;
   
   try {
