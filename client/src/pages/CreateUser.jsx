@@ -40,7 +40,13 @@ export default function CreateUser() {
 
   const onChange = (e) => {
     const { name, value } = e.target;
-    setForm((f) => ({ ...f, [name]: value }));
+    setForm((f) => {
+      const next = { ...f, [name]: value };
+      if (name === "role" && value === "Admin") {
+        next.team = "";
+      }
+      return next;
+    });
   };
 
   const validate = () => {
@@ -163,6 +169,7 @@ export default function CreateUser() {
           </select>
         </div>
 
+        {form.role !== "Admin" && (
         <div>
           <label className="block text-sm text-white/90 mb-1">Team</label>
           <select
@@ -182,6 +189,7 @@ export default function CreateUser() {
             ))}
           </select>
         </div>
+        )}
 
         <div>
           <label className="block text-sm text-white/90 mb-1">Password</label>

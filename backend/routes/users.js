@@ -4,6 +4,21 @@ import User from "../models/User.js";
 import { initialAppAccessUnlockedForNewUser } from "../utils/accessGate.js";
 const router = express.Router();
 
+function isAdminRole(role) {
+  return String(role || "").trim() === "Admin";
+}
+
+function applyTeamForRole(payload, role) {
+  if (isAdminRole(role)) {
+    delete payload.team;
+    return true;
+  }
+  if (!payload.team) {
+    delete payload.team;
+  }
+  return false;
+}
+
 // POST /api/users - create a user
 router.post("/", async (req, res) => {
   try {
@@ -21,6 +36,7 @@ router.post("/", async (req, res) => {
     //password will be hashed
     const payload = { firstName, lastName, email, password, role };
     if (team) payload.team = team;
+    applyTeamForRole(payload, role);
     const initialUnlock = initialAppAccessUnlockedForNewUser();
     if (initialUnlock !== undefined) payload.appAccessUnlocked = initialUnlock;
     const user = new User(payload);
@@ -55,21 +71,33 @@ router.get("/", async (req, res) => {
 router.patch("/:id", async (req, res) => {
   try {
     const { id } = req.params;
+    const existing = await User.findById(id);
+    if (!existing) return res.status(404).json({ message: "User not found." });
+
     const allowed = ["firstName", "lastName", "email", "team", "role", "password"];
     const payload = {};
     for (const k of allowed) {
       if (req.body[k] !== undefined) payload[k] = req.body[k];
     }
+
+    const effectiveRole = payload.role ?? existing.role;
+    const unsetTeam = applyTeamForRole(payload, effectiveRole);
+
     // if password present, let pre('save') hash it -> use findById then save()
     if (payload.password !== undefined) {
-      const user = await User.findById(id);
-      if (!user) return res.status(404).json({ message: "User not found." });
-      Object.assign(user, payload);
-      const saved = await user.save();
+      Object.assign(existing, payload);
+      if (unsetTeam) existing.team = undefined;
+      const saved = await existing.save();
       const o = saved.toObject(); delete o.password;
       return res.json(o);
     }
-    const updated = await User.findByIdAndUpdate(id, payload, {
+
+    const update = { $set: payload };
+    if (unsetTeam) {
+      delete update.$set.team;
+      update.$unset = { team: "" };
+    }
+    const updated = await User.findByIdAndUpdate(id, update, {
       new: true, runValidators: true
     }).lean();
     if (!updated) return res.status(404).json({ message: "User not found." });

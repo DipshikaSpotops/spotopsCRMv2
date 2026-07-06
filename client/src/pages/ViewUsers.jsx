@@ -155,7 +155,13 @@ export default function ViewUsers() {
 
   const onEditChange = (e) => {
     const { name, value } = e.target;
-    setEditForm(f => ({ ...f, [name]: value }));
+    setEditForm((f) => {
+      const next = { ...f, [name]: value };
+      if (name === "role" && value === "Admin") {
+        next.team = "";
+      }
+      return next;
+    });
   };
 
   // only send changed fields
@@ -374,6 +380,9 @@ export default function ViewUsers() {
                     </td>
                     <td className="p-2.5 border-r border-white/20 whitespace-nowrap">
                       {isEditing ? (
+                        editForm.role === "Admin" ? (
+                          "—"
+                        ) : (
                         <select
                           name="team"
                           value={editForm.team}
@@ -386,7 +395,8 @@ export default function ViewUsers() {
                             <option key={name} value={name}>{name}</option>
                           ))}
                         </select>
-                      ) : u.team || "—"}
+                        )
+                      ) : u.role === "Admin" ? "—" : (u.team || "—")}
                     </td>
                     <td className="p-2.5 border-r border-white/20 whitespace-nowrap">{formatDate(u.createdAt)}</td>
                     <td className="p-2.5">
