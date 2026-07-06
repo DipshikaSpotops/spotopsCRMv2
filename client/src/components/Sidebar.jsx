@@ -122,6 +122,7 @@ export default function Sidebar() {
 
   const usersLinksBase = [
     { text: "Create User", to: "/create-user" },
+    { text: "Create Team", to: "/create-team" },
     { text: "View Users", to: "/view-users" },
     { text: "Authorization Code", to: "/authorization-codes" },
   ];

@@ -31,6 +31,7 @@ const FulfilledOrders = lazy(() => import("./pages/FulfilledOrders"));
 const OverallEscalationOrders = lazy(() => import("./pages/OverallEscalationOrders"));
 const OngoingEscalationOrders = lazy(() => import("./pages/OngoingEscalations"));
 const CreateUser = lazy(() => import("./pages/CreateUser"));
+const CreateTeam = lazy(() => import("./pages/CreateTeam"));
 const ViewUsers = lazy(() => import("./pages/ViewUsers"));
 const OrderDetails = lazy(() => import("./pages/OrderDetails"));
 const CancelledRefundedOrders = lazy(() => import("./pages/CancelledRefundedReport"));
@@ -275,11 +276,19 @@ function App() {
             </Suspense>
           )}
         />
-        <Route          
-        path="/create-user"
+        <Route
+          path="/create-user"
           element={withLayout(
             <Suspense fallback={<PageLoader />}>
               <CreateUser />
+            </Suspense>
+          )}
+        />
+        <Route
+          path="/create-team"
+          element={withLayout(
+            <Suspense fallback={<PageLoader />}>
+              <CreateTeam />
             </Suspense>
           )}
         />

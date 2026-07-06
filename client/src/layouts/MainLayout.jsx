@@ -23,6 +23,7 @@ export default function MainLayout({ children }) {
     "/view-users",
     "/leads",
     "/create-user",
+    "/create-team",
     "/yards",
     "/add-lead-notes",
     "/attendance",
