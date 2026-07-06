@@ -1,7 +1,6 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import API from "../api";
 import { FaEye, FaEyeSlash } from "react-icons/fa";
-
 
 const ROLES = ["Admin", "Sales", "Support"];
 
@@ -11,12 +10,34 @@ export default function CreateUser() {
     lastName: "",
     email: "",
     role: "",
+    team: "",
     password: "",
   });
+  const [teams, setTeams] = useState([]);
+  const [loadingTeams, setLoadingTeams] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState({ type: "", text: "" });
   const [showPassword, setShowPassword] = useState(false);
-  
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const { data } = await API.get("teams");
+        if (mounted) {
+          setTeams(Array.isArray(data) ? data : []);
+        }
+      } catch (e) {
+        console.error("Failed to load teams:", e);
+      } finally {
+        if (mounted) setLoadingTeams(false);
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
   const onChange = (e) => {
     const { name, value } = e.target;
     setForm((f) => ({ ...f, [name]: value }));
@@ -43,14 +64,16 @@ export default function CreateUser() {
     }
     setSubmitting(true);
     try {
-      // Adjust base URL as needed (env var recommended)
-      const { data } = await API.post("/users", form);
+      const payload = { ...form };
+      if (!payload.team) delete payload.team;
+      const { data } = await API.post("/users", payload);
       setMessage({ type: "success", text: `User ${data.firstName} created.` });
       setForm({
         firstName: "",
         lastName: "",
         email: "",
         role: "",
+        team: "",
         password: "",
       });
     } catch (e) {
@@ -83,7 +106,7 @@ export default function CreateUser() {
             {message.text}
           </div>
         ) : null}
-{/*  */}
+
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm text-white/90 mb-1">First Name</label>
@@ -141,35 +164,55 @@ export default function CreateUser() {
         </div>
 
         <div>
-        <label className="block text-sm text-white/90 mb-1">Password</label>
-        <div className="relative">
-            <input
-            type={showPassword ? "text" : "password"}
-            name="password"
-            value={form.password}
+          <label className="block text-sm text-white/90 mb-1">Team</label>
+          <select
+            name="team"
+            value={form.team}
             onChange={onChange}
-            className="w-full rounded border border-white/40 bg-white/90 text-slate-900 placeholder-slate-500 px-3 py-2 pr-10 focus:outline-none focus:ring-2 focus:ring-[#3b89bf]"
-            placeholder="•••••••"
-            required
+            disabled={loadingTeams}
+            className="w-full rounded border border-white/40 bg-white text-slate-900 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#3b89bf] disabled:opacity-60"
+          >
+            <option value="">
+              {loadingTeams ? "Loading teams..." : "Select team"}
+            </option>
+            {teams.map((t) => (
+              <option key={t._id} value={t.teamName}>
+                {t.teamName}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-sm text-white/90 mb-1">Password</label>
+          <div className="relative">
+            <input
+              type={showPassword ? "text" : "password"}
+              name="password"
+              value={form.password}
+              onChange={onChange}
+              className="w-full rounded border border-white/40 bg-white/90 text-slate-900 placeholder-slate-500 px-3 py-2 pr-10 focus:outline-none focus:ring-2 focus:ring-[#3b89bf]"
+              placeholder="•••••••"
+              required
             />
             <button
-            type="button"
-            onClick={() => setShowPassword((prev) => !prev)}
-            className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-500"
+              type="button"
+              onClick={() => setShowPassword((prev) => !prev)}
+              className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-500"
             >
-            {showPassword ? <FaEyeSlash /> : <FaEye />}
+              {showPassword ? <FaEyeSlash /> : <FaEye />}
             </button>
-        </div>
-        
-        <div className="pt-2">
-          <button
-            type="submit"
-            disabled={submitting}
-            className="w-full bg-[#04356d] hover:bg-[#3b89bf] text-white font-medium px-4 py-2 rounded disabled:opacity-60"
-          >
-            {submitting ? "Creating..." : "Create"}
-          </button>
-        </div>
+          </div>
+
+          <div className="pt-2">
+            <button
+              type="submit"
+              disabled={submitting}
+              className="w-full bg-[#04356d] hover:bg-[#3b89bf] text-white font-medium px-4 py-2 rounded disabled:opacity-60"
+            >
+              {submitting ? "Creating..." : "Create"}
+            </button>
+          </div>
         </div>
       </form>
     </div>

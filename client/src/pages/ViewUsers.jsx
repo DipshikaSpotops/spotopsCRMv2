@@ -10,7 +10,6 @@ import TableScrollViewport, {
 } from "../components/TableScrollViewport";
 
 const PAGE_SIZE = 20;
-const TEAMS = ["Shankar", "Vinutha"];
 const ROLES = ["Admin", "Sales", "Support"];
 
 // Memoized date formatting with cache for performance
@@ -42,6 +41,7 @@ function formatDate(dt) {
 
 export default function ViewUsers() {
   const [users, setUsers] = useState([]);
+  const [teams, setTeams] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
@@ -68,9 +68,14 @@ export default function ViewUsers() {
       setLoading(true);
       setError("");
       try {
-        // API base URL already includes /api, so use "users" not "/api/users"
-        const { data } = await API.get("users");
-        if (mounted) setUsers(Array.isArray(data) ? data : []);
+        const [usersRes, teamsRes] = await Promise.all([
+          API.get("users"),
+          API.get("teams"),
+        ]);
+        if (mounted) {
+          setUsers(Array.isArray(usersRes.data) ? usersRes.data : []);
+          setTeams(Array.isArray(teamsRes.data) ? teamsRes.data : []);
+        }
       } catch (e) {
         if (mounted) setError("Failed to load users.");
         console.error(e);
@@ -80,6 +85,14 @@ export default function ViewUsers() {
     })();
     return () => { mounted = false; };
   }, []);
+
+  const teamOptions = useMemo(() => {
+    const names = teams.map((t) => t.teamName).filter(Boolean);
+    if (editForm.team && !names.includes(editForm.team)) {
+      return [editForm.team, ...names];
+    }
+    return names;
+  }, [teams, editForm.team]);
 
   // search + filters on the full dataset
   const normalized = search.trim().toLowerCase();
@@ -269,7 +282,7 @@ export default function ViewUsers() {
         innerRef={tableScrollRef}
         onInnerWheel={onTableWheel}
         outerClassName="hidden md:block"
-        minTableWidth="1000px"
+        minTableWidth="1100px"
       >
         <table className="min-w-full w-max bg-black/20 backdrop-blur-md text-white">
           <thead className="sticky top-0 bg-[#5c8bc1] z-20 text-black">
@@ -279,6 +292,7 @@ export default function ViewUsers() {
                 { key: "lastName", label: "Last Name" },
                 { key: "email", label: "Email" },
                 { key: "role", label: "Role" },
+                { key: "team", label: "Team" },
                 { key: "createdAt", label: "Created" },
               ].map(col => (
                 <th
@@ -300,11 +314,11 @@ export default function ViewUsers() {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td className="p-6 text-center text-white/80" colSpan={6}>⏳ Loading…</td></tr>
+              <tr><td className="p-6 text-center text-white/80" colSpan={7}>⏳ Loading…</td></tr>
             ) : error ? (
-              <tr><td className="p-6 text-center text-red-300" colSpan={6}>{error}</td></tr>
+              <tr><td className="p-6 text-center text-red-300" colSpan={7}>{error}</td></tr>
             ) : pageRows.length === 0 ? (
-              <tr><td className="p-6 text-center text-white/80" colSpan={6}>No users found.</td></tr>
+              <tr><td className="p-6 text-center text-white/80" colSpan={7}>No users found.</td></tr>
             ) : (
               pageRows.map(u => {
                 const isEditing = editingId === u._id;
@@ -357,6 +371,22 @@ export default function ViewUsers() {
                           {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
                         </select>
                       ) : u.role || "—"}
+                    </td>
+                    <td className="p-2.5 border-r border-white/20 whitespace-nowrap">
+                      {isEditing ? (
+                        <select
+                          name="team"
+                          value={editForm.team}
+                          onChange={onEditChange}
+                          className="w-full rounded px-2 py-1 text-black"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <option value="">Select team</option>
+                          {teamOptions.map((name) => (
+                            <option key={name} value={name}>{name}</option>
+                          ))}
+                        </select>
+                      ) : u.team || "—"}
                     </td>
                     <td className="p-2.5 border-r border-white/20 whitespace-nowrap">{formatDate(u.createdAt)}</td>
                     <td className="p-2.5">

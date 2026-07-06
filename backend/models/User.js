@@ -8,7 +8,7 @@ const userSchema = new mongoose.Schema({
   password:  { type: String, required: true },
   team: {
     type: String,
-    enum: ['Shankar', 'Vinutha'],
+    trim: true,
     required: false,
   },
   role: {
