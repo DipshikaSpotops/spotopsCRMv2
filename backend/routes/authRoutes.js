@@ -23,7 +23,7 @@ import {
   shouldBypassAppAccessGate,
 } from "../utils/accessGate.js";
 import {
-  isOnAttendanceRoster,
+  isOnAuthorizationCodesRoster,
   canonicalAttendanceName,
 } from "../../shared/constants/activeAttendanceUsers.js";
 // Note: We create JWT auth directly for Sheets API (doesn't need GMAIL_IMPERSONATED_USER)
@@ -1004,7 +1004,7 @@ router.get("/admin/authorization-codes", requireAuth, async (req, res) => {
       .lean();
     const rows = users
       .filter((u) => String(u?.role || "").trim() !== "Admin")
-      .filter((u) => isOnAttendanceRoster(u.firstName))
+      .filter((u) => isOnAuthorizationCodesRoster({ firstName: u.firstName, email: u.email }))
       .map((u) => {
       const snap = getAuthCodeSnapshotForEmail(u.email);
       const rosterName = canonicalAttendanceName(u.firstName) || u.firstName || "";

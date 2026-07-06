@@ -12,6 +12,7 @@ export const ACTIVE_ATTENDANCE_USER_LIST = [
   "Guru",
   "Suzanne",
   "Tony",
+  "Tylor",
   "Dipsikha",
   "Alex",
   "Hannah",
@@ -24,6 +25,11 @@ export const ACTIVE_ATTENDANCE_USER_LIST = [
   "Olivia",
 ];
 
+/** Emails that always appear on Authorization Code page (even if firstName roster match fails). */
+export const AUTHORIZATION_CODES_EXTRA_EMAILS = new Set([
+  "50starsauto116@gmail.com",
+]);
+
 /** First token only — used for attendance table display. */
 export function displayAttendanceFirstName(firstName) {
   const token = String(firstName || "").trim().split(/\s+/)[0];
@@ -34,6 +40,8 @@ export function displayAttendanceFirstName(firstName) {
 export function attendanceNameKey(firstName) {
   const key = displayAttendanceFirstName(firstName).toLowerCase();
   if (key === "dipshika") return "dipsikha";
+  if (key === "taylor") return "tylor";
+  if (key === "ginny") return "olivia";
   return key;
 }
 
@@ -56,4 +64,10 @@ export function canonicalAttendanceName(firstName) {
 
 export function isOnAttendanceRoster(firstName) {
   return isActiveAttendanceUser(firstName);
+}
+
+export function isOnAuthorizationCodesRoster({ firstName, email } = {}) {
+  if (isOnAttendanceRoster(firstName)) return true;
+  const normalizedEmail = String(email || "").trim().toLowerCase();
+  return AUTHORIZATION_CODES_EXTRA_EMAILS.has(normalizedEmail);
 }
