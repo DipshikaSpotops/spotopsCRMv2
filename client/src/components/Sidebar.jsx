@@ -75,7 +75,6 @@ export default function Sidebar() {
     { text: "Sales Data", to: "/sales-data", roles: ["Admin", "Sales"] },
     { text: "Sales Origin", to: "/sales-origin", roles: ["Admin", "Sales"], emailAccess: "50starsauto110@gmail.com" },
     { text: "Leads", to: "/leads", roles: ["Admin", "Sales"], denyEmail: "50starsauto110@gmail.com" },
-    { text: "Authorization Code", to: "/authorization-codes", emailAccess: "50starsauto110@gmail.com", adminOnly: true },
     { text: "View All Orders", to: "/view-all-orders" },
     { text: "View Orders-Monthly", to: "/monthly-orders" },
     {
@@ -316,9 +315,11 @@ export default function Sidebar() {
       hiddenForSupport
     );
 
-    // Hide Users block entirely
-    showUsersSection = false;
-    usersLinks = [];
+    const isAuthCodesViewer = email?.toLowerCase() === "50starsauto110@gmail.com";
+    showUsersSection = isAuthCodesViewer;
+    usersLinks = isAuthCodesViewer
+      ? usersLinksBase.filter((l) => l.to === "/authorization-codes")
+      : [];
 
     reportsLinks = filterNestedLinksByRole(reportsLinksBase, role, email, brand);
     attendanceLinks = attendanceLinksBase.filter((l) => shouldShowLink(l, role, email, brand));
