@@ -21,6 +21,7 @@ export default function MainLayout({ children }) {
   // Pages where BrandBadge should be hidden
   const hideBrandBadgePages = [
     "/view-users",
+    "/view-teams",
     "/leads",
     "/create-user",
     "/create-team",

@@ -21,4 +21,14 @@ router.post("/", async (req, res) => {
   }
 });
 
+router.get("/", async (req, res) => {
+  try {
+    const teams = await Team.find({}).sort({ teamName: 1 }).lean();
+    return res.json(teams);
+  } catch (err) {
+    console.error("Error fetching teams:", err);
+    return res.status(500).json({ message: "Failed to fetch teams." });
+  }
+});
+
 export default router;
