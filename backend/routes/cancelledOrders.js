@@ -3,6 +3,7 @@ import express from "express";
 import moment from "moment-timezone";
 import { getOrderModelForBrand } from "../models/Order.js";
 import { requireAuth, allow } from "../middleware/auth.js";
+import { mergeOrderAccessFilter } from "../utils/orderAccessScope.js";
 
 const router = express.Router();
 const TZ = "America/Chicago";
@@ -71,12 +72,8 @@ router.get(
         });
       }
 
-      // RBAC
-      if (req.user.role === "Sales") {
-        query.$and.push({ salesAgent: new RegExp(`^${req.user.firstName}$`, "i") });
-      } else if (req.user.role === "Admin" && salesAgent) {
-        query.$and.push({ salesAgent: new RegExp(salesAgent.trim(), "i") });
-      }
+      // Team / role access
+      await mergeOrderAccessFilter(query, req, { adminSalesAgent: salesAgent });
 
       const SORT_MAP = {
         orderDate: "orderDate",

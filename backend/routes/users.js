@@ -57,8 +57,10 @@ router.post("/", async (req, res) => {
 // GET all users (optionally filter by role)
 router.get("/", async (req, res) => {
   try {
-    const { role } = req.query;
-    const query = role ? { role } : {};
+    const { role, team } = req.query;
+    const query = {};
+    if (role) query.role = role;
+    if (team) query.team = team;
     const users = await User.find(query).sort({ createdAt: -1 }).lean();
     users.forEach(u => delete u.password);
     res.json(users);

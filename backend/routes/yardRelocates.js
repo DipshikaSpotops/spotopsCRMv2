@@ -1,5 +1,7 @@
 import express from "express";
 import { getOrderModelForBrand } from "../models/Order.js";
+import { requireAuth, allow } from "../middleware/auth.js";
+import { mergeOrderAccessFilter } from "../utils/orderAccessScope.js";
 import moment from "moment-timezone";
 
 const router = express.Router();
@@ -120,7 +122,7 @@ const SIMPLE_MAP = {
   orderStatus: "orderStatus",
 };
 
-router.get("/", async (req, res) => {
+router.get("/", requireAuth, allow("Admin", "Sales", "Support"), async (req, res) => {
   try {
     const {
       start, end, month, year,
@@ -136,6 +138,7 @@ router.get("/", async (req, res) => {
     const skip = (parseInt(page, 10) - 1) * pageSize;
     const dir = sortOrder === "desc" ? -1 : 1;
     const baseMatch = buildBaseMatch({ startDate, endDate, q });
+    await mergeOrderAccessFilter(baseMatch, req, { adminSalesAgent: req.query.salesAgent });
 
     const Order = getOrderModelForBrand(req.brand);
 

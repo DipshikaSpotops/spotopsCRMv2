@@ -5,6 +5,7 @@ import jwt from "jsonwebtoken";
 import { getOrderModelForBrand } from "../models/Order.js";
 import User from "../models/User.js";
 import { requireAuth, allow } from "../middleware/auth.js";
+import { mergeOrderAccessFilter } from "../utils/orderAccessScope.js";
 
 const requireAuthAllRoles = [requireAuth, allow("Admin", "Sales", "Support")];
 import { getDateRange } from "../utils/dateRange.js";
@@ -495,9 +496,11 @@ router.get("/cancelled-by-date", ...requireAuthAllRoles, async (req, res) => {
     const { startDate, endDate } = getDateRange({ start, end, month, year });
 
     const Order = getOrderModel(req);
-    const orders = await Order.find({
+    const filter = {
       cancelledDate: { $gte: startDate, $lt: endDate },
-    });
+    };
+    await mergeOrderAccessFilter(filter, req, { adminSalesAgent: req.query.salesAgent });
+    const orders = await Order.find(filter);
 
     res.json(orders.map((order) => attachSalesOrigin(order.toObject())));
   } catch (error) {
@@ -516,12 +519,14 @@ router.get("/reimbursed-by-date", ...requireAuthAllRoles, async (req, res) => {
     // 1. New order-level reimbursement (reimbursementDate)
     // 2. Old per-yard reimbursement (additionalInfo[].reimbursedDate)
     const Order = getOrderModel(req);
-    const orders = await Order.find({
+    const filter = {
       $or: [
         { reimbursementDate: { $gte: startDate, $lt: endDate } },
         { "additionalInfo.reimbursedDate": { $gte: startDate, $lt: endDate } },
       ],
-    });
+    };
+    await mergeOrderAccessFilter(filter, req, { adminSalesAgent: req.query.salesAgent });
+    const orders = await Order.find(filter);
 
     res.json(orders.map((order) => attachSalesOrigin(order.toObject())));
   } catch (error) {
@@ -537,9 +542,11 @@ router.get("/refunded-by-date", ...requireAuthAllRoles, async (req, res) => {
     const { startDate, endDate } = getDateRange({ start, end, month, year });
 
     const Order = getOrderModel(req);
-    const orders = await Order.find({
+    const filter = {
       custRefundDate: { $gte: startDate, $lt: endDate },
-    });
+    };
+    await mergeOrderAccessFilter(filter, req, { adminSalesAgent: req.query.salesAgent });
+    const orders = await Order.find(filter);
 
     res.json(orders.map((order) => attachSalesOrigin(order.toObject())));
   } catch (error) {
@@ -556,10 +563,12 @@ router.get("/card-charged", ...requireAuthAllRoles, async (req, res) => {
 
     // Find all orders with card charged yards
     const Order = getOrderModel(req);
-    const orders = await Order.find({
+    const filter = {
       "additionalInfo.paymentStatus": "Card charged",
       orderDate: { $gte: startDate, $lt: endDate },
-    }).select("orderNo orderDate orderStatus custRefAmount custRefundDate cancelledDate cancellationReason additionalInfo");
+    };
+    await mergeOrderAccessFilter(filter, req, { adminSalesAgent: req.query.salesAgent });
+    const orders = await Order.find(filter).select("orderNo orderDate orderStatus custRefAmount custRefundDate cancelledDate cancellationReason additionalInfo salesAgent");
 
     // Group yards by order
     const orderMap = new Map();
@@ -647,9 +656,11 @@ router.get("/disputes-by-date", ...requireAuthAllRoles, async (req, res) => {
     const { startDate, endDate } = getDateRange({ start, end, month, year });
 
     const Order = getOrderModel(req);
-    const orders = await Order.find({
+    const filter = {
       disputedDate: { $gte: startDate, $lt: endDate },
-    });
+    };
+    await mergeOrderAccessFilter(filter, req, { adminSalesAgent: req.query.salesAgent });
+    const orders = await Order.find(filter);
 
     res.json(orders.map((order) => attachSalesOrigin(order.toObject())));
   } catch (error) {

@@ -1,10 +1,12 @@
 import express from "express";
 import { getOrderModelForBrand } from "../models/Order.js";
+import { requireAuth } from "../middleware/auth.js";
+import { mergeOrderAccessFilter } from "../utils/orderAccessScope.js";
 import moment from "moment-timezone";
 
 const router = express.Router();
 
-router.get("/", async (req, res) => {
+router.get("/", requireAuth, async (req, res) => {
   try {
     const { month, year, start, end, q } = req.query;
     let filter = { orderStatus: "Placed" };
@@ -50,6 +52,8 @@ router.get("/", async (req, res) => {
         .status(400)
         .json({ message: "Provide either month/year or start/end" });
     }
+
+    await mergeOrderAccessFilter(filter, req);
 
     console.log("MongoDB Filter:", JSON.stringify(filter, null, 2));
     if (q && q.trim()) {

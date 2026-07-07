@@ -1,6 +1,7 @@
 import express from "express";
 import { getOrderModelForBrand } from "../models/Order.js";
 import { requireAuth, allow } from "../middleware/auth.js";
+import { mergeOrderAccessFilter } from "../utils/orderAccessScope.js";
 import {
   normalizeYardName,
   stripLocationParenthetical,
@@ -98,13 +99,8 @@ router.get("/", requireAuth, allow("Admin", "Sales", "Support"), async (req, res
         { phone: rx },
       ];
     }
-    if (
-      !forYardLookup &&
-      (req.user?.role || "").toLowerCase() === "sales" &&
-      req.user?.firstName
-    ) {
-      const escaped = req.user.firstName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      query.salesAgent = new RegExp(`^${escaped}(?:\\s.*|$)`, "i");
+    if (!forYardLookup) {
+      await mergeOrderAccessFilter(query, req, { adminSalesAgent: salesAgent });
     } else if ((req.user?.role || "").toLowerCase() === "admin" && salesAgent) {
       query.salesAgent = new RegExp(salesAgent.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
     }

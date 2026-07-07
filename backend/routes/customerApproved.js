@@ -1,6 +1,8 @@
 // server/routes/customerApproved.js
 import express from "express";
 import { getOrderModelForBrand } from "../models/Order.js";
+import { requireAuth, allow } from "../middleware/auth.js";
+import { mergeOrderAccessFilter } from "../utils/orderAccessScope.js";
 import moment from "moment-timezone";
 
 const router = express.Router();
@@ -29,7 +31,7 @@ function getDateRange({ start, end, month, year }) {
   throw new Error("Provide either start/end or month/year");
 }
 
-router.get("/", async (req, res) => {
+router.get("/", requireAuth, allow("Admin", "Sales", "Support"), async (req, res) => {
   try {
     const { start, end, month, year, q } = req.query;
 
@@ -58,6 +60,9 @@ router.get("/", async (req, res) => {
         { email: regex },
       ];
     }
+
+    await mergeOrderAccessFilter(filter, req, { adminSalesAgent: req.query.salesAgent });
+
 
     const Order = getOrderModelForBrand(req.brand);
     const orders = await Order.find(filter).sort({ orderDate: 1 });

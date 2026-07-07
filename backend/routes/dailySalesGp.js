@@ -3,17 +3,10 @@ import express from "express";
 import moment from "moment-timezone";
 import { getOrderModelForBrand } from "../models/Order.js";
 import { requireAuth, allow } from "../middleware/auth.js";
+import { mergeOrderAccessFilter } from "../utils/orderAccessScope.js";
 
 const router = express.Router();
 const TZ = "America/Chicago";
-
-const AGENT_BRAND_MAPPING = {
-  Richard: "Victor",
-  Mark: "Sam",
-  David: "Steve",
-  Michael: "Charlie",
-  Dipsikha: "Dipsikha",
-};
 
 function buildDateRange(q) {
   const { start, end, month, year } = q;
@@ -99,28 +92,7 @@ router.get("/", requireAuth, allow("Admin", "Sales"), async (req, res) => {
       query.$or = or;
     }
 
-    if (req.user.role === "Sales") {
-      const firstName = req.user.firstName;
-      if (!firstName) {
-        console.warn("[dailySalesGp] Sales user has no firstName, skipping salesAgent filter");
-      } else {
-        const mappedFirstName =
-          (req.brand === "PROLANE" || req.brand === "PROTP") && AGENT_BRAND_MAPPING[firstName] ? AGENT_BRAND_MAPPING[firstName] : firstName;
-
-        const escapedFirstName = firstName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-        const escapedMappedName = mappedFirstName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-        const pattern1 = `^${escapedFirstName}(?:\\s.*|$)`;
-        const pattern2 = `^${escapedMappedName}(?:\\s.*|$)`;
-
-        if (mappedFirstName !== firstName) {
-          query.salesAgent = { $in: [new RegExp(pattern1, "i"), new RegExp(pattern2, "i")] };
-        } else {
-          query.salesAgent = new RegExp(pattern1, "i");
-        }
-      }
-    } else if (req.user.role === "Admin" && salesAgent) {
-      query.salesAgent = new RegExp(salesAgent.trim(), "i");
-    }
+    await mergeOrderAccessFilter(query, req, { adminSalesAgent: salesAgent });
 
     const SORT_MAP = {
       orderDate: "orderDate",

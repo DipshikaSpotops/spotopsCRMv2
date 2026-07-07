@@ -1,6 +1,8 @@
 import express from "express";
 import moment from "moment-timezone";
 import { getOrderModelForBrand } from "../models/Order.js";
+import { requireAuth, allow } from "../middleware/auth.js";
+import { mergeOrderAccessFilter } from "../utils/orderAccessScope.js";
 
 const router = express.Router();
 const TZ = "America/Chicago";
@@ -50,7 +52,7 @@ function getDateRange({ start, end, month, year }) {
 }
 
 // GET /orders/junkPartsOrders
-router.get("/", async (req, res) => {
+router.get("/", requireAuth, allow("Admin", "Sales", "Support"), async (req, res) => {
   try {
     const {
       start,
@@ -117,6 +119,9 @@ router.get("/", async (req, res) => {
 
       filter.$or = or;
     }
+
+    await mergeOrderAccessFilter(filter, req, { adminSalesAgent: req.query.salesAgent });
+
 
     const Order = getOrderModelForBrand(req.brand);
 

@@ -2,6 +2,7 @@ import express from "express";
 import moment from "moment-timezone";
 import { getOrderModelForBrand } from "../models/Order.js";
 import { requireAuth, allow } from "../middleware/auth.js";
+import { mergeOrderAccessFilter } from "../utils/orderAccessScope.js";
 import {
   enrichPriorityOrder,
   isExcludedFromPriorityOrders,
@@ -138,9 +139,7 @@ router.get("/", requireAuth, allow("Admin", "Sales", "Support"), async (req, res
       ];
     }
 
-    if (req.user.role === "Admin" && salesAgent && String(salesAgent).trim()) {
-      query.salesAgent = new RegExp(String(salesAgent).trim(), "i");
-    }
+    await mergeOrderAccessFilter(query, req, { adminSalesAgent: salesAgent });
 
     const Order = getOrderModelForBrand(req.brand);
     const candidates = await Order.find(query, projectFields).lean();

@@ -3,6 +3,7 @@ import moment from "moment-timezone";
 import { isJunkedPartYard } from "../../shared/utils/junkYard.js";
 import { getOrderModelForBrand } from "../models/Order.js";
 import { requireAuth, allow } from "../middleware/auth.js";
+import { mergeOrderAccessFilter } from "../utils/orderAccessScope.js";
 
 const router = express.Router();
 const TZ = "America/Chicago";
@@ -261,6 +262,7 @@ router.get("/", requireAuth, allow("Admin", "Sales", "Support"), async (req, res
       orderDate: { $gte: startDate, $lt: endExclusive },
       "additionalInfo.0": { $exists: true },
     };
+    await mergeOrderAccessFilter(query, req);
 
     const orders = await Order.find(query)
       .select("orderStatus additionalInfo orderHistory")

@@ -49,6 +49,29 @@ const AGENT_BRAND_MAPPING = {
   "Dipsikha": "Dipsikha", // Same for both brands
 };
 
+/** Monthly Orders page only — API intentionally returns all orders. */
+const TEAM_FILTER_EXEMPT_TABLE_IDS = new Set(["monthlyOrders"]);
+
+function salesAgentMatchesAnyFirstName(agentRaw, firstNames, brand) {
+  const agent = (agentRaw || "").toLowerCase().trim();
+  if (!agent || !firstNames?.length) return false;
+
+  for (const name of firstNames) {
+    const me = String(name || "").toLowerCase().trim();
+    if (!me) continue;
+    const mappedName =
+      (brand === "PROLANE" || brand === "PROTP") && AGENT_BRAND_MAPPING[name]
+        ? AGENT_BRAND_MAPPING[name]
+        : name;
+    const mappedMe = String(mappedName).toLowerCase().trim();
+    const matchesOriginal = agent === me || agent.startsWith(`${me} `);
+    const matchesMapped =
+      mappedMe !== me && (agent === mappedMe || agent.startsWith(`${mappedMe} `));
+    if (matchesOriginal || matchesMapped) return true;
+  }
+  return false;
+}
+
 // utils - memoized for performance
 const currency = (n) => `$${(Number(n) || 0).toFixed(2)}`;
 
@@ -481,6 +504,7 @@ export default function OrdersTable({
   // role (for admin agent filter and Edit button)
   const [userRole, setUserRole] = useState(null);
   const [firstName, setFirstName] = useState("");
+  const [teamAgentFirstNames, setTeamAgentFirstNames] = useState([]);
   useEffect(() => {
     // Get role with fallback (like Sidebar does)
     const roleFromStorage = (() => {
@@ -495,6 +519,32 @@ export default function OrdersTable({
     })();
     setUserRole(roleFromStorage);
     setFirstName((localStorage.getItem("firstName") || "").trim());
+
+    let team = "";
+    try {
+      const raw = localStorage.getItem("auth");
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        team = String(parsed?.user?.team || "").trim();
+      }
+    } catch {}
+
+    if (team) {
+      API.get("/users", { params: { role: "Sales", team } })
+        .then(({ data }) => {
+          const names = [
+            ...new Set(
+              (Array.isArray(data) ? data : [])
+                .map((u) => String(u?.firstName || "").trim())
+                .filter(Boolean)
+            ),
+          ];
+          setTeamAgentFirstNames(names);
+        })
+        .catch(() => setTeamAgentFirstNames([]));
+    } else {
+      setTeamAgentFirstNames([]);
+    }
   }, []);
 
   // persist page + scroll to top on manual page change
@@ -841,32 +891,46 @@ export default function OrdersTable({
 
   // agent filter
   const filteredByRole = useMemo(() => {
-    if (isServerPaginated) {
+    if (TEAM_FILTER_EXEMPT_TABLE_IDS.has(tableId)) {
       return rowsAfterTrackingLabelFilter;
     }
-    if ((userRole || "").toLowerCase() === "sales") {
-      const me = firstName.toLowerCase();
-      // Get mapped agent name for PROLANE brand
-      const mappedFirstName = (brand === 'PROLANE' && AGENT_BRAND_MAPPING[firstName]) 
-        ? AGENT_BRAND_MAPPING[firstName] 
-        : firstName;
-      const mappedMe = mappedFirstName.toLowerCase();
-      
-      return rowsAfterTrackingLabelFilter.filter((o) => {
-        const agent = (o?.salesAgent || "").toLowerCase().trim();
-        // Match exact firstName OR full name starting with firstName
-        // Also match mapped agent name if brand is PROLANE
-        // Examples: "richard" matches, "richard parker" matches, "victor" matches (if PROLANE)
-        const matchesOriginal = agent === me || agent.startsWith(me + " ");
-        const matchesMapped = mappedFirstName !== firstName 
-          ? (agent === mappedMe || agent.startsWith(mappedMe + " "))
-          : false;
-        return matchesOriginal || matchesMapped;
-      });
+
+    const role = (userRole || "").toLowerCase();
+    if (role === "admin" || role === "support") {
+      return rowsAfterTrackingLabelFilter;
     }
-    // Admin & Support see everything
-    return rowsAfterTrackingLabelFilter;
-  }, [rowsAfterTrackingLabelFilter, userRole, firstName, brand, isServerPaginated]);
+
+    const usesUnscopedMonthlyApi =
+      String(endpoint || "").includes("/orders/monthlyOrders") ||
+      String(endpoint || "").includes("/orders/AllOrders");
+    if (isServerPaginated && !usesUnscopedMonthlyApi) {
+      return rowsAfterTrackingLabelFilter;
+    }
+
+    const agentsToMatch =
+      teamAgentFirstNames.length > 0
+        ? teamAgentFirstNames
+        : role === "sales" && firstName
+          ? [firstName]
+          : [];
+
+    if (!agentsToMatch.length) {
+      return rowsAfterTrackingLabelFilter;
+    }
+
+    return rowsAfterTrackingLabelFilter.filter((o) =>
+      salesAgentMatchesAnyFirstName(o?.salesAgent, agentsToMatch, brand)
+    );
+  }, [
+    rowsAfterTrackingLabelFilter,
+    userRole,
+    firstName,
+    brand,
+    isServerPaginated,
+    tableId,
+    endpoint,
+    teamAgentFirstNames,
+  ]);
 
   // 2) Admin-only agent narrowing (Select/All=no narrowing)
   const agentFiltered = useMemo(() => {
