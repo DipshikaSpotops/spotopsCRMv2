@@ -12,7 +12,7 @@ export const ACTIVE_ATTENDANCE_USER_LIST = [
   "Guru",
   "Suzanne",
   "Tony",
-  "Tylor",
+  "Tyler",
   "Dipsikha",
   "Alex",
   "Hannah",
@@ -40,7 +40,7 @@ export function displayAttendanceFirstName(firstName) {
 export function attendanceNameKey(firstName) {
   const key = displayAttendanceFirstName(firstName).toLowerCase();
   if (key === "dipshika") return "dipsikha";
-  if (key === "taylor") return "tylor";
+  if (key === "taylor" || key === "tylor") return "tyler";
   if (key === "ginny") return "olivia";
   return key;
 }
