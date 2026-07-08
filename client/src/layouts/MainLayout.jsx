@@ -3,13 +3,22 @@ import { useLocation } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import Sidebar from "../components/Sidebar";
 import BrandBadge from "../components/BrandBadge";
+import { isAttendanceBlocking } from "../utils/attendanceGate";
 
 export default function MainLayout({ children }) {
   const [darkMode, setDarkMode] = useState(
     localStorage.getItem("darkMode") === "true"
   );
   const [sidebarOpen, setSidebarOpen] = useState(false); // mobile drawer
+  const [attendanceBlocked, setAttendanceBlocked] = useState(() => isAttendanceBlocking());
   const location = useLocation();
+
+  useEffect(() => {
+    const sync = () => setAttendanceBlocked(isAttendanceBlocking());
+    sync();
+    window.addEventListener("attendance-blocking-changed", sync);
+    return () => window.removeEventListener("attendance-blocking-changed", sync);
+  }, []);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -50,6 +59,7 @@ export default function MainLayout({ children }) {
         <aside
           className={[
             "fixed inset-y-0 left-0 z-40 w-64 shrink-0",
+            attendanceBlocked ? "hidden lg:hidden" : "",
             // IMPORTANT: no border/shadow so there's no visible divider
             "shadow-none border-0 [box-shadow:none] [border-right:0]",
             "transition-transform duration-200 will-change-transform",
@@ -72,10 +82,10 @@ export default function MainLayout({ children }) {
         )}
 
         {/* Spacer reserves sidebar width on desktop; prevents any overlay */}
-        <div className="hidden lg:block w-64 shrink-0 ml-4" aria-hidden />
+        <div className={`hidden lg:block w-64 shrink-0 ml-4 ${attendanceBlocked ? "lg:hidden" : ""}`} aria-hidden />
 
         {/* Main content */}
-        <main className="flex-1 min-w-0 pt-16 text-white overflow-y-auto">
+        <main className={`flex-1 min-w-0 pt-16 text-white overflow-y-auto ${attendanceBlocked ? "hidden" : ""}`}>
           {/* Floating brand badge for all sidebar pages (except specified pages) */}
           {shouldShowBrandBadge && <BrandBadge />}
           {/* Mobile toggle button (if Navbar doesn't render one) */}

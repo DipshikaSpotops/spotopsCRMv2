@@ -8,6 +8,11 @@ import API from "../api";
 import { getCurrentBrand, setCurrentBrand, onBrandChange } from "../utils/brand";
 import MarkAttendanceModal from "./MarkAttendanceModal";
 import { recordAttendanceLogout } from "../utils/attendanceApi";
+import {
+  isAttendanceBlocking,
+  setAttendanceBlocking,
+  userNeedsAttendanceMark,
+} from "../utils/attendanceGate";
 
 export default function Navbar() {
   const navigate = useNavigate();
@@ -25,7 +30,9 @@ export default function Navbar() {
     }
     return false;
   });
-  const [attendanceBlocking, setAttendanceBlocking] = useState(attendanceOpen);
+  const [attendanceBlocking, setAttendanceBlockingState] = useState(
+    () => isAttendanceBlocking() || sessionStorage.getItem("showAttendancePopup") === "true"
+  );
   const dropdownRef = useRef(null);
 
   // --- Single read path for user name ---
@@ -72,6 +79,47 @@ export default function Navbar() {
       unsubscribeBrand();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const authRaw = localStorage.getItem("auth");
+        if (!authRaw) return;
+        const { user } = JSON.parse(authRaw);
+        const role = String(user?.role || "").trim();
+        if (role === "Admin") return;
+
+        const firstName = String(user?.firstName || "").trim();
+        if (!firstName) return;
+
+        const needsMark = await userNeedsAttendanceMark(firstName);
+        if (cancelled) return;
+
+        if (needsMark) {
+          setAttendanceOpen(true);
+          setAttendanceBlockingState(true);
+          setAttendanceBlocking(true);
+        } else {
+          setAttendanceBlockingState(false);
+          setAttendanceBlocking(false);
+        }
+      } catch {
+        /* ignore — modal can still be opened manually */
+      }
+    })();
+
+    const onBlockingChange = () => {
+      setAttendanceBlockingState(isAttendanceBlocking());
+    };
+    window.addEventListener("attendance-blocking-changed", onBlockingChange);
+
+    return () => {
+      cancelled = true;
+      window.removeEventListener("attendance-blocking-changed", onBlockingChange);
+    };
   }, []);
 
   const toggleTheme = () => {
@@ -342,7 +390,11 @@ export default function Navbar() {
 
       <MarkAttendanceModal
         isOpen={attendanceOpen}
-        onClose={() => { setAttendanceOpen(false); setAttendanceBlocking(false); }}
+        onClose={() => {
+          setAttendanceOpen(false);
+          setAttendanceBlockingState(false);
+          setAttendanceBlocking(false);
+        }}
         isDarkMode={isDarkMode}
         blocking={attendanceBlocking}
       />

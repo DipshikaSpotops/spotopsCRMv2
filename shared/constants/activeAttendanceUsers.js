@@ -21,7 +21,6 @@ export const ACTIVE_ATTENDANCE_USER_LIST = [
   "Hardin",
   "Amy",
   "Rhea",
-  "Kylie",
   "Olivia",
 ];
 

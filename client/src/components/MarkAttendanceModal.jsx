@@ -9,6 +9,7 @@ import {
 } from "../constants/activeAttendanceUsers";
 import { todayDateKeyIST } from "../utils/attendanceStatus";
 import { fetchAttendance, markMyAttendancePresent, recordAttendanceLogout } from "../utils/attendanceApi";
+import { setAttendanceBlocking } from "../utils/attendanceGate";
 import API from "../api";
 import { logout as logoutAction } from "../store/authSlice";
 import { clearStoredAuth } from "../utils/authStorage";
@@ -128,6 +129,7 @@ export default function MarkAttendanceModal({ isOpen, onClose, isDarkMode, block
       }
 
       if (blocking) {
+        setAttendanceBlocking(false);
         setTimeout(() => onClose?.(), 1500);
       }
     } catch (e) {

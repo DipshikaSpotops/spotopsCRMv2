@@ -127,6 +127,8 @@ import API from "../api";
 import { clearStoredAuth, persistStoredAuth } from "../utils/authStorage";
 import { setCurrentBrand } from "../utils/brand";
 import { logout as logoutAction, setCredentials } from "../store/authSlice";
+import { setAttendanceBlocking, userNeedsAttendanceMark } from "../utils/attendanceGate";
+import { isActiveAttendanceUser } from "../constants/activeAttendanceUsers";
 
 const Login = () => {
   const dispatch = useDispatch();
@@ -165,11 +167,26 @@ const Login = () => {
         setCurrentBrand("50STARS");
 
         const userRole = (res.data.user.role || "").toLowerCase();
-        const todayKey = new Date().toISOString().slice(0, 10);
-        const alreadyShownToday = localStorage.getItem("attendancePopupShownDate") === todayKey;
-        if (userRole !== "admin" && !alreadyShownToday) {
-          sessionStorage.setItem("showAttendancePopup", "true");
-          localStorage.setItem("attendancePopupShownDate", todayKey);
+        const firstName = res.data.user?.firstName || "";
+        if (userRole !== "admin") {
+          try {
+            const needsMark = await userNeedsAttendanceMark(firstName);
+            if (needsMark) {
+              sessionStorage.setItem("showAttendancePopup", "true");
+              setAttendanceBlocking(true);
+            } else {
+              setAttendanceBlocking(false);
+            }
+          } catch {
+            if (isActiveAttendanceUser(firstName)) {
+              sessionStorage.setItem("showAttendancePopup", "true");
+              setAttendanceBlocking(true);
+            } else {
+              setAttendanceBlocking(false);
+            }
+          }
+        } else {
+          setAttendanceBlocking(false);
         }
 
         if (res.data.user.appAccessUnlocked === false) {
