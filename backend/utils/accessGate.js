@@ -96,6 +96,7 @@ export function toAuthSafeUser(dbUser) {
     email: u.email,
     team: u.team,
     role: u.role,
+    permissions: Array.isArray(u.permissions) ? u.permissions : [],
     createdAt: u.createdAt,
     updatedAt: u.updatedAt,
     appAccessUnlocked: computeEffectiveAppAccessUnlocked(u),

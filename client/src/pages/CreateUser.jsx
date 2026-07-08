@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import API from "../api";
 import { FaEye, FaEyeSlash } from "react-icons/fa";
+import { USER_PERMISSION_OPTIONS } from "../../../shared/constants/userPermissions.js";
 
 const ROLES = ["Admin", "Sales", "Support"];
 
@@ -18,6 +19,7 @@ export default function CreateUser() {
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState({ type: "", text: "" });
   const [showPassword, setShowPassword] = useState(false);
+  const [selectedPermissions, setSelectedPermissions] = useState([]);
 
   useEffect(() => {
     let mounted = true;
@@ -72,6 +74,7 @@ export default function CreateUser() {
     try {
       const payload = { ...form };
       if (!payload.team) delete payload.team;
+      payload.permissions = selectedPermissions;
       const { data } = await API.post("/users", payload);
       setMessage({ type: "success", text: `User ${data.firstName} created.` });
       setForm({
@@ -82,6 +85,7 @@ export default function CreateUser() {
         team: "",
         password: "",
       });
+      setSelectedPermissions([]);
     } catch (e) {
       const text =
         e?.response?.status === 409
@@ -167,6 +171,27 @@ export default function CreateUser() {
               </option>
             ))}
           </select>
+
+          <div className="mt-3 space-y-2">
+            <span className="block text-sm text-white/90">Permissions</span>
+            {USER_PERMISSION_OPTIONS.map(({ key, label }) => (
+              <label key={key} className="flex items-center gap-2 text-sm text-white/90 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={selectedPermissions.includes(key)}
+                  onChange={(e) => {
+                    setSelectedPermissions((prev) =>
+                      e.target.checked
+                        ? [...new Set([...prev, key])]
+                        : prev.filter((p) => p !== key)
+                    );
+                  }}
+                  className="h-4 w-4 rounded border-white/40"
+                />
+                <span>{label}</span>
+              </label>
+            ))}
+          </div>
         </div>
 
         {form.role !== "Admin" && (

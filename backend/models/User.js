@@ -16,6 +16,10 @@ const userSchema = new mongoose.Schema({
     enum: ['Admin', 'Sales', 'Support'],
     required: true,
   },
+  permissions: {
+    type: [String],
+    default: [],
+  },
   /** When APP_ACCESS_GATE_ENABLED=true, must redeem email-bound invite unless grandfathered/bypassed. */
   appAccessUnlocked: { type: Boolean, required: false },
 }, { timestamps: true });

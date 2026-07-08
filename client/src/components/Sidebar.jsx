@@ -2,8 +2,9 @@ import { Link, useLocation } from "react-router-dom";
 import { FaHome, FaUsers, FaChartBar, FaChevronDown, FaClipboardCheck } from "react-icons/fa";
 import { useState } from "react";
 import { useSelector } from "react-redux";
-import { selectRole } from "../store/authSlice";
+import { selectRole, selectUser } from "../store/authSlice";
 import { getCurrentBrand } from "../utils/brand";
+import { USER_PERMISSIONS, userHasPermission } from "../../../shared/constants/userPermissions.js";
 
 const normalizeRole = (value) => {
   if (!value) return undefined;
@@ -19,6 +20,7 @@ export default function Sidebar() {
 
   // Role from Redux with robust fallback to localStorage
   const roleFromRedux = useSelector(selectRole);
+  const userFromRedux = useSelector(selectUser);
   const role = normalizeRole(
     roleFromRedux ??
       (function () {
@@ -29,6 +31,19 @@ export default function Sidebar() {
         return localStorage.getItem("role") || undefined; // legacy key
       })()
   );
+
+  const permissions =
+    (Array.isArray(userFromRedux?.permissions) && userFromRedux.permissions) ||
+    (function () {
+      try {
+        const raw = localStorage.getItem("auth");
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          return Array.isArray(parsed?.user?.permissions) ? parsed.user.permissions : [];
+        }
+      } catch {}
+      return [];
+    })();
 
   // Email from Redux with robust fallback to localStorage
   const email =
@@ -46,6 +61,7 @@ export default function Sidebar() {
   // Top-level sections open; nested groups (CX Related, Yard Related, etc.) start collapsed.
   const [openMenu, setOpenMenu] = useState({
     dashboards: true,
+    dashboardInvoices: false,
     cxRelated: false,
     yardRelated: false,
     dashboardEscalations: false,
@@ -69,6 +85,15 @@ export default function Sidebar() {
 
   // ====== Base link sets ======
   const dashboardLinksBase = [
+    {
+      text: "Invoices",
+      submenuKey: "dashboardInvoices",
+      permissionRequired: USER_PERMISSIONS.INVOICES,
+      children: [
+        { text: "Placed Orders", to: "/placed-orders" },
+        { text: "Customer Approved", to: "/customer-approved" },
+      ],
+    },
     { text: "Add New Order", to: "/add-order", roles: ["Admin", "Sales"] },
     { text: "Edit Order", to: "/edit-order", roles: ["Admin", "Sales"] },
     { text: "Daily Sales GP", to: "/daily-sales-gp", roles: ["Admin", "Sales"] },
@@ -81,7 +106,6 @@ export default function Sidebar() {
       text: "CX Related",
       submenuKey: "cxRelated",
       children: [
-        { text: "Placed Orders", to: "/placed-orders" },
         { text: "Partially Charged Orders", to: "/partially-charged-orders" },
         { text: "In-Transit Orders", to: "/in-transit" },
         { text: "Return-In-transit Orders", to: "/return-in-transit" },
@@ -98,7 +122,6 @@ export default function Sidebar() {
       children: [
         { text: "Yard Data", to: "/yards", roles: ["Admin", "Support"], emailAccess: "50starsauto110@gmail.com" },
         { text: "Yard Statistics", to: "/yard-statistics" },
-        { text: "CX Approved Orders", to: "/customer-approved" },
         { text: "Yard Processing Orders", to: "/yard-processing" },
         { text: "Yard Relocates", to: "/yard-relocates" },
         { text: "Yard Not Found", to: "/yard-not-found" },
@@ -245,13 +268,22 @@ export default function Sidebar() {
       .filter(Boolean);
   };
 
+  const canAccessPermission = (permissionKey, userRole, userPermissions) => {
+    if (!permissionKey) return true;
+    if (normalizeRole(userRole) === "Admin") return true;
+    return userHasPermission({ permissions: userPermissions }, permissionKey);
+  };
+
   /** Filter dashboard items (flat links or `{ text, children }` groups). */
-  const filterDashboardLinks = (items, userRole, userEmail, currentBrand, hiddenFlat, hiddenNested) => {
+  const filterDashboardLinks = (items, userRole, userEmail, currentBrand, hiddenFlat, hiddenNested, userPermissions) => {
     const flatHidden = hiddenFlat ?? new Set();
     const nestedHidden = hiddenNested ?? flatHidden;
 
     return items
       .map((item) => {
+        if (item.permissionRequired && !canAccessPermission(item.permissionRequired, userRole, userPermissions)) {
+          return null;
+        }
         if (item.children?.length) {
           const children = item.children.filter((l) => {
             if (nestedHidden.has(l.text)) return false;
@@ -275,7 +307,6 @@ export default function Sidebar() {
 
   if (role === "Sales") {
     const hiddenForSales = new Set([
-      "Placed Orders",
       "CX Related",
       "CX Approved Orders",
       "Yard Related",
@@ -293,7 +324,8 @@ export default function Sidebar() {
       email,
       brand,
       hiddenForSales,
-      hiddenForSales
+      hiddenForSales,
+      permissions
     );
 
     // Hide Users block entirely
@@ -312,7 +344,8 @@ export default function Sidebar() {
       email,
       brand,
       hiddenForSupport,
-      hiddenForSupport
+      hiddenForSupport,
+      permissions
     );
 
     const isAuthCodesViewer = email?.toLowerCase() === "50starsauto110@gmail.com";
@@ -325,7 +358,7 @@ export default function Sidebar() {
     attendanceLinks = attendanceLinksBase.filter((l) => shouldShowLink(l, role, email, brand));
   } else {
     showUsersSection = true;
-    dashboardLinks = filterDashboardLinks(dashboardLinksBase, role, email, brand, new Set(), new Set());
+    dashboardLinks = filterDashboardLinks(dashboardLinksBase, role, email, brand, new Set(), new Set(), permissions);
     reportsLinks = filterNestedLinksByRole(reportsLinksBase, role, email, brand);
     attendanceLinks = attendanceLinksBase.filter((l) => shouldShowLink(l, role, email, brand));
   }

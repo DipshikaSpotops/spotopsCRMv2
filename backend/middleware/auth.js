@@ -33,6 +33,7 @@ export const requireAuth = async (req, res, next) => {
       firstName: user.firstName,
       lastName: user.lastName,
       team: user.team,
+      permissions: Array.isArray(user.permissions) ? user.permissions : [],
     };
 
     if (

@@ -8,6 +8,7 @@ import useSort from "../hooks/useSort";
 import TableScrollViewport, {
   handleTableHorizontalWheel,
 } from "../components/TableScrollViewport";
+import { USER_PERMISSION_OPTIONS, userHasPermission, normalizePermissionsList } from "../../../shared/constants/userPermissions.js";
 
 const PAGE_SIZE = 20;
 const ROLES = ["Admin", "Sales", "Support"];
@@ -51,7 +52,7 @@ export default function ViewUsers() {
   // inline edit state
   const [editingId, setEditingId] = useState(null);
   const [editForm, setEditForm] = useState({
-    firstName: "", lastName: "", email: "", team: "", role: "", password: ""
+    firstName: "", lastName: "", email: "", team: "", role: "", password: "", permissions: [],
   });
   const [showPwd, setShowPwd] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -144,12 +145,15 @@ export default function ViewUsers() {
       team: u.team || "",
       role: u.role || "",
       password: "", // empty => unchanged
+      permissions: normalizePermissionsList(u.permissions),
     });
   };
 
   const cancelEdit = () => {
     setEditingId(null);
-    setEditForm({ firstName: "", lastName: "", email: "", team: "", role: "", password: "" });
+    setEditForm({
+      firstName: "", lastName: "", email: "", team: "", role: "", password: "", permissions: [],
+    });
     setShowPwd(false);
   };
 
@@ -163,6 +167,22 @@ export default function ViewUsers() {
       return next;
     });
   };
+
+  const toggleEditPermission = (permissionKey, checked) => {
+    setEditForm((f) => {
+      const current = Array.isArray(f.permissions) ? f.permissions : [];
+      const next = checked
+        ? [...new Set([...current, permissionKey])]
+        : current.filter((p) => p !== permissionKey);
+      return { ...f, permissions: next };
+    });
+  };
+
+  function permissionsEqual(a, b) {
+    const left = normalizePermissionsList(a).sort();
+    const right = normalizePermissionsList(b).sort();
+    return left.length === right.length && left.every((val, idx) => val === right[idx]);
+  }
 
   // only send changed fields
   function diffPayload(original, edited) {
@@ -182,6 +202,9 @@ export default function ViewUsers() {
 
       payload[k] = newVal;
     });
+    if (!permissionsEqual(original.permissions, edited.permissions)) {
+      payload.permissions = normalizePermissionsList(edited.permissions);
+    }
     if (edited.password && edited.password.length >= 6) {
       payload.password = edited.password; // backend will hash
     }
@@ -288,7 +311,7 @@ export default function ViewUsers() {
         innerRef={tableScrollRef}
         onInnerWheel={onTableWheel}
         outerClassName="hidden md:block"
-        minTableWidth="1100px"
+        minTableWidth="1200px"
       >
         <table className="min-w-full w-max bg-black/20 backdrop-blur-md text-white">
           <thead className="sticky top-0 bg-[#5c8bc1] z-20 text-black">
@@ -299,19 +322,20 @@ export default function ViewUsers() {
                 { key: "email", label: "Email" },
                 { key: "role", label: "Role" },
                 { key: "team", label: "Team" },
+                { key: "permissions", label: "Permissions", sortable: false },
                 { key: "createdAt", label: "Created" },
               ].map(col => (
                 <th
                   key={col.key}
-                  onClick={() => handleSort(col.key)}
-                  className="p-3 text-left cursor-pointer border-r border-white/30 whitespace-nowrap"
+                  onClick={() => col.sortable !== false && handleSort(col.key)}
+                  className={`p-3 text-left border-r border-white/30 whitespace-nowrap ${col.sortable !== false ? "cursor-pointer" : ""}`}
                 >
                   <div className="flex items-center gap-1">
-                    {col.label} {sortBy === col.key ? (
+                    {col.label} {col.sortable !== false && sortBy === col.key ? (
                       sortOrder === "asc" ? <FaSortUp className="text-xs" /> : <FaSortDown className="text-xs" />
-                    ) : (
+                    ) : col.sortable !== false ? (
                       <FaSort className="text-xs text-white/60" />
-                    )}
+                    ) : null}
                   </div>
                 </th>
               ))}
@@ -320,11 +344,11 @@ export default function ViewUsers() {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td className="p-6 text-center text-white/80" colSpan={7}>⏳ Loading…</td></tr>
+              <tr><td className="p-6 text-center text-white/80" colSpan={8}>⏳ Loading…</td></tr>
             ) : error ? (
-              <tr><td className="p-6 text-center text-red-300" colSpan={7}>{error}</td></tr>
+              <tr><td className="p-6 text-center text-red-300" colSpan={8}>{error}</td></tr>
             ) : pageRows.length === 0 ? (
-              <tr><td className="p-6 text-center text-white/80" colSpan={7}>No users found.</td></tr>
+              <tr><td className="p-6 text-center text-white/80" colSpan={8}>No users found.</td></tr>
             ) : (
               pageRows.map(u => {
                 const isEditing = editingId === u._id;
@@ -397,6 +421,33 @@ export default function ViewUsers() {
                         </select>
                         )
                       ) : u.role === "Admin" ? "—" : (u.team || "—")}
+                    </td>
+                    <td className="p-2.5 border-r border-white/20 align-top">
+                      <div className="flex flex-col gap-1.5 min-w-[7rem]">
+                        {USER_PERMISSION_OPTIONS.map(({ key, label }) => {
+                          const checked = isEditing
+                            ? (editForm.permissions || []).includes(key)
+                            : userHasPermission(u, key);
+                          return (
+                            <label
+                              key={key}
+                              className={`inline-flex items-center gap-2 text-xs whitespace-nowrap ${
+                                isEditing ? "cursor-pointer" : "cursor-default"
+                              }`}
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                disabled={!isEditing || saving}
+                                onChange={(e) => toggleEditPermission(key, e.target.checked)}
+                                className="h-4 w-4 shrink-0 disabled:opacity-60"
+                              />
+                              <span className={isEditing ? "" : "text-white/80"}>{label}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
                     </td>
                     <td className="p-2.5 border-r border-white/20 whitespace-nowrap">{formatDate(u.createdAt)}</td>
                     <td className="p-2.5">
