@@ -88,10 +88,17 @@ export default function Sidebar() {
     {
       text: "Invoices",
       submenuKey: "dashboardInvoices",
-      permissionRequired: USER_PERMISSIONS.INVOICES,
       children: [
-        { text: "Placed Orders", to: "/placed-orders" },
-        { text: "Customer Approved", to: "/customer-approved" },
+        {
+          text: "Placed Orders",
+          to: "/placed-orders",
+          permissionRequired: USER_PERMISSIONS.INVOICES_PLACED_ORDERS,
+        },
+        {
+          text: "Customer Approved",
+          to: "/customer-approved",
+          permissionRequired: USER_PERMISSIONS.INVOICES_CUSTOMER_APPROVED,
+        },
       ],
     },
     { text: "Add New Order", to: "/add-order", roles: ["Admin", "Sales"] },
@@ -287,6 +294,12 @@ export default function Sidebar() {
         if (item.children?.length) {
           const children = item.children.filter((l) => {
             if (nestedHidden.has(l.text)) return false;
+            if (
+              l.permissionRequired &&
+              !canAccessPermission(l.permissionRequired, userRole, userPermissions)
+            ) {
+              return false;
+            }
             return shouldShowLink(l, userRole, userEmail, currentBrand);
           });
           if (children.length === 0) return null;

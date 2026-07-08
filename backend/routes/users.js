@@ -2,7 +2,7 @@
 import express from "express";
 import User from "../models/User.js";
 import { initialAppAccessUnlockedForNewUser } from "../utils/accessGate.js";
-import { normalizePermissionsList } from "../../shared/constants/userPermissions.js";
+import { permissionsForStorage } from "../../shared/constants/userPermissions.js";
 const router = express.Router();
 
 function isAdminRole(role) {
@@ -39,7 +39,7 @@ router.post("/", async (req, res) => {
     if (team) payload.team = team;
     applyTeamForRole(payload, role);
     if (Array.isArray(permissions)) {
-      payload.permissions = normalizePermissionsList(permissions);
+      payload.permissions = permissionsForStorage(permissions);
     }
     const initialUnlock = initialAppAccessUnlockedForNewUser();
     if (initialUnlock !== undefined) payload.appAccessUnlocked = initialUnlock;
@@ -86,7 +86,7 @@ router.patch("/:id", async (req, res) => {
       if (req.body[k] !== undefined) payload[k] = req.body[k];
     }
     if (payload.permissions !== undefined) {
-      payload.permissions = normalizePermissionsList(payload.permissions);
+      payload.permissions = permissionsForStorage(payload.permissions);
     }
 
     const effectiveRole = payload.role ?? existing.role;

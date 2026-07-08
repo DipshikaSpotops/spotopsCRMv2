@@ -8,7 +8,8 @@ import useSort from "../hooks/useSort";
 import TableScrollViewport, {
   handleTableHorizontalWheel,
 } from "../components/TableScrollViewport";
-import { USER_PERMISSION_OPTIONS, normalizePermissionsList, formatPermissionLabels } from "../../../shared/constants/userPermissions.js";
+import { formatPermissionLabels, permissionsForEditor, permissionsForStorage } from "../../../shared/constants/userPermissions.js";
+import PermissionsEditor from "../components/PermissionsEditor";
 
 const PAGE_SIZE = 20;
 const ROLES = ["Admin", "Sales", "Support"];
@@ -147,7 +148,7 @@ export default function ViewUsers() {
       team: u.team || "",
       role: u.role || "",
       password: "", // empty => unchanged
-      permissions: normalizePermissionsList(u.permissions),
+      permissions: permissionsForEditor(u.permissions),
     });
   };
 
@@ -173,7 +174,7 @@ export default function ViewUsers() {
   };
 
   const openPermissionModal = () => {
-    setPermissionModalDraft(normalizePermissionsList(editForm.permissions));
+    setPermissionModalDraft(permissionsForEditor(editForm.permissions));
     setPermissionModalOpen(true);
   };
 
@@ -182,26 +183,17 @@ export default function ViewUsers() {
     setPermissionModalDraft([]);
   };
 
-  const toggleModalPermission = (permissionKey, checked) => {
-    setPermissionModalDraft((current) => {
-      const next = checked
-        ? [...new Set([...current, permissionKey])]
-        : current.filter((p) => p !== permissionKey);
-      return next;
-    });
-  };
-
   const applyPermissionModal = () => {
     setEditForm((f) => ({
       ...f,
-      permissions: normalizePermissionsList(permissionModalDraft),
+      permissions: permissionsForStorage(permissionModalDraft),
     }));
     closePermissionModal();
   };
 
   function permissionsEqual(a, b) {
-    const left = normalizePermissionsList(a).sort();
-    const right = normalizePermissionsList(b).sort();
+    const left = permissionsForEditor(a).sort();
+    const right = permissionsForEditor(b).sort();
     return left.length === right.length && left.every((val, idx) => val === right[idx]);
   }
 
@@ -224,7 +216,7 @@ export default function ViewUsers() {
       payload[k] = newVal;
     });
     if (!permissionsEqual(original.permissions, edited.permissions)) {
-      payload.permissions = normalizePermissionsList(edited.permissions);
+      payload.permissions = permissionsForStorage(edited.permissions);
     }
     if (edited.password && edited.password.length >= 6) {
       payload.password = edited.password; // backend will hash
@@ -583,21 +575,11 @@ export default function ViewUsers() {
               Select permissions for this user. Click Apply, then Save on the row to persist.
             </p>
 
-            <div className="space-y-3 max-h-[50vh] overflow-y-auto pr-1">
-              {USER_PERMISSION_OPTIONS.map(({ key, label }) => (
-                <label
-                  key={key}
-                  className="flex items-center gap-3 cursor-pointer text-sm"
-                >
-                  <input
-                    type="checkbox"
-                    checked={permissionModalDraft.includes(key)}
-                    onChange={(e) => toggleModalPermission(key, e.target.checked)}
-                    className="h-4 w-4 accent-emerald-400 shrink-0"
-                  />
-                  <span>{label}</span>
-                </label>
-              ))}
+            <div className="max-h-[50vh] overflow-y-auto pr-1">
+              <PermissionsEditor
+                value={permissionModalDraft}
+                onChange={setPermissionModalDraft}
+              />
             </div>
 
             <div className="mt-5 flex justify-end gap-2">
