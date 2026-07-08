@@ -1,5 +1,5 @@
 import { Link, useLocation } from "react-router-dom";
-import { FaHome, FaUsers, FaChartBar, FaChevronDown, FaClipboardCheck } from "react-icons/fa";
+import { FaHome, FaUsers, FaChartBar, FaChevronDown, FaClipboardCheck, FaFileInvoice, FaWarehouse } from "react-icons/fa";
 import { useState } from "react";
 import { useSelector } from "react-redux";
 import { selectRole, selectUser } from "../store/authSlice";
@@ -60,9 +60,9 @@ export default function Sidebar() {
 
   // Top-level sections open; nested groups (CX Related, Yard Related, etc.) start collapsed.
   const [openMenu, setOpenMenu] = useState({
+    invoices: true,
+    yardLocates: true,
     dashboards: true,
-    dashboardInvoices: false,
-    dashboardYardLocates: false,
     cxRelated: false,
     yardRelated: false,
     dashboardEscalations: false,
@@ -85,29 +85,21 @@ export default function Sidebar() {
   };
 
   // ====== Base link sets ======
+  const invoicesLinksBase = [
+    { text: "Placed Orders", to: "/placed-orders" },
+    { text: "Customer Approved", to: "/customer-approved" },
+    { text: "Partially Charged Orders", to: "/partially-charged-orders" },
+  ];
+
+  const yardLocatesLinksBase = [
+    { text: "Yard Data", to: "/yards", roles: ["Admin", "Support"], emailAccess: "50starsauto110@gmail.com" },
+    { text: "Yard Statistics", to: "/yard-statistics" },
+    { text: "Customer Approved", to: "/customer-approved" },
+    { text: "Yard Relocates", to: "/yard-relocates" },
+    { text: "Yard Not Found", to: "/yard-not-found" },
+  ];
+
   const dashboardLinksBase = [
-    {
-      text: "Invoices",
-      submenuKey: "dashboardInvoices",
-      permissionRequired: USER_PERMISSIONS.INVOICES,
-      children: [
-        { text: "Placed Orders", to: "/placed-orders" },
-        { text: "Customer Approved", to: "/customer-approved" },
-        { text: "Partially Charged Orders", to: "/partially-charged-orders" },
-      ],
-    },
-    {
-      text: "Yard Locates",
-      submenuKey: "dashboardYardLocates",
-      permissionRequired: USER_PERMISSIONS.YARD_LOCATES,
-      children: [
-        { text: "Yard Data", to: "/yards", roles: ["Admin", "Support"], emailAccess: "50starsauto110@gmail.com" },
-        { text: "Yard Statistics", to: "/yard-statistics" },
-        { text: "Customer Approved", to: "/customer-approved" },
-        { text: "Yard Relocates", to: "/yard-relocates" },
-        { text: "Yard Not Found", to: "/yard-not-found" },
-      ],
-    },
     { text: "Add New Order", to: "/add-order", roles: ["Admin", "Sales"] },
     { text: "Edit Order", to: "/edit-order", roles: ["Admin", "Sales"] },
     { text: "Daily Sales GP", to: "/daily-sales-gp", roles: ["Admin", "Sales"] },
@@ -216,18 +208,7 @@ export default function Sidebar() {
   /** Non-admin with invoices and/or yardLocates — limited sidebar only. */
   const isPermissionScoped = !isAdmin && (hasInvoicesPerm || hasYardLocatesPerm);
 
-  const buildPermissionScopedDashboardLinks = () => {
-    const scoped = [];
-    if (hasInvoicesPerm) {
-      const invoices = dashboardLinksBase.find((item) => item.text === "Invoices");
-      if (invoices) scoped.push(invoices);
-    }
-    if (hasYardLocatesPerm) {
-      const yardLocates = dashboardLinksBase.find((item) => item.text === "Yard Locates");
-      if (yardLocates) scoped.push(yardLocates);
-    }
-    return [...scoped, ...commonOrderLinks];
-  };
+  const buildPermissionScopedDashboardLinks = () => commonOrderLinks;
 
   // Helper function to check if a link should be shown based on role, email, and link properties
   const shouldShowLink = (link, userRole, userEmail, currentBrand) => {
@@ -338,8 +319,16 @@ export default function Sidebar() {
       .filter(Boolean);
   };
 
+  /** Filter flat link lists (Invoices, Yard Locates, etc.). */
+  const filterFlatLinks = (items, userRole, userEmail, currentBrand) =>
+    items.filter((l) => shouldShowLink(l, userRole, userEmail, currentBrand));
+
   // ====== Role-based filtering ======
   let dashboardLinks = dashboardLinksBase;
+  let invoicesLinks = [];
+  let showInvoicesSection = false;
+  let yardLocatesLinks = [];
+  let showYardLocatesSection = false;
   let showUsersSection = true;
   let usersLinks = usersLinksBase;
   let reportsLinks = reportsLinksBase;
@@ -364,7 +353,6 @@ export default function Sidebar() {
       "CX Related",
       "CX Approved Orders",
       "Yard Related",
-      "Yard Locates",
       "Yard Processing Orders",
       "Own Shipping",
       "In-Transit Orders",
@@ -418,6 +406,15 @@ export default function Sidebar() {
     attendanceLinks = attendanceLinksBase.filter((l) => shouldShowLink(l, role, email, brand));
   }
 
+  if (canAccessPermission(USER_PERMISSIONS.INVOICES, role, permissions)) {
+    invoicesLinks = filterFlatLinks(invoicesLinksBase, role, email, brand);
+    showInvoicesSection = invoicesLinks.length > 0;
+  }
+  if (canAccessPermission(USER_PERMISSIONS.YARD_LOCATES, role, permissions)) {
+    yardLocatesLinks = filterFlatLinks(yardLocatesLinksBase, role, email, brand);
+    showYardLocatesSection = yardLocatesLinks.length > 0;
+  }
+
   return (
     <div
       className="
@@ -436,6 +433,30 @@ export default function Sidebar() {
         custom-scrollbar 
       "
     >
+      {/* INVOICES Section */}
+      {showInvoicesSection && (
+        <SidebarItem
+          icon={<FaFileInvoice />}
+          title="Invoices"
+          isOpen={openMenu.invoices}
+          onClick={() => toggleMenu("invoices")}
+          links={invoicesLinks}
+          location={location}
+        />
+      )}
+
+      {/* YARD LOCATES Section */}
+      {showYardLocatesSection && (
+        <SidebarItem
+          icon={<FaWarehouse />}
+          title="Yard Locates"
+          isOpen={openMenu.yardLocates}
+          onClick={() => toggleMenu("yardLocates")}
+          links={yardLocatesLinks}
+          location={location}
+        />
+      )}
+
       {/* DASHBOARDS Section */}
       <SidebarItem
         icon={<FaHome />}
