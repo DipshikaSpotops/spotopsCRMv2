@@ -31,3 +31,18 @@ export function userHasPermission(user, permissionKey) {
   const list = normalizePermissionsList(user.permissions);
   return list.includes(key);
 }
+
+/** Comma-separated labels for table display (e.g. "Invoices, Reports"). */
+export function formatPermissionLabels(permissions) {
+  const normalized = normalizePermissionsList(permissions);
+  if (!normalized.length) return "—";
+
+  const knownKeys = new Set(USER_PERMISSION_OPTIONS.map((o) => o.key));
+  const labels = USER_PERMISSION_OPTIONS
+    .filter(({ key }) => normalized.includes(key))
+    .map(({ label }) => label);
+  const unknown = normalized.filter((k) => !knownKeys.has(k));
+
+  const display = [...labels, ...unknown];
+  return display.length ? display.join(", ") : "—";
+}

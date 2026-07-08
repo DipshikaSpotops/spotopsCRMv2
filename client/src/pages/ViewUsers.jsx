@@ -8,7 +8,7 @@ import useSort from "../hooks/useSort";
 import TableScrollViewport, {
   handleTableHorizontalWheel,
 } from "../components/TableScrollViewport";
-import { USER_PERMISSION_OPTIONS, userHasPermission, normalizePermissionsList } from "../../../shared/constants/userPermissions.js";
+import { USER_PERMISSION_OPTIONS, normalizePermissionsList, formatPermissionLabels } from "../../../shared/constants/userPermissions.js";
 
 const PAGE_SIZE = 20;
 const ROLES = ["Admin", "Sales", "Support"];
@@ -56,6 +56,8 @@ export default function ViewUsers() {
   });
   const [showPwd, setShowPwd] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [permissionModalOpen, setPermissionModalOpen] = useState(false);
+  const [permissionModalDraft, setPermissionModalDraft] = useState([]);
   const tableOuterRef = useRef(null);
   const tableScrollRef = useRef(null);
   const onTableWheel = (e) => handleTableHorizontalWheel(e, tableOuterRef);
@@ -155,6 +157,8 @@ export default function ViewUsers() {
       firstName: "", lastName: "", email: "", team: "", role: "", password: "", permissions: [],
     });
     setShowPwd(false);
+    setPermissionModalOpen(false);
+    setPermissionModalDraft([]);
   };
 
   const onEditChange = (e) => {
@@ -168,14 +172,31 @@ export default function ViewUsers() {
     });
   };
 
-  const toggleEditPermission = (permissionKey, checked) => {
-    setEditForm((f) => {
-      const current = Array.isArray(f.permissions) ? f.permissions : [];
+  const openPermissionModal = () => {
+    setPermissionModalDraft(normalizePermissionsList(editForm.permissions));
+    setPermissionModalOpen(true);
+  };
+
+  const closePermissionModal = () => {
+    setPermissionModalOpen(false);
+    setPermissionModalDraft([]);
+  };
+
+  const toggleModalPermission = (permissionKey, checked) => {
+    setPermissionModalDraft((current) => {
       const next = checked
         ? [...new Set([...current, permissionKey])]
         : current.filter((p) => p !== permissionKey);
-      return { ...f, permissions: next };
+      return next;
     });
+  };
+
+  const applyPermissionModal = () => {
+    setEditForm((f) => ({
+      ...f,
+      permissions: normalizePermissionsList(permissionModalDraft),
+    }));
+    closePermissionModal();
   };
 
   function permissionsEqual(a, b) {
@@ -422,32 +443,25 @@ export default function ViewUsers() {
                         )
                       ) : u.role === "Admin" ? "—" : (u.team || "—")}
                     </td>
-                    <td className="p-2.5 border-r border-white/20 align-top">
-                      <div className="flex flex-col gap-1.5 min-w-[7rem]">
-                        {USER_PERMISSION_OPTIONS.map(({ key, label }) => {
-                          const checked = isEditing
-                            ? (editForm.permissions || []).includes(key)
-                            : userHasPermission(u, key);
-                          return (
-                            <label
-                              key={key}
-                              className={`inline-flex items-center gap-2 text-xs whitespace-nowrap ${
-                                isEditing ? "cursor-pointer" : "cursor-default"
-                              }`}
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              <input
-                                type="checkbox"
-                                checked={checked}
-                                disabled={!isEditing || saving}
-                                onChange={(e) => toggleEditPermission(key, e.target.checked)}
-                                className="h-4 w-4 shrink-0 disabled:opacity-60"
-                              />
-                              <span className={isEditing ? "" : "text-white/80"}>{label}</span>
-                            </label>
-                          );
-                        })}
-                      </div>
+                    <td className="p-2.5 border-r border-white/20 align-top max-w-[14rem]">
+                      {isEditing ? (
+                        <div className="space-y-1.5">
+                          <div className="text-xs text-white/90 break-words">
+                            {formatPermissionLabels(editForm.permissions)}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={openPermissionModal}
+                            className="px-2 py-1 text-xs rounded bg-[#2c5d81] hover:bg-blue-700 text-white"
+                          >
+                            Manage permissions
+                          </button>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-white/90 break-words">
+                          {formatPermissionLabels(u.permissions)}
+                        </span>
+                      )}
                     </td>
                     <td className="p-2.5 border-r border-white/20 whitespace-nowrap">{formatDate(u.createdAt)}</td>
                     <td className="p-2.5">
@@ -549,6 +563,62 @@ export default function ViewUsers() {
           <FaChevronRight size={12} />
         </button>
       </div>
+
+      {permissionModalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+          onClick={closePermissionModal}
+        >
+          <div
+            className="w-full max-w-md rounded-lg border border-white/30 bg-[#0f2744]/95 backdrop-blur-md shadow-xl p-5 text-white"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="permissions-modal-title"
+          >
+            <h2 id="permissions-modal-title" className="text-lg font-semibold mb-1">
+              Manage permissions
+            </h2>
+            <p className="text-sm text-white/70 mb-4">
+              Select permissions for this user. Click Apply, then Save on the row to persist.
+            </p>
+
+            <div className="space-y-3 max-h-[50vh] overflow-y-auto pr-1">
+              {USER_PERMISSION_OPTIONS.map(({ key, label }) => (
+                <label
+                  key={key}
+                  className="flex items-center gap-3 cursor-pointer text-sm"
+                >
+                  <input
+                    type="checkbox"
+                    checked={permissionModalDraft.includes(key)}
+                    onChange={(e) => toggleModalPermission(key, e.target.checked)}
+                    className="h-4 w-4 accent-emerald-400 shrink-0"
+                  />
+                  <span>{label}</span>
+                </label>
+              ))}
+            </div>
+
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={closePermissionModal}
+                className="px-3 py-1.5 text-sm rounded bg-gray-500 hover:bg-gray-600 text-white"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={applyPermissionModal}
+                className="px-3 py-1.5 text-sm rounded bg-green-600 hover:bg-green-700 text-white"
+              >
+                Apply
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
