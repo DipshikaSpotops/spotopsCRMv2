@@ -62,6 +62,7 @@ export default function Sidebar() {
   const [openMenu, setOpenMenu] = useState({
     dashboards: true,
     dashboardInvoices: false,
+    dashboardYardLocates: false,
     cxRelated: false,
     yardRelated: false,
     dashboardEscalations: false,
@@ -88,17 +89,23 @@ export default function Sidebar() {
     {
       text: "Invoices",
       submenuKey: "dashboardInvoices",
+      permissionRequired: USER_PERMISSIONS.INVOICES,
       children: [
-        {
-          text: "Placed Orders",
-          to: "/placed-orders",
-          permissionRequired: USER_PERMISSIONS.INVOICES_PLACED_ORDERS,
-        },
-        {
-          text: "Customer Approved",
-          to: "/customer-approved",
-          permissionRequired: USER_PERMISSIONS.INVOICES_CUSTOMER_APPROVED,
-        },
+        { text: "Placed Orders", to: "/placed-orders" },
+        { text: "Customer Approved", to: "/customer-approved" },
+        { text: "Partially Charged Orders", to: "/partially-charged-orders" },
+      ],
+    },
+    {
+      text: "Yard Locates",
+      submenuKey: "dashboardYardLocates",
+      permissionRequired: USER_PERMISSIONS.YARD_LOCATES,
+      children: [
+        { text: "Yard Data", to: "/yards", roles: ["Admin", "Support"], emailAccess: "50starsauto110@gmail.com" },
+        { text: "Yard Statistics", to: "/yard-statistics" },
+        { text: "Customer Approved", to: "/customer-approved" },
+        { text: "Yard Relocates", to: "/yard-relocates" },
+        { text: "Yard Not Found", to: "/yard-not-found" },
       ],
     },
     { text: "Add New Order", to: "/add-order", roles: ["Admin", "Sales"] },
@@ -127,11 +134,7 @@ export default function Sidebar() {
       text: "Yard Related",
       submenuKey: "yardRelated",
       children: [
-        { text: "Yard Data", to: "/yards", roles: ["Admin", "Support"], emailAccess: "50starsauto110@gmail.com" },
-        { text: "Yard Statistics", to: "/yard-statistics" },
         { text: "Yard Processing Orders", to: "/yard-processing" },
-        { text: "Yard Relocates", to: "/yard-relocates" },
-        { text: "Yard Not Found", to: "/yard-not-found" },
         { text: "Priority Orders", to: "/priority-orders" },
         { text: "Own Shipping", to: "/own-shipping-orders" },
         { text: "Expedite Shipping", to: "/yard-expedite" },
@@ -201,6 +204,30 @@ export default function Sidebar() {
   ];
 
   const attendanceLinksBase = [{ text: "Attendance", to: "/attendance" }];
+
+  const commonOrderLinks = [
+    { text: "View All Orders", to: "/view-all-orders" },
+    { text: "View Orders-Monthly", to: "/monthly-orders" },
+  ];
+
+  const isAdmin = normalizeRole(role) === "Admin";
+  const hasInvoicesPerm = userHasPermission({ permissions }, USER_PERMISSIONS.INVOICES);
+  const hasYardLocatesPerm = userHasPermission({ permissions }, USER_PERMISSIONS.YARD_LOCATES);
+  /** Non-admin with invoices and/or yardLocates — limited sidebar only. */
+  const isPermissionScoped = !isAdmin && (hasInvoicesPerm || hasYardLocatesPerm);
+
+  const buildPermissionScopedDashboardLinks = () => {
+    const scoped = [];
+    if (hasInvoicesPerm) {
+      const invoices = dashboardLinksBase.find((item) => item.text === "Invoices");
+      if (invoices) scoped.push(invoices);
+    }
+    if (hasYardLocatesPerm) {
+      const yardLocates = dashboardLinksBase.find((item) => item.text === "Yard Locates");
+      if (yardLocates) scoped.push(yardLocates);
+    }
+    return [...scoped, ...commonOrderLinks];
+  };
 
   // Helper function to check if a link should be shown based on role, email, and link properties
   const shouldShowLink = (link, userRole, userEmail, currentBrand) => {
@@ -318,11 +345,26 @@ export default function Sidebar() {
   let reportsLinks = reportsLinksBase;
   let attendanceLinks = attendanceLinksBase;
 
-  if (role === "Sales") {
+  if (isPermissionScoped) {
+    dashboardLinks = filterDashboardLinks(
+      buildPermissionScopedDashboardLinks(),
+      role,
+      email,
+      brand,
+      new Set(),
+      new Set(),
+      permissions
+    );
+    showUsersSection = false;
+    usersLinks = [];
+    reportsLinks = [];
+    attendanceLinks = [];
+  } else if (role === "Sales") {
     const hiddenForSales = new Set([
       "CX Related",
       "CX Approved Orders",
       "Yard Related",
+      "Yard Locates",
       "Yard Processing Orders",
       "Own Shipping",
       "In-Transit Orders",
@@ -419,26 +461,30 @@ export default function Sidebar() {
       )}
 
       {/* REPORTS Section */}
-      <SidebarItem
-        icon={<FaChartBar />}
-        title="Reports"
-        isOpen={openMenu.reports}
-        onClick={() => toggleMenu("reports")}
-        links={reportsLinks}
-        location={location}
-        openSubmenus={openMenu}
-        toggleSubmenu={toggleSubmenu}
-      />
+      {reportsLinks.length > 0 && (
+        <SidebarItem
+          icon={<FaChartBar />}
+          title="Reports"
+          isOpen={openMenu.reports}
+          onClick={() => toggleMenu("reports")}
+          links={reportsLinks}
+          location={location}
+          openSubmenus={openMenu}
+          toggleSubmenu={toggleSubmenu}
+        />
+      )}
 
       {/* ATTENDANCE Section */}
-      <SidebarItem
-        icon={<FaClipboardCheck />}
-        title="Attendance"
-        isOpen={openMenu.attendance}
-        onClick={() => toggleMenu("attendance")}
-        links={attendanceLinks}
-        location={location}
-      />
+      {attendanceLinks.length > 0 && (
+        <SidebarItem
+          icon={<FaClipboardCheck />}
+          title="Attendance"
+          isOpen={openMenu.attendance}
+          onClick={() => toggleMenu("attendance")}
+          links={attendanceLinks}
+          location={location}
+        />
+      )}
     </div>
   );
 }
