@@ -1,10 +1,10 @@
 import { Link, useLocation } from "react-router-dom";
-import { FaHome, FaUsers, FaChartBar, FaChevronDown, FaClipboardCheck, FaFileInvoice, FaWarehouse } from "react-icons/fa";
+import { FaHome, FaUsers, FaChartBar, FaChevronDown, FaClipboardCheck, FaFileInvoice, FaWarehouse, FaCogs, FaExclamationTriangle, FaMoneyBillWave } from "react-icons/fa";
 import { useState } from "react";
 import { useSelector } from "react-redux";
 import { selectRole, selectUser } from "../store/authSlice";
 import { getCurrentBrand } from "../utils/brand";
-import { USER_PERMISSIONS, userHasPermission } from "../../../shared/constants/userPermissions.js";
+import { USER_PERMISSIONS, userHasAnyScopedPermission, userHasPermission } from "../../../shared/constants/userPermissions.js";
 
 const normalizeRole = (value) => {
   if (!value) return undefined;
@@ -62,10 +62,12 @@ export default function Sidebar() {
   const [openMenu, setOpenMenu] = useState({
     invoices: true,
     yardLocates: true,
+    yardProcessing: true,
+    escalation: true,
+    collectRefund: true,
     dashboards: true,
     cxRelated: false,
     yardRelated: false,
-    dashboardEscalations: false,
     reportsPurchases: false,
     reportsRefunds: false,
     reportsDisputes: false,
@@ -99,6 +101,29 @@ export default function Sidebar() {
     { text: "Yard Not Found", to: "/yard-not-found" },
   ];
 
+  const yardProcessingLinksBase = [
+    { text: "Yard Processing Orders", to: "/yard-processing" },
+    { text: "In-Transit Orders", to: "/in-transit" },
+    { text: "Own Shipping Orders", to: "/own-shipping-orders" },
+    { text: "Expedite Shipping Orders", to: "/yard-expedite" },
+    { text: "Priority Orders", to: "/priority-orders" },
+  ];
+
+  const escalationLinksBase = [
+    { text: "On-Going Escalations", to: "/ongoing-escalation" },
+    { text: "Overall Escalations", to: "/overall-escalation" },
+    { text: "Return-In Transit Orders", to: "/return-in-transit" },
+    { text: "To-Be Reimbursed", to: "/to-be-reimbursed" },
+    { text: "Cancelled Orders", to: "/cancelled-orders" },
+    { text: "Disputed Orders", to: "/disputed-orders" },
+    { text: "Refunded Orders", to: "/refunded-orders" },
+  ];
+
+  const collectRefundLinksBase = [
+    { text: "Collect Refund", to: "/collect-refund" },
+    { text: "Store Credit", to: "/store-credit" },
+  ];
+
   const dashboardLinksBase = [
     { text: "Add New Order", to: "/add-order", roles: ["Admin", "Sales"] },
     { text: "Edit Order", to: "/edit-order", roles: ["Admin", "Sales"] },
@@ -106,39 +131,18 @@ export default function Sidebar() {
     { text: "Sales Data", to: "/sales-data", roles: ["Admin", "Sales"] },
     { text: "Sales Origin", to: "/sales-origin", roles: ["Admin", "Sales"], emailAccess: "50starsauto110@gmail.com" },
     { text: "Leads", to: "/leads", roles: ["Admin", "Sales"], denyEmail: "50starsauto110@gmail.com" },
-    { text: "View All Orders", to: "/view-all-orders" },
-    { text: "View Orders-Monthly", to: "/monthly-orders" },
     {
       text: "CX Related",
       submenuKey: "cxRelated",
       children: [
-        { text: "Partially Charged Orders", to: "/partially-charged-orders" },
-        { text: "In-Transit Orders", to: "/in-transit" },
-        { text: "Return-In-transit Orders", to: "/return-in-transit" },
         { text: "Fulfilled Orders", to: "/fulfilled-orders" },
-        { text: "Refunded Orders", to: "/refunded-orders" },
-        { text: "To Be Reimbursed", to: "/to-be-reimbursed" },
-        { text: "Cancelled Orders", to: "/cancelled-orders" },
-        { text: "Disputed Orders", to: "/disputed-orders" },
       ],
     },
     {
       text: "Yard Related",
       submenuKey: "yardRelated",
       children: [
-        { text: "Yard Processing Orders", to: "/yard-processing" },
-        { text: "Priority Orders", to: "/priority-orders" },
-        { text: "Own Shipping", to: "/own-shipping-orders" },
-        { text: "Expedite Shipping", to: "/yard-expedite" },
         { text: "Junk Parts", to: "/junk-parts" },
-      ],
-    },
-    {
-      text: "Escalations",
-      submenuKey: "dashboardEscalations",
-      children: [
-        { text: "Overall Escalation", to: "/overall-escalation" },
-        { text: "Ongoing Escalation", to: "/ongoing-escalation" },
       ],
     },
     { text: "UPS Claims", to: "/ups-claims" },
@@ -172,8 +176,6 @@ export default function Sidebar() {
         { text: "Cancellations & Refunds", to: "/cancelled-refunded-report" },
         { text: "Reimbursements", to: "/reimbursement-report" },
         { text: "UPS Claims", to: "/ups-claims" },
-        { text: "Collect Refund", to: "/collect-refund" },
-        { text: "Store Credit", to: "/store-credit" },
       ],
     },
     {
@@ -181,7 +183,6 @@ export default function Sidebar() {
       submenuKey: "reportsDisputes",
       children: [
         { text: "CX Disputes", to: "/monthly-disputes" },
-        { text: "Yard Disputes", to: "/disputed-orders" },
       ],
     },
     {
@@ -203,12 +204,17 @@ export default function Sidebar() {
   ];
 
   const isAdmin = normalizeRole(role) === "Admin";
-  const hasInvoicesPerm = userHasPermission({ permissions }, USER_PERMISSIONS.INVOICES);
-  const hasYardLocatesPerm = userHasPermission({ permissions }, USER_PERMISSIONS.YARD_LOCATES);
-  /** Non-admin with invoices and/or yardLocates — limited sidebar only. */
-  const isPermissionScoped = !isAdmin && (hasInvoicesPerm || hasYardLocatesPerm);
+  /** Non-admin with any scoped permission — limited sidebar (sections + common order pages). */
+  const isPermissionScoped = !isAdmin && userHasAnyScopedPermission({ permissions });
 
-  const buildPermissionScopedDashboardLinks = () => commonOrderLinks;
+  const buildPermissionScopedDashboardLinks = () => [];
+
+  /** View All Orders + Monthly Orders — always visible for every user. */
+  const ensureCommonOrderLinks = (links) => {
+    const paths = new Set(links.filter((l) => l.to).map((l) => l.to));
+    const extras = commonOrderLinks.filter((l) => !paths.has(l.to));
+    return [...links, ...extras];
+  };
 
   // Helper function to check if a link should be shown based on role, email, and link properties
   const shouldShowLink = (link, userRole, userEmail, currentBrand) => {
@@ -329,6 +335,12 @@ export default function Sidebar() {
   let showInvoicesSection = false;
   let yardLocatesLinks = [];
   let showYardLocatesSection = false;
+  let yardProcessingLinks = [];
+  let showYardProcessingSection = false;
+  let escalationLinks = [];
+  let showEscalationSection = false;
+  let collectRefundLinks = [];
+  let showCollectRefundSection = false;
   let showUsersSection = true;
   let usersLinks = usersLinksBase;
   let reportsLinks = reportsLinksBase;
@@ -353,12 +365,6 @@ export default function Sidebar() {
       "CX Related",
       "CX Approved Orders",
       "Yard Related",
-      "Yard Processing Orders",
-      "Own Shipping",
-      "In-Transit Orders",
-      "Return-In-transit Orders",
-      "Overall Escalation",
-      "Ongoing Escalation",
       "UPS Claims",
     ]);
     dashboardLinks = filterDashboardLinks(
@@ -414,6 +420,20 @@ export default function Sidebar() {
     yardLocatesLinks = filterFlatLinks(yardLocatesLinksBase, role, email, brand);
     showYardLocatesSection = yardLocatesLinks.length > 0;
   }
+  if (canAccessPermission(USER_PERMISSIONS.YARD_PROCESSING, role, permissions)) {
+    yardProcessingLinks = filterFlatLinks(yardProcessingLinksBase, role, email, brand);
+    showYardProcessingSection = yardProcessingLinks.length > 0;
+  }
+  if (canAccessPermission(USER_PERMISSIONS.ESCALATION, role, permissions)) {
+    escalationLinks = filterFlatLinks(escalationLinksBase, role, email, brand);
+    showEscalationSection = escalationLinks.length > 0;
+  }
+  if (canAccessPermission(USER_PERMISSIONS.COLLECT_REFUND, role, permissions)) {
+    collectRefundLinks = filterFlatLinks(collectRefundLinksBase, role, email, brand);
+    showCollectRefundSection = collectRefundLinks.length > 0;
+  }
+
+  dashboardLinks = ensureCommonOrderLinks(dashboardLinks);
 
   return (
     <div
@@ -453,6 +473,42 @@ export default function Sidebar() {
           isOpen={openMenu.yardLocates}
           onClick={() => toggleMenu("yardLocates")}
           links={yardLocatesLinks}
+          location={location}
+        />
+      )}
+
+      {/* YARD PROCESSING Section */}
+      {showYardProcessingSection && (
+        <SidebarItem
+          icon={<FaCogs />}
+          title="Yard Processing"
+          isOpen={openMenu.yardProcessing}
+          onClick={() => toggleMenu("yardProcessing")}
+          links={yardProcessingLinks}
+          location={location}
+        />
+      )}
+
+      {/* ESCALATION Section */}
+      {showEscalationSection && (
+        <SidebarItem
+          icon={<FaExclamationTriangle />}
+          title="Escalation"
+          isOpen={openMenu.escalation}
+          onClick={() => toggleMenu("escalation")}
+          links={escalationLinks}
+          location={location}
+        />
+      )}
+
+      {/* COLLECT REFUND Section */}
+      {showCollectRefundSection && (
+        <SidebarItem
+          icon={<FaMoneyBillWave />}
+          title="Collect Refund"
+          isOpen={openMenu.collectRefund}
+          onClick={() => toggleMenu("collectRefund")}
+          links={collectRefundLinks}
           location={location}
         />
       )}

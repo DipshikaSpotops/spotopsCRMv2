@@ -5,21 +5,22 @@ import moment from "moment-timezone";
 import Attendance from "../models/Attendance.js";
 import { requireAuth } from "../middleware/auth.js";
 import {
-  ACTIVE_ATTENDANCE_USER_LIST,
   attendanceNameKey,
   canonicalAttendanceName as sharedCanonicalAttendanceName,
 } from "../../shared/constants/activeAttendanceUsers.js";
+import { loadActiveAttendanceRosterNames } from "../utils/attendanceRoster.js";
 
 const router = express.Router();
 const IST = "Asia/Kolkata";
 const DALLAS = "America/Chicago";
 const EDITOR_EMAIL = "50starsauto110@gmail.com";
 
-/** @type {string[]} Same display order as shared ACTIVE_ATTENDANCE_USER_LIST */
-const ACTIVE_ATTENDANCE_NAMES = [...ACTIVE_ATTENDANCE_USER_LIST];
-
 /** Removed from roster — never shown on the attendance sheet (even if DB has rows). */
 const EXCLUDED_ATTENDANCE_NAMES = ["Ashley"];
+
+async function getActiveAttendanceNames() {
+  return loadActiveAttendanceRosterNames();
+}
 
 function isExcludedAttendanceName(name) {
   const key = attendanceNameKey(name);
@@ -194,6 +195,7 @@ function canManageAttendance(user) {
 router.get("/", requireAuth, async (req, res) => {
   try {
     const isAdmin = canManageAttendance(req.user);
+    const activeAttendanceNames = await getActiveAttendanceNames();
     const start = String(req.query.start || "").trim();
     const end = String(req.query.end || "").trim();
 
@@ -205,14 +207,14 @@ router.get("/", requireAuth, async (req, res) => {
           start,
           end,
           dateKeys: [],
-          activeUsers: ACTIVE_ATTENDANCE_NAMES,
+          activeUsers: activeAttendanceNames,
           rows: [],
         });
       }
 
       const docs = await Attendance.find({ dateKey: { $in: dateKeys } }).lean();
       const displayNames = displayAttendanceNamesFromDocs(
-        ACTIVE_ATTENDANCE_NAMES,
+        activeAttendanceNames,
         docs
       );
       const byKeyName = new Map();
@@ -262,7 +264,7 @@ router.get("/", requireAuth, async (req, res) => {
 
     const rows = await Attendance.find({ dateKey }).lean();
     const displayNames = displayAttendanceNamesFromDocs(
-      ACTIVE_ATTENDANCE_NAMES,
+      activeAttendanceNames,
       rows
     );
     const byName = new Map();

@@ -70,3 +70,16 @@ export function isOnAuthorizationCodesRoster({ firstName, email } = {}) {
   const normalizedEmail = String(email || "").trim().toLowerCase();
   return AUTHORIZATION_CODES_EXTRA_EMAILS.has(normalizedEmail);
 }
+
+/** Client/server: use auth user payload when available (DB roster flag). */
+export function userRequiresAttendanceRoster(user) {
+  if (!user) return false;
+  if (String(user.role || "").trim() === "Admin") return false;
+  if (user.onAttendanceRoster === false) return false;
+  if (user.onAttendanceRoster === true) return true;
+  const email = String(user.email || "").trim().toLowerCase();
+  if (AUTHORIZATION_CODES_EXTRA_EMAILS.has(email)) return true;
+  if (isOnAttendanceRoster(user.firstName)) return true;
+  if (user.onAttendanceRoster === undefined) return true;
+  return false;
+}

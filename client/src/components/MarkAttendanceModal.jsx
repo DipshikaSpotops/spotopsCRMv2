@@ -5,7 +5,7 @@ import { useNavigate } from "react-router-dom";
 import {
   attendanceNameKey,
   canonicalAttendanceName,
-  isActiveAttendanceUser,
+  userRequiresAttendanceRoster,
 } from "../constants/activeAttendanceUsers";
 import { todayDateKeyIST } from "../utils/attendanceStatus";
 import { fetchAttendance, markMyAttendancePresent, recordAttendanceLogout } from "../utils/attendanceApi";
@@ -32,7 +32,8 @@ function isBeforeShiftStart() {
 export default function MarkAttendanceModal({ isOpen, onClose, isDarkMode, blocking = false }) {
   const dispatch = useDispatch();
   const navigate = useNavigate();
-  const [currentFirstName, setCurrentFirstName] = useState("");
+  const [currentUser, setCurrentUser] = useState(null);
+  const currentFirstName = String(currentUser?.firstName || "").trim();
   const [busy, setBusy] = useState(false);
   const [logoutBusy, setLogoutBusy] = useState(false);
   const [status, setStatus] = useState("");
@@ -45,14 +46,17 @@ export default function MarkAttendanceModal({ isOpen, onClose, isDarkMode, block
 
     (async () => {
       let name = "";
+      let user = null;
       try {
         const authRaw = localStorage.getItem("auth");
         if (authRaw) {
-          const { user } = JSON.parse(authRaw);
+          const parsed = JSON.parse(authRaw);
+          user = parsed?.user || null;
           name = String(user?.firstName || "").trim();
         }
         if (!name) {
           const storedUser = JSON.parse(localStorage.getItem("user") || "null");
+          user = storedUser;
           name = String(
             storedUser?.firstName || localStorage.getItem("firstName") || ""
           ).trim();
@@ -60,7 +64,7 @@ export default function MarkAttendanceModal({ isOpen, onClose, isDarkMode, block
       } catch {
         /* ignore */
       }
-      if (!cancelled) setCurrentFirstName(name);
+      if (!cancelled) setCurrentUser(user);
 
       try {
         setError("");
@@ -94,9 +98,9 @@ export default function MarkAttendanceModal({ isOpen, onClose, isDarkMode, block
 
   const canMark = useMemo(() => {
     if (!isOpen) return false;
-    if (!isActiveAttendanceUser(currentFirstName)) return false;
+    if (!userRequiresAttendanceRoster(currentUser)) return false;
     return !myRow?.loginAt;
-  }, [isOpen, currentFirstName, myRow]);
+  }, [isOpen, currentUser, myRow]);
 
   const handleMark = async () => {
     try {
@@ -208,7 +212,7 @@ export default function MarkAttendanceModal({ isOpen, onClose, isDarkMode, block
 
           {error && <div className="text-sm text-red-400 mb-3">{error}</div>}
           {status && <div className="text-sm text-green-400 mb-3">{status}</div>}
-          {!isActiveAttendanceUser(currentFirstName) ? (
+          {!userRequiresAttendanceRoster(currentUser) ? (
             <p className="text-sm opacity-80">You are not in the active attendance list.</p>
           ) : canMark ? (
             <button

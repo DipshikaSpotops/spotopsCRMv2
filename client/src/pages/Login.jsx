@@ -128,7 +128,7 @@ import { clearStoredAuth, persistStoredAuth } from "../utils/authStorage";
 import { setCurrentBrand } from "../utils/brand";
 import { logout as logoutAction, setCredentials } from "../store/authSlice";
 import { setAttendanceBlocking, userNeedsAttendanceMark } from "../utils/attendanceGate";
-import { isActiveAttendanceUser } from "../constants/activeAttendanceUsers";
+import { userRequiresAttendanceRoster } from "../constants/activeAttendanceUsers";
 
 const Login = () => {
   const dispatch = useDispatch();
@@ -167,10 +167,9 @@ const Login = () => {
         setCurrentBrand("50STARS");
 
         const userRole = (res.data.user.role || "").toLowerCase();
-        const firstName = res.data.user?.firstName || "";
         if (userRole !== "admin") {
           try {
-            const needsMark = await userNeedsAttendanceMark(firstName);
+            const needsMark = await userNeedsAttendanceMark(res.data.user);
             if (needsMark) {
               sessionStorage.setItem("showAttendancePopup", "true");
               setAttendanceBlocking(true);
@@ -178,7 +177,7 @@ const Login = () => {
               setAttendanceBlocking(false);
             }
           } catch {
-            if (isActiveAttendanceUser(firstName)) {
+            if (userRequiresAttendanceRoster(res.data.user)) {
               sessionStorage.setItem("showAttendancePopup", "true");
               setAttendanceBlocking(true);
             } else {

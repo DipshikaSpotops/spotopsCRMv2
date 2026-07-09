@@ -21,6 +21,7 @@ export default function CreateUser() {
   const [message, setMessage] = useState({ type: "", text: "" });
   const [showPassword, setShowPassword] = useState(false);
   const [selectedPermissions, setSelectedPermissions] = useState([]);
+  const [onAttendanceRoster, setOnAttendanceRoster] = useState(true);
 
   useEffect(() => {
     let mounted = true;
@@ -47,6 +48,9 @@ export default function CreateUser() {
       const next = { ...f, [name]: value };
       if (name === "role" && value === "Admin") {
         next.team = "";
+        setOnAttendanceRoster(false);
+      } else if (name === "role" && value) {
+        setOnAttendanceRoster(true);
       }
       return next;
     });
@@ -76,6 +80,9 @@ export default function CreateUser() {
       const payload = { ...form };
       if (!payload.team) delete payload.team;
       payload.permissions = permissionsForStorage(selectedPermissions);
+      if (form.role !== "Admin") {
+        payload.onAttendanceRoster = onAttendanceRoster;
+      }
       const { data } = await API.post("/users", payload);
       setMessage({ type: "success", text: `User ${data.firstName} created.` });
       setForm({
@@ -87,6 +94,7 @@ export default function CreateUser() {
         password: "",
       });
       setSelectedPermissions([]);
+      setOnAttendanceRoster(true);
     } catch (e) {
       const text =
         e?.response?.status === 409
@@ -180,6 +188,18 @@ export default function CreateUser() {
               onChange={setSelectedPermissions}
             />
           </div>
+
+          {form.role && form.role !== "Admin" && (
+            <label className="mt-3 flex items-center gap-2 text-sm text-white/90 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={onAttendanceRoster}
+                onChange={(e) => setOnAttendanceRoster(e.target.checked)}
+                className="h-4 w-4 rounded border-white/40"
+              />
+              <span>Include on attendance &amp; authorization roster</span>
+            </label>
+          )}
         </div>
 
         {form.role !== "Admin" && (

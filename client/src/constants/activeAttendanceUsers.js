@@ -11,4 +11,5 @@ export {
   canonicalAttendanceName,
   isOnAttendanceRoster,
   isOnAuthorizationCodesRoster,
+  userRequiresAttendanceRoster,
 } from "@spotops/shared/constants/activeAttendanceUsers.js";

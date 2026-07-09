@@ -20,6 +20,8 @@ const userSchema = new mongoose.Schema({
     type: [String],
     default: [],
   },
+  /** Attendance sheet + authorization codes roster (auto true for Sales/Support). */
+  onAttendanceRoster: { type: Boolean, required: false },
   /** When APP_ACCESS_GATE_ENABLED=true, must redeem email-bound invite unless grandfathered/bypassed. */
   appAccessUnlocked: { type: Boolean, required: false },
 }, { timestamps: true });

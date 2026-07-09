@@ -1,7 +1,7 @@
 import {
   attendanceNameKey,
   canonicalAttendanceName,
-  isActiveAttendanceUser,
+  userRequiresAttendanceRoster,
 } from "../constants/activeAttendanceUsers";
 import { todayDateKeyIST } from "./attendanceStatus";
 import { fetchAttendance } from "./attendanceApi";
@@ -9,10 +9,14 @@ import { fetchAttendance } from "./attendanceApi";
 export const ATTENDANCE_BLOCKING_KEY = "attendanceBlocking";
 
 /** True when user is on the roster and has not marked present for today's IST shift day. */
-export async function userNeedsAttendanceMark(firstName) {
-  if (!isActiveAttendanceUser(firstName)) return false;
+export async function userNeedsAttendanceMark(userOrFirstName) {
+  const user =
+    typeof userOrFirstName === "object" && userOrFirstName !== null
+      ? userOrFirstName
+      : { firstName: userOrFirstName };
+  if (!userRequiresAttendanceRoster(user)) return false;
 
-  const canonical = canonicalAttendanceName(firstName);
+  const canonical = canonicalAttendanceName(user.firstName);
   if (!canonical) return false;
 
   const dateKey = todayDateKeyIST();

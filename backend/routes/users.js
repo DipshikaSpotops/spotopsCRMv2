@@ -3,6 +3,9 @@ import express from "express";
 import User from "../models/User.js";
 import { initialAppAccessUnlockedForNewUser } from "../utils/accessGate.js";
 import { permissionsForStorage } from "../../shared/constants/userPermissions.js";
+import {
+  defaultOnAttendanceRosterForRole,
+} from "../utils/attendanceRoster.js";
 const router = express.Router();
 
 function isAdminRole(role) {
@@ -23,7 +26,7 @@ function applyTeamForRole(payload, role) {
 // POST /api/users - create a user
 router.post("/", async (req, res) => {
   try {
-    const { firstName, lastName, email, password, team, role, permissions } = req.body;
+    const { firstName, lastName, email, password, team, role, permissions, onAttendanceRoster } = req.body;
 
     if (!firstName || !lastName || !email || !password || !role) {
       return res.status(400).json({ message: "First name, last name, email, password, and role are required." });
@@ -40,6 +43,11 @@ router.post("/", async (req, res) => {
     applyTeamForRole(payload, role);
     if (Array.isArray(permissions)) {
       payload.permissions = permissionsForStorage(permissions);
+    }
+    if (onAttendanceRoster !== undefined) {
+      payload.onAttendanceRoster = Boolean(onAttendanceRoster);
+    } else {
+      payload.onAttendanceRoster = defaultOnAttendanceRosterForRole(role);
     }
     const initialUnlock = initialAppAccessUnlockedForNewUser();
     if (initialUnlock !== undefined) payload.appAccessUnlocked = initialUnlock;
@@ -80,7 +88,7 @@ router.patch("/:id", async (req, res) => {
     const existing = await User.findById(id);
     if (!existing) return res.status(404).json({ message: "User not found." });
 
-    const allowed = ["firstName", "lastName", "email", "team", "role", "password", "permissions"];
+    const allowed = ["firstName", "lastName", "email", "team", "role", "password", "permissions", "onAttendanceRoster"];
     const payload = {};
     for (const k of allowed) {
       if (req.body[k] !== undefined) payload[k] = req.body[k];
@@ -88,8 +96,11 @@ router.patch("/:id", async (req, res) => {
     if (payload.permissions !== undefined) {
       payload.permissions = permissionsForStorage(payload.permissions);
     }
-
     const effectiveRole = payload.role ?? existing.role;
+    if (payload.onAttendanceRoster === undefined && payload.role !== undefined) {
+      payload.onAttendanceRoster = defaultOnAttendanceRosterForRole(effectiveRole);
+    }
+
     const unsetTeam = applyTeamForRole(payload, effectiveRole);
 
     // if password present, let pre('save') hash it -> use findById then save()

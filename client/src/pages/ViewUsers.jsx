@@ -53,7 +53,7 @@ export default function ViewUsers() {
   // inline edit state
   const [editingId, setEditingId] = useState(null);
   const [editForm, setEditForm] = useState({
-    firstName: "", lastName: "", email: "", team: "", role: "", password: "", permissions: [],
+    firstName: "", lastName: "", email: "", team: "", role: "", password: "", permissions: [], onAttendanceRoster: true,
   });
   const [showPwd, setShowPwd] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -149,13 +149,14 @@ export default function ViewUsers() {
       role: u.role || "",
       password: "", // empty => unchanged
       permissions: permissionsForEditor(u.permissions),
+      onAttendanceRoster: u.role === "Admin" ? false : u.onAttendanceRoster !== false,
     });
   };
 
   const cancelEdit = () => {
     setEditingId(null);
     setEditForm({
-      firstName: "", lastName: "", email: "", team: "", role: "", password: "", permissions: [],
+      firstName: "", lastName: "", email: "", team: "", role: "", password: "", permissions: [], onAttendanceRoster: true,
     });
     setShowPwd(false);
     setPermissionModalOpen(false);
@@ -168,6 +169,9 @@ export default function ViewUsers() {
       const next = { ...f, [name]: value };
       if (name === "role" && value === "Admin") {
         next.team = "";
+        next.onAttendanceRoster = false;
+      } else if (name === "role" && value && value !== "Admin") {
+        next.onAttendanceRoster = true;
       }
       return next;
     });
@@ -217,6 +221,11 @@ export default function ViewUsers() {
     });
     if (!permissionsEqual(original.permissions, edited.permissions)) {
       payload.permissions = permissionsForStorage(edited.permissions);
+    }
+    const origRoster = original.role !== "Admin" && original.onAttendanceRoster !== false;
+    const editRoster = edited.role !== "Admin" && edited.onAttendanceRoster !== false;
+    if (origRoster !== editRoster) {
+      payload.onAttendanceRoster = editRoster;
     }
     if (edited.password && edited.password.length >= 6) {
       payload.password = edited.password; // backend will hash
@@ -448,6 +457,19 @@ export default function ViewUsers() {
                           >
                             Manage permissions
                           </button>
+                          {editForm.role !== "Admin" && (
+                            <label className="flex items-center gap-1.5 text-xs text-white/90 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={editForm.onAttendanceRoster}
+                                onChange={(e) =>
+                                  setEditForm((f) => ({ ...f, onAttendanceRoster: e.target.checked }))
+                                }
+                                className="h-3.5 w-3.5"
+                              />
+                              Attendance roster
+                            </label>
+                          )}
                         </div>
                       ) : (
                         <span className="text-xs text-white/90 break-words">

@@ -92,10 +92,7 @@ export default function Navbar() {
         const role = String(user?.role || "").trim();
         if (role === "Admin") return;
 
-        const firstName = String(user?.firstName || "").trim();
-        if (!firstName) return;
-
-        const needsMark = await userNeedsAttendanceMark(firstName);
+        const needsMark = await userNeedsAttendanceMark(user);
         if (cancelled) return;
 
         if (needsMark) {

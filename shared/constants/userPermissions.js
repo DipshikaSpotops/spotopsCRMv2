@@ -2,12 +2,27 @@
 export const USER_PERMISSIONS = {
   INVOICES: "invoices",
   YARD_LOCATES: "yardLocates",
+  YARD_PROCESSING: "yardProcessing",
+  ESCALATION: "escalation",
+  COLLECT_REFUND: "collectRefund",
 };
+
+/** Sidebar sections gated by these permissions (non-admin scoped users). */
+export const SCOPED_PERMISSION_KEYS = [
+  USER_PERMISSIONS.INVOICES,
+  USER_PERMISSIONS.YARD_LOCATES,
+  USER_PERMISSIONS.YARD_PROCESSING,
+  USER_PERMISSIONS.ESCALATION,
+  USER_PERMISSIONS.COLLECT_REFUND,
+];
 
 /** UI options for permission checkboxes. */
 export const USER_PERMISSION_OPTIONS = [
   { key: USER_PERMISSIONS.INVOICES, label: "Invoices" },
   { key: USER_PERMISSIONS.YARD_LOCATES, label: "Yard Locates" },
+  { key: USER_PERMISSIONS.YARD_PROCESSING, label: "Yard Processing" },
+  { key: USER_PERMISSIONS.ESCALATION, label: "Escalation" },
+  { key: USER_PERMISSIONS.COLLECT_REFUND, label: "Collect Refund" },
 ];
 
 const GRANULAR_INVOICE_KEYS = new Set([
@@ -15,18 +30,30 @@ const GRANULAR_INVOICE_KEYS = new Set([
   "invoices.customer_approved",
 ]);
 
+const PERMISSION_ALIASES = {
+  invoices: USER_PERMISSIONS.INVOICES,
+  yardlocates: USER_PERMISSIONS.YARD_LOCATES,
+  yard_locates: USER_PERMISSIONS.YARD_LOCATES,
+  yardprocessing: USER_PERMISSIONS.YARD_PROCESSING,
+  yard_processing: USER_PERMISSIONS.YARD_PROCESSING,
+  escalation: USER_PERMISSIONS.ESCALATION,
+  escalations: USER_PERMISSIONS.ESCALATION,
+  collectrefund: USER_PERMISSIONS.COLLECT_REFUND,
+  collect_refund: USER_PERMISSIONS.COLLECT_REFUND,
+};
+
 export function normalizePermissionKey(value) {
   const trimmed = String(value || "").trim();
   if (!trimmed) return "";
   const lower = trimmed.toLowerCase();
-  if (lower === "invoices" || GRANULAR_INVOICE_KEYS.has(lower)) {
+  if (GRANULAR_INVOICE_KEYS.has(lower)) {
     return USER_PERMISSIONS.INVOICES;
   }
-  if (lower === "yardlocates" || lower === "yard_locates") {
-    return USER_PERMISSIONS.YARD_LOCATES;
+  if (PERMISSION_ALIASES[lower]) {
+    return PERMISSION_ALIASES[lower];
   }
-  if (trimmed === USER_PERMISSIONS.YARD_LOCATES) {
-    return USER_PERMISSIONS.YARD_LOCATES;
+  if (SCOPED_PERMISSION_KEYS.includes(trimmed)) {
+    return trimmed;
   }
   return lower;
 }
@@ -51,8 +78,8 @@ export function expandLegacyPermissions(permissions) {
 
 /** Top-level permission keys only — what we persist. */
 export function permissionsForStorage(permissions) {
-  return normalizePermissionsList(permissions).filter(
-    (key) => key === USER_PERMISSIONS.INVOICES || key === USER_PERMISSIONS.YARD_LOCATES
+  return normalizePermissionsList(permissions).filter((key) =>
+    SCOPED_PERMISSION_KEYS.includes(key)
   );
 }
 
@@ -70,6 +97,10 @@ export function userHasPermissionList(permissions, permissionKey) {
   const key = normalizePermissionKey(permissionKey);
   if (!key) return false;
   return normalizePermissionsList(permissions).includes(key);
+}
+
+export function userHasAnyScopedPermission(user) {
+  return SCOPED_PERMISSION_KEYS.some((key) => userHasPermission(user, key));
 }
 
 /** Comma-separated labels for table display. */
