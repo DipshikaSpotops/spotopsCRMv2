@@ -122,6 +122,7 @@ export default function Sidebar() {
   const collectRefundLinksBase = [
     { text: "Collect Refund", to: "/collect-refund" },
     { text: "Store Credit", to: "/store-credit" },
+    { text: "UPS Claims", to: "/ups-claims" },
   ];
 
   const dashboardLinksBase = [
@@ -145,7 +146,6 @@ export default function Sidebar() {
         { text: "Junk Parts", to: "/junk-parts" },
       ],
     },
-    { text: "UPS Claims", to: "/ups-claims" },
   ];
 
   const usersLinksBase = [
@@ -175,7 +175,6 @@ export default function Sidebar() {
       children: [
         { text: "Cancellations & Refunds", to: "/cancelled-refunded-report" },
         { text: "Reimbursements", to: "/reimbursement-report" },
-        { text: "UPS Claims", to: "/ups-claims" },
       ],
     },
     {
