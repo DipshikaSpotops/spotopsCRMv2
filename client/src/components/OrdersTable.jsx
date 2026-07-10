@@ -889,23 +889,20 @@ export default function OrdersTable({
     return ["Select", "All", ...arr];
   }, [rowsAfterTrackingLabelFilter]);
 
-  // agent filter
+  // agent filter (team / sales scope; monthlyOrders & AllOrders APIs are unscoped on the server)
   const filteredByRole = useMemo(() => {
     if (TEAM_FILTER_EXEMPT_TABLE_IDS.has(tableId)) {
       return rowsAfterTrackingLabelFilter;
     }
 
     const role = (userRole || "").toLowerCase();
-    if (role === "admin" || role === "support") {
+    if (role === "admin") {
       return rowsAfterTrackingLabelFilter;
     }
 
     const usesUnscopedMonthlyApi =
       String(endpoint || "").includes("/orders/monthlyOrders") ||
       String(endpoint || "").includes("/orders/AllOrders");
-    if (isServerPaginated && !usesUnscopedMonthlyApi) {
-      return rowsAfterTrackingLabelFilter;
-    }
 
     const agentsToMatch =
       teamAgentFirstNames.length > 0
@@ -914,13 +911,17 @@ export default function OrdersTable({
           ? [firstName]
           : [];
 
-    if (!agentsToMatch.length) {
+    if (agentsToMatch.length > 0) {
+      return rowsAfterTrackingLabelFilter.filter((o) =>
+        salesAgentMatchesAnyFirstName(o?.salesAgent, agentsToMatch, brand)
+      );
+    }
+
+    if (isServerPaginated && !usesUnscopedMonthlyApi) {
       return rowsAfterTrackingLabelFilter;
     }
 
-    return rowsAfterTrackingLabelFilter.filter((o) =>
-      salesAgentMatchesAnyFirstName(o?.salesAgent, agentsToMatch, brand)
-    );
+    return rowsAfterTrackingLabelFilter;
   }, [
     rowsAfterTrackingLabelFilter,
     userRole,
