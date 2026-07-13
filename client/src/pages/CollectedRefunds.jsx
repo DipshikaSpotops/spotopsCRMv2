@@ -14,6 +14,7 @@ const columns = [
   { key: "yardDetails", label: "Yard Details" },
   { key: "refundToCollect", label: "Refund to Collect ($)" },
   { key: "refundCollected", label: "Refund Collected ($)" },
+  { key: "refundMethod", label: "Refund Method" },
 ];
 
 function formatDateSafe(dateStr) {
@@ -23,10 +24,24 @@ function formatDateSafe(dateStr) {
   return formatInTimeZone(d, TZ, "do MMM, yyyy");
 }
 
-function hasRefundedAmount(info) {
-  const raw = info?.refundedAmount;
-  if (raw === undefined || raw === null || String(raw).trim() === "") return false;
-  return Number(raw) > 0;
+function isRefundCollected(info) {
+  return String(info?.refundStatus || "").trim() === "Refund collected";
+}
+
+function isCollectedRefundInfo(info) {
+  if (!info || !isRefundCollected(info)) return false;
+  return (
+    info.collectRefundCheckbox === "Ticked" ||
+    info.upsClaimCheckbox === "Ticked" ||
+    info.storeCreditCheckbox === "Ticked"
+  );
+}
+
+/** Store Credit / UPS Claims take precedence; otherwise a card refund. */
+function refundMethodForInfo(info) {
+  if (info?.storeCreditCheckbox === "Ticked") return "Store Credit";
+  if (info?.upsClaimCheckbox === "Ticked") return "UPS Claims";
+  return "Card";
 }
 
 async function fetchCollectedRefundsPage(params, headers) {
@@ -36,17 +51,17 @@ async function fetchCollectedRefundsPage(params, headers) {
 
   allOrders.forEach((order) => {
     const infos = Array.isArray(order.additionalInfo)
-      ? order.additionalInfo.filter(
-          (i) => i?.collectRefundCheckbox === "Ticked" && hasRefundedAmount(i)
-        )
+      ? order.additionalInfo.filter(isCollectedRefundInfo)
       : [];
     if (infos.length === 0) return;
 
     let totalRefundToCollect = 0;
     let totalRefundCollected = 0;
+    const methods = new Set();
     infos.forEach((info) => {
       totalRefundToCollect += parseFloat(info.refundToCollect || 0) || 0;
       totalRefundCollected += parseFloat(info.refundedAmount || 0) || 0;
+      methods.add(refundMethodForInfo(info));
     });
 
     filtered.push({
@@ -54,6 +69,7 @@ async function fetchCollectedRefundsPage(params, headers) {
       yardDetails: infos,
       refundToCollect: Number(totalRefundToCollect.toFixed(2)),
       refundCollected: Number(totalRefundCollected.toFixed(2)),
+      refundMethod: Array.from(methods).join(", "),
     });
   });
 
@@ -124,6 +140,7 @@ export default function CollectedRefunds() {
                       <div><b>Others:</b> ${Number(y.others || 0).toFixed(2)}</div>
                       <div><b>Refund to Collect:</b> ${Number(y.refundToCollect || 0).toFixed(2)}</div>
                       <div><b>Refunded:</b> ${Number(y.refundedAmount || 0).toFixed(2)}</div>
+                      <div><b>Refund Method:</b> {refundMethodForInfo(y)}</div>
                       <div><b>Refund Date:</b> {y.refundedDate ? formatDateSafe(y.refundedDate) : "—"}</div>
                       <div><b>Return Tracking:</b> {y.returnTrackingCust || "—"}</div>
                       <div><b>Payment Status:</b> {y?.pamentStatus || y?.paymentStatus || ""}</div>
@@ -137,6 +154,8 @@ export default function CollectedRefunds() {
           return `$${Number(row.refundToCollect || 0).toFixed(2)}`;
         case "refundCollected":
           return `$${Number(row.refundCollected || 0).toFixed(2)}`;
+        case "refundMethod":
+          return row.refundMethod || "—";
         default:
           return row[key] ?? "—";
       }
@@ -167,7 +186,7 @@ export default function CollectedRefunds() {
         q: query || undefined,
         sortBy: sortBy || undefined,
         sortOrder: sortOrder || undefined,
-        collectRefundTicked: "true",
+        refundCollectedOnly: "true",
       };
       if (
         (userRole || "").toLowerCase() === "admin" &&

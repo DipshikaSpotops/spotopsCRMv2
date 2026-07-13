@@ -83,6 +83,7 @@ router.get('/', requireAuth, allow('Admin', 'Sales', 'Support'), async (req, res
       upsClaimTicked,
       collectRefundTicked,
       collectRefundPendingOnly,
+      refundCollectedOnly,
       cardNotChargedOnly,
       start,
       end,
@@ -168,6 +169,23 @@ router.get('/', requireAuth, allow('Admin', 'Sales', 'Support'), async (req, res
         ...(additionalInfoElemMatch || {}),
         collectRefundCheckbox: "Ticked",
         refundStatus: { $ne: "Refund collected" },
+      };
+    }
+    if (String(refundCollectedOnly || "").toLowerCase() === "true") {
+      // Any refund method (Card / UPS Claim / Store Credit) that has been collected.
+      additionalInfoElemMatch = {
+        ...(additionalInfoElemMatch || {}),
+        refundStatus: "Refund collected",
+        $and: [
+          ...((additionalInfoElemMatch && additionalInfoElemMatch.$and) || []),
+          {
+            $or: [
+              { collectRefundCheckbox: "Ticked" },
+              { upsClaimCheckbox: "Ticked" },
+              { storeCreditCheckbox: "Ticked" },
+            ],
+          },
+        ],
       };
     }
     if (String(cardNotChargedOnly || "").toLowerCase() === "true") {
