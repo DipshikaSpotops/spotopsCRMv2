@@ -4,6 +4,7 @@ import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import MainLayout from "./layouts/MainLayout";
 import RequireAuth from "./components/RequireAuth";
+import RequirePermission from "./components/RequirePermission";
 import useAuthBootstrap from "./hooks/useAuthBootstrap";
 
 // Lazy load all pages for code splitting
@@ -39,6 +40,7 @@ const CancelledRefundedOrders = lazy(() => import("./pages/CancelledRefundedRepo
 const CardNotCharged = lazy(() => import("./pages/CardNotCharged"));
 const CollectRefund = lazy(() => import("./pages/CollectRefund"));
 const CollectAllRefunds = lazy(() => import("./pages/CollectAllRefunds"));
+const CollectedRefunds = lazy(() => import("./pages/CollectedRefunds"));
 const UPSClaims = lazy(() => import("./pages/UPSClaims"));
 const DeliveryTimeReport = lazy(() => import("./pages/DeliveryReport"));
 const MonthlyDisputes = lazy(() => import("./pages/MonthlyDisputes"));
@@ -77,7 +79,9 @@ function App() {
 
   const withLayout = (node) => (
     <RequireAuth>
-      <MainLayout>{node}</MainLayout>
+      <RequirePermission>
+        <MainLayout>{node}</MainLayout>
+      </RequirePermission>
     </RequireAuth>
   );
 
@@ -371,6 +375,14 @@ function App() {
           element={withLayout(
             <Suspense fallback={<PageLoader />}>
               <CollectAllRefunds />
+            </Suspense>
+          )}
+        />
+        <Route
+        path="/collected-refunds"
+          element={withLayout(
+            <Suspense fallback={<PageLoader />}>
+              <CollectedRefunds />
             </Suspense>
           )}
         />

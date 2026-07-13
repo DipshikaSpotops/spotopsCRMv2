@@ -267,6 +267,21 @@ orderSchema.post('findOneAndDelete', async function(doc) {
   }
 });
 
+// ---- Indexes for query performance ----
+// Almost every list query filters by orderDate range and sorts by orderDate desc.
+orderSchema.index({ orderDate: -1 });
+// Sales RBAC filters by salesAgent (prefix regex) + date; Admin agent filter too.
+orderSchema.index({ salesAgent: 1, orderDate: -1 });
+// Order lookups / search by order number.
+orderSchema.index({ orderNo: 1 });
+// Status-scoped list pages.
+orderSchema.index({ orderStatus: 1, orderDate: -1 });
+orderSchema.index({ toBeReimbursed: 1, orderDate: -1 });
+// Refund / claim / store-credit pages filter on additionalInfo sub-fields.
+orderSchema.index({ "additionalInfo.collectRefundCheckbox": 1, orderDate: -1 });
+orderSchema.index({ "additionalInfo.upsClaimCheckbox": 1, orderDate: -1 });
+orderSchema.index({ "additionalInfo.storeCredit": 1 });
+
 // Primary collection for 50STARS (existing behavior)
 export const OrderModel = mongoose.model("Order", orderSchema);
 

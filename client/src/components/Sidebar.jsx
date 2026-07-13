@@ -120,8 +120,8 @@ export default function Sidebar() {
   ];
 
   const collectRefundLinksBase = [
-    { text: "Collect Refund", to: "/collect-refund" },
     { text: "Collect All Refunds", to: "/collect-all-refunds" },
+    { text: "Collected Refunds", to: "/collected-refunds" },
     { text: "Store Credit", to: "/store-credit" },
     { text: "UPS Claims", to: "/ups-claims" },
   ];

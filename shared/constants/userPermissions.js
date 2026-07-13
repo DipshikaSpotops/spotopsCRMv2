@@ -103,6 +103,56 @@ export function userHasAnyScopedPermission(user) {
   return SCOPED_PERMISSION_KEYS.some((key) => userHasPermission(user, key));
 }
 
+/**
+ * Route path -> permissions that grant access (ANY of them).
+ * Admin always has access. Paths not listed here are considered common/unscoped
+ * and remain accessible to any authenticated user.
+ */
+export const ROUTE_PERMISSION_MAP = {
+  // Invoices
+  "/placed-orders": [USER_PERMISSIONS.INVOICES],
+  "/partially-charged-orders": [USER_PERMISSIONS.INVOICES],
+  // Shared by Invoices + Yard Locates
+  "/customer-approved": [USER_PERMISSIONS.INVOICES, USER_PERMISSIONS.YARD_LOCATES],
+  // Yard Locates
+  "/yards": [USER_PERMISSIONS.YARD_LOCATES],
+  "/yard-statistics": [USER_PERMISSIONS.YARD_LOCATES],
+  "/yard-relocates": [USER_PERMISSIONS.YARD_LOCATES],
+  "/yard-not-found": [USER_PERMISSIONS.YARD_LOCATES],
+  // Yard Processing
+  "/yard-processing": [USER_PERMISSIONS.YARD_PROCESSING],
+  "/in-transit": [USER_PERMISSIONS.YARD_PROCESSING],
+  "/own-shipping-orders": [USER_PERMISSIONS.YARD_PROCESSING],
+  "/yard-expedite": [USER_PERMISSIONS.YARD_PROCESSING],
+  "/priority-orders": [USER_PERMISSIONS.YARD_PROCESSING],
+  // Escalation
+  "/ongoing-escalation": [USER_PERMISSIONS.ESCALATION],
+  "/overall-escalation": [USER_PERMISSIONS.ESCALATION],
+  "/return-in-transit": [USER_PERMISSIONS.ESCALATION],
+  "/to-be-reimbursed": [USER_PERMISSIONS.ESCALATION],
+  "/cancelled-orders": [USER_PERMISSIONS.ESCALATION],
+  "/disputed-orders": [USER_PERMISSIONS.ESCALATION],
+  "/refunded-orders": [USER_PERMISSIONS.ESCALATION],
+  // Collect Refund
+  "/collect-refund": [USER_PERMISSIONS.COLLECT_REFUND],
+  "/collect-all-refunds": [USER_PERMISSIONS.COLLECT_REFUND],
+  "/collected-refunds": [USER_PERMISSIONS.COLLECT_REFUND],
+  "/store-credit": [USER_PERMISSIONS.COLLECT_REFUND],
+  "/ups-claims": [USER_PERMISSIONS.COLLECT_REFUND],
+};
+
+/**
+ * Whether `user` can access `pathname`. Admin -> always. Unmapped path -> always.
+ * Mapped path -> user must hold at least one of the required permissions.
+ */
+export function canAccessRoute(user, pathname, role) {
+  const normalizedRole = String(role ?? user?.role ?? "").trim().toLowerCase();
+  if (normalizedRole === "admin") return true;
+  const required = ROUTE_PERMISSION_MAP[pathname];
+  if (!required || required.length === 0) return true;
+  return required.some((key) => userHasPermission(user, key));
+}
+
 /** Comma-separated labels for table display. */
 export function formatPermissionLabels(permissions) {
   const list = normalizePermissionsList(permissions);

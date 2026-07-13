@@ -77,7 +77,8 @@ export default function NavbarForm() {
     Reports: [
       ["Cancellations & Refunds", "/cancelled-refunded-report"],
       ["Card not Charged", "/card-not-charged-report"],
-      ["Collect Refunds", "/collect-refund"],
+      ["Collect All Refunds", "/collect-all-refunds"],
+      ["Collected Refunds", "/collected-refunds"],
       ["UPS Claims", "/ups-claims"],
       ["Yard Expedite", "/yard-expedite"],
       ["Monthly Disputes", "/monthly-disputes"],
