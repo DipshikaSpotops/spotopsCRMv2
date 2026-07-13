@@ -38,6 +38,7 @@ const OrderDetails = lazy(() => import("./pages/OrderDetails"));
 const CancelledRefundedOrders = lazy(() => import("./pages/CancelledRefundedReport"));
 const CardNotCharged = lazy(() => import("./pages/CardNotCharged"));
 const CollectRefund = lazy(() => import("./pages/CollectRefund"));
+const CollectAllRefunds = lazy(() => import("./pages/CollectAllRefunds"));
 const UPSClaims = lazy(() => import("./pages/UPSClaims"));
 const DeliveryTimeReport = lazy(() => import("./pages/DeliveryReport"));
 const MonthlyDisputes = lazy(() => import("./pages/MonthlyDisputes"));
@@ -362,6 +363,14 @@ function App() {
           element={withLayout(
             <Suspense fallback={<PageLoader />}>
               <CollectRefund />
+            </Suspense>
+          )}
+        />
+        <Route
+        path="/collect-all-refunds"
+          element={withLayout(
+            <Suspense fallback={<PageLoader />}>
+              <CollectAllRefunds />
             </Suspense>
           )}
         />

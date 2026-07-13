@@ -149,9 +149,11 @@ router.get('/', requireAuth, allow('Admin', 'Sales', 'Support'), async (req, res
       query.toBeReimbursed = { $in: [true, "true"] };
     }
     if (String(upsClaimTicked || "").toLowerCase() === "true") {
+      // Ticked AND refund not yet collected (No or empty).
       additionalInfoElemMatch = {
         ...(additionalInfoElemMatch || {}),
         upsClaimCheckbox: "Ticked",
+        refundStatus: { $ne: "Refund collected" },
       };
     }
     if (String(collectRefundTicked || "").toLowerCase() === "true") {
@@ -161,22 +163,11 @@ router.get('/', requireAuth, allow('Admin', 'Sales', 'Support'), async (req, res
       };
     }
     if (String(collectRefundPendingOnly || "").toLowerCase() === "true") {
+      // Ticked AND refund not yet collected (No or empty).
       additionalInfoElemMatch = {
         ...(additionalInfoElemMatch || {}),
         collectRefundCheckbox: "Ticked",
-        $and: [
-          ...((additionalInfoElemMatch && additionalInfoElemMatch.$and) || []),
-          { refundToCollect: { $gt: 0 } },
-          {
-            $or: [
-              { refundedAmount: { $exists: false } },
-              { refundedAmount: null },
-              { refundedAmount: 0 },
-              { refundedAmount: "0" },
-              { refundedAmount: "0.00" },
-            ],
-          },
-        ],
+        refundStatus: { $ne: "Refund collected" },
       };
     }
     if (String(cardNotChargedOnly || "").toLowerCase() === "true") {

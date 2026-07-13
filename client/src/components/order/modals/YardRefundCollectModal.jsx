@@ -52,14 +52,6 @@ export default function RefundModal({ open, onClose, onSubmit, orderNo, yardInde
     }
   };
 
-  // Auto-uncheck Collect Refund and UPS Claim when Refund Collected is "Yes"
-  useEffect(() => {
-    if (refundStatus === "Refund collected" || refundStatus === "Yes") {
-      setCollectRefund(false);
-      setUpsClaim(false);
-    }
-  }, [refundStatus]);
-
   useEffect(() => {
     if (refundStatus === "Refund not collected") {
       setRefundedAmount("0");
@@ -92,7 +84,13 @@ export default function RefundModal({ open, onClose, onSubmit, orderNo, yardInde
     const trimmedCollect = String(refundToCollect ?? "").trim();
     const trimmedRefundedAmount = String(refundedAmount ?? "").trim();
 
-    // If "Refund collected" (Yes) is selected, checkboxes should be unchecked and we validate refund amount/date
+    // One action must always be selected when saving refund details.
+    if (!collectRefund && !upsClaim && !storeCredit) {
+      setToast("Select one: Collect Refund, UPS Claim, or Store Credit.");
+      return false;
+    }
+
+    // When refund is already collected, validate refund amount/date.
     if (refundStatus === "Refund collected") {
       if (!trimmedRefundedAmount) {
         setToast("Refunded Amount is required when refund is collected.");
@@ -102,24 +100,16 @@ export default function RefundModal({ open, onClose, onSubmit, orderNo, yardInde
         setToast("Refunded Date is required when refund is collected.");
         return false;
       }
-      // If refund is collected, checkboxes should not be checked - validation passes
-      return true;
     }
 
-    // If any checkbox is checked, validate the required fields
-    if (collectRefund || upsClaim || storeCredit) {
-      if (!trimmedCollect) {
-        setToast("Refund To Be Collected is required when you select a refund action.");
-        return false;
-      }
-      if (!refundReason) {
-        setToast("Refund Reason is required when you select a refund action.");
-        return false;
-      }
-      return true;
+    if (!trimmedCollect) {
+      setToast("Refund To Be Collected is required when you select a refund action.");
+      return false;
     }
-
-    // Refund Collected dropdown is optional - no validation required
+    if (!refundReason) {
+      setToast("Refund Reason is required when you select a refund action.");
+      return false;
+    }
     return true;
   };
 
@@ -339,20 +329,42 @@ export default function RefundModal({ open, onClose, onSubmit, orderNo, yardInde
         </header>
 
         <div className="p-5 space-y-4 max-h-[80vh] overflow-y-auto text-sm">
+          <div className="flex flex-wrap gap-4 pb-3 border-b border-white/20">
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={collectRefund}
+                onChange={handleSelectionChange("collect")}
+                className="accent-[#2b2d68] w-4 h-4"
+              />
+              Collect Refund
+            </label>
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={upsClaim}
+                onChange={handleSelectionChange("ups")}
+                className="accent-[#2b2d68] w-4 h-4"
+              />
+              UPS Claim
+            </label>
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={storeCredit}
+                onChange={handleSelectionChange("store")}
+                className="accent-[#2b2d68] w-4 h-4"
+              />
+              Store Credit
+            </label>
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block mb-1">Refund Collected:</label>
               <select
                 value={refundStatus}
-                onChange={(e) => {
-                  const newStatus = e.target.value;
-                  setRefundStatus(newStatus);
-                  // Auto-uncheck Collect Refund and UPS Claim when "Yes" is selected
-                  if (newStatus === "Refund collected") {
-                    setCollectRefund(false);
-                    setUpsClaim(false);
-                  }
-                }}
+                onChange={(e) => setRefundStatus(e.target.value)}
                 className="w-full rounded-lg px-3 py-2 bg-[#2b2d68] text-white border border-white/30 outline-none focus:ring-2 focus:ring-white/60 text-center hover:bg-[#1f2760] transition-colors dark:bg-[#2b2d68] dark:hover:bg-[#1f2760] dark:text-white"
               >
                 <option value="">Select</option>
@@ -424,36 +436,6 @@ export default function RefundModal({ open, onClose, onSubmit, orderNo, yardInde
                 className="w-full rounded-lg px-3 py-2 bg-white/10 border border-white/30 outline-none text-center dark:bg-white/10 dark:border-white/30 dark:text-white"
               />
             </div>
-          </div>
-
-          <div className="flex flex-wrap gap-4">
-            <label className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                checked={collectRefund}
-                onChange={handleSelectionChange("collect")}
-                className="accent-[#2b2d68] w-4 h-4"
-              />
-              Collect Refund
-            </label>
-            <label className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                checked={upsClaim}
-                onChange={handleSelectionChange("ups")}
-                className="accent-[#2b2d68] w-4 h-4"
-              />
-              UPS Claim
-            </label>
-            <label className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                checked={storeCredit}
-                onChange={handleSelectionChange("store")}
-                className="accent-[#2b2d68] w-4 h-4"
-              />
-              Store Credit
-            </label>
           </div>
 
           <div className="pt-3 border-t border-white/20">

@@ -31,7 +31,11 @@ async function fetchUpsClaimsPage(params, headers) {
   const filtered = [];
   allOrders.forEach((order) => {
     const infos = Array.isArray(order.additionalInfo)
-      ? order.additionalInfo.filter((i) => i?.upsClaimCheckbox === "Ticked")
+      ? order.additionalInfo.filter(
+          (i) =>
+            i?.upsClaimCheckbox === "Ticked" &&
+            String(i?.refundStatus || "").trim() !== "Refund collected"
+        )
       : [];
 
     if (infos.length === 0) return;

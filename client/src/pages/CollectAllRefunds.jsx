@@ -1,4 +1,4 @@
-// src/pages/CollectRefund.jsx
+// All orders with Collect Refund ticked (pending + already collected).
 import React, { useCallback, useState, useEffect } from "react";
 import API from "../api";
 import OrdersTable from "../components/OrdersTable";
@@ -8,7 +8,6 @@ import useBrand from "../hooks/useBrand";
 
 const TZ = "America/Chicago";
 
-/* ---------- Columns ---------- */
 const columns = [
   { key: "orderNo", label: "Order No" },
   { key: "orderDate", label: "Order Date" },
@@ -16,7 +15,6 @@ const columns = [
   { key: "refundToCollect", label: "Refund to Collect ($)" },
 ];
 
-/* ---------- Helpers ---------- */
 function formatDateSafe(dateStr) {
   if (!dateStr) return "—";
   const d = new Date(dateStr);
@@ -24,27 +22,14 @@ function formatDateSafe(dateStr) {
   return formatInTimeZone(d, TZ, "do MMM, yyyy");
 }
 
-function parseAmountAfterColon(s) {
-  if (!s || typeof s !== "string") return 0;
-  const idx = s.indexOf(":");
-  if (idx === -1) return 0;
-  const n = parseFloat(s.slice(idx + 1).trim());
-  return isNaN(n) ? 0 : n;
-}
-
-/* ---------- Fetch override ---------- */
-async function fetchCollectRefundPage(params, headers) {
+async function fetchCollectAllRefundsPage(params, headers) {
   const res = await API.get(`/orders/monthlyOrders`, { params, headers });
   const allOrders = Array.isArray(res.data?.orders) ? res.data.orders : [];
-  // Ticked AND refund not yet collected (No or empty).
   const filtered = [];
+
   allOrders.forEach((order) => {
     const infos = Array.isArray(order.additionalInfo)
-      ? order.additionalInfo.filter(
-          (i) =>
-            i?.collectRefundCheckbox === "Ticked" &&
-            String(i?.refundStatus || "").trim() !== "Refund collected"
-        )
+      ? order.additionalInfo.filter((i) => i?.collectRefundCheckbox === "Ticked")
       : [];
     if (infos.length === 0) return;
 
@@ -63,24 +48,22 @@ async function fetchCollectRefundPage(params, headers) {
   return { rows: filtered, meta: res.data || {} };
 }
 
-/* ---------- Extra totals for modal ---------- */
 const extraTotals = (rows) => {
   const totalCollect = rows.reduce(
     (s, o) => s + (parseFloat(o.refundToCollect) || 0),
     0
   );
   return [
-    { name: "Total Orders with Refunds to Collect", value: rows.length },
-    { name: "Total Refund Amount to Collect", value: `$${totalCollect.toFixed(2)}` },
+    { name: "Total Orders with Collect Refund", value: rows.length },
+    { name: "Total Refund Amount", value: `$${totalCollect.toFixed(2)}` },
   ];
 };
 
-/* ---------- Page ---------- */
-export default function CollectRefund() {
+export default function CollectAllRefunds() {
   const brand = useBrand();
   const [expandedIds, setExpandedIds] = useState(new Set());
   const [totalLabel, setTotalLabel] = useState(
-    "Total Orders: 0 | To be Collected: $0.00"
+    "Total Orders: 0 | Total Refunds: $0.00"
   );
 
   const renderCell = useCallback(
@@ -164,7 +147,7 @@ export default function CollectRefund() {
         q: query || undefined,
         sortBy: sortBy || undefined,
         sortOrder: sortOrder || undefined,
-        collectRefundPendingOnly: "true",
+        collectRefundTicked: "true",
       };
       if (
         (userRole || "").toLowerCase() === "admin" &&
@@ -174,7 +157,7 @@ export default function CollectRefund() {
       ) {
         params.salesAgent = selectedAgent;
       }
-      const { rows, meta } = await fetchCollectRefundPage(params, headers);
+      const { rows, meta } = await fetchCollectAllRefundsPage(params, headers);
       return {
         orders: rows,
         meta: {
@@ -185,29 +168,21 @@ export default function CollectRefund() {
         },
       };
     },
-    [paramsBuilder, brand]
+    [paramsBuilder]
   );
 
-  // Realtime: refetch collect refund when orders change
   useOrdersRealtime({
     enabled: true,
     onOrderCreated: () => {
-      if (window.__ordersTableRefs?.collectRefund?.refetch) {
-        window.__ordersTableRefs.collectRefund.refetch();
-      }
+      window.__ordersTableRefs?.collectAllRefunds?.refetch?.();
     },
     onOrderUpdated: () => {
-      if (window.__ordersTableRefs?.collectRefund?.refetch) {
-        window.__ordersTableRefs.collectRefund.refetch();
-      }
+      window.__ordersTableRefs?.collectAllRefunds?.refetch?.();
     },
   });
 
-  // Auto-refetch when brand changes
   useEffect(() => {
-    if (window.__ordersTableRefs?.collectRefund?.refetch) {
-      window.__ordersTableRefs.collectRefund.refetch();
-    }
+    window.__ordersTableRefs?.collectAllRefunds?.refetch?.();
   }, [brand]);
 
   const onRowsChange = useCallback((rows) => {
@@ -216,19 +191,19 @@ export default function CollectRefund() {
       0
     );
     setTotalLabel(
-      `Total Orders: ${rows.length} | To be Collected: $${totalCollect.toFixed(2)}`
+      `Total Orders: ${rows.length} | Total Refunds: $${totalCollect.toFixed(2)}`
     );
   }, []);
 
   return (
     <OrdersTable
-      title="Collect Refund"
+      title="Collect All Refunds"
       endpoint="/orders/monthlyOrders"
       storageKeys={{
-        page: "collectRefundPage",
-        search: "collectRefundSearch",
-        filter: "collectRefundFilter_v1",
-        hilite: "collectRefundHilite",
+        page: "collectAllRefundsPage",
+        search: "collectAllRefundsSearch",
+        filter: "collectAllRefundsFilter_v1",
+        hilite: "collectAllRefundsHilite",
       }}
       columns={columns}
       renderCell={renderCell}
@@ -240,7 +215,7 @@ export default function CollectRefund() {
       onRowsChange={onRowsChange}
       totalLabel={totalLabel}
       showTotalsNearPill={true}
-      tableId="collectRefund"
+      tableId="collectAllRefunds"
     />
   );
 }
