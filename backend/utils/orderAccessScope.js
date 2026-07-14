@@ -1,4 +1,5 @@
 import User from "../models/User.js";
+import { isCommonTeam } from "../../shared/constants/teams.js";
 
 /** 50STARS firstName → PROLANE/PROTP salesAgent firstName on orders */
 export const AGENT_BRAND_MAPPING = {
@@ -88,6 +89,10 @@ async function getSalesAgentScopeForUser(user, brand) {
   }
 
   const team = String(user.team || "").trim();
+  // "Common" team members see every order (cross-team).
+  if (isCommonTeam(team)) {
+    return null;
+  }
   if (team) {
     const firstNames = await getTeamSalesFirstNames(team);
     const scope = buildSalesAgentScopeFromFirstNames(firstNames, brand);
@@ -104,6 +109,7 @@ async function getSalesAgentScopeForUser(user, brand) {
 /**
  * Merge team/salesAgent access into a Mongo filter.
  * - Admin: optional adminSalesAgent query narrows results
+ * - Common team: no salesAgent restriction (all orders)
  * - User with team: all Sales users on that team
  * - Sales without team: own orders only
  * - Support without team: no restriction

@@ -351,6 +351,12 @@ mongoose
   .connect(process.env.MONGODB_URI)
   .then(() => {
     console.log("MongoDB connected");
+    // Ensure built-in "Common" team exists for cross-team viewers
+    import("./routes/teams.js").then(({ ensureCommonTeam }) => {
+      ensureCommonTeam().catch((err) => {
+        console.error("[Teams] Failed to ensure Common team:", err.message);
+      });
+    });
     // Initialize backup database connection
     import("./services/dbSync.js").then(({ initializeBackupDB }) => {
       initializeBackupDB().catch((err) => {

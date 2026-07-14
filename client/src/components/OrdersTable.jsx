@@ -21,6 +21,12 @@ import {
   FaSortUp,
 } from "react-icons/fa";
 import useBrand from "../hooks/useBrand";
+import {
+  currentUserIsCommonTeam,
+  currentUserSeesTeamColumn,
+  resolveTeamForSalesAgent,
+} from "../utils/teamScope";
+import { isCommonTeam } from "../../../shared/constants/teams.js";
 
 /* =========================
    Constants / helpers
@@ -505,6 +511,9 @@ export default function OrdersTable({
   const [userRole, setUserRole] = useState(null);
   const [firstName, setFirstName] = useState("");
   const [teamAgentFirstNames, setTeamAgentFirstNames] = useState([]);
+  const [isCommonTeamUser, setIsCommonTeamUser] = useState(() => currentUserIsCommonTeam());
+  const [showTeamColumn, setShowTeamColumn] = useState(() => currentUserSeesTeamColumn());
+  const [agentTeamMap, setAgentTeamMap] = useState({});
   useEffect(() => {
     // Get role with fallback (like Sidebar does)
     const roleFromStorage = (() => {
@@ -529,7 +538,13 @@ export default function OrdersTable({
       }
     } catch {}
 
-    if (team) {
+    const common = isCommonTeam(team);
+    const isAdmin = String(roleFromStorage || "").toLowerCase() === "admin";
+    setIsCommonTeamUser(common);
+    setShowTeamColumn(isAdmin || common);
+
+    // Common team sees all orders — do not load a team agent scope.
+    if (team && !common) {
       API.get("/users", { params: { role: "Sales", team } })
         .then(({ data }) => {
           const names = [
@@ -545,7 +560,42 @@ export default function OrdersTable({
     } else {
       setTeamAgentFirstNames([]);
     }
+
+    // Admin + Common team need salesAgent → team map for the Team column.
+    if (isAdmin || common) {
+      API.get("/teams/sales-agent-map")
+        .then(({ data }) => setAgentTeamMap(data && typeof data === "object" ? data : {}))
+        .catch(() => setAgentTeamMap({}));
+    }
   }, []);
+
+  const effectiveColumns = useMemo(() => {
+    if (!showTeamColumn || !Array.isArray(columns)) return columns;
+    if (columns.some((c) => c?.key === "team")) return columns;
+    const next = [...columns];
+    const salesIdx = next.findIndex((c) => c?.key === "salesAgent");
+    const teamCol = { key: "team", label: "Team" };
+    if (salesIdx >= 0) next.splice(salesIdx + 1, 0, teamCol);
+    else next.push(teamCol);
+    return next;
+  }, [columns, showTeamColumn]);
+
+  const renderCellEffective = useCallback(
+    (row, key, ...rest) => {
+      if (key === "team") {
+        return (
+          row.team ||
+          resolveTeamForSalesAgent(row.salesAgent, agentTeamMap) ||
+          "—"
+        );
+      }
+      if (typeof renderCell === "function") {
+        return renderCell(row, key, ...rest);
+      }
+      return row[key] ?? "—";
+    },
+    [renderCell, agentTeamMap]
+  );
 
   // persist page + scroll to top on manual page change
   useEffect(() => {
@@ -896,7 +946,8 @@ export default function OrdersTable({
     }
 
     const role = (userRole || "").toLowerCase();
-    if (role === "admin") {
+    // Admin + Common team see every order (cross-team).
+    if (role === "admin" || isCommonTeamUser) {
       return rowsAfterTrackingLabelFilter;
     }
 
@@ -931,6 +982,7 @@ export default function OrdersTable({
     tableId,
     endpoint,
     teamAgentFirstNames,
+    isCommonTeamUser,
   ]);
 
   // 2) Admin-only agent narrowing (Select/All=no narrowing)
@@ -1430,7 +1482,7 @@ export default function OrdersTable({
         <table className="min-w-[1200px] w-full bg-black/20 backdrop-blur-md text-white">
           <thead className="sticky top-0 bg-[#5c8bc1] z-20 text-black">
             <tr>
-              {columns.map((col) => (
+              {effectiveColumns.map((col) => (
                 <th
                   key={col.key}
                   onClick={() => handleSort(col.key)}
@@ -1448,7 +1500,7 @@ export default function OrdersTable({
           <tbody>
             {pageRows.length === 0 ? (
               <tr>
-                <td colSpan={columns.length + (hideDefaultActions ? 0 : 1)} className="p-6 text-center text-white/80">
+                <td colSpan={effectiveColumns.length + (hideDefaultActions ? 0 : 1)} className="p-6 text-center text-white/80">
                   No orders found.
                 </td>
               </tr>
@@ -1472,14 +1524,12 @@ export default function OrdersTable({
                       : "even:bg-white/5 odd:bg-white/10 hover:bg-white/20"
                       }`}
                   >
-                    {columns.map((col) => (
+                    {effectiveColumns.map((col) => (
                       <td
                         key={col.key}
                         className={`p-2.5 border-r border-white/20 whitespace-nowrap select-text cursor-text ${getCellClassName?.(row, col.key) || col.cellClassName || ""}`}
                       >
-                        {renderCell
-                          ? renderCell(row, col.key, formatDateSafe, currency)
-                          : row[col.key] ?? "—"}
+                        {renderCellEffective(row, col.key, formatDateSafe, currency)}
                       </td>
                     ))}
                     {!hideDefaultActions && (
@@ -1600,6 +1650,12 @@ export default function OrdersTable({
                   <div>
                     <b>Agent:</b> {row.salesAgent || "-"}
                   </div>
+                  {showTeamColumn && (
+                    <div>
+                      <b>Team:</b>{" "}
+                      {resolveTeamForSalesAgent(row.salesAgent, agentTeamMap)}
+                    </div>
+                  )}
                   <div>
                     <b>Customer:</b> {row._customerName || row.customerName || "-"}
                   </div>

@@ -280,6 +280,7 @@ orderSchema.index({ toBeReimbursed: 1, orderDate: -1 });
 // Refund / claim / store-credit pages filter on additionalInfo sub-fields.
 orderSchema.index({ "additionalInfo.collectRefundCheckbox": 1, orderDate: -1 });
 orderSchema.index({ "additionalInfo.upsClaimCheckbox": 1, orderDate: -1 });
+orderSchema.index({ "additionalInfo.refundStatus": 1, orderDate: -1 });
 orderSchema.index({ "additionalInfo.storeCredit": 1 });
 
 // Primary collection for 50STARS (existing behavior)

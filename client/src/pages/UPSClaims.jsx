@@ -162,6 +162,7 @@ export default function UPSClaims() {
         sortBy: sortBy || undefined,
         sortOrder: sortOrder || undefined,
         upsClaimTicked: "true",
+        skipTotals: "true",
       };
       if (
         (userRole || "").toLowerCase() === "admin" &&

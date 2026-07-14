@@ -4,6 +4,7 @@ import moment from 'moment-timezone';
 import { getOrderModelForBrand } from '../models/Order.js';
 import { requireAuth, allow } from '../middleware/auth.js';
 import { sendSalesReportEmail } from '../services/sendSalesReportEmail.js';
+import { isCommonTeam } from '../../shared/constants/teams.js';
 
 const router = express.Router();
 const TZ = 'America/Chicago';
@@ -217,7 +218,9 @@ router.get('/', requireAuth, allow('Admin', 'Sales', 'Support'), async (req, res
     }
 
     // 4) RBAC — enforce row-level access
-    if (req.user.role === 'Sales') {
+    // Common team members (and Support/Admin) see every order.
+    const isCommon = isCommonTeam(req.user?.team);
+    if (req.user.role === 'Sales' && !isCommon) {
       // Match either exact firstName or full name starting with firstName
       // This handles both: "Richard" (new format) and "Richard Parker" (old format)
       const firstName = req.user.firstName;
@@ -329,9 +332,15 @@ router.get('/', requireAuth, allow('Admin', 'Sales', 'Support'), async (req, res
 
     const Order = getOrderModelForBrand(req.brand);
 
+    // Pages that compute their own totals client-side (refund/claims lists) can skip
+    // the expensive GP + payment-source aggregation, which otherwise scans every
+    // matching order (incl. large additionalInfo arrays) on every request.
+    const wantTotals = String(req.query.skipTotals || "").toLowerCase() !== "true";
+
     const [totalOrders, totalsAgg] = await Promise.all([
       Order.countDocuments(query),
-      Order.aggregate([
+      wantTotals
+        ? Order.aggregate([
         { $match: query },
         {
           $facet: {
@@ -370,7 +379,8 @@ router.get('/', requireAuth, allow('Admin', 'Sales', 'Support'), async (req, res
             ],
           },
         },
-      ]),
+          ])
+        : Promise.resolve([]),
     ]);
     const totalsDoc = totalsAgg?.[0] || {};
     const gpDoc = totalsDoc?.gp?.[0] || {};

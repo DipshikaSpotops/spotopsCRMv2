@@ -165,6 +165,7 @@ export default function CollectRefund() {
         sortBy: sortBy || undefined,
         sortOrder: sortOrder || undefined,
         collectRefundPendingOnly: "true",
+        skipTotals: "true",
       };
       if (
         (userRole || "").toLowerCase() === "admin" &&

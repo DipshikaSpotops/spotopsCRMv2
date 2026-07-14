@@ -7,6 +7,10 @@ import moment from "moment-timezone";
 import API from "../api";
 import useOrdersRealtime from "../hooks/useOrdersRealtime";
 import useBrand from "../hooks/useBrand";
+import {
+  currentUserSeesTeamColumn,
+  resolveTeamForSalesAgent,
+} from "../utils/teamScope";
 
 const prettyFilterLabel = (filter) => {
   if (!filter) return "";
@@ -149,8 +153,17 @@ const PlacedOrders = () => {
   // Keep the latest date filter (month/year or start/end) so search reuses it
   const [currentFilter, setCurrentFilter] = useState(null);
   const [copiedOrderId, setCopiedOrderId] = useState(null);
+  const [showTeamColumn] = useState(() => currentUserSeesTeamColumn());
+  const [agentTeamMap, setAgentTeamMap] = useState({});
 
   const firstName = localStorage.getItem("firstName") || "";
+
+  useEffect(() => {
+    if (!showTeamColumn) return;
+    API.get("/teams/sales-agent-map")
+      .then(({ data }) => setAgentTeamMap(data && typeof data === "object" ? data : {}))
+      .catch(() => setAgentTeamMap({}));
+  }, [showTeamColumn]);
 
   // Fetch Orders (date or month/year) + optional q
   const fetchOrders = async (filter = {}, options = {}) => {
@@ -476,6 +489,12 @@ const PlacedOrders = () => {
                 <div>
                   <b>Sales:</b> {order.salesAgent || "N/A"}
                 </div>
+                {showTeamColumn && (
+                  <div>
+                    <b>Team:</b>{" "}
+                    {resolveTeamForSalesAgent(order.salesAgent, agentTeamMap)}
+                  </div>
+                )}
                 <div className="truncate" title={order.customerName || `${order.fName || ""} ${order.lName || ""}`}>
                   <b>Cust:</b>{" "}
                   {order.customerName || `${order.fName || ""} ${order.lName || ""}` || "N/A"}

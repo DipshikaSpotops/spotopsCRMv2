@@ -187,6 +187,7 @@ export default function CollectedRefunds() {
         sortBy: sortBy || undefined,
         sortOrder: sortOrder || undefined,
         refundCollectedOnly: "true",
+        skipTotals: "true",
       };
       if (
         (userRole || "").toLowerCase() === "admin" &&

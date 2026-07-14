@@ -8,6 +8,10 @@ import moment from "moment-timezone";
 import API from "../api";
 import useOrdersRealtime from "../hooks/useOrdersRealtime";
 import useBrand from "../hooks/useBrand";
+import {
+  currentUserSeesTeamColumn,
+  resolveTeamForSalesAgent,
+} from "../utils/teamScope";
 
 const prettyFilterLabel = (filter) => {
   if (!filter) return "";
@@ -72,6 +76,15 @@ const CustomerApproved = () => {
 
   const [currentFilter, setCurrentFilter] = useState(null); // {month,year} OR {start,end}
   const [copiedId, setCopiedId] = useState(null);
+  const [showTeamColumn] = useState(() => currentUserSeesTeamColumn());
+  const [agentTeamMap, setAgentTeamMap] = useState({});
+
+  useEffect(() => {
+    if (!showTeamColumn) return;
+    API.get("/teams/sales-agent-map")
+      .then(({ data }) => setAgentTeamMap(data && typeof data === "object" ? data : {}))
+      .catch(() => setAgentTeamMap({}));
+  }, [showTeamColumn]);
   const navigate = useNavigate();
   const brand = useBrand(); // 50STARS / PROLANE
 
@@ -323,6 +336,12 @@ const CustomerApproved = () => {
               <div className="space-y-1 text-sm text-white/80">
                 <div><b>Date:</b> {toDallasPretty(order.orderDate)}</div>
                 <div><b>Sales:</b> {order.salesAgent || "N/A"}</div>
+                {showTeamColumn && (
+                  <div>
+                    <b>Team:</b>{" "}
+                    {resolveTeamForSalesAgent(order.salesAgent, agentTeamMap)}
+                  </div>
+                )}
                 <div className="truncate" title={order.customerName || `${order.fName || ""} ${order.lName || ""}`}>
                   <b>Cust:</b> {order.customerName || `${order.fName || ""} ${order.lName || ""}` || "N/A"}
                 </div>
