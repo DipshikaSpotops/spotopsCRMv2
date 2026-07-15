@@ -382,6 +382,10 @@ import { isGmailLeadsEnabled } from "./utils/gmailLeadsConfig.js";
 // Start proactive Gmail token monitor (startup check + scheduled checks)
 startGmailTokenMonitor();
 
+// Customer follow-up: 2 business days after orderDate (Placed / Customer approved / Yard Processing)
+import { startPlacedOrderFollowUpScheduler } from "./services/sendPlacedOrderFollowUp.js";
+startPlacedOrderFollowUpScheduler();
+
 // Gmail Watch Management: Auto-start and auto-renew watch
 async function initializeGmailWatch() {
   if (!isGmailLeadsEnabled()) {

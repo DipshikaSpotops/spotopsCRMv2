@@ -220,6 +220,8 @@ dsCall: String,
 programmingRequired: String,
 programmingCostQuoted: String,
 images: [imageSchema],
+/** Set when the 48-working-hour (2 business day) customer follow-up email is sent. */
+placedFollowUpEmailSentAt: { type: Date, required: false },
 });
 
 orderSchema.pre("save", function syncSalesOriginFields(next) {

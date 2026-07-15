@@ -516,10 +516,6 @@ router.post("/sendPOEmailYard/:orderNo", upload.any(), async (req, res) => {
           <h4>Ship To</h4>
           <p>${order.attention || order.fName + " " + order.lName}<br>${order.sAddressStreet}, ${order.sAddressCity}, ${order.sAddressState}, ${order.sAddressZip}</p>
         </div>
-        <div class="column">
-          <h4>Bill To</h4>
-          <p>${brandConfig.companyName}<br>${brandConfig.companyAddress}<br>${brandConfig.purchaseEmailAddress}<br>${brandConfig.companyPhone}</p>
-        </div>
       </div>
 
       <!-- MAIN TABLE -->
@@ -554,33 +550,49 @@ router.post("/sendPOEmailYard/:orderNo", upload.any(), async (req, res) => {
     <th colspan="2" style="width:40%">Summary</th>
   </tr>
 
-  <!-- Card Info + Summary -->
+  <!-- Card Info + Summary as synced rows so Grand Total matches Billing height -->
   <tr>
-    <!-- Card Info takes the same width as Part Description (60%) -->
-    <td style="padding:0;">
-      <table class="inner" style="width:100%; border-collapse:collapse;">
+    <td colspan="3" style="padding:0;">
+      <table class="inner summary" style="width:100%; border-collapse:collapse; table-layout:fixed;">
         <colgroup>
-          <col style="width:45%">
-          <col style="width:55%">
+          <col style="width:27%">
+          <col style="width:33%">
+          <col style="width:20%">
+          <col style="width:20%">
         </colgroup>
-        <tr><td class="label">Card Number:</td><td>${card.cardNumber}</td></tr>
-<tr><td class="label">Expiration Date:</td><td>${card.cardExpiry}</td></tr>
-<tr><td class="label">CVV:</td><td>${card.cardCvv}</td></tr>
-
-      </table>
-    </td>
-
-    <!-- Summary takes exactly Quantity + Amount (20% + 20% = 40%) -->
-    <td colspan="2" style="padding:0;">
-      <table class="inner summary" style="width:100%; border-collapse:collapse;">
-        <colgroup>
-          <col style="width:50%">
-          <col style="width:50%">
-        </colgroup>
-        <tr><td class="label">Subtotal:</td><td>$${subtotal.toFixed(2)}</td></tr>
-        <tr><td class="label">Shipping:</td><td>${shippingValue}</td></tr>
-        <tr><td class="label">Tax:</td><td>Included</td></tr>
-        <tr class="grand"><td class="label">Grand Total:</td><td>$${grandTotal.toFixed(2)}</td></tr>
+        <tr>
+          <td class="label">Card Number:</td>
+          <td>${card.cardNumber}</td>
+          <td class="label">Subtotal:</td>
+          <td>$${subtotal.toFixed(2)}</td>
+        </tr>
+        <tr>
+          <td class="label">Expiration Date:</td>
+          <td>${card.cardExpiry}</td>
+          <td class="label">Shipping:</td>
+          <td>${shippingValue}</td>
+        </tr>
+        <tr>
+          <td class="label">CVV:</td>
+          <td>${card.cardCvv}</td>
+          <td class="label">Tax:</td>
+          <td>Included</td>
+        </tr>
+        <tr>
+          <td colspan="2" style="padding:8px; vertical-align:top;">
+            <div style="font-size:13px; font-weight:600; color:#0b2545; line-height:1.5;">
+              Bill To:<br>
+              ${brandConfig.companyName}, ${brandConfig.companyAddress}<br>
+              ${brandConfig.purchaseEmailAddress} | ${brandConfig.companyPhone}
+            </div>
+          </td>
+          <td colspan="2" class="grand" style="background:#0b2545 !important; color:#fff !important; font-weight:700; vertical-align:middle; padding:8px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
+              <span>Grand Total:</span>
+              <span>$${grandTotal.toFixed(2)}</span>
+            </div>
+          </td>
+        </tr>
       </table>
     </td>
   </tr>
