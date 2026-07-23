@@ -126,6 +126,10 @@ function getEmailBrandConfig(req) {
 //   Nik Lewis - Noah Webster
 //   Max Williams - Leo Parker
 //   Dips - Dipshika
+//   Jaden Scott - Adam
+//   Joseph Kale - Chris
+//   Troy Smith - Steve
+//   Ashley Wilson - Mona
 //
 // In our app, we store the 50STARS firstName in localStorage and send it as ?firstName=.
 // We map that stored firstName to the PROLANE display name for emails when brand === "PROLANE".
@@ -148,6 +152,10 @@ const SUPPORT_AGENT_PROLANE_NAME_MAP = {
   Rhea: "Katherine Williams",
   Tylor: "Hailey Pitt",
   Olivia: "Carlie Phillips",
+  Adam: "Jaden Scott",
+  Chris: "Joseph Kale",
+  Steve: "Troy Smith",
+  Mona: "Ashley Wilson",
   // Handle both spellings for safety
   Dipshika: "Dips",
   Dipsikha: "Dips",

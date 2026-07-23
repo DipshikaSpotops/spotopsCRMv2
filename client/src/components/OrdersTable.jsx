@@ -448,6 +448,12 @@ export default function OrdersTable({
   const [highlightedOrderNo, setHighlightedOrderNo] = useState(
     getLS(LS_HILITE_KEY, null)
   );
+  // Keep a ref so fetchOrders can read highlight without depending on it
+  // (depending on it recreated fetchOrders → refetch → looks like a full page reload).
+  const highlightedOrderNoRef = useRef(highlightedOrderNo);
+  useEffect(() => {
+    highlightedOrderNoRef.current = highlightedOrderNo;
+  }, [highlightedOrderNo]);
   const clearHighlight = () => {
     setHighlightedOrderNo(null);
     setLS(LS_HILITE_KEY, null);
@@ -574,7 +580,7 @@ export default function OrdersTable({
     if (columns.some((c) => c?.key === "team")) return columns;
     const next = [...columns];
     const salesIdx = next.findIndex((c) => c?.key === "salesAgent");
-    const teamCol = { key: "team", label: "Team" };
+    const teamCol = { key: "team", label: "Team", minWidth: 110 };
     if (salesIdx >= 0) next.splice(salesIdx + 1, 0, teamCol);
     else next.push(teamCol);
     return next;
@@ -633,7 +639,7 @@ export default function OrdersTable({
       
       // Preserve scroll position and highlighted state for background refresh
       let preservedScrollTop = 0;
-      let preservedHighlight = highlightedOrderNo;
+      let preservedHighlight = highlightedOrderNoRef.current;
       
       if (background && tableScrollRef.current) {
         preservedScrollTop = tableScrollRef.current.scrollTop || 0;
@@ -757,7 +763,7 @@ export default function OrdersTable({
         }
       }
     },
-    [activeFilter, endpointURL, appliedQuery, sortBy, sortOrder, selectedAgent, selectedAddressType, userRole, firstName, fetchOverride, paramsBuilder, highlightedOrderNo, currentPage, requestedRowsPerPage, mapRows]
+    [activeFilter, endpointURL, appliedQuery, sortBy, sortOrder, selectedAgent, selectedAddressType, userRole, firstName, fetchOverride, paramsBuilder, currentPage, requestedRowsPerPage, mapRows]
   );
 
   // Optional: expose a simple global refetch handle for realtime integrations
@@ -1485,8 +1491,10 @@ export default function OrdersTable({
               {effectiveColumns.map((col) => (
                 <th
                   key={col.key}
+                  data-col={col.key}
                   onClick={() => handleSort(col.key)}
-                  className="p-3 text-left cursor-pointer border-r border-white/30 whitespace-nowrap"
+                  className={`p-3 text-left cursor-pointer border-r border-white/30 whitespace-nowrap ${col.headerClassName || ""}`}
+                  style={col.minWidth ? { minWidth: col.minWidth, width: col.width } : undefined}
                 >
                   <div className="flex items-center gap-1">
                     {col.label} <SortIcon name={col.key} />
@@ -1527,7 +1535,11 @@ export default function OrdersTable({
                     {effectiveColumns.map((col) => (
                       <td
                         key={col.key}
-                        className={`p-2.5 border-r border-white/20 whitespace-nowrap select-text cursor-text ${getCellClassName?.(row, col.key) || col.cellClassName || ""}`}
+                        data-col={col.key}
+                        style={col.minWidth ? { minWidth: col.minWidth, width: col.width } : undefined}
+                        className={`p-2.5 border-r border-white/20 select-text cursor-text ${
+                          col.wrap ? "whitespace-normal break-words align-top" : "whitespace-nowrap"
+                        } ${getCellClassName?.(row, col.key) || col.cellClassName || ""}`}
                       >
                         {renderCellEffective(row, col.key, formatDateSafe, currency)}
                       </td>

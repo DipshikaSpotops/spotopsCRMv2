@@ -309,6 +309,10 @@ const SUPPORT_AGENT_PROLANE_NAME_MAP = {
   Rhea: "Katherine Williams",
   Tylor: "Hailey Pitt",
   Olivia: "Carlie Phillips",
+  Adam: "Jaden Scott",
+  Chris: "Joseph Kale",
+  Steve: "Troy Smith",
+  Mona: "Ashley Wilson",
   // Handle both spellings just in case
   Dipshika: "Dips",
   Dipsikha: "Dips",

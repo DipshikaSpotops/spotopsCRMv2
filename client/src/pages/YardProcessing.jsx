@@ -4,14 +4,13 @@ import useOrdersRealtime from "../hooks/useOrdersRealtime";
 import useBrand from "../hooks/useBrand";
 
 const columns = [
-  { key: "orderDate",    label: "Order Date" },
-  { key: "orderNo",      label: "Order No" },
-  { key: "salesAgent",   label: "SalesAgent" },
-  { key: "pReq",         label: "Part Info" },
-  { key: "customerName", label: "Customer Info" },
-  { key: "yardName",     label: "Yard Details" },
-  { key: "lastComment",  label: "Last Comment" },
-  // { key: "orderStatus",  label: "Order Status" },
+  { key: "orderDate",    label: "Order Date", minWidth: 120 },
+  { key: "orderNo",      label: "Order No", minWidth: 150 },
+  { key: "salesAgent",   label: "SalesAgent", minWidth: 100 },
+  { key: "pReq",         label: "Part Info", minWidth: 160, wrap: true },
+  { key: "customerName", label: "Customer Info", minWidth: 160, wrap: true },
+  { key: "yardName",     label: "Yard Data", minWidth: 220, wrap: true },
+  { key: "lastComment",  label: "Last Comment", minWidth: 240, wrap: true },
 ];
 
 const wrap5 = (str = "") =>
@@ -182,69 +181,34 @@ export default function YardProcessingOrders() {
   return (
     <div className="yard-processing-table-wrapper">
       <style>{`
-        /* Increase font size for better readability */
         .yard-processing-table-wrapper {
           font-size: 1rem !important;
         }
         .yard-processing-table-wrapper table {
           font-size: 1rem !important;
+          table-layout: auto;
+          width: max-content;
+          min-width: 100%;
         }
-        /* Make Yard Details and Last Comment columns wider and equal width */
-        .yard-processing-table-wrapper table {
-          table-layout: fixed;
-          width: 100%;
-        }
-        /* Table headers should stay on one line */
-        .yard-processing-table-wrapper table th {
-          white-space: nowrap !important;
-          overflow: hidden !important;
-          font-size: 1rem !important;
-        }
-        /* Table body cells should wrap text to prevent overflow */
+        .yard-processing-table-wrapper table th,
         .yard-processing-table-wrapper table td {
-          overflow: hidden !important;
-          word-wrap: break-word !important;
-          overflow-wrap: break-word !important;
-          white-space: normal !important;
           font-size: 1rem !important;
+          vertical-align: top;
         }
-        /* Increase font size for expanded details */
+        /* Yard Data + Last Comment: keep readable width, allow wrap (no clipping) */
+        .yard-processing-table-wrapper table th[data-col="yardName"],
+        .yard-processing-table-wrapper table td[data-col="yardName"],
+        .yard-processing-table-wrapper table th[data-col="lastComment"],
+        .yard-processing-table-wrapper table td[data-col="lastComment"] {
+          min-width: 240px !important;
+          max-width: 320px !important;
+          white-space: normal !important;
+          overflow: visible !important;
+          word-break: break-word !important;
+          overflow-wrap: anywhere !important;
+        }
         .yard-processing-table-wrapper .text-xs {
           font-size: 0.9rem !important;
-        }
-        /* Yard Details and Last Comment - wider and equal */
-        .yard-processing-table-wrapper table th:nth-child(5),
-        .yard-processing-table-wrapper table td:nth-child(5) {
-          width: 23% !important;
-          min-width: 23% !important;
-        }
-        .yard-processing-table-wrapper table th:nth-child(6),
-        .yard-processing-table-wrapper table td:nth-child(6) {
-          width: 23% !important;
-          min-width: 23% !important;
-        }
-        /* Order No column - wider to show "Show Det" button */
-        .yard-processing-table-wrapper table th:nth-child(2),
-        .yard-processing-table-wrapper table td:nth-child(2) {
-          width: 12% !important;
-        }
-        /* Order Date and Part Name columns */
-        .yard-processing-table-wrapper table th:nth-child(1),
-        .yard-processing-table-wrapper table td:nth-child(1),
-        .yard-processing-table-wrapper table th:nth-child(3),
-        .yard-processing-table-wrapper table td:nth-child(3) {
-          width: 8% !important;
-        }
-        /* Customer Name column - wider for header */
-        .yard-processing-table-wrapper table th:nth-child(4),
-        .yard-processing-table-wrapper table td:nth-child(4) {
-          width: 11% !important;
-        }
-        /* Actions column - narrower */
-        .yard-processing-table-wrapper table th:last-child,
-        .yard-processing-table-wrapper table td:last-child {
-          width: 6% !important;
-          min-width: 6% !important;
         }
       `}</style>
       <OrdersTable
