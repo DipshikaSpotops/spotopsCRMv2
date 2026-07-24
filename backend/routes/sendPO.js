@@ -127,6 +127,7 @@ function getEmailBrandConfig(req) {
 //   Max Williams - Leo Parker
 //   Dips - Dipshika
 //   Jaden Scott - Adam
+//   Patrick Evans - Duke
 //   Joseph Kale - Chris
 //   Troy Smith - Steve
 //   Ashley Wilson - Mona
@@ -153,6 +154,7 @@ const SUPPORT_AGENT_PROLANE_NAME_MAP = {
   Tylor: "Hailey Pitt",
   Olivia: "Carlie Phillips",
   Adam: "Jaden Scott",
+  Duke: "Patrick Evans",
   Chris: "Joseph Kale",
   Steve: "Troy Smith",
   Mona: "Ashley Wilson",

@@ -1569,6 +1569,12 @@ export default function OrderDetails() {
           border-color: rgba(59, 130, 246, 0.4) !important;
           color: #1a1a1a !important;
         }
+
+        /* Dark mode: native <select> popups stay light on Windows; force dark option text */
+        html.dark .order-details-page select option {
+          background: #ffffff !important;
+          color: #1a1a1a !important;
+        }
         
         /* Tab Container Background */
         html:not(.dark) .order-details-page .rounded-lg.p-1[class*="bg-blue-50"],
@@ -1763,7 +1769,7 @@ export default function OrderDetails() {
                     className="px-3 py-1 rounded-md text-sm bg-blue-50 hover:bg-blue-100 border border-gray-200 text-[#09325d] shadow-sm hover:shadow-md cursor-pointer transition-all dark:bg-white/10 dark:hover:bg-white/20 dark:text-white dark:border-white/20"
                   >
                     {STATUS_OPTIONS.map((opt) => (
-                      <option key={opt.value} value={opt.value}>
+                      <option key={opt.value} value={opt.value} className="bg-white text-gray-900">
                         {opt.label}
                       </option>
                     ))}

@@ -310,6 +310,7 @@ const SUPPORT_AGENT_PROLANE_NAME_MAP = {
   Tylor: "Hailey Pitt",
   Olivia: "Carlie Phillips",
   Adam: "Jaden Scott",
+  Duke: "Patrick Evans",
   Chris: "Joseph Kale",
   Steve: "Troy Smith",
   Mona: "Ashley Wilson",
