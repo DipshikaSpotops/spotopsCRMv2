@@ -1,6 +1,7 @@
 /**
  * Automated customer follow-up after 2 business days (Mon–Fri, America/Chicago)
  * from orderDate, while status is Placed | Customer approved | Yard Processing.
+ * Skipped when Expedite Shipping is Yes.
  */
 import moment from "moment-timezone";
 import {
@@ -93,6 +94,16 @@ function customerFirstName(order) {
   return full.split(/\s+/)[0] || "there";
 }
 
+/** Order-level Sale Notes "Expedite Shipping" — stored as "true"/"false" (or boolean). */
+function isExpediteShipping(order) {
+  const v = order?.expediteShipping;
+  if (v === true || v === 1) return true;
+  const s = String(v ?? "")
+    .trim()
+    .toLowerCase();
+  return s === "true" || s === "yes" || s === "1";
+}
+
 function escapeHtml(value) {
   return String(value ?? "")
     .replace(/&/g, "&amp;")
@@ -176,6 +187,17 @@ function buildCandidateQuery(now = new Date()) {
     orderDate: { $gte: sinceDate, $lte: dueOnOrBefore },
     orderStatus: { $regex: ELIGIBLE_STATUS_REGEX },
     email: { $exists: true, $nin: [null, ""] },
+    // Do not send the automated follow-up when Expedite Shipping is Yes
+    $nor: [
+      { expediteShipping: true },
+      { expediteShipping: 1 },
+      { expediteShipping: "true" },
+      { expediteShipping: "True" },
+      { expediteShipping: "yes" },
+      { expediteShipping: "Yes" },
+      { expediteShipping: "YES" },
+      { expediteShipping: "1" },
+    ],
     $or: [
       { placedFollowUpEmailSentAt: { $exists: false } },
       { placedFollowUpEmailSentAt: null },
@@ -203,6 +225,19 @@ async function claimAndSend(Model, brand, order) {
   if (!claimed) return { skipped: true, reason: "already-claimed" };
 
   try {
+    if (isExpediteShipping(claimed)) {
+      const when = moment().tz(TZ).format("D MMM, YYYY HH:mm");
+      await Model.updateOne(
+        { _id: claimed._id },
+        {
+          $push: {
+            orderHistory: `Placed-order follow-up email skipped (expedite shipping) on ${when} (America/Chicago)`,
+          },
+        }
+      );
+      return { skipped: true, reason: "expedite-shipping", orderNo: claimed.orderNo };
+    }
+
     const result = await sendFollowUpForOrder(claimed, brand);
     if (result.skipped) {
       // Roll back claim if we couldn't send (e.g. SMTP not ready / no email).
@@ -244,7 +279,9 @@ export async function processPlacedOrderFollowUps() {
 
   for (const { brand, Model } of BRAND_MODELS) {
     const candidates = await Model.find(query)
-      .select("orderNo orderDate orderStatus email fName customerName pReq placedFollowUpEmailSentAt")
+      .select(
+        "orderNo orderDate orderStatus email fName customerName pReq expediteShipping placedFollowUpEmailSentAt"
+      )
       .sort({ orderDate: 1 })
       .limit(50)
       .lean();
