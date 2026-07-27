@@ -771,6 +771,7 @@ export default function AddOrder() {
                   "Bank/Wire Transfer",
                  " Both (VPS & SA Authorized)",
                  " Both (VPS & SA Payment)",
+                  "FTC - Authorize",
                   "Paypal",
                   "RP Authorize",
                   "RP Payment",

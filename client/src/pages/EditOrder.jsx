@@ -998,6 +998,7 @@ export default function EditOrder() {
                   "Bank/Wire Transfer",
                  " Both (VPS & SA Authorized)",
                  " Both (VPS & SA Payment)",
+                  "FTC - Authorize",
                   "Paypal",
                   "RP Authorize",
                   "RP Payment",
