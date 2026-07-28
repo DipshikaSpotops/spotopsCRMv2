@@ -85,6 +85,7 @@ const lastYardRelocateFilterStages = [
   {
     $match: {
       $or: [
+        { orderStatus: { $regex: /^relocates$/i } },
         { _lastYardStatusNorm: { $in: PO_CANCELLED_STATUSES } },
         {
           _lastYardStatusNorm: "escalation",

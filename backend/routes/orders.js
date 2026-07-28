@@ -297,6 +297,8 @@ const HUMAN_FIELD_LABELS = {
   custretPartETA: "ETA (return)",
   custReturnDelivery: "Delivery status (return)",
   custShipToRet: "Ship to (return)",
+  collectRefundCheckbox: "Collect Refund",
+  refundToCollect: "Refund To Be Collected",
 };
 
 const categorizeField = (field) => {
@@ -1656,6 +1658,8 @@ router.put(
     "escRepETAHistoryYard",
     "escRepShipperNameHistoryYard",
     "escrepBOLhistoryYard",
+    "collectRefundCheckbox",
+    "refundToCollect",
     ];
 
     const patch = {};
@@ -1868,6 +1872,18 @@ router.put(
         if (noteAdded) {
           publish(req, orderNo, { type: "YARD_NOTE_ADDED", yardIndex: idx1 });
         }
+      }
+    }
+
+    /* Optional follow-up note from escalation (Relocates / Collect Refund radios) */
+    const followUpNote = String(req.body?.followUpNote || "").trim();
+    if (followUpNote) {
+      const noteAdded = pushUniqueNote(
+        subdoc.notes,
+        formatNote(firstName, when, followUpNote)
+      );
+      if (noteAdded) {
+        publish(req, orderNo, { type: "YARD_NOTE_ADDED", yardIndex: idx1 });
       }
     }
 

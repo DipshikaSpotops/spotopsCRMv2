@@ -510,6 +510,7 @@ export default function OrderDetails() {
     { label: "Customer Approved", value: "Customer approved" },
     { label: "Yard Processing", value: "Yard Processing" },
     { label: "Yard Not Found", value: "Yard Not Found" },
+    { label: "Relocates", value: "Relocates" },
     { label: "In Transit", value: "In Transit" },
     { label: "Escalation", value: "Escalation" },
     { label: "Order Fulfilled", value: "Order Fulfilled" },

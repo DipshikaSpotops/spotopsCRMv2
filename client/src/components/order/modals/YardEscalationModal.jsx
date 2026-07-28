@@ -24,6 +24,24 @@ const SHIPPERS = [
 
 const toStr = (v) => (v == null ? "" : String(v));
 
+const parseMoney = (val) => {
+  if (val == null || val === "") return 0;
+  const num = parseFloat(String(val).replace(/[^\d.]/g, ""));
+  return Number.isFinite(num) ? num : 0;
+};
+
+/** partPrice + Yard shipping only (Own shipping ignored). */
+const calcRefundToCollect = (yard) => {
+  const partPrice = parseMoney(yard?.partPrice);
+  const shippingSource = toStr(yard?.shippingDetails || yard?.yardShipping || "");
+  const yardMatch = shippingSource.match(/Yard shipping:\s*([\d.]+)/i);
+  const yardShipping = yardMatch
+    ? parseMoney(yardMatch[1])
+    : parseMoney(yard?.yardShipping);
+  const total = partPrice + yardShipping;
+  return total > 0 ? total.toFixed(2) : "";
+};
+
 const getChicagoIso = () => {
   const now = new Date();
   const chicagoString = now.toLocaleString("en-US", { timeZone: "America/Chicago" });
@@ -128,6 +146,10 @@ export default function YardEscalationModal({
 
   const isReplacement = state.escalationProcess === "Replacement";
   const isReturn = state.escalationProcess === "Return";
+  const isJunk = state.escalationProcess === "Junk";
+  const showFollowUpRadios = isReturn || isJunk;
+  // Optional post-save action for Return/Junk (not required).
+  const [followUpAction, setFollowUpAction] = useState(""); // "" | "relocates" | "collectRefund"
 
   useEffect(() => {
     if (!open) return;
@@ -185,6 +207,7 @@ export default function YardEscalationModal({
       next.customerShipperReturn = "Others";
     }
     setState(next);
+    setFollowUpAction("");
     setToast("");
   }, [open, yard, defaultShipToReplacement, defaultShipToReturn]);
 
@@ -196,6 +219,10 @@ export default function YardEscalationModal({
     setReturnFile(null);
     setShowReturnFileInput(false);
   }, [open]);
+
+  useEffect(() => {
+    if (!showFollowUpRadios) setFollowUpAction("");
+  }, [showFollowUpRadios]);
 
   useEffect(() => {
     if (
@@ -322,6 +349,11 @@ useEffect(() => {
   };
 
   const buildEscalationPayload = (isoNow) => {
+    const applyFollowUp =
+      (state.escalationProcess === "Return" ||
+        state.escalationProcess === "Junk") &&
+      followUpAction;
+
     const payload = {
       escalationProcess: state.escalationProcess,
       escalationCause: state.escalationCause,
@@ -330,8 +362,21 @@ useEffect(() => {
       escalationDate: yard?.escalationDate || isoNow,
     };
 
-    if (order?.orderStatus !== "Escalation") {
+    if (applyFollowUp && followUpAction === "relocates") {
+      payload.orderStatus = "Relocates";
+      payload.followUpNote =
+        "Follow-up: Move to Relocates — order status set to Relocates";
+    } else if (order?.orderStatus !== "Escalation") {
       payload.orderStatus = "Escalation";
+    }
+
+    if (applyFollowUp && followUpAction === "collectRefund") {
+      const refundAmt = calcRefundToCollect(yard);
+      payload.collectRefundCheckbox = "Ticked";
+      if (refundAmt) payload.refundToCollect = refundAmt;
+      payload.followUpNote = refundAmt
+        ? `Follow-up: Move to Collect Refund — Collect Refund ticked; Refund To Be Collected set to $${refundAmt} (part price + yard shipping)`
+        : "Follow-up: Move to Collect Refund — Collect Refund ticked";
     }
 
     if (state.escalationProcess === "Replacement") {
@@ -1293,6 +1338,66 @@ useEffect(() => {
               </select>
             </div>
           </div>
+
+          {showFollowUpRadios && (
+            <section className="rounded-xl border border-amber-300/40 bg-amber-500/10 p-4 text-sm text-white">
+              <h4 className="mb-2 text-base font-semibold text-white">
+                Optional follow-up
+              </h4>
+              <p className="mb-3 text-xs text-white/70">
+                Not required. If selected, Save updates order status / Collect Refund and
+                adds a yard comment automatically.
+              </p>
+              <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:gap-8">
+                <label className="inline-flex cursor-pointer items-center gap-2">
+                  <input
+                    type="radio"
+                    name="escalationFollowUp"
+                    checked={followUpAction === ""}
+                    onChange={() => setFollowUpAction("")}
+                    className="h-4 w-4 accent-[#04356d]"
+                  />
+                  <span>No follow-up</span>
+                </label>
+                <label className="inline-flex cursor-pointer items-center gap-2">
+                  <input
+                    type="radio"
+                    name="escalationFollowUp"
+                    checked={followUpAction === "relocates"}
+                    onChange={() => setFollowUpAction("relocates")}
+                    className="h-4 w-4 accent-[#04356d]"
+                  />
+                  <span>Do you want to move to Relocates?</span>
+                </label>
+                <label className="inline-flex cursor-pointer items-center gap-2">
+                  <input
+                    type="radio"
+                    name="escalationFollowUp"
+                    checked={followUpAction === "collectRefund"}
+                    onChange={() => setFollowUpAction("collectRefund")}
+                    className="h-4 w-4 accent-[#04356d]"
+                  />
+                  <span>Do you want to move to Collect Refund?</span>
+                </label>
+              </div>
+              {followUpAction === "relocates" && (
+                <p className="mt-2 text-xs text-amber-100/90">
+                  On save, order status will be set to Relocates.
+                </p>
+              )}
+              {followUpAction === "collectRefund" && (
+                <p className="mt-2 text-xs text-amber-100/90">
+                  On save, Collect Refund will be ticked and Refund To Be Collected set to
+                  part price + yard shipping
+                  {(() => {
+                    const amt = calcRefundToCollect(yard);
+                    return amt ? ` ($${amt})` : "";
+                  })()}
+                  . You can edit these later in Refund Details.
+                </p>
+              )}
+            </section>
+          )}
 
           {isReplacement && (
             <div className="grid gap-6 lg:grid-cols-2">
