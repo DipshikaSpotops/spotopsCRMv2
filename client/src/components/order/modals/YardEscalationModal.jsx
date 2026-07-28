@@ -42,6 +42,19 @@ const calcRefundToCollect = (yard) => {
   return total > 0 ? total.toFixed(2) : "";
 };
 
+/** Infer optional follow-up radio from already-saved order/yard state. */
+const inferFollowUpAction = (yard, order) => {
+  const process = toStr(yard?.escalationProcess);
+  if (process !== "Return" && process !== "Junk") return "";
+  if (String(order?.orderStatus || "").trim().toLowerCase() === "relocates") {
+    return "relocates";
+  }
+  if (toStr(yard?.collectRefundCheckbox) === "Ticked") {
+    return "collectRefund";
+  }
+  return "";
+};
+
 const getChicagoIso = () => {
   const now = new Date();
   const chicagoString = now.toLocaleString("en-US", { timeZone: "America/Chicago" });
@@ -150,6 +163,8 @@ export default function YardEscalationModal({
   const showFollowUpRadios = isReturn || isJunk;
   // Optional post-save action for Return/Junk (not required).
   const [followUpAction, setFollowUpAction] = useState(""); // "" | "relocates" | "collectRefund"
+  // Snapshot of inferred selection when modal opened (avoid re-applying on every Save).
+  const [initialFollowUpAction, setInitialFollowUpAction] = useState("");
 
   useEffect(() => {
     if (!open) return;
@@ -207,9 +222,11 @@ export default function YardEscalationModal({
       next.customerShipperReturn = "Others";
     }
     setState(next);
-    setFollowUpAction("");
+    const inferred = inferFollowUpAction(yard, order);
+    setFollowUpAction(inferred);
+    setInitialFollowUpAction(inferred);
     setToast("");
-  }, [open, yard, defaultShipToReplacement, defaultShipToReturn]);
+  }, [open, yard, order, defaultShipToReplacement, defaultShipToReturn]);
 
   useEffect(() => {
     if (!open) return;
@@ -221,8 +238,15 @@ export default function YardEscalationModal({
   }, [open]);
 
   useEffect(() => {
-    if (!showFollowUpRadios) setFollowUpAction("");
-  }, [showFollowUpRadios]);
+    if (!open) return;
+    if (!showFollowUpRadios) {
+      setFollowUpAction("");
+      return;
+    }
+    const inferred = inferFollowUpAction(yard, order);
+    setFollowUpAction(inferred);
+    setInitialFollowUpAction(inferred);
+  }, [showFollowUpRadios, open, yard, order]);
 
   useEffect(() => {
     if (
@@ -349,10 +373,13 @@ useEffect(() => {
   };
 
   const buildEscalationPayload = (isoNow) => {
-    const applyFollowUp =
-      (state.escalationProcess === "Return" ||
-        state.escalationProcess === "Junk") &&
-      followUpAction;
+    const canFollowUp =
+      state.escalationProcess === "Return" ||
+      state.escalationProcess === "Junk";
+    // Only re-apply status/refund/comment when the user changes the follow-up radio.
+    const followUpChanged =
+      canFollowUp && followUpAction !== initialFollowUpAction;
+    const applyFollowUp = followUpChanged && followUpAction;
 
     const payload = {
       escalationProcess: state.escalationProcess,
@@ -366,7 +393,17 @@ useEffect(() => {
       payload.orderStatus = "Relocates";
       payload.followUpNote =
         "Follow-up: Move to Relocates — order status set to Relocates";
-    } else if (order?.orderStatus !== "Escalation") {
+    } else if (
+      followUpChanged &&
+      initialFollowUpAction === "relocates" &&
+      followUpAction !== "relocates"
+    ) {
+      // User cleared / switched away from Relocates → back to Escalation
+      payload.orderStatus = "Escalation";
+    } else if (
+      order?.orderStatus !== "Escalation" &&
+      order?.orderStatus !== "Relocates"
+    ) {
       payload.orderStatus = "Escalation";
     }
 
@@ -1382,18 +1419,19 @@ useEffect(() => {
               </div>
               {followUpAction === "relocates" && (
                 <p className="mt-2 text-xs text-amber-100/90">
-                  On save, order status will be set to Relocates.
+                  {followUpAction === initialFollowUpAction
+                    ? "Already applied — order status is Relocates. Change only if you want to update."
+                    : "On save, order status will be set to Relocates."}
                 </p>
               )}
               {followUpAction === "collectRefund" && (
                 <p className="mt-2 text-xs text-amber-100/90">
-                  On save, Collect Refund will be ticked and Refund To Be Collected set to
-                  part price + yard shipping
-                  {(() => {
-                    const amt = calcRefundToCollect(yard);
-                    return amt ? ` ($${amt})` : "";
-                  })()}
-                  . You can edit these later in Refund Details.
+                  {followUpAction === initialFollowUpAction
+                    ? "Already applied — Collect Refund is ticked. Change only if you want to update."
+                    : `On save, Collect Refund will be ticked and Refund To Be Collected set to part price + yard shipping${(() => {
+                        const amt = calcRefundToCollect(yard);
+                        return amt ? ` ($${amt})` : "";
+                      })()}. You can edit these later in Refund Details.`}
                 </p>
               )}
             </section>

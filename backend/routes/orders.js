@@ -10,6 +10,7 @@ import { mergeOrderAccessFilter } from "../utils/orderAccessScope.js";
 const requireAuthAllRoles = [requireAuth, allow("Admin", "Sales", "Support")];
 import { getDateRange } from "../utils/dateRange.js";
 import { canonicalOrderStatus } from "../utils/canonicalOrderStatus.js";
+import { applyAutoCollectRefundIfPoCancelledAndCardCharged } from "../utils/autoCollectRefund.js";
 import { getWhen } from "../../shared/utils/timeUtils.js";
 import { normalizeYardName } from "../../shared/utils/yardName.js";
 import { assertYardNotBlocked } from "../services/blockedYardService.js";
@@ -1887,6 +1888,28 @@ router.put(
       }
     }
 
+    /* PO cancelled + Card charged → Collect Refund */
+    const autoCollect = applyAutoCollectRefundIfPoCancelledAndCardCharged(subdoc);
+    if (autoCollect.applied) {
+      const amtNote = autoCollect.refundToCollect
+        ? ` Refund To Be Collected set to $${autoCollect.refundToCollect} (part price + yard shipping).`
+        : "";
+      const noteAdded = pushUniqueNote(
+        subdoc.notes,
+        formatNote(
+          firstName,
+          when,
+          `Auto Collect Refund: PO cancelled + Card charged.${amtNote} Refund Collected set to No.`
+        )
+      );
+      if (noteAdded) {
+        publish(req, orderNo, { type: "YARD_NOTE_ADDED", yardIndex: idx1 });
+      }
+      order.orderHistory.push(
+        `Yard ${idx1} auto Collect Refund (PO cancelled + Card charged) by ${firstName} on ${when}`
+      );
+    }
+
     /* ---------------- TRACKING SNAPSHOT ---------------- */
     // Removed: Tracking snapshot comment is redundant - the "Updated" comment already shows tracking info in a cleaner format
     // if (["Label created", "Part shipped"].includes(newStatus)) {
@@ -2427,6 +2450,28 @@ router.patch("/:orderNo/additionalInfo/:yardIndex/paymentStatus", async (req, re
         yard[key] = newVal;
         changes.push(`${key}: ${oldVal || "—"} → ${newVal}`);
       }
+    }
+
+    /* PO cancelled + Card charged → Collect Refund */
+    const autoCollect = applyAutoCollectRefundIfPoCancelledAndCardCharged(yard);
+    if (autoCollect.applied) {
+      changes.push(
+        autoCollect.refundToCollect
+          ? `collectRefundCheckbox: Ticked; refundStatus: Refund not collected; refundToCollect: ${autoCollect.refundToCollect}`
+          : `collectRefundCheckbox: Ticked; refundStatus: Refund not collected`
+      );
+      if (!Array.isArray(yard.notes)) yard.notes = [];
+      const amtNote = autoCollect.refundToCollect
+        ? ` Refund To Be Collected set to $${autoCollect.refundToCollect} (part price + yard shipping).`
+        : "";
+      pushUniqueNote(
+        yard.notes,
+        formatNote(
+          firstName,
+          when,
+          `Auto Collect Refund: PO cancelled + Card charged.${amtNote} Refund Collected set to No.`
+        )
+      );
     }
 
     if (changes.length > 0) {
