@@ -146,6 +146,15 @@ router.get('/', requireAuth, allow('Admin', 'Sales', 'Support'), async (req, res
           },
         ],
       };
+      // Hide terminal statuses from the expedite shipping queue
+      query.$and = [
+        ...(Array.isArray(query.$and) ? query.$and : []),
+        {
+          orderStatus: {
+            $not: /^(order\s+cancelled|refunded|dispute(\s*2)?|order\s+fulfilled|voided)$/i,
+          },
+        },
+      ];
     }
     if (String(toBeReimbursed || "").toLowerCase() === "true") {
       query.toBeReimbursed = { $in: [true, "true"] };

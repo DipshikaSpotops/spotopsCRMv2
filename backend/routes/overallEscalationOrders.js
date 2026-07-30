@@ -2,6 +2,7 @@ import express from "express";
 import { getOrderModelForBrand } from "../models/Order.js";
 import { requireAuth, allow } from "../middleware/auth.js";
 import { mergeOrderAccessFilter } from "../utils/orderAccessScope.js";
+import { excludeTerminalOrderStatuses } from "../utils/excludeTerminalOrderStatuses.js";
 import moment from "moment-timezone";
 
 const router = express.Router();
@@ -55,11 +56,12 @@ router.get("/", requireAuth, allow("Admin", "Sales", "Support"), async (req, res
     const pageSize = Math.max(parseInt(limit, 10) || 25, 1);
     const skip = (Math.max(parseInt(page, 10) || 1, 1) - 1) * pageSize;
 
-    // Base filter: date range + "escalated"
+    // Base filter: date range + "escalated" (exclude fulfilled / cancelled / disputed)
     const filter = {
       orderDate: { $gte: startDate, $lt: endDate },
       additionalInfo: { $elemMatch: { escTicked: "Yes" } },
     };
+    excludeTerminalOrderStatuses(filter);
 
     // Free-text search across common fields (incl. yardName in any additionalInfo elem)
     if (q && q.trim()) {

@@ -2,12 +2,13 @@ import express from "express";
 import { getOrderModelForBrand } from "../models/Order.js";
 import { requireAuth, allow } from "../middleware/auth.js";
 import { mergeOrderAccessFilter } from "../utils/orderAccessScope.js";
+import { excludeTerminalOrderStatuses } from "../utils/excludeTerminalOrderStatuses.js";
 import moment from "moment-timezone";
 
 const router = express.Router();
 
 function getDateRange({ start, end, month, year }) {
-  const tz = "America/Chicago";
+    const tz = "America/Chicago";
 
   if (start && end) {
     const startDate = moment.tz(start, tz).startOf("day").toDate();
@@ -69,6 +70,7 @@ router.get("/", requireAuth, allow("Admin", "Sales", "Support"), async (req, res
     const filter = {
       orderDate: { $gte: startDate, $lt: endDate },
     };
+    excludeTerminalOrderStatuses(filter);
 
     if (salesAgent && String(salesAgent).trim() && salesAgent !== "Select" && salesAgent !== "All") {
       filter.salesAgent = new RegExp(String(salesAgent).trim(), "i");

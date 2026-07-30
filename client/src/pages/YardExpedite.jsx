@@ -126,6 +126,17 @@ const DeliveryReport = () => {
       );
       if (!expeditedInfos.length) return null;
 
+      const status = String(order.orderStatus || "").trim().toLowerCase();
+      if (
+        status === "order fulfilled" ||
+        status === "order cancelled" ||
+        status === "refunded" ||
+        status === "voided" ||
+        status.startsWith("dispute")
+      ) {
+        return null;
+      }
+
       const yardSortVals = expeditedInfos.map((info) => {
         const shipping = (info?.shippingDetails || "").toLowerCase();
         return `${info?.yardName || ""} ${shipping}`.toLowerCase();

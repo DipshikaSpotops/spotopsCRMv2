@@ -6,26 +6,23 @@ import moment from "moment-timezone";
 
 const router = express.Router();
 
-const EXCLUDED_ORDER_STATUSES = ["Order Cancelled", "Refunded", "Dispute"];
-const PO_CANCELLED_STATUSES = ["po cancelled", "po canceled", "po cancel"];
-
 function getDateRange({ start, end, month, year }) {
   const tz = "America/Chicago";
 
   if (start && end) {
     const startDate = moment.tz(start, tz).startOf("day").toDate();
-    const endDate   = moment.tz(end,   tz).endOf("day").toDate();
+    const endDate = moment.tz(end, tz).endOf("day").toDate();
     return { startDate, endDate };
   }
 
   if (month && year) {
     const map = {
-      Jan:"01", Feb:"02", Mar:"03", Apr:"04", May:"05", Jun:"06",
-      Jul:"07", Aug:"08", Sep:"09", Oct:"10", Nov:"11", Dec:"12"
+      Jan: "01", Feb: "02", Mar: "03", Apr: "04", May: "05", Jun: "06",
+      Jul: "07", Aug: "08", Sep: "09", Oct: "10", Nov: "11", Dec: "12",
     };
     const mm = map[month] || String(month).padStart(2, "0");
     const startDate = moment.tz(`${year}-${mm}-01`, tz).startOf("month").toDate();
-    const endDate   = moment.tz(`${year}-${mm}-01`, tz).endOf("month").toDate();
+    const endDate = moment.tz(`${year}-${mm}-01`, tz).endOf("month").toDate();
     return { startDate, endDate };
   }
 
@@ -35,8 +32,7 @@ function getDateRange({ start, end, month, year }) {
 function buildBaseMatch({ startDate, endDate, q }) {
   const filter = {
     orderDate: { $gte: startDate, $lt: endDate },
-    orderStatus: { $nin: EXCLUDED_ORDER_STATUSES },
-    "additionalInfo.0": { $exists: true },
+    orderStatus: { $regex: /^relocates$/i },
   };
 
   if (q && q.trim()) {
@@ -66,36 +62,6 @@ function buildBaseMatch({ startDate, endDate, q }) {
   return filter;
 }
 
-const lastYardRelocateFilterStages = [
-  {
-    $addFields: {
-      _lastYard: { $arrayElemAt: ["$additionalInfo", -1] },
-    },
-  },
-  {
-    $addFields: {
-      _lastYardStatusNorm: {
-        $toLower: { $trim: { input: { $ifNull: ["$_lastYard.status", ""] } } },
-      },
-      _lastYardEscProcessNorm: {
-        $toLower: { $trim: { input: { $ifNull: ["$_lastYard.escalationProcess", ""] } } },
-      },
-    },
-  },
-  {
-    $match: {
-      $or: [
-        { orderStatus: { $regex: /^relocates$/i } },
-        { _lastYardStatusNorm: { $in: PO_CANCELLED_STATUSES } },
-        {
-          _lastYardStatusNorm: "escalation",
-          _lastYardEscProcessNorm: "return",
-        },
-      ],
-    },
-  },
-];
-
 const projectFields = {
   orderDate: 1,
   orderNo: 1,
@@ -110,9 +76,18 @@ const projectFields = {
   orderStatus: 1,
   email: 1,
   phone: 1,
-  sAddressStreet: 1, sAddressCity: 1, sAddressState: 1, sAddressZip: 1,
-  desc: 1, partNo: 1, warranty: 1, vin: 1, programmingRequired: 1,
-  year: 1, make: 1, model: 1,
+  sAddressStreet: 1,
+  sAddressCity: 1,
+  sAddressState: 1,
+  sAddressZip: 1,
+  desc: 1,
+  partNo: 1,
+  warranty: 1,
+  vin: 1,
+  programmingRequired: 1,
+  year: 1,
+  make: 1,
+  model: 1,
 };
 
 const SIMPLE_MAP = {
@@ -126,7 +101,10 @@ const SIMPLE_MAP = {
 router.get("/", requireAuth, allow("Admin", "Sales", "Support"), async (req, res) => {
   try {
     const {
-      start, end, month, year,
+      start,
+      end,
+      month,
+      year,
       page = 1,
       limit = 25,
       q = "",
@@ -143,11 +121,7 @@ router.get("/", requireAuth, allow("Admin", "Sales", "Support"), async (req, res
 
     const Order = getOrderModelForBrand(req.brand);
 
-    const countPipeline = [
-      { $match: baseMatch },
-      ...lastYardRelocateFilterStages,
-      { $count: "total" },
-    ];
+    const countPipeline = [{ $match: baseMatch }, { $count: "total" }];
     const countResult = await Order.aggregate(countPipeline);
     const totalOrders = countResult[0]?.total ?? 0;
     const totalPages = Math.ceil(totalOrders / pageSize);
@@ -157,7 +131,6 @@ router.get("/", requireAuth, allow("Admin", "Sales", "Support"), async (req, res
     if (sortBy === "customerName") {
       pipeline = [
         { $match: baseMatch },
-        ...lastYardRelocateFilterStages,
         {
           $addFields: {
             fullName: {
@@ -165,7 +138,13 @@ router.get("/", requireAuth, allow("Admin", "Sales", "Support"), async (req, res
                 input: {
                   $ifNull: [
                     "$customerName",
-                    { $concat: [{ $ifNull: ["$fName", ""] }, " ", { $ifNull: ["$lName", ""] }] },
+                    {
+                      $concat: [
+                        { $ifNull: ["$fName", ""] },
+                        " ",
+                        { $ifNull: ["$lName", ""] },
+                      ],
+                    },
                   ],
                 },
               },
@@ -180,7 +159,6 @@ router.get("/", requireAuth, allow("Admin", "Sales", "Support"), async (req, res
     } else if (sortBy === "yardName") {
       pipeline = [
         { $match: baseMatch },
-        ...lastYardRelocateFilterStages,
         {
           $addFields: {
             firstYardName: {
@@ -196,10 +174,11 @@ router.get("/", requireAuth, allow("Admin", "Sales", "Support"), async (req, res
     } else if (sortBy === "lastComment") {
       pipeline = [
         { $match: baseMatch },
-        ...lastYardRelocateFilterStages,
         {
           $addFields: {
-            _lastIdx: { $subtract: [{ $size: { $ifNull: ["$supportNotes", []] } }, 1] },
+            _lastIdx: {
+              $subtract: [{ $size: { $ifNull: ["$supportNotes", []] } }, 1],
+            },
           },
         },
         {
@@ -228,7 +207,6 @@ router.get("/", requireAuth, allow("Admin", "Sales", "Support"), async (req, res
         : { orderDate: -1, _id: 1 };
       pipeline = [
         { $match: baseMatch },
-        ...lastYardRelocateFilterStages,
         { $sort: sortSpec },
         { $skip: skip },
         { $limit: pageSize },
@@ -236,8 +214,10 @@ router.get("/", requireAuth, allow("Admin", "Sales", "Support"), async (req, res
       ];
     }
 
-    const orders = await Order.aggregate(pipeline)
-      .collation({ locale: "en", strength: 2 });
+    const orders = await Order.aggregate(pipeline).collation({
+      locale: "en",
+      strength: 2,
+    });
 
     res.json({
       orders,

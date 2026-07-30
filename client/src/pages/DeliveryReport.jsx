@@ -273,6 +273,19 @@ export default function DeliveryReport() {
     return params;
   }, []);
 
+  const mapRows = useCallback((orders) => {
+    return (orders || []).filter((o) => {
+      const s = String(o?.orderStatus || "").trim().toLowerCase();
+      if (!s) return true;
+      if (s === "order fulfilled") return false;
+      if (s === "order cancelled") return false;
+      if (s === "refunded") return false;
+      if (s === "voided") return false;
+      if (s.startsWith("dispute")) return false;
+      return true;
+    });
+  }, []);
+
   useOrdersRealtime({
     enabled: true,
     onOrderCreated: () => {
@@ -308,6 +321,7 @@ export default function DeliveryReport() {
       showAgentFilter={true}
       showGP={false}
       paramsBuilder={paramsBuilder}
+      mapRows={mapRows}
       tableId="yardExpedite"
     />
   );

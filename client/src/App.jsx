@@ -16,6 +16,7 @@ const PartiallyChargedOrders = lazy(() => import("./pages/PartiallyChargedOrders
 const CustomerApproved = lazy(() => import("./pages/CustomerApproved"));
 const MonthlyOrders = lazy(() => import("./pages/MonthlyOrders"));
 const DailySalesGP = lazy(() => import("./pages/DailySalesGP"));
+const MidMonthActualGp = lazy(() => import("./pages/MidMonthActualGp"));
 const AllOrders = lazy(() => import("./pages/AllOrders"));
 const YardProcessingOrders = lazy(() => import("./pages/YardProcessing"));
 const YardRelocates = lazy(() => import("./pages/YardRelocates"));
@@ -159,6 +160,14 @@ function App() {
           element={withLayout(
             <Suspense fallback={<PageLoader />}>
               <DailySalesGP />
+            </Suspense>
+          )}
+        />
+        <Route
+          path="/mid-month-actual-gp"
+          element={withLayout(
+            <Suspense fallback={<PageLoader />}>
+              <MidMonthActualGp />
             </Suspense>
           )}
         />

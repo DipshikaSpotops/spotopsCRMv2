@@ -43,6 +43,7 @@ import zipLookupRouter from "./routes/zipLookup.js";
 import debugRouter from "./routes/debug.js";
 import gmailRouter from "./routes/gmail.js";
 import salesAgentsRouter from "./routes/salesAgents.js";
+import salesActualGpSnapshotsRouter from "./routes/salesActualGpSnapshots.js";
 import incentivesReportRouter from "./routes/incentivesReport.js";
 import attendanceRouter from "./routes/attendance.js";
 import { brandMiddleware } from "./middleware/brand.js";
@@ -116,6 +117,7 @@ app.use("/api/utils/zip-lookup", zipLookupRouter);
 app.use("/debug", debugRouter);
 app.use("/api/gmail", gmailRouter);
 app.use("/api/salesAgents", salesAgentsRouter);
+app.use("/api/salesActualGpSnapshots", salesActualGpSnapshotsRouter);
 app.use("/api/reports/incentives", incentivesReportRouter);
 
 // Add redirect route for OAuth callback (in case credentials.json has wrong redirect URI)
@@ -385,6 +387,10 @@ startGmailTokenMonitor();
 // Customer follow-up: 2 business days after orderDate (Placed / Customer approved / Yard Processing)
 import { startPlacedOrderFollowUpScheduler } from "./services/sendPlacedOrderFollowUp.js";
 startPlacedOrderFollowUpScheduler();
+
+// Mid-month Actual GP: Dallas 15th @ 12:00 — snapshot per sales agent (both brands)
+import { startMidMonthSalesActualGpScheduler } from "./services/storeMidMonthSalesActualGp.js";
+startMidMonthSalesActualGpScheduler();
 
 // Gmail Watch Management: Auto-start and auto-renew watch
 async function initializeGmailWatch() {

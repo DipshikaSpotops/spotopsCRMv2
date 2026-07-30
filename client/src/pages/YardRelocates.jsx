@@ -4,13 +4,13 @@ import useOrdersRealtime from "../hooks/useOrdersRealtime";
 import useBrand from "../hooks/useBrand";
 
 const columns = [
-  { key: "orderDate",    label: "Order Date" },
-  { key: "orderNo",      label: "Order No" },
-  { key: "salesAgent",   label: "SalesAgent" },
-  { key: "pReq",         label: "Part Info" },
-  { key: "customerName", label: "Customer Info" },
-  { key: "yardName",     label: "Yard Details" },
-  { key: "lastComment",  label: "Last Comment" },
+  { key: "orderDate",    label: "Order Date", minWidth: 120 },
+  { key: "orderNo",      label: "Order No", minWidth: 150 },
+  { key: "salesAgent",   label: "SalesAgent", minWidth: 100 },
+  { key: "pReq",         label: "Part Info", minWidth: 160, wrap: true },
+  { key: "customerName", label: "Customer Info", minWidth: 160, wrap: true },
+  { key: "yardName",     label: "Yard Data", minWidth: 220, wrap: true },
+  { key: "lastComment",  label: "Last Comment", minWidth: 240, wrap: true },
 ];
 
 export default function YardRelocates() {
@@ -172,52 +172,29 @@ export default function YardRelocates() {
         }
         .yard-relocates-table-wrapper table {
           font-size: 1rem !important;
-          table-layout: fixed;
-          width: 100%;
+          table-layout: auto;
+          width: max-content;
+          min-width: 100%;
         }
-        .yard-relocates-table-wrapper table th {
-          white-space: nowrap !important;
-          overflow: hidden !important;
-          font-size: 1rem !important;
-        }
+        .yard-relocates-table-wrapper table th,
         .yard-relocates-table-wrapper table td {
-          overflow: hidden !important;
-          word-wrap: break-word !important;
-          overflow-wrap: break-word !important;
-          white-space: normal !important;
           font-size: 1rem !important;
+          vertical-align: top;
+        }
+        /* Yard Data + Last Comment: keep readable width, allow wrap (no clipping) */
+        .yard-relocates-table-wrapper table th[data-col="yardName"],
+        .yard-relocates-table-wrapper table td[data-col="yardName"],
+        .yard-relocates-table-wrapper table th[data-col="lastComment"],
+        .yard-relocates-table-wrapper table td[data-col="lastComment"] {
+          min-width: 240px !important;
+          max-width: 320px !important;
+          white-space: normal !important;
+          overflow: visible !important;
+          word-break: break-word !important;
+          overflow-wrap: anywhere !important;
         }
         .yard-relocates-table-wrapper .text-xs {
           font-size: 0.9rem !important;
-        }
-        .yard-relocates-table-wrapper table th:nth-child(5),
-        .yard-relocates-table-wrapper table td:nth-child(5) {
-          width: 23% !important;
-          min-width: 23% !important;
-        }
-        .yard-relocates-table-wrapper table th:nth-child(6),
-        .yard-relocates-table-wrapper table td:nth-child(6) {
-          width: 23% !important;
-          min-width: 23% !important;
-        }
-        .yard-relocates-table-wrapper table th:nth-child(2),
-        .yard-relocates-table-wrapper table td:nth-child(2) {
-          width: 12% !important;
-        }
-        .yard-relocates-table-wrapper table th:nth-child(1),
-        .yard-relocates-table-wrapper table td:nth-child(1),
-        .yard-relocates-table-wrapper table th:nth-child(3),
-        .yard-relocates-table-wrapper table td:nth-child(3) {
-          width: 8% !important;
-        }
-        .yard-relocates-table-wrapper table th:nth-child(4),
-        .yard-relocates-table-wrapper table td:nth-child(4) {
-          width: 11% !important;
-        }
-        .yard-relocates-table-wrapper table th:last-child,
-        .yard-relocates-table-wrapper table td:last-child {
-          width: 6% !important;
-          min-width: 6% !important;
         }
       `}</style>
       <OrdersTable

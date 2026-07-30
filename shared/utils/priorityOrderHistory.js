@@ -83,32 +83,70 @@ export function getYardPOSentSinceWhen(orderHistory, yardIndex1Based) {
   return sinceWhen;
 }
 
-/** Yards still on Yard PO Sent for more than 3 calendar days (4+ shown). */
-export function getStaleYardPOSentEntries(order) {
-  const yards = Array.isArray(order?.additionalInfo) ? order.additionalInfo : [];
-  const stale = [];
+/**
+ * Prefer the newer of history "when" vs yard.poSentDate so a re-sent / new-yard PO
+ * resets Days Stale even if an older history line still exists.
+ */
+function resolveYardPOSentCalendarDays(yard, orderHistory, yardIndex1Based, now = moment().tz(TZ)) {
+  const whenStr = getYardPOSentSinceWhen(orderHistory, yardIndex1Based);
+  const fromHistory = whenStr ? daysSinceHistoryWhen(whenStr, now) : null;
 
-  for (let i = 0; i < yards.length; i++) {
-    const yard = yards[i];
-    const status = String(yard?.status || "").trim();
-    if (!YARD_PO_SENT_STATUS.test(status)) continue;
-
-    const whenStr = getYardPOSentSinceWhen(order?.orderHistory, i + 1);
-    if (!whenStr) continue;
-
-    const calendarDays = daysSinceHistoryWhen(whenStr);
-    if (!isStaleEnoughCalendarDays(calendarDays)) continue;
-
-    stale.push({
-      yardIndex: i + 1,
-      yardName: yard?.yardName || "",
-      statusSince: whenStr,
-      daysInStatus: calendarDays,
-      reason: "yard_po_sent",
-    });
+  let fromPoDate = null;
+  let poDateFormatted = null;
+  if (yard?.poSentDate) {
+    const m = moment(yard.poSentDate).tz(TZ);
+    if (m.isValid()) {
+      fromPoDate = now.clone().startOf("day").diff(m.clone().startOf("day"), "days");
+      poDateFormatted = m.format("D MMM, YYYY HH:mm");
+    }
   }
 
-  return stale;
+  if (fromHistory == null && fromPoDate == null) {
+    return { calendarDays: null, statusSince: whenStr };
+  }
+  if (fromHistory == null) {
+    return { calendarDays: fromPoDate, statusSince: whenStr || poDateFormatted };
+  }
+  if (fromPoDate == null) {
+    return { calendarDays: fromHistory, statusSince: whenStr };
+  }
+  // Fewer days = more recent start — use that after a new PO.
+  if (fromPoDate <= fromHistory) {
+    return { calendarDays: fromPoDate, statusSince: poDateFormatted || whenStr };
+  }
+  return { calendarDays: fromHistory, statusSince: whenStr };
+}
+
+/**
+ * Yards still on Yard PO Sent for more than 3 calendar days (4+ shown).
+ * Only the latest yard (current) counts — older yards must not keep Days Stale
+ * stuck on Yard 1 after a new PO / relocate.
+ */
+export function getStaleYardPOSentEntries(order) {
+  const yards = Array.isArray(order?.additionalInfo) ? order.additionalInfo : [];
+  if (!yards.length) return [];
+
+  const lastIndex = yards.length - 1;
+  const yard = yards[lastIndex];
+  const status = String(yard?.status || "").trim();
+  if (!YARD_PO_SENT_STATUS.test(status)) return [];
+
+  const { calendarDays, statusSince } = resolveYardPOSentCalendarDays(
+    yard,
+    order?.orderHistory,
+    lastIndex + 1
+  );
+  if (calendarDays == null || !isStaleEnoughCalendarDays(calendarDays)) return [];
+
+  return [
+    {
+      yardIndex: lastIndex + 1,
+      yardName: yard?.yardName || "",
+      statusSince: statusSince || "",
+      daysInStatus: calendarDays,
+      reason: "yard_po_sent",
+    },
+  ];
 }
 
 /**
@@ -120,6 +158,7 @@ export function getOrderStatusSinceWhen(orderHistory, currentStatus) {
   if (!target) return null;
 
   let statusSince = null;
+  const targetIsYardProcessing = target === "yard processing";
 
   for (const line of hist) {
     const str = String(line);
@@ -142,6 +181,13 @@ export function getOrderStatusSinceWhen(orderHistory, currentStatus) {
       continue;
     }
 
+    // sendPO sets orderStatus to Yard Processing but usually does not append
+    // "Order status changed → Yard Processing". Each new PO must reset the clock.
+    if (targetIsYardProcessing && /^Yard\s+\d+\s+PO\s+sent\s+by\b/i.test(str)) {
+      statusSince = whenStr;
+      continue;
+    }
+
     const arrowMatch = str.match(/^Order status changed:\s*.+?\s*→\s*(.+?)\s+by\b/i);
     if (arrowMatch) {
       const newStatus = normalizeStatusLabel(arrowMatch[1].trim());
@@ -159,8 +205,10 @@ export function getOrderStatusSinceWhen(orderHistory, currentStatus) {
 
     const setToMatch = str.match(/^Order status set to\s+(.+?)\s+by\b/i);
     if (setToMatch) {
-      const newStatus = normalizeStatusLabel(setToMatch[1].trim());
-      statusSince = newStatus === target ? whenStr : null;
+      let newStatus = setToMatch[1].trim();
+      // "Yard Processing (Yard 2)" → Yard Processing
+      newStatus = newStatus.replace(/\s*\([^)]*\)\s*$/, "").trim();
+      statusSince = normalizeStatusLabel(newStatus) === target ? whenStr : null;
     }
   }
 
