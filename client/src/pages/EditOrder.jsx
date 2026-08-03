@@ -4,6 +4,31 @@ import { useSelector } from "react-redux";
 import { STATES } from "../data/states";
 import { selectRole } from "../store/authSlice";
 import useBrand from "../hooks/useBrand";
+
+const KNOWN_CARD_TYPES = ["Visa", "Mastercard", "Amex", "Discover"];
+const CARD_TYPE_OPTIONS = [...KNOWN_CARD_TYPES, "Other"];
+
+function formatCardNumberInput(value) {
+  const digits = String(value || "").replace(/\D/g, "").slice(0, 19);
+  return digits.replace(/(\d{4})(?=\d)/g, "$1 ");
+}
+
+/** Format expiry as MM/YY while typing (09 → 09/). */
+function formatCardExpDateInput(value) {
+  const digits = String(value || "").replace(/\D/g, "").slice(0, 4);
+  if (digits.length === 0) return "";
+  if (digits.length === 1) return digits;
+  if (digits.length === 2) return `${digits}/`;
+  return `${digits.slice(0, 2)}/${digits.slice(2)}`;
+}
+
+function resolveCardTypeChoice(savedType) {
+  const t = String(savedType || "").trim();
+  if (!t) return { choice: "", other: "" };
+  if (KNOWN_CARD_TYPES.includes(t)) return { choice: t, other: "" };
+  return { choice: "Other", other: t };
+}
+
 const REQUIRED_FIELD_LABELS = {
   orderNo: "Order No",
   salesAgent: "Sales Agent",
@@ -34,7 +59,7 @@ const REQUIRED_FIELD_LABELS = {
   soldP: "Sale Price",
   costP: "Est. Yard Price",
   shippingFee: "Est. Shipping",
-  last4digits: "Last 4 Digits",
+  cardNumber: "Card Number",
 };
 import API from "../api";
 
@@ -90,7 +115,11 @@ const buildInitialFormData = () => ({
   shippingFee: "",
   salestax: "",
   grossProfit: "",
-  last4digits: "",
+  cardNumber: "",
+  cvv: "",
+  cardType: "",
+  cardExpDate: "",
+  nameOnCard: "",
   notes: "",
 
   // Toggles
@@ -136,6 +165,8 @@ export default function EditOrder() {
   const [formData, setFormData] = useState(buildInitialFormData());
   const [partNames, setPartNames] = useState([]);
   const [fieldErrors, setFieldErrors] = useState(new Set());
+  const [cardTypeChoice, setCardTypeChoice] = useState("");
+  const [cardTypeOther, setCardTypeOther] = useState("");
   const [salesAgents, setSalesAgents] = useState([]);
   const [salesAgentsMap, setSalesAgentsMap] = useState({}); // firstName -> fullName mapping
   const [salesAgentsReverseMap, setSalesAgentsReverseMap] = useState({}); // fullName -> firstName mapping
@@ -582,7 +613,19 @@ export default function EditOrder() {
         shippingFee: order.shippingFee || "",
         salestax: order.salestax || "",
         grossProfit: order.grossProfit || "",
-        last4digits: order.last4digits || "",
+        cardNumber: (() => {
+          const raw =
+            order.cardNumber ||
+            order.cardNumberMasked ||
+            (order.last4digits ? `**** **** **** ${order.last4digits}` : "");
+          if (!raw) return "";
+          if (/\*/.test(raw)) return raw;
+          return formatCardNumberInput(raw);
+        })(),
+        cvv: order.cvv || "",
+        cardType: order.cardType || "",
+        cardExpDate: order.cardExpDate || "",
+        nameOnCard: order.nameOnCard || "",
         notes: Array.isArray(order.notes) ? order.notes.join("\n") : (order.notes || ""),
 
         // Toggles
@@ -591,6 +634,10 @@ export default function EditOrder() {
         programmingRequired: order.programmingRequired === true || order.programmingRequired === "true",
         programmingCost: order.programmingCostQuoted || order.programmingCost || "",
       });
+
+      const cardTypeResolved = resolveCardTypeChoice(order.cardType);
+      setCardTypeChoice(cardTypeResolved.choice);
+      setCardTypeOther(cardTypeResolved.other);
 
       setToast({ message: `Order ${order.orderNo} loaded successfully!`, variant: "success" });
     } catch (err) {
@@ -665,6 +712,35 @@ export default function EditOrder() {
       return;
     }
 
+    const cardDigits = String(formData.cardNumber || "").replace(/\D/g, "");
+    const cardLooksMasked = /\*/.test(String(formData.cardNumber || ""));
+    // Allow legacy masked/last4 on edit; require full PAN only when entering a new number
+    if (!cardLooksMasked && cardDigits.length > 0 && (cardDigits.length < 13 || cardDigits.length > 19) && cardDigits.length !== 4) {
+      setFieldErrors((prev) => new Set([...prev, "cardNumber"]));
+      setToast({
+        message: "Enter a valid Card Number (13–19 digits), or keep the existing masked value.",
+        variant: "error",
+      });
+      return;
+    }
+    if (!cardDigits) {
+      setFieldErrors((prev) => new Set([...prev, "cardNumber"]));
+      setToast({ message: "Card Number is required.", variant: "error" });
+      return;
+    }
+
+    let resolvedCardType = "";
+    if (cardTypeChoice === "Other") {
+      resolvedCardType = String(cardTypeOther || "").trim();
+      if (!resolvedCardType) {
+        setFieldErrors((prev) => new Set([...prev, "cardType"]));
+        setToast({ message: "Enter the card type when Other is selected.", variant: "error" });
+        return;
+      }
+    } else {
+      resolvedCardType = cardTypeChoice || "";
+    }
+
     if (!/^[\w-.]+@([\w-]+\.)+[\w-]{2,4}$/.test((formData.email || "").trim())) {
       setToast({ message: "Enter a valid email address.", variant: "error" });
       return;
@@ -715,6 +791,10 @@ export default function EditOrder() {
         expediteShipping: formData.expediteShipping ? "true" : "false",
         dsCall: formData.dsCall ? "true" : "false",
         programmingRequired: formData.programmingRequired ? "true" : "false",
+        cardNumber: formData.cardNumber,
+        cvv: formData.cvv,
+        last4digits: cardDigits.slice(-4),
+        cardType: resolvedCardType,
         // Update orderDate if Admin changed it
         ...(role === "Admin" && formData.orderDateISO ? { orderDate: new Date(formData.orderDateISO) } : {}),
       };
@@ -1247,12 +1327,84 @@ export default function EditOrder() {
                 <Input placeholder="Estimated GP" prefix="$" value={formData.grossProfit}
                   onChange={(e) => setFormData({ ...formData, grossProfit: e.target.value })} />
               </div>
-              <Input
-                placeholder="Last 4 Digits"
-                value={formData.last4digits}
-                onChange={(e) => handleFieldChange("last4digits", e.target.value)}
-                error={fieldErrors.has("last4digits")}
-              />
+              <div>
+                <div className="text-xs text-white/70 mb-1">Card Number</div>
+                <Input
+                  placeholder="XXXX XXXX XXXX XXXX"
+                  name="ord-pan-ref"
+                  autoComplete="new-password"
+                  dataFormType="other"
+                  value={formData.cardNumber}
+                  onChange={(e) => {
+                    const raw = e.target.value;
+                    if (/\*/.test(raw)) {
+                      handleFieldChange("cardNumber", raw);
+                    } else {
+                      handleFieldChange("cardNumber", formatCardNumberInput(raw));
+                    }
+                  }}
+                  error={fieldErrors.has("cardNumber")}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <div className="text-xs text-white/70 mb-1">
+                    {role === "Admin" ? "CVV" : "CVV (Admin only to view)"}
+                  </div>
+                  <Input
+                    placeholder="***"
+                    type="text"
+                    name="ord-sec-ref"
+                    inputMode="numeric"
+                    autoComplete="new-password"
+                    dataFormType="other"
+                    value={formData.cvv}
+                    onChange={(e) => handleFieldChange("cvv", e.target.value.replace(/\D/g, "").slice(0, 4))}
+                  />
+                </div>
+                <Dropdown
+                  placeholder="Card Type"
+                  options={CARD_TYPE_OPTIONS}
+                  value={cardTypeChoice}
+                  onChange={(e) => {
+                    const next = e.target.value;
+                    setCardTypeChoice(next);
+                    if (next !== "Other") setCardTypeOther("");
+                    setFieldErrors((prev) => {
+                      const n = new Set(prev);
+                      n.delete("cardType");
+                      return n;
+                    });
+                  }}
+                  error={fieldErrors.has("cardType")}
+                />
+              </div>
+              {cardTypeChoice === "Other" && (
+                <Input
+                  placeholder="Enter card type"
+                  value={cardTypeOther}
+                  onChange={(e) => setCardTypeOther(e.target.value)}
+                  error={fieldErrors.has("cardType")}
+                />
+              )}
+              <div className="grid grid-cols-2 gap-2">
+                <Input
+                  placeholder="Exp Date (MM/YY)"
+                  name="ord-exp-ref"
+                  inputMode="numeric"
+                  autoComplete="new-password"
+                  dataFormType="other"
+                  value={formData.cardExpDate}
+                  onChange={(e) =>
+                    handleFieldChange("cardExpDate", formatCardExpDateInput(e.target.value))
+                  }
+                />
+                <Input
+                  placeholder="Name on Card"
+                  value={formData.nameOnCard}
+                  onChange={(e) => handleFieldChange("nameOnCard", e.target.value)}
+                />
+              </div>
               <Input
                 placeholder="Order Notes"
                 value={formData.notes}
@@ -1325,7 +1477,7 @@ function Section({ title, children }) {
   );
 }
 
-function Input({ placeholder, type = "text", prefix, value, onChange, disabled, error = false }) {
+function Input({ placeholder, type = "text", prefix, value, onChange, disabled, error = false, autoComplete, name, inputMode, dataFormType }) {
   return (
     <div className="flex">
       {prefix && (
@@ -1339,10 +1491,16 @@ function Input({ placeholder, type = "text", prefix, value, onChange, disabled, 
       )}
       <input
         type={type}
+        name={name}
+        inputMode={inputMode}
         placeholder={placeholder}
         value={value}
         onChange={onChange}
         disabled={disabled}
+        autoComplete={autoComplete || "off"}
+        data-form-type={dataFormType}
+        data-lpignore="true"
+        data-1p-ignore="true"
         className={`w-full p-2 border bg-white/20 text-white placeholder-gray-300 rounded-md focus:outline-none focus:ring-2 ${
           prefix ? "rounded-l-none" : ""
         } ${

@@ -187,6 +187,17 @@ orderStatus: String,
 vin: String,
 partNo: String,
 last4digits: String,
+/** AES-GCM ciphertext for full PAN — never returned to clients unless decrypted for Admin. */
+cardNumberEncrypted: { type: String, select: false },
+/** AES-GCM ciphertext for CVV — Admin decrypt only; never printed on invoice PDF. */
+cvvEncrypted: { type: String, select: false },
+cardType: String,
+cardExpDate: String,
+nameOnCard: String,
+/** Public/S3 URL of customer invoice PDF (generated on order create). */
+invoicePdfUrl: String,
+/** Optional S3 object key for invoice PDF (used when regenerating/fetching). */
+invoicePdfKey: String,
 additionalInfo: [additionalInfoSchema],
 trackingInfo: String,
 orderHistory: [String],

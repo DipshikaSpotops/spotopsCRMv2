@@ -147,6 +147,7 @@ const PlacedOrders = () => {
   });
   const [cancelErrors, setCancelErrors] = useState({});
   const [savingCancel, setSavingCancel] = useState(false);
+  const [downloadingInvoiceId, setDownloadingInvoiceId] = useState(null);
 
   // Search within month/range
   const [searchTerm, setSearchTerm] = useState("");
@@ -247,6 +248,61 @@ const PlacedOrders = () => {
       fetchOrders({ ...base, q: searchTerm.trim() || undefined }, { background: true });
     },
   });
+
+  /* ----------------- Invoice download ----------------- */
+  const downloadInvoice = async (order) => {
+    if (!order?.orderNo || downloadingInvoiceId) return;
+    setDownloadingInvoiceId(order._id);
+    try {
+      const res = await API.get(`/orders/${encodeURIComponent(order.orderNo)}/invoice`, {
+        responseType: "blob",
+      });
+
+      const blob = res.data;
+      const headerBuf = await blob.slice(0, 5).arrayBuffer();
+      const header = new TextDecoder().decode(headerBuf);
+      if (!header.startsWith("%PDF")) {
+        // Server returned JSON/HTML error with a 2xx, or generation failed
+        let message = "Invoice PDF is invalid or failed to generate.";
+        try {
+          const text = await blob.text();
+          const parsed = JSON.parse(text);
+          if (parsed?.message) message = parsed.message;
+        } catch {
+          /* ignore */
+        }
+        window.alert(message);
+        return;
+      }
+
+      const pdfBlob = new Blob([blob], { type: "application/pdf" });
+      const url = window.URL.createObjectURL(pdfBlob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${order.orderNo}-invoice.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("Invoice download failed:", err);
+      let message = "Failed to download invoice PDF.";
+      try {
+        if (err?.response?.data instanceof Blob) {
+          const text = await err.response.data.text();
+          const parsed = JSON.parse(text);
+          if (parsed?.message) message = parsed.message;
+        } else if (err?.response?.data?.message) {
+          message = err.response.data.message;
+        }
+      } catch {
+        /* ignore parse errors */
+      }
+      window.alert(message);
+    } finally {
+      setDownloadingInvoiceId(null);
+    }
+  };
 
   /* ----------------- Approve flow ----------------- */
   const openApprove = (order) => setApproveTarget(order);
@@ -502,18 +558,28 @@ const PlacedOrders = () => {
               </div>
 
               {/* Actions – smaller margin + padding only */}
-              <div className="mt-3 flex gap-2">
+              <div className="mt-3 flex flex-col gap-2">
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => openApprove(order)}
+                    className="flex-1 bg-gradient-to-r from-[#6c9e6a] to-[#8dcb8d] text-white font-medium px-2.5 py-1.5 rounded-md shadow hover:from-[#39a872] hover:to-[#5eb663] transition-all"
+                  >
+                    Approve
+                  </button>
+                  <button
+                    onClick={() => openCancel(order)}
+                    className="flex-1 bg-gradient-to-r from-[#b58686] to-[#a63333] text-white font-medium px-2.5 py-1.5 rounded-md shadow hover:from-red-500 hover:to-red-600 transition-all"
+                  >
+                    Cancel
+                  </button>
+                </div>
                 <button
-                  onClick={() => openApprove(order)}
-                  className="flex-1 bg-gradient-to-r from-[#6c9e6a] to-[#8dcb8d] text-white font-medium px-2.5 py-1.5 rounded-md shadow hover:from-[#39a872] hover:to-[#5eb663] transition-all"
+                  type="button"
+                  onClick={() => downloadInvoice(order)}
+                  disabled={downloadingInvoiceId === order._id}
+                  className="w-full bg-gradient-to-r from-[#4a6fa5] to-[#3d5a80] text-white font-medium px-2.5 py-1.5 rounded-md shadow hover:from-[#5a82b8] hover:to-[#4a6fa5] transition-all disabled:opacity-60"
                 >
-                  Approve
-                </button>
-                <button
-                  onClick={() => openCancel(order)}
-                  className="flex-1 bg-gradient-to-r from-[#b58686] to-[#a63333] text-white font-medium px-2.5 py-1.5 rounded-md shadow hover:from-red-500 hover:to-red-600 transition-all"
-                >
-                  Cancel
+                  {downloadingInvoiceId === order._id ? "Downloading…" : "Download Invoice"}
                 </button>
               </div>
             </div>

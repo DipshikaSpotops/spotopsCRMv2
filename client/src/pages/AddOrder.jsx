@@ -12,6 +12,31 @@ const AGENT_BRAND_MAPPING = {
   "Dipsikha": "Dipsikha", // Same for both brands
 };
 
+const KNOWN_CARD_TYPES = ["Visa", "Mastercard", "Amex", "Discover"];
+const CARD_TYPE_OPTIONS = [...KNOWN_CARD_TYPES, "Other"];
+
+/** Format PAN as groups of 4 digits: 4111 1111 1111 1111 */
+function formatCardNumberInput(value) {
+  const digits = String(value || "").replace(/\D/g, "").slice(0, 19);
+  return digits.replace(/(\d{4})(?=\d)/g, "$1 ");
+}
+
+/** Format expiry as MM/YY while typing (09 → 09/). */
+function formatCardExpDateInput(value) {
+  const digits = String(value || "").replace(/\D/g, "").slice(0, 4);
+  if (digits.length === 0) return "";
+  if (digits.length === 1) return digits;
+  if (digits.length === 2) return `${digits}/`;
+  return `${digits.slice(0, 2)}/${digits.slice(2)}`;
+}
+
+function resolveCardTypeChoice(savedType) {
+  const t = String(savedType || "").trim();
+  if (!t) return { choice: "", other: "" };
+  if (KNOWN_CARD_TYPES.includes(t)) return { choice: t, other: "" };
+  return { choice: "Other", other: t };
+}
+
 const REQUIRED_FIELD_LABELS = {
   orderNo: "Order No",
   salesAgent: "Sales Agent",
@@ -43,7 +68,8 @@ const REQUIRED_FIELD_LABELS = {
   soldP: "Sale Price",
   costP: "Est. Yard Price",
   shippingFee: "Est. Shipping",
-  last4digits: "Last 4 Digits",
+  cardNumber: "Card Number",
+  cvv: "CVV",
   salesOrigin: "Sale Origin",
 };
 import API from "../api";
@@ -107,7 +133,11 @@ const buildInitialFormData = (defaultSalesAgent = "") => ({
   shippingFee: "",
   salestax: "",
   grossProfit: "",
-  last4digits: "",
+  cardNumber: "",
+  cvv: "",
+  cardType: "",
+  cardExpDate: "",
+  nameOnCard: "",
   notes: "",
   // For new orders this is the required origin; backend still stores into `leadOrigin` for now.
   salesOrigin: "",
@@ -255,6 +285,8 @@ export default function AddOrder() {
   const [formData, setFormData] = useState(() => buildInitialFormData(""));
   const [partNames, setPartNames] = useState([]);
   const [fieldErrors, setFieldErrors] = useState(new Set());
+  const [cardTypeChoice, setCardTypeChoice] = useState("");
+  const [cardTypeOther, setCardTypeOther] = useState("");
 
   // Update salesAgent when defaultSalesAgent becomes available (after salesAgents are fetched)
   // Also update when brand changes or when salesAgents are first loaded
@@ -538,6 +570,38 @@ export default function AddOrder() {
       return;
     }
 
+    const cardDigits = String(formData.cardNumber || "").replace(/\D/g, "");
+    if (cardDigits.length < 13 || cardDigits.length > 19) {
+      setFieldErrors((prev) => new Set([...prev, "cardNumber"]));
+      setToast({
+        message: "Enter a valid Card Number (13–19 digits).",
+        variant: "error",
+      });
+      return;
+    }
+
+    const cvvDigits = String(formData.cvv || "").replace(/\D/g, "");
+    if (cvvDigits.length < 3 || cvvDigits.length > 4) {
+      setFieldErrors((prev) => new Set([...prev, "cvv"]));
+      setToast({
+        message: "Enter a valid CVV (3–4 digits).",
+        variant: "error",
+      });
+      return;
+    }
+
+    let resolvedCardType = "";
+    if (cardTypeChoice === "Other") {
+      resolvedCardType = String(cardTypeOther || "").trim();
+      if (!resolvedCardType) {
+        setFieldErrors((prev) => new Set([...prev, "cardType"]));
+        setToast({ message: "Enter the card type when Other is selected.", variant: "error" });
+        return;
+      }
+    } else {
+      resolvedCardType = cardTypeChoice || "";
+    }
+
     if (!/^[\w-.]+@([\w-]+\.)+[\w-]{2,4}$/.test((formData.email || "").trim())) {
       setToast({ message: "Enter a valid email address.", variant: "error" });
       return;
@@ -607,6 +671,10 @@ export default function AddOrder() {
         orderStatus: orderStatus,
         attention: formData.sAttention || formData.attention || "", // Map sAttention to attention
         salesAgent: formData.salesAgent, // Save only firstName to database (for filtering compatibility)
+        cardNumber: cardDigits,
+        cvv: cvvDigits,
+        last4digits: cardDigits.slice(-4),
+        cardType: resolvedCardType,
         // Server checks this matches x-brand / req.brand so orders cannot land in the wrong DB
         _expectedBrand: brandForApi,
       };
@@ -626,6 +694,8 @@ export default function AddOrder() {
       const createdOrderNo = res?.data?.orderNo || payload.orderNo || "";
       setToast({ message: `Order ${createdOrderNo} created successfully!`, variant: "success" });
       setFormData(buildInitialFormData(defaultSalesAgent));
+      setCardTypeChoice("");
+      setCardTypeOther("");
       navigate("/monthly-orders");
     } catch (err) {
       if (err.response && err.response.status === 409) {
@@ -647,7 +717,13 @@ export default function AddOrder() {
     <div className="h-screen flex flex-col p-6">
       <h1 className="text-3xl font-bold text-white mb-4">Add New Order</h1>
 
-      <form className="flex-1 overflow-y-auto overflow-x-auto" onSubmit={handleSubmit}>
+      <form className="flex-1 overflow-y-auto overflow-x-auto" onSubmit={handleSubmit} autoComplete="off">
+        {/* Decoy fields so the browser/password manager does not fill Email / CVV */}
+        <div aria-hidden="true" className="absolute -left-[9999px] h-0 w-0 overflow-hidden opacity-0">
+          <input type="text" name="username" autoComplete="username" tabIndex={-1} />
+          <input type="email" name="email" autoComplete="email" tabIndex={-1} />
+          <input type="password" name="password" autoComplete="current-password" tabIndex={-1} />
+        </div>
         <div className="min-w-[1100px] md:min-w-0 md:w-full">
           {/* 🔹 Order Header */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
@@ -695,7 +771,9 @@ export default function AddOrder() {
               />
               <Input 
                 placeholder="Email" 
-                type="email" 
+                type="text"
+                name="customer-email"
+                autoComplete="off"
                 value={formData.email}
                 onChange={(e) => handleFieldChange("email", e.target.value)}
                 error={fieldErrors.has("email")}
@@ -1027,12 +1105,78 @@ export default function AddOrder() {
                 <Input placeholder="Estimated GP" prefix="$" value={formData.grossProfit}
                   onChange={(e) => setFormData({ ...formData, grossProfit: e.target.value })} />
               </div>
-              <Input 
-                placeholder="Last 4 Digits" 
-                value={formData.last4digits}
-                onChange={(e) => handleFieldChange("last4digits", e.target.value)}
-                error={fieldErrors.has("last4digits")}
-              />
+              <div>
+                <div className="text-xs text-white/70 mb-1">Card Number</div>
+                <Input
+                  placeholder="XXXX XXXX XXXX XXXX"
+                  name="ord-pan-ref"
+                  autoComplete="new-password"
+                  dataFormType="other"
+                  value={formData.cardNumber}
+                  onChange={(e) =>
+                    handleFieldChange("cardNumber", formatCardNumberInput(e.target.value))
+                  }
+                  error={fieldErrors.has("cardNumber")}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <div className="text-xs text-white/70 mb-1">CVV</div>
+                  <Input
+                    placeholder="***"
+                    type="text"
+                    name="ord-sec-ref"
+                    inputMode="numeric"
+                    autoComplete="new-password"
+                    dataFormType="other"
+                    value={formData.cvv}
+                    onChange={(e) => handleFieldChange("cvv", e.target.value.replace(/\D/g, "").slice(0, 4))}
+                    error={fieldErrors.has("cvv")}
+                  />
+                </div>
+                <Dropdown
+                  placeholder="Card Type"
+                  options={CARD_TYPE_OPTIONS}
+                  value={cardTypeChoice}
+                  onChange={(e) => {
+                    const next = e.target.value;
+                    setCardTypeChoice(next);
+                    if (next !== "Other") setCardTypeOther("");
+                    setFieldErrors((prev) => {
+                      const n = new Set(prev);
+                      n.delete("cardType");
+                      return n;
+                    });
+                  }}
+                  error={fieldErrors.has("cardType")}
+                />
+              </div>
+              {cardTypeChoice === "Other" && (
+                <Input
+                  placeholder="Enter card type"
+                  value={cardTypeOther}
+                  onChange={(e) => setCardTypeOther(e.target.value)}
+                  error={fieldErrors.has("cardType")}
+                />
+              )}
+              <div className="grid grid-cols-2 gap-2">
+                <Input
+                  placeholder="Exp Date (MM/YY)"
+                  name="ord-exp-ref"
+                  inputMode="numeric"
+                  autoComplete="new-password"
+                  dataFormType="other"
+                  value={formData.cardExpDate}
+                  onChange={(e) =>
+                    handleFieldChange("cardExpDate", formatCardExpDateInput(e.target.value))
+                  }
+                />
+                <Input
+                  placeholder="Name on Card"
+                  value={formData.nameOnCard}
+                  onChange={(e) => handleFieldChange("nameOnCard", e.target.value)}
+                />
+              </div>
               <Dropdown
                 placeholder="Sale Origin"
                 options={["Chat", "Call", "Lead"]}
@@ -1113,7 +1257,19 @@ function Section({ title, headerRight, children }) {
   );
 }
 
-function Input({ placeholder, type = "text", prefix, value, onChange, disabled, error = false }) {
+function Input({
+  placeholder,
+  type = "text",
+  prefix,
+  value,
+  onChange,
+  disabled,
+  error = false,
+  autoComplete,
+  name,
+  inputMode,
+  dataFormType,
+}) {
   return (
     <div className="flex">
       {prefix && (
@@ -1125,10 +1281,16 @@ function Input({ placeholder, type = "text", prefix, value, onChange, disabled, 
       )}
       <input
         type={type}
+        name={name}
+        inputMode={inputMode}
         placeholder={placeholder}
         value={value}
         onChange={onChange}
         disabled={disabled}
+        autoComplete={autoComplete || "off"}
+        data-form-type={dataFormType}
+        data-lpignore="true"
+        data-1p-ignore="true"
         className={`w-full p-2 border bg-white/20 text-white placeholder-gray-300 rounded-md focus:outline-none focus:ring-2 ${
           prefix ? "rounded-l-none" : ""
         } ${

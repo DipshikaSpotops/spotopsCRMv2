@@ -20,6 +20,12 @@ import {
   recalculateAndSaveActualGP,
   shouldApplyOrderLevelReimbursement,
 } from "../utils/calcActualGP.js";
+import {
+  applyCardSecretsFromBody,
+  presentOrderCardFields,
+  isAdminUser,
+} from "../utils/cardSecrets.js";
+import { generateAndStoreOrderInvoice } from "../services/generateOrderInvoice.js";
 
 const router = express.Router();
 const TZ = "America/Chicago";
@@ -100,6 +106,34 @@ function attachSalesOrigin(order) {
   if (!order || typeof order !== "object") return order;
   const salesOrigin = normalizeSalesOriginValue(order.salesOrigin, order.leadOrigin);
   return { ...order, salesOrigin };
+}
+
+/** Present order to clients: salesOrigin + card masking (never ciphertext). */
+function presentOrder(order, req) {
+  return presentOrderCardFields(attachSalesOrigin(order), {
+    isAdmin: isAdminUser(req?.user),
+  });
+}
+
+/**
+ * Strip card plaintext / ciphertext from a body copy and apply encryption onto `orderDoc`.
+ * Returns a body safe to assign onto the mongoose document.
+ */
+function prepareOrderBodyWithCardSecrets(orderDoc, rawBody) {
+  const body = { ...(rawBody || {}) };
+  try {
+    applyCardSecretsFromBody(orderDoc, body);
+  } catch (err) {
+    const msg = err?.message || String(err);
+    const error = new Error(
+      msg.includes("CARD_DATA_ENCRYPTION_KEY")
+        ? "Card encryption is not configured on the server (CARD_DATA_ENCRYPTION_KEY)."
+        : `Failed to secure card data: ${msg}`
+    );
+    error.statusCode = 500;
+    throw error;
+  }
+  return body;
 }
 
 /* helper functions*/
@@ -733,7 +767,14 @@ router.post("/orders", async (req, res) => {
 
     orderStatus = canonicalOrderStatus(orderStatus) || orderStatus;
 
-    const newOrder = new Order({ ...orderBody, orderStatus });
+    const newOrder = new Order({});
+    let safeBody;
+    try {
+      safeBody = prepareOrderBodyWithCardSecrets(newOrder, orderBody);
+    } catch (cardErr) {
+      return res.status(cardErr.statusCode || 500).json({ message: cardErr.message });
+    }
+    Object.assign(newOrder, { ...safeBody, orderStatus });
     newOrder.orderDate = central.toDate();
 
     newOrder.orderHistory = newOrder.orderHistory || [];
@@ -749,12 +790,21 @@ router.post("/orders", async (req, res) => {
     }
 
     await newOrder.save();
+
+    // Best-effort invoice PDF — do not delay or fail order create
+    setImmediate(() => {
+      generateAndStoreOrderInvoice(newOrder.toObject(), req.brand).catch((invErr) => {
+        console.error("[invoice] generate on create failed:", invErr?.message || invErr);
+      });
+    });
+
     const io = req.app.get("io");
-    io.emit("orderCreated", attachSalesOrigin(newOrder.toObject()));
+    const presented = presentOrder(newOrder.toObject(), req);
+    io.emit("orderCreated", presented);
     // also broadcast for list pages
-    broadcastOrder(req, newOrder);
+    broadcastOrder(req, presented);
     publish(req, newOrder.orderNo, { type: "ORDER_CREATED" });
-    res.status(201).json(attachSalesOrigin(newOrder.toObject()));
+    res.status(201).json(presented);
   } catch (error) {
     if (error?.code === 11000) {
       return res.status(409).json({ message: "Order No already exists" });
@@ -1146,11 +1196,17 @@ router.put("/:orderNo", async (req, res) => {
     }
 
     const normalizedBody = normalizeIncomingOrderPayload(req.body);
+    let safeBody;
+    try {
+      safeBody = prepareOrderBodyWithCardSecrets(order, normalizedBody);
+    } catch (cardErr) {
+      return res.status(cardErr.statusCode || 500).json({ message: cardErr.message });
+    }
 
     // Update provided fields (except customerApprovedDate already handled)
-    Object.keys(normalizedBody).forEach((key) => {
+    Object.keys(safeBody).forEach((key) => {
       if (key !== "customerApprovedDate") {
-        order[key] = normalizedBody[key];
+        order[key] = safeBody[key];
       }
     });
 
@@ -1200,10 +1256,56 @@ router.put("/:orderNo", async (req, res) => {
   type: updatedOrder.orderStatus !== oldStatus ? "STATUS_CHANGED" : "ORDER_UPDATED",
   status: updatedOrder.orderStatus,
 });
-    broadcastOrder(req, updatedOrder);
-    res.json(attachSalesOrigin(updatedOrder.toObject()));
+    const presented = presentOrder(updatedOrder.toObject(), req);
+    broadcastOrder(req, presented);
+    res.json(presented);
   } catch (err) {
     res.status(400).send(err?.message || String(err));
+  }
+});
+
+// Download / stream customer invoice PDF
+router.get("/:orderNo/invoice", ...requireAuthAllRoles, async (req, res) => {
+  try {
+    const orderNoParam = decodeURIComponent(req.params.orderNo).trim();
+    const Order = getOrderModel(req);
+    let order = await Order.findOne({ orderNo: orderNoParam })
+      .select("+cardNumberEncrypted")
+      .lean();
+    if (!order) {
+      order = await Order.findOne({
+        orderNo: {
+          $regex: new RegExp(
+            `^${orderNoParam.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`,
+            "i"
+          ),
+        },
+      })
+        .select("+cardNumberEncrypted")
+        .lean();
+    }
+    if (!order) {
+      return res.status(404).json({ message: "Order not found" });
+    }
+
+    // Always regenerate so layout/template updates and latest order fields are reflected
+    const generated = await generateAndStoreOrderInvoice(order, req.brand);
+    const pdfBuffer = generated?.pdfBuffer;
+    if (!pdfBuffer?.length || Buffer.from(pdfBuffer).slice(0, 4).toString("utf8") !== "%PDF") {
+      return res.status(500).json({ message: "Invoice PDF generation produced an invalid file." });
+    }
+
+    const filename = `${order.orderNo || orderNoParam}-invoice.pdf`;
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Length", Buffer.byteLength(pdfBuffer));
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="${filename.replace(/"/g, "")}"`
+    );
+    return res.end(Buffer.from(pdfBuffer));
+  } catch (err) {
+    console.error("Error downloading invoice:", err);
+    return res.status(500).json({ message: "Error downloading invoice", error: err?.message || String(err) });
   }
 });
 
@@ -1215,20 +1317,28 @@ router.get("/:orderNo", ...requireAuthAllRoles, async (req, res) => {
     
     // Try exact match first (most common case). lean() = plain POJO; faster JSON + less memory than full Mongoose docs.
     const Order = getOrderModel(req);
-    let order = await Order.findOne({ orderNo: orderNoParam }).lean();
+    let query = Order.findOne({ orderNo: orderNoParam });
+    if (isAdminUser(req.user)) {
+      query = query.select("+cardNumberEncrypted +cvvEncrypted");
+    }
+    let order = await query.lean();
     
     // If not found, try case-insensitive search as fallback
     if (!order) {
-      order = await Order.findOne({ 
+      let fallback = Order.findOne({ 
         orderNo: { $regex: new RegExp(`^${orderNoParam.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') }
-      }).lean();
+      });
+      if (isAdminUser(req.user)) {
+        fallback = fallback.select("+cardNumberEncrypted +cvvEncrypted");
+      }
+      order = await fallback.lean();
     }
     
     if (!order) {
       return res.status(404).json({ message: "Order not found" });
     }
 
-    res.json(attachSalesOrigin(order));
+    res.json(presentOrder(order, req));
   } catch (err) {
     console.error("Error fetching order:", err);
     res.status(500).json({ message: "Error fetching order" });

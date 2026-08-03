@@ -205,3 +205,53 @@ export async function fetchDrivingLicenseAttachmentBuffer() {
     "Driving license image could not be loaded from S3. Check DRIVING_LICENSE_S3_KEY and bucket access."
   );
 }
+
+/**
+ * Upload a customer invoice PDF. Returns public URL.
+ * Uses same voided-labels bucket under Invoices/ prefix (does not touch other upload paths).
+ */
+export async function uploadInvoicePdfToS3(buffer, keyBase) {
+  if (!buffer || !buffer.length) {
+    throw new Error("No PDF data provided");
+  }
+  if (!bucket) {
+    throw new Error("S3_LABEL_VOIDED_BUCKET is not configured");
+  }
+
+  const safeBase = String(keyBase || "order")
+    .trim()
+    .replace(/[^\w\-]/g, "_");
+  const random = crypto.randomBytes(4).toString("hex");
+  const key = `Invoices/${safeBase}-${random}.pdf`;
+
+  const putCommand = new PutObjectCommand({
+    Bucket: bucket,
+    Key: key,
+    Body: buffer,
+    ContentType: "application/pdf",
+  });
+
+  await s3Client.send(putCommand);
+
+  const url = `https://${bucket}.s3.${region}.amazonaws.com/${encodeURIComponent(
+    key
+  ).replace(/%2F/g, "/")}`;
+  return { url, key };
+}
+
+/** Fetch an invoice PDF previously uploaded to S3 by key. */
+export async function fetchInvoicePdfFromS3(key) {
+  if (!bucket) {
+    throw new Error("S3_LABEL_VOIDED_BUCKET is not configured");
+  }
+  if (!key) {
+    throw new Error("Missing invoice S3 key");
+  }
+  const res = await s3Client.send(
+    new GetObjectCommand({ Bucket: bucket, Key: key })
+  );
+  if (!res.Body) {
+    throw new Error("Empty invoice object from S3");
+  }
+  return streamToBuffer(res.Body);
+}
