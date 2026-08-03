@@ -136,140 +136,169 @@ function brandConfig(brand) {
     website: "www.50starsautoparts.com",
     useTax: true,
     processingRate: 0,
-    authorizeAs: "Metro Auto Recyclers",
+    authorizeAs: "50 Stars Auto Parts",
     legalEntityShort: "50 Stars Auto Parts",
   };
 }
 
 function sharedStyles() {
   return `
-  @page { size: Letter; margin: 0.35in; }
+  @page { size: Letter; margin: 0.4in 0.55in; }
   * { box-sizing: border-box; }
   html, body { margin: 0; padding: 0; }
   body {
     font-family: Arial, Helvetica, sans-serif;
     color: #111;
-    font-size: 10.5px;
-    line-height: 1.32;
+    font-size: 10px;
+    line-height: 1.35;
   }
   .page {
     page-break-after: always;
-    page-break-inside: avoid;
+    height: 10.1in;
+    max-height: 10.1in;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    padding: 0 10px;
   }
   .page:last-child { page-break-after: auto; }
+  .page-main { flex: 1 1 auto; min-height: 0; overflow: hidden; }
+  .page-bottom { flex: 0 0 auto; margin-top: auto; padding-top: 10px; }
   .top {
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
-    margin-bottom: 10px;
+    margin-bottom: 6px;
   }
-  .brand-block { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
-  .logo { max-width: 150px; max-height: 58px; object-fit: contain; }
+  .brand-block { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }
+  .logo { max-width: 130px; max-height: 46px; object-fit: contain; }
   .brand-name {
-    font-size: 13px;
+    font-size: 12px;
     font-weight: 800;
     letter-spacing: 0.5px;
     text-transform: uppercase;
   }
-  .invoice-title { text-align: right; min-width: 220px; }
+  .invoice-title { text-align: right; min-width: 200px; }
   .invoice-title h1 {
     margin: 0;
-    font-size: 30px;
-    letter-spacing: 3px;
+    font-size: 26px;
+    letter-spacing: 2px;
     font-weight: 800;
     line-height: 1;
   }
-  .invoice-title .meta { margin-top: 8px; font-size: 11px; text-align: left; display: inline-block; }
-  .invoice-title .meta div { margin-bottom: 2px; }
+  .invoice-title .meta { margin-top: 5px; font-size: 10px; text-align: left; display: inline-block; }
+  .invoice-title .meta div { margin-bottom: 1px; }
   .cols {
     display: flex;
     width: 100%;
     border: 1px solid #111;
-    margin-bottom: 8px;
+    margin-bottom: 6px;
   }
-  .cols .col { flex: 1; padding: 7px 9px; min-height: 72px; }
+  .cols .col { flex: 1; padding: 6px 9px; min-height: 54px; }
   .cols .col + .col { border-left: 1px solid #111; }
   .cols .label {
     font-weight: 800;
-    font-size: 12px;
-    margin-bottom: 5px;
+    font-size: 11px;
+    margin-bottom: 3px;
     padding-bottom: 2px;
     border-bottom: 1px solid #bbb;
   }
-  table.parts { width: 100%; border-collapse: collapse; margin-top: 2px; }
+  table.parts { width: 100%; border-collapse: collapse; margin-top: 0; }
   table.parts th, table.parts td {
     border: 1px solid #111;
-    padding: 7px 9px;
+    padding: 6px 8px;
     vertical-align: top;
   }
   table.parts th {
     background: #efefef;
     text-align: left;
-    font-size: 11px;
+    font-size: 10px;
     font-weight: 800;
   }
   table.parts .amt {
-    width: 100px;
+    width: 90px;
     text-align: right;
     font-weight: 800;
-    font-size: 12px;
+    font-size: 11px;
     white-space: nowrap;
   }
   .part-lines div { margin-bottom: 1px; }
   .mid-row {
     display: flex;
     gap: 10px;
-    margin-top: 8px;
+    margin-top: 6px;
     align-items: stretch;
   }
   .remarks {
     flex: 1;
     border: 1px solid #111;
-    padding: 7px 9px;
-    font-size: 10px;
+    padding: 6px 8px;
+    font-size: 9px;
+    line-height: 1.35;
   }
-  .remarks .title { font-weight: 800; margin-bottom: 4px; }
+  .remarks .title { font-weight: 800; margin-bottom: 3px; }
+  .remarks div { margin-bottom: 2px; }
   .totals {
-    width: 220px;
+    width: 200px;
     border: 1px solid #111;
     border-collapse: collapse;
     align-self: flex-start;
   }
   .totals td {
-    padding: 6px 8px;
+    padding: 5px 7px;
     border-bottom: 1px solid #ccc;
-    font-size: 11px;
+    font-size: 10px;
   }
   .totals tr:last-child td { border-bottom: none; font-weight: 800; }
   .totals .lbl { font-weight: 700; width: 58%; }
   .totals .val { text-align: right; white-space: nowrap; }
+  .totals tr.note td { font-weight: 700; text-align: left; }
   .terms {
-    margin-top: 8px;
-    font-size: 8.2px;
-    line-height: 1.28;
+    margin-top: 7px;
+    margin-left: 4px;
+    margin-right: 4px;
+    padding: 2px 6px;
+    font-size: 7.4px;
+    line-height: 1.38;
   }
-  .terms h3 { margin: 0 0 4px; font-size: 10px; font-weight: 800; }
-  .terms p { margin: 0 0 3.5px; }
+  .terms h3 {
+    margin: 0 0 4px;
+    font-size: 9px;
+    font-weight: 800;
+    letter-spacing: 0.2px;
+  }
+  .terms p {
+    margin: 0 0 4px;
+    text-align: justify;
+  }
+  .terms p:last-child { margin-bottom: 0; }
   .sig-row {
     display: flex;
-    gap: 48px;
-    margin-top: 18px;
+    gap: 40px;
+    margin-top: 0;
   }
   .sig-box { flex: 1; }
   .sig-line {
-    border-top: 1px solid #111;
-    margin-top: 28px;
-    padding-top: 3px;
-    font-size: 10px;
+    border-top: 1.5px solid #111;
+    margin-top: 16px;
+    padding-top: 2px;
+    font-size: 9px;
     font-weight: 800;
     letter-spacing: 0.5px;
   }
   .footer {
-    margin-top: 12px;
+    margin-top: 8px;
     text-align: center;
-    font-size: 9px;
-    line-height: 1.35;
+    font-size: 8.5px;
+    line-height: 1.4;
   }
+  .footer .addr { margin-bottom: 6px; }
+  .footer-bar {
+    border: none;
+    border-top: 2.5px solid #111;
+    margin: 0 0 6px;
+  }
+  .footer .web { font-weight: 600; margin-bottom: 2px; }
   .auth-head { text-align: center; margin-bottom: 10px; }
   .auth-head .brand-name { font-size: 15px; margin-bottom: 2px; }
   .auth-head h1 {
@@ -315,8 +344,16 @@ function sharedStyles() {
   .card-grid table { width: 100%; border-collapse: collapse; }
   .card-grid td { padding: 3px 4px; vertical-align: top; font-size: 11px; }
   .card-grid td.k { width: 150px; font-weight: 700; }
-  .legal { margin-top: 10px; font-size: 9px; line-height: 1.35; }
-  .legal p { margin: 0 0 6px; }
+  .legal {
+    margin-top: 14px;
+    margin-left: 8px;
+    margin-right: 8px;
+    padding: 6px 10px;
+    font-size: 9px;
+    line-height: 1.55;
+  }
+  .legal p { margin: 0 0 10px; text-align: justify; }
+  .legal p:last-child { margin-bottom: 0; }
   `;
 }
 
@@ -338,12 +375,12 @@ function prolaneTermsHtml() {
   return `
     <div class="terms">
       <h3>TERMS &amp; CONDITIONS:</h3>
-      <p><b>NOTE:</b> YOU AGREED TO BUY A "USED OEM PART." ALL PURCHASED AUTO PARTS ARE SUBJECT TO DISMANTLER ACCEPTANCE AND A 25% HANDLING CHARGE IF ACCEPTED BY SELLER. RETURNS ARE ONLY ACCEPTED AT THE SELLERS' OPTIONS WITH A 1 YEAR WARRANTY. IF THE PARTS ARE NOT RETURNED TO US IN THE SAME CONDITION IN WHICH THEY WERE SOLD, THE WARRANTY IS VOID.</p>
-      <p>ALL RETURNS ARE SUBJECT TO A 25% RESTOCKING FEE AND ARE AT THE SELLER'S SOLE DISCRETION. RETURNING THE PART IS THE CUSTOMER'S RESPONSIBILITY AT THEIR EXPENSE. THE COSTS OF RETURN SHIPPING WILL NOT BE REIMBURSED. THE LAWS OF THE STATE OF TEXAS GOVERN THIS SALE AGREEMENT, AND YOU HEREBY CONSENT TO THE EXCLUSIVE JURISDICTION AND VENUE OF THE COURTS OF TEXAS FOR ALL DISPUTES. SALE CONDITIONS READING AND SIGNING.</p>
-      <p>ALL PARTS SOLD BY PROLANE AUTO PARTS ARE USED OEM AUTO PARTS INSPECTED AND TESTED BEFORE SHIPPING. CUSTOMERS ARE RESPONSIBLE FOR VERIFYING COMPATIBILITY USING VIN, YEAR, MAKE, AND MODEL PRIOR TO PURCHASE.</p>
-      <p>ELECTRONIC PARTS MAY REQUIRE PROGRAMMING, CODING, OR CALIBRATION DURING INSTALLATION. PROFESSIONAL INSTALLATION BY A QUALIFIED TECHNICIAN IS STRONGLY RECOMMENDED. NORMAL WEAR SUCH AS SCRATCHES, DIRT, OR COSMETIC IMPERFECTIONS MAY BE PRESENT ON USED PARTS.</p>
-      <p>WARRANTY COVERS REPLACEMENT OF THE PART ONLY AND DOES NOT INCLUDE LABOR, TOWING, DIAGNOSTICS, PROGRAMMING, OR INSTALLATION COSTS. PARTS DAMAGED DUE TO IMPROPER INSTALLATION, MISUSE, OVERHEATING, OR MODIFICATION WILL VOID WARRANTY ELIGIBILITY.</p>
-      <p><b>RETURN POLICY:</b> IF A CUSTOMER RETURNS A PART FOR REPLACEMENT OR REFUND, THE RETURNED ITEM MUST BE SHIPPED BACK TO US WITHIN 7 WORKING DAYS FROM THE DATE THE RETURN IS AUTHORIZED. ONCE THE RETURNED PART IS RECEIVED AND INSPECTED, WE WILL PROCESS EITHER A REPLACEMENT OR A REFUND, AS APPLICABLE. RETURNS RECEIVED AFTER THE 7-WORKING-DAY PERIOD MAY NOT BE ELIGIBLE FOR A REPLACEMENT OR REFUND UNLESS OTHERWISE APPROVED IN WRITING.</p>
+      <p><b>NOTE:</b> You agreed to buy a "USED OEM PART." All purchased auto parts are subject to dismantler acceptance and a 25% handling charge if accepted by seller. Returns are only accepted at the seller's option with a 1 year warranty. If the parts are not returned to us in the same condition in which they were sold, the warranty is void.</p>
+      <p>All returns are subject to a 25% restocking fee and are at the seller's sole discretion. Returning the part is the customer's responsibility at their expense. The costs of return shipping will not be reimbursed. The laws of the State of Texas govern this sale agreement, and you hereby consent to the exclusive jurisdiction and venue of the courts of Texas for all disputes.</p>
+      <p>All parts sold by Prolane Auto Parts are used OEM auto parts inspected and tested before shipping. Customers are responsible for verifying compatibility using VIN, year, make, and model prior to purchase.</p>
+      <p>Electronic parts may require programming, coding, or calibration during installation. Professional installation by a qualified technician is strongly recommended. Normal wear such as scratches, dirt, or cosmetic imperfections may be present on used parts.</p>
+      <p>Warranty covers replacement of the part only and does not include labor, towing, diagnostics, programming, or installation costs. Parts damaged due to improper installation, misuse, overheating, or modification will void warranty eligibility.</p>
+      <p><b>RETURN POLICY:</b> If a customer returns a part for replacement or refund, the returned item must be shipped back to us within 7 working days from the date the return is authorized. Once the returned part is received and inspected, we will process either a replacement or a refund, as applicable. Returns received after the 7-working-day period may not be eligible for a replacement or refund unless otherwise approved in writing.</p>
     </div>`;
 }
 
@@ -363,17 +400,11 @@ function otherRemarksInner(isProlane) {
 }
 
 function authLegalHtml(cfg) {
-  if (cfg.brand === "50STARS") {
-    return `
-      <div class="legal">
-        <p>I hereby authorize Metro Auto Recyclers to charge the order described to my CREDIT CARD, as noted above. I understand that this order is placed via a telephone or Internet and my signature on this agreement is binding. This purchase is for new/used auto parts. I understand that if for any reason I REFUSE this shipment the freight charges will be charged to my credit card. I understand that any TAMPERING, DISASSEMBLY OR MODIFICATION to this part without written authorization from SELLER, will void ALL warranties.</p>
-        <p>Signing and returning this, you are authorizing 50 Stars Auto Parts to charge the agreed amount (stated above) to your Debit/Credit card.</p>
-      </div>`;
-  }
+  const brandName = cfg.companyName || cfg.legalEntityShort || cfg.authorizeAs;
   return `
     <div class="legal">
-      <p>I hereby authorize ${esc(cfg.authorizeAs)} to charge the order described to my CREDIT CARD, as noted above. I understand that this order is placed via a telephone or Internet and my signature on this agreement is binding. This purchase is for new/used auto parts. I understand that if for any reason I REFUSE this shipment the freight charges will be charged to my credit card. I understand that any TAMPERING, DISASSEMBLY OR MODIFICATION to this part without written authorization from SELLER, will void ALL warranties.</p>
-      <p>Signing and returning this, you are authorizing ${esc(cfg.legalEntityShort)} to charge the agreed amount (stated above) to your Debit/Credit card.</p>
+      <p>I hereby authorize ${esc(brandName)} to charge the order described to my CREDIT CARD, as noted above. I understand that this order is placed via a telephone or Internet and my signature on this agreement is binding. This purchase is for new/used auto parts. I understand that if for any reason I REFUSE this shipment the freight charges will be charged to my credit card. I understand that any TAMPERING, DISASSEMBLY OR MODIFICATION to this part without written authorization from SELLER, will void ALL warranties.</p>
+      <p>Signing and returning this, you are authorizing ${esc(brandName)} to charge the agreed amount (stated above) to your Debit/Credit card.</p>
     </div>`;
 }
 
@@ -396,12 +427,11 @@ function buildInvoiceHtml(order, brand, plainCard) {
   const authDate = invoiceDate;
 
   const soldP = Number(order.soldP) || 0;
-  const taxOrFee = cfg.useTax
-    ? Number(order.salestax) || soldP * 0.05
-    : Number((soldP * cfg.processingRate).toFixed(2));
-  const subTotal = soldP + taxOrFee;
-  const paidRaw = Number(order.chargedAmount);
-  const paid = Number.isFinite(paidRaw) ? paidRaw : subTotal;
+  // Customer invoice "Paid" = order sale/part price (soldP). Prefer chargedAmount only if explicitly set and > 0? User asked for part price.
+  const paidAmount = soldP;
+  // Keep charged amount for CC auth page "total being charged"
+  const chargedRaw = Number(order.chargedAmount);
+  const chargedToCard = Number.isFinite(chargedRaw) && chargedRaw > 0 ? chargedRaw : soldP;
 
   const cardDigits = digitsOnly(plainCard);
   const cardDisplay = cardDigits.length >= 8
@@ -430,10 +460,6 @@ function buildInvoiceHtml(order, brand, plainCard) {
       <div><b>Warranty:</b> ${esc(warranty)}</div>
     </div>`;
 
-  const feeRowLabel = cfg.useTax
-    ? "Tax"
-    : `Processing Fee (3.99%)<br/><span style="font-weight:400">(Non-Refundable)</span>`;
-
   const shipColInner = isProlane
     ? `<div><b>Shipp :</b> ${shipAddressBlock(order)}</div>`
     : shipAddressBlock(order);
@@ -457,144 +483,151 @@ function buildInvoiceHtml(order, brand, plainCard) {
 </head>
 <body>
   <div class="page">
-    <div class="top">
-      <div class="brand-block">
-        ${logoHtml(logoUrl, cfg)}
-      </div>
-      <div class="invoice-title">
-        <h1>INVOICE</h1>
-        <div class="meta">
-          <div><b>Invoice No :</b> ${esc(order.orderNo || "")}</div>
-          <div><b>Invoice Date :</b> ${esc(invoiceDate)}</div>
+    <div class="page-main">
+      <div class="top">
+        <div class="brand-block">
+          ${logoHtml(logoUrl, cfg)}
+        </div>
+        <div class="invoice-title">
+          <h1>INVOICE</h1>
+          <div class="meta">
+            <div><b>Invoice No :</b> ${esc(order.orderNo || "")}</div>
+            <div><b>Invoice Date :</b> ${esc(invoiceDate)}</div>
+          </div>
         </div>
       </div>
-    </div>
 
-    <div class="cols">
-      <div class="col">
-        <div class="label">Bill To</div>
-        ${billColInner}
+      <div class="cols">
+        <div class="col">
+          <div class="label">Bill To</div>
+          ${billColInner}
+        </div>
+        <div class="col">
+          <div class="label">Ship To</div>
+          ${shipColInner}
+        </div>
       </div>
-      <div class="col">
-        <div class="label">Ship To</div>
-        ${shipColInner}
-      </div>
-    </div>
 
-    <table class="parts">
-      <thead>
-        <tr>
-          <th>Part Description</th>
-          <th class="amt">Amount</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td>${partDescHtml}</td>
-          <td class="amt">${money(soldP)}</td>
-        </tr>
-      </tbody>
-    </table>
-
-    <div class="mid-row">
-      <div class="remarks">
-        ${otherRemarksInner(isProlane)}
-      </div>
-      <table class="totals">
-        <tr>
-          <td class="lbl">${feeRowLabel}</td>
-          <td class="val">${money(taxOrFee)}</td>
-        </tr>
-        <tr>
-          <td class="lbl">Sub Total</td>
-          <td class="val">${money(subTotal)}</td>
-        </tr>
-        <tr>
-          <td class="lbl">Paid</td>
-          <td class="val">${money(paid)}</td>
-        </tr>
+      <table class="parts">
+        <thead>
+          <tr>
+            <th>Part Description</th>
+            <th class="amt">Amount</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>${partDescHtml}</td>
+            <td class="amt">${money(soldP)}</td>
+          </tr>
+        </tbody>
       </table>
+
+      <div class="mid-row">
+        <div class="remarks">
+          ${otherRemarksInner(isProlane)}
+        </div>
+        <table class="totals">
+          <tr>
+            <td class="lbl">Processing Fee</td>
+            <td class="val">3.99%</td>
+          </tr>
+          <tr>
+            <td class="lbl">Paid</td>
+            <td class="val">${money(paidAmount)}</td>
+          </tr>
+          <tr class="note">
+            <td class="lbl" colspan="2">Tax included</td>
+          </tr>
+        </table>
+      </div>
+
+      ${isProlane ? prolaneTermsHtml() : fiftyStarsTermsHtml()}
     </div>
 
-    ${isProlane ? prolaneTermsHtml() : fiftyStarsTermsHtml()}
-
-    <div class="sig-row">
-      <div class="sig-box"><div class="sig-line">SIGNATURE</div></div>
-      <div class="sig-box"><div class="sig-line">DATE</div></div>
-    </div>
-
-    <div class="footer">
-      <div>${esc(cfg.addressLine)}${esc(cfg.phone)}</div>
-      <div>${esc(cfg.website)}</div>
-      <div>Please visit our website at ${esc(cfg.website)} to review our Terms &amp; Conditions, Privacy Policy, Return &amp; Refund Policy, and Warranty Policy.</div>
+    <div class="page-bottom">
+      <div class="sig-row">
+        <div class="sig-box"><div class="sig-line">SIGNATURE</div></div>
+        <div class="sig-box"><div class="sig-line">DATE</div></div>
+      </div>
+      <div class="footer">
+        <div class="addr">${esc(cfg.addressLine)} ${esc(cfg.phone)}</div>
+        <hr class="footer-bar" />
+        <div class="web">${esc(cfg.website)}</div>
+        <div>Please visit our website at ${esc(cfg.website)} to review our Terms &amp; Conditions, Privacy Policy, Return &amp; Refund Policy, and Warranty Policy.</div>
+      </div>
     </div>
   </div>
 
   <div class="page">
-    <div class="auth-head">
-      ${logoHtml(logoUrl, cfg)}
-      <div class="brand-name">${esc(cfg.companyNameUpper)}</div>
-      <h1>CREDIT CARD AUTHORIZATION</h1>
-      <div class="co">
-        ${esc(cfg.authAddressLine)}<br/>
-        ${esc(cfg.phone)}<br/>
-        ${esc(cfg.website)}
+    <div class="page-main">
+      <div class="auth-head">
+        ${logoHtml(logoUrl, cfg)}
+        <div class="brand-name">${esc(cfg.companyNameUpper)}</div>
+        <h1>CREDIT CARD AUTHORIZATION</h1>
+        <div class="co">
+          ${esc(cfg.authAddressLine)}<br/>
+          ${esc(cfg.phone)}<br/>
+          ${esc(cfg.website)}
+        </div>
       </div>
-    </div>
 
-    <div class="auth-meta">
-      <div>
-        <div><b>Date:</b> ${esc(authDate)}</div>
-        <div><b>Phone:</b> ${esc(order.phone || "")}</div>
+      <div class="auth-meta">
+        <div>
+          <div><b>Date:</b> ${esc(authDate)}</div>
+          <div><b>Phone:</b> ${esc(order.phone || "")}</div>
+        </div>
+        <div style="text-align:right">
+          <div>${businessLine}</div>
+          <div><b>Sales Tax No:</b> NA</div>
+        </div>
       </div>
-      <div style="text-align:right">
-        <div>${businessLine}</div>
-        <div><b>Sales Tax No:</b> NA</div>
+
+      <div class="two-panels">
+        <div class="panel">
+          <div class="label">Address as it appears on credit card</div>
+          ${billAddressBlock(order)}
+          ${order.email ? `<div>${esc(order.email)}</div>` : ""}
+        </div>
+        <div class="panel">
+          <div class="label">Shipping Address</div>
+          ${shipAddressBlock(order)}
+        </div>
       </div>
-    </div>
 
-    <div class="two-panels">
-      <div class="panel">
-        <div class="label">Address as it appears on credit card</div>
-        ${billAddressBlock(order)}
-        ${order.email ? `<div>${esc(order.email)}</div>` : ""}
+      <div class="section-title">Part and Price info</div>
+      <div class="part-lines">
+        <div><b>Year :</b> ${esc(order.year || "")}</div>
+        <div><b>Make :</b> ${esc(order.make || "")}</div>
+        <div><b>Model :</b> ${esc(order.model || "")}</div>
+        <div><b>Part :</b> ${esc(order.pReq || "")}</div>
+        <div><b>Description:</b> ${esc(order.desc || "NA")}</div>
+        <div style="margin-top:4px"><b>Total being charged to card:</b> ${money(chargedToCard)}</div>
       </div>
-      <div class="panel">
-        <div class="label">Shipping Address</div>
-        ${shipAddressBlock(order)}
+
+      <div class="section-title">Customer/Business Info</div>
+      <div class="card-grid">
+        <table>
+          <tr><td class="k">Card Type 1 :</td><td>${esc(order.cardType || "")}</td></tr>
+          <tr><td class="k">Card 1 # :</td><td>${esc(cardDisplay)}</td></tr>
+          <tr><td class="k">Exp Date 1 :</td><td>${esc(order.cardExpDate || "")}</td></tr>
+          <tr><td class="k">Name on the Card:</td><td>${esc(nameOnCard)}</td></tr>
+        </table>
       </div>
+
+      ${authLegalHtml(cfg)}
     </div>
 
-    <div class="section-title">Part and Price info</div>
-    <div class="part-lines">
-      <div><b>Year :</b> ${esc(order.year || "")}</div>
-      <div><b>Make :</b> ${esc(order.make || "")}</div>
-      <div><b>Model :</b> ${esc(order.model || "")}</div>
-      <div><b>Part :</b> ${esc(order.pReq || "")}</div>
-      <div><b>Description:</b> ${esc(order.desc || "NA")}</div>
-      <div style="margin-top:4px"><b>Total being charged to card:</b> ${money(paid)}</div>
-    </div>
-
-    <div class="section-title">Customer/Business Info</div>
-    <div class="card-grid">
-      <table>
-        <tr><td class="k">Card Type 1 :</td><td>${esc(order.cardType || "")}</td></tr>
-        <tr><td class="k">Card 1 # :</td><td>${esc(cardDisplay)}</td></tr>
-        <tr><td class="k">Exp Date 1 :</td><td>${esc(order.cardExpDate || "")}</td></tr>
-        <tr><td class="k">Name on the Card:</td><td>${esc(nameOnCard)}</td></tr>
-      </table>
-    </div>
-
-    ${authLegalHtml(cfg)}
-
-    <div class="sig-row">
-      <div class="sig-box"><div class="sig-line">SIGNATURE</div></div>
-      <div class="sig-box"><div class="sig-line">DATE</div></div>
-    </div>
-
-    <div class="footer">
-      <div>${esc(cfg.addressLine)}${esc(cfg.phone)}</div>
-      <div>${esc(cfg.website)}</div>
+    <div class="page-bottom">
+      <div class="sig-row">
+        <div class="sig-box"><div class="sig-line">SIGNATURE</div></div>
+        <div class="sig-box"><div class="sig-line">DATE</div></div>
+      </div>
+      <div class="footer">
+        <div class="addr">${esc(cfg.addressLine)} ${esc(cfg.phone)}</div>
+        <hr class="footer-bar" />
+        <div class="web">${esc(cfg.website)}</div>
+      </div>
     </div>
   </div>
 </body>
@@ -629,7 +662,7 @@ async function pdfFromHtml(html) {
       format: "Letter",
       printBackground: true,
       preferCSSPageSize: true,
-      margin: { top: "0.3in", right: "0.35in", bottom: "0.3in", left: "0.35in" },
+      margin: { top: "0.35in", right: "0.5in", bottom: "0.35in", left: "0.5in" },
     });
     const pdfBuffer = Buffer.isBuffer(pdf) ? pdf : Buffer.from(pdf);
     if (!pdfBuffer.length || pdfBuffer.slice(0, 4).toString("utf8") !== "%PDF") {

@@ -42,17 +42,20 @@ const calcRefundToCollect = (yard) => {
   return total > 0 ? total.toFixed(2) : "";
 };
 
-/** Infer optional follow-up radio from already-saved order/yard state. */
-const inferFollowUpAction = (yard, order) => {
+/** Infer optional follow-up flags from already-saved order/yard state. */
+const inferFollowUpFlags = (yard, order) => {
   const process = toStr(yard?.escalationProcess);
-  if (process !== "Return" && process !== "Junk") return "";
-  if (String(order?.orderStatus || "").trim().toLowerCase() === "relocates") {
-    return "relocates";
+  if (process !== "Return" && process !== "Junk") {
+    return { none: true, relocates: false, collectRefund: false };
   }
-  if (toStr(yard?.collectRefundCheckbox) === "Ticked") {
-    return "collectRefund";
-  }
-  return "";
+  const relocates =
+    String(order?.orderStatus || "").trim().toLowerCase() === "relocates";
+  const collectRefund = toStr(yard?.collectRefundCheckbox) === "Ticked";
+  return {
+    none: !relocates && !collectRefund,
+    relocates,
+    collectRefund,
+  };
 };
 
 const getChicagoIso = () => {
@@ -160,11 +163,15 @@ export default function YardEscalationModal({
   const isReplacement = state.escalationProcess === "Replacement";
   const isReturn = state.escalationProcess === "Return";
   const isJunk = state.escalationProcess === "Junk";
-  const showFollowUpRadios = isReturn || isJunk;
-  // Optional post-save action for Return/Junk (not required).
-  const [followUpAction, setFollowUpAction] = useState(""); // "" | "relocates" | "collectRefund"
-  // Snapshot of inferred selection when modal opened (avoid re-applying on every Save).
-  const [initialFollowUpAction, setInitialFollowUpAction] = useState("");
+  const showFollowUpOptions = isReturn || isJunk;
+  // Optional follow-up: No follow-up XOR (Relocates and/or Collect Refund).
+  const [followUpNone, setFollowUpNone] = useState(true);
+  const [followUpRelocates, setFollowUpRelocates] = useState(false);
+  const [followUpCollectRefund, setFollowUpCollectRefund] = useState(false);
+  // Snapshot when modal opened (only apply side effects when selection changes).
+  const [initialFollowUpRelocates, setInitialFollowUpRelocates] = useState(false);
+  const [initialFollowUpCollectRefund, setInitialFollowUpCollectRefund] =
+    useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -222,9 +229,12 @@ export default function YardEscalationModal({
       next.customerShipperReturn = "Others";
     }
     setState(next);
-    const inferred = inferFollowUpAction(yard, order);
-    setFollowUpAction(inferred);
-    setInitialFollowUpAction(inferred);
+    const inferred = inferFollowUpFlags(yard, order);
+    setFollowUpNone(inferred.none);
+    setFollowUpRelocates(inferred.relocates);
+    setFollowUpCollectRefund(inferred.collectRefund);
+    setInitialFollowUpRelocates(inferred.relocates);
+    setInitialFollowUpCollectRefund(inferred.collectRefund);
     setToast("");
   }, [open, yard, order, defaultShipToReplacement, defaultShipToReturn]);
 
@@ -239,14 +249,19 @@ export default function YardEscalationModal({
 
   useEffect(() => {
     if (!open) return;
-    if (!showFollowUpRadios) {
-      setFollowUpAction("");
+    if (!showFollowUpOptions) {
+      setFollowUpNone(true);
+      setFollowUpRelocates(false);
+      setFollowUpCollectRefund(false);
       return;
     }
-    const inferred = inferFollowUpAction(yard, order);
-    setFollowUpAction(inferred);
-    setInitialFollowUpAction(inferred);
-  }, [showFollowUpRadios, open, yard, order]);
+    const inferred = inferFollowUpFlags(yard, order);
+    setFollowUpNone(inferred.none);
+    setFollowUpRelocates(inferred.relocates);
+    setFollowUpCollectRefund(inferred.collectRefund);
+    setInitialFollowUpRelocates(inferred.relocates);
+    setInitialFollowUpCollectRefund(inferred.collectRefund);
+  }, [showFollowUpOptions, open, yard, order]);
 
   useEffect(() => {
     if (
@@ -376,10 +391,11 @@ useEffect(() => {
     const canFollowUp =
       state.escalationProcess === "Return" ||
       state.escalationProcess === "Junk";
-    // Only re-apply status/refund/comment when the user changes the follow-up radio.
-    const followUpChanged =
-      canFollowUp && followUpAction !== initialFollowUpAction;
-    const applyFollowUp = followUpChanged && followUpAction;
+
+    const relocatesChanged =
+      canFollowUp && followUpRelocates !== initialFollowUpRelocates;
+    const collectRefundChanged =
+      canFollowUp && followUpCollectRefund !== initialFollowUpCollectRefund;
 
     const payload = {
       escalationProcess: state.escalationProcess,
@@ -389,31 +405,47 @@ useEffect(() => {
       escalationDate: yard?.escalationDate || isoNow,
     };
 
-    if (applyFollowUp && followUpAction === "relocates") {
+    const followUpNotes = [];
+
+    if (relocatesChanged && followUpRelocates) {
       payload.orderStatus = "Relocates";
-      payload.followUpNote =
-        "Follow-up: Move to Relocates — order status set to Relocates";
-    } else if (
-      followUpChanged &&
-      initialFollowUpAction === "relocates" &&
-      followUpAction !== "relocates"
-    ) {
-      // User cleared / switched away from Relocates → back to Escalation
+      followUpNotes.push(
+        "Follow-up: Move to Relocates — order status set to Relocates"
+      );
+    } else if (relocatesChanged && !followUpRelocates) {
+      // Cleared Relocates (No follow-up or unchecked) → back to Escalation
       payload.orderStatus = "Escalation";
+      followUpNotes.push(
+        "Follow-up removed: Relocates cleared — order status set to Escalation"
+      );
     } else if (
       order?.orderStatus !== "Escalation" &&
       order?.orderStatus !== "Relocates"
     ) {
       payload.orderStatus = "Escalation";
+    } else if (canFollowUp && followUpRelocates) {
+      // Keep Relocates if still selected and unchanged
+      payload.orderStatus = "Relocates";
     }
 
-    if (applyFollowUp && followUpAction === "collectRefund") {
+    if (collectRefundChanged && followUpCollectRefund) {
       const refundAmt = calcRefundToCollect(yard);
       payload.collectRefundCheckbox = "Ticked";
       if (refundAmt) payload.refundToCollect = refundAmt;
-      payload.followUpNote = refundAmt
-        ? `Follow-up: Move to Collect Refund — Collect Refund ticked; Refund To Be Collected set to $${refundAmt} (part price + yard shipping)`
-        : "Follow-up: Move to Collect Refund — Collect Refund ticked";
+      followUpNotes.push(
+        refundAmt
+          ? `Follow-up: Move to Collect Refund — Collect Refund ticked; Refund To Be Collected set to $${refundAmt} (part price + yard shipping)`
+          : "Follow-up: Move to Collect Refund — Collect Refund ticked"
+      );
+    } else if (collectRefundChanged && !followUpCollectRefund) {
+      payload.collectRefundCheckbox = "";
+      followUpNotes.push(
+        "Follow-up removed: Collect Refund cleared"
+      );
+    }
+
+    if (followUpNotes.length) {
+      payload.followUpNote = followUpNotes.join(" | ");
     }
 
     if (state.escalationProcess === "Replacement") {
@@ -1376,64 +1408,100 @@ useEffect(() => {
             </div>
           </div>
 
-          {showFollowUpRadios && (
+          {showFollowUpOptions && (
             <section className="rounded-xl border border-amber-300/40 bg-amber-500/10 p-4 text-sm text-white">
               <h4 className="mb-2 text-base font-semibold text-white">
                 Optional follow-up
               </h4>
               <p className="mb-3 text-xs text-white/70">
-                Not required. If selected, Save updates order status / Collect Refund and
-                adds a yard comment automatically.
+                Not required. You can select Relocates, Collect Refund, or both. Choosing
+                No follow-up clears the others. Uncheck later to remove.
               </p>
               <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:gap-8">
                 <label className="inline-flex cursor-pointer items-center gap-2">
                   <input
-                    type="radio"
-                    name="escalationFollowUp"
-                    checked={followUpAction === ""}
-                    onChange={() => setFollowUpAction("")}
+                    type="checkbox"
+                    checked={followUpNone}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        // No follow-up selected → clear & lock the others
+                        setFollowUpNone(true);
+                        setFollowUpRelocates(false);
+                        setFollowUpCollectRefund(false);
+                      } else {
+                        // Uncheck No follow-up → allow Relocates / Collect Refund
+                        setFollowUpNone(false);
+                      }
+                    }}
                     className="h-4 w-4 accent-[#04356d]"
                   />
                   <span>No follow-up</span>
                 </label>
-                <label className="inline-flex cursor-pointer items-center gap-2">
+                <label
+                  className={`inline-flex items-center gap-2 ${
+                    followUpNone ? "cursor-not-allowed opacity-50" : "cursor-pointer"
+                  }`}
+                >
                   <input
-                    type="radio"
-                    name="escalationFollowUp"
-                    checked={followUpAction === "relocates"}
-                    onChange={() => setFollowUpAction("relocates")}
+                    type="checkbox"
+                    checked={followUpRelocates}
+                    disabled={followUpNone}
+                    onChange={(e) => {
+                      const on = e.target.checked;
+                      setFollowUpRelocates(on);
+                      if (on) setFollowUpNone(false);
+                      else if (!followUpCollectRefund) setFollowUpNone(true);
+                    }}
                     className="h-4 w-4 accent-[#04356d]"
                   />
                   <span>Do you want to move to Relocates?</span>
                 </label>
-                <label className="inline-flex cursor-pointer items-center gap-2">
+                <label
+                  className={`inline-flex items-center gap-2 ${
+                    followUpNone ? "cursor-not-allowed opacity-50" : "cursor-pointer"
+                  }`}
+                >
                   <input
-                    type="radio"
-                    name="escalationFollowUp"
-                    checked={followUpAction === "collectRefund"}
-                    onChange={() => setFollowUpAction("collectRefund")}
+                    type="checkbox"
+                    checked={followUpCollectRefund}
+                    disabled={followUpNone}
+                    onChange={(e) => {
+                      const on = e.target.checked;
+                      setFollowUpCollectRefund(on);
+                      if (on) setFollowUpNone(false);
+                      else if (!followUpRelocates) setFollowUpNone(true);
+                    }}
                     className="h-4 w-4 accent-[#04356d]"
                   />
                   <span>Do you want to move to Collect Refund?</span>
                 </label>
               </div>
-              {followUpAction === "relocates" && (
+              {followUpRelocates && (
                 <p className="mt-2 text-xs text-amber-100/90">
-                  {followUpAction === initialFollowUpAction
-                    ? "Already applied — order status is Relocates. Change only if you want to update."
+                  {followUpRelocates === initialFollowUpRelocates
+                    ? "Already applied — order status is Relocates. Uncheck to remove."
                     : "On save, order status will be set to Relocates."}
                 </p>
               )}
-              {followUpAction === "collectRefund" && (
+              {followUpCollectRefund && (
                 <p className="mt-2 text-xs text-amber-100/90">
-                  {followUpAction === initialFollowUpAction
-                    ? "Already applied — Collect Refund is ticked. Change only if you want to update."
+                  {followUpCollectRefund === initialFollowUpCollectRefund
+                    ? "Already applied — Collect Refund is ticked. Uncheck to remove."
                     : `On save, Collect Refund will be ticked and Refund To Be Collected set to part price + yard shipping${(() => {
                         const amt = calcRefundToCollect(yard);
                         return amt ? ` ($${amt})` : "";
                       })()}. You can edit these later in Refund Details.`}
                 </p>
               )}
+              {followUpNone &&
+                (initialFollowUpRelocates || initialFollowUpCollectRefund) && (
+                  <p className="mt-2 text-xs text-amber-100/90">
+                    On save, selected follow-ups will be cleared
+                    {initialFollowUpRelocates ? " (Relocates → Escalation)" : ""}
+                    {initialFollowUpCollectRefund ? " (Collect Refund unticked)" : ""}
+                    .
+                  </p>
+                )}
             </section>
           )}
 
