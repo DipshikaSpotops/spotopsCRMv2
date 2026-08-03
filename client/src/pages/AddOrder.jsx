@@ -1105,63 +1105,36 @@ export default function AddOrder() {
                 <Input placeholder="Estimated GP" prefix="$" value={formData.grossProfit}
                   onChange={(e) => setFormData({ ...formData, grossProfit: e.target.value })} />
               </div>
-              <div>
-                <div className="text-xs text-white/70 mb-1">Card Number</div>
+              <Input
+                placeholder="Name on Card"
+                value={formData.nameOnCard}
+                onChange={(e) => handleFieldChange("nameOnCard", e.target.value)}
+              />
+              <Input
+                placeholder="Card Number"
+                name="ord-pan-ref"
+                autoComplete="new-password"
+                dataFormType="other"
+                value={formData.cardNumber}
+                onChange={(e) =>
+                  handleFieldChange("cardNumber", formatCardNumberInput(e.target.value))
+                }
+                error={fieldErrors.has("cardNumber")}
+              />
+              <div className="grid grid-cols-2 gap-2">
                 <Input
-                  placeholder="XXXX XXXX XXXX XXXX"
-                  name="ord-pan-ref"
+                  placeholder="CVV"
+                  type="text"
+                  name="ord-sec-ref"
+                  inputMode="numeric"
                   autoComplete="new-password"
                   dataFormType="other"
-                  value={formData.cardNumber}
-                  onChange={(e) =>
-                    handleFieldChange("cardNumber", formatCardNumberInput(e.target.value))
-                  }
-                  error={fieldErrors.has("cardNumber")}
+                  value={formData.cvv}
+                  onChange={(e) => handleFieldChange("cvv", e.target.value.replace(/\D/g, "").slice(0, 4))}
+                  error={fieldErrors.has("cvv")}
                 />
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <div className="text-xs text-white/70 mb-1">CVV</div>
-                  <Input
-                    placeholder="***"
-                    type="text"
-                    name="ord-sec-ref"
-                    inputMode="numeric"
-                    autoComplete="new-password"
-                    dataFormType="other"
-                    value={formData.cvv}
-                    onChange={(e) => handleFieldChange("cvv", e.target.value.replace(/\D/g, "").slice(0, 4))}
-                    error={fieldErrors.has("cvv")}
-                  />
-                </div>
-                <Dropdown
-                  placeholder="Card Type"
-                  options={CARD_TYPE_OPTIONS}
-                  value={cardTypeChoice}
-                  onChange={(e) => {
-                    const next = e.target.value;
-                    setCardTypeChoice(next);
-                    if (next !== "Other") setCardTypeOther("");
-                    setFieldErrors((prev) => {
-                      const n = new Set(prev);
-                      n.delete("cardType");
-                      return n;
-                    });
-                  }}
-                  error={fieldErrors.has("cardType")}
-                />
-              </div>
-              {cardTypeChoice === "Other" && (
                 <Input
-                  placeholder="Enter card type"
-                  value={cardTypeOther}
-                  onChange={(e) => setCardTypeOther(e.target.value)}
-                  error={fieldErrors.has("cardType")}
-                />
-              )}
-              <div className="grid grid-cols-2 gap-2">
-                <Input
-                  placeholder="Exp Date (MM/YY)"
+                  placeholder="MM/YY"
                   name="ord-exp-ref"
                   inputMode="numeric"
                   autoComplete="new-password"
@@ -1171,12 +1144,31 @@ export default function AddOrder() {
                     handleFieldChange("cardExpDate", formatCardExpDateInput(e.target.value))
                   }
                 />
-                <Input
-                  placeholder="Name on Card"
-                  value={formData.nameOnCard}
-                  onChange={(e) => handleFieldChange("nameOnCard", e.target.value)}
-                />
               </div>
+              <Dropdown
+                placeholder="Card Type"
+                options={CARD_TYPE_OPTIONS}
+                value={cardTypeChoice}
+                onChange={(e) => {
+                  const next = e.target.value;
+                  setCardTypeChoice(next);
+                  if (next !== "Other") setCardTypeOther("");
+                  setFieldErrors((prev) => {
+                    const n = new Set(prev);
+                    n.delete("cardType");
+                    return n;
+                  });
+                }}
+                error={fieldErrors.has("cardType")}
+              />
+              {cardTypeChoice === "Other" && (
+                <Input
+                  placeholder="Enter card type"
+                  value={cardTypeOther}
+                  onChange={(e) => setCardTypeOther(e.target.value)}
+                  error={fieldErrors.has("cardType")}
+                />
+              )}
               <Dropdown
                 placeholder="Sale Origin"
                 options={["Chat", "Call", "Lead"]}
@@ -1308,7 +1300,7 @@ function Input({
 function Dropdown({ placeholder, options, value, onChange, error = false }) {
   return (
     <select
-      className={`w-full p-2 border bg-white/20 text-white rounded-md focus:outline-none focus:ring-2 ${
+      className={`w-full h-[42px] p-2 border bg-white/20 text-white rounded-md focus:outline-none focus:ring-2 ${
         error
           ? "border-red-500 focus:ring-red-400"
           : "border-gray-300 focus:ring-blue-400"
