@@ -10,6 +10,7 @@ import { Server } from "socket.io";
 import authRoutes from "./routes/authRoutes.js";
 import ordersRoute from "./routes/orders.js";
 import partsRoute from "./routes/parts.js";
+import paymentSourcesRoute from "./routes/paymentSources.js";
 import placedOrdersRoutes from "./routes/placedOrders.js";
 import partiallyChargedOrdersRoutes from "./routes/partiallyChargedOrders.js";
 import custApprovedRoutes from "./routes/customerApproved.js";
@@ -82,6 +83,7 @@ app.use("/api/orders/placed", placedOrdersRoutes);
 app.use("/api/orders/partially-charged", partiallyChargedOrdersRoutes);
 app.use("/parts", partsRoute); // legacy path
 app.use("/api/parts", partsRoute);
+app.use("/api/payment-sources", paymentSourcesRoute);
 app.use("/api/orders/customerApproved", custApprovedRoutes);
 app.use("/api/orders/monthlyOrders", monthlyOrders);
 app.use("/api/orders/dailySalesGp", dailySalesGp);

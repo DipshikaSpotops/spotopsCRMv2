@@ -1724,5 +1724,13 @@
     "state": "FL",
     "zipcode": "33311",
     "phone": "+1 954-318-7888"
+  },
+  {
+    "yardName": "Acre Auto Parts",
+    "street": "5035 Williams Lake Rd",
+    "city": "Waterford Twp",
+    "state": "MI",
+    "zipcode": "48329",
+    "phone": "248-674-4851"
   }
 ]

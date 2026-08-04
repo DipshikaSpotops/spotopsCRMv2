@@ -11,6 +11,7 @@ import {
   maskCardNumber,
 } from "../utils/cardSecrets.js";
 import { resolveCustomerLogoUrl, resolveBrandFromOrderNo } from "../utils/emailLogos.js";
+import { resolvePaymentSourceShowCardInfo } from "./paymentSourceService.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const LOCAL_INVOICE_DIR = path.join(__dirname, "..", "uploads", "invoices");
@@ -415,7 +416,7 @@ function logoHtml(logoUrl, cfg) {
   return `<div class="brand-name">${esc(cfg.companyNameUpper)}</div>`;
 }
 
-function buildInvoiceHtml(order, brand, plainCard) {
+function buildInvoiceHtml(order, brand, plainCard, { includeAuthPage = true } = {}) {
   const cfg = brandConfig(brand);
   const isProlane = cfg.brand === "PROLANE" || cfg.brand === "PROTP";
   const logoUrl = resolveCustomerLogoUrl(brand) || "";
@@ -493,6 +494,7 @@ function buildInvoiceHtml(order, brand, plainCard) {
           <div class="meta">
             <div><b>Invoice No :</b> ${esc(order.orderNo || "")}</div>
             <div><b>Invoice Date :</b> ${esc(invoiceDate)}</div>
+            <div><b>Payment Source :</b> ${esc(order.paymentSource || "")}</div>
           </div>
         </div>
       </div>
@@ -559,6 +561,7 @@ function buildInvoiceHtml(order, brand, plainCard) {
     </div>
   </div>
 
+  ${includeAuthPage ? `
   <div class="page">
     <div class="page-main">
       <div class="auth-head">
@@ -630,6 +633,7 @@ function buildInvoiceHtml(order, brand, plainCard) {
       </div>
     </div>
   </div>
+  ` : ""}
 </body>
 </html>`;
 }
@@ -720,7 +724,8 @@ export async function generateAndStoreOrderInvoice(orderDoc, brandHint) {
     plainCard = decryptSecret(encCard);
   }
 
-  const html = buildInvoiceHtml(orderDoc, brand, plainCard);
+  const includeAuthPage = await resolvePaymentSourceShowCardInfo(orderDoc.paymentSource);
+  const html = buildInvoiceHtml(orderDoc, brand, plainCard, { includeAuthPage });
   const pdfBuffer = await pdfFromHtml(html);
 
   let invoicePdfUrl = "";

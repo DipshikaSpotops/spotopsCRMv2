@@ -59,7 +59,6 @@ const REQUIRED_FIELD_LABELS = {
   soldP: "Sale Price",
   costP: "Est. Yard Price",
   shippingFee: "Est. Shipping",
-  cardNumber: "Card Number",
 };
 import API from "../api";
 
@@ -164,14 +163,29 @@ export default function EditOrder() {
   const [submitting, setSubmitting] = useState(false);
   const [formData, setFormData] = useState(buildInitialFormData());
   const [partNames, setPartNames] = useState([]);
+  const [paymentSources, setPaymentSources] = useState([]);
   const [fieldErrors, setFieldErrors] = useState(new Set());
   const [cardTypeChoice, setCardTypeChoice] = useState("");
   const [cardTypeOther, setCardTypeOther] = useState("");
+  const [showAddPaymentSource, setShowAddPaymentSource] = useState(false);
+  const [newPaymentSourceName, setNewPaymentSourceName] = useState("");
+  const [newPaymentSourceShowCardInfo, setNewPaymentSourceShowCardInfo] = useState(false);
+  const [addingPaymentSource, setAddingPaymentSource] = useState(false);
   const [salesAgents, setSalesAgents] = useState([]);
   const [salesAgentsMap, setSalesAgentsMap] = useState({}); // firstName -> fullName mapping
   const [salesAgentsReverseMap, setSalesAgentsReverseMap] = useState({}); // fullName -> firstName mapping
   const brand = useBrand(); // 50STARS / PROLANE
   const originalSalesAgentRef = useRef(null); // Store original sales agent from loaded order
+
+  const showCardInfo = useMemo(() => {
+    const selected = String(formData.paymentSource || "").trim();
+    if (!selected) return false;
+    const match = paymentSources.find(
+      (s) => String(s.name || "").trim().toLowerCase() === selected.toLowerCase()
+    );
+    if (match) return match.showCardInfo !== false;
+    return false;
+  }, [formData.paymentSource, paymentSources]);
   
   // Fetch sales agents from database (both brands, filtered by mapping)
   const fetchSalesAgents = useCallback(async () => {
@@ -370,6 +384,7 @@ export default function EditOrder() {
 
   useEffect(() => {
     fetchParts();
+    fetchPaymentSources();
   }, []);
 
   const normalizeWarrantyField = useCallback((quantity, unit) => {
@@ -387,6 +402,15 @@ export default function EditOrder() {
     }
   }
 
+  async function fetchPaymentSources() {
+    try {
+      const res = await API.get("/payment-sources");
+      setPaymentSources(Array.isArray(res.data) ? res.data : []);
+    } catch (err) {
+      console.error("Error fetching payment sources:", err);
+    }
+  }
+
   async function handlePartChange(value) {
     if (value === "add_new_part") {
       const newPart = prompt("Enter new part name:");
@@ -401,6 +425,40 @@ export default function EditOrder() {
       }
     } else {
       setFormData({ ...formData, pReq: value });
+    }
+  }
+
+  function handlePaymentSourceChange(value) {
+    if (value === "add_new_payment_source") {
+      setNewPaymentSourceName("");
+      setNewPaymentSourceShowCardInfo(false);
+      setShowAddPaymentSource(true);
+      return;
+    }
+    handleFieldChange("paymentSource", value);
+  }
+
+  async function submitNewPaymentSource() {
+    const name = String(newPaymentSourceName || "").trim();
+    if (!name) {
+      alert("Enter a payment source name.");
+      return;
+    }
+    try {
+      setAddingPaymentSource(true);
+      await API.post("/payment-sources", {
+        name,
+        showCardInfo: Boolean(newPaymentSourceShowCardInfo),
+      });
+      await fetchPaymentSources();
+      handleFieldChange("paymentSource", name);
+      setShowAddPaymentSource(false);
+      setNewPaymentSourceName("");
+      setNewPaymentSourceShowCardInfo(false);
+    } catch (err) {
+      alert(err.response?.data?.error || err.response?.data?.message || "Error adding payment source");
+    } finally {
+      setAddingPaymentSource(false);
     }
   }
 
@@ -712,33 +770,40 @@ export default function EditOrder() {
       return;
     }
 
-    const cardDigits = String(formData.cardNumber || "").replace(/\D/g, "");
-    const cardLooksMasked = /\*/.test(String(formData.cardNumber || ""));
-    // Allow legacy masked/last4 on edit; require full PAN only when entering a new number
-    if (!cardLooksMasked && cardDigits.length > 0 && (cardDigits.length < 13 || cardDigits.length > 19) && cardDigits.length !== 4) {
-      setFieldErrors((prev) => new Set([...prev, "cardNumber"]));
-      setToast({
-        message: "Enter a valid Card Number (13–19 digits), or keep the existing masked value.",
-        variant: "error",
-      });
-      return;
-    }
-    if (!cardDigits) {
-      setFieldErrors((prev) => new Set([...prev, "cardNumber"]));
-      setToast({ message: "Card Number is required.", variant: "error" });
-      return;
+    const cardDigits = showCardInfo
+      ? String(formData.cardNumber || "").replace(/\D/g, "")
+      : "";
+    const cardLooksMasked = showCardInfo && /\*/.test(String(formData.cardNumber || ""));
+
+    if (showCardInfo) {
+      // Allow legacy masked/last4 on edit; require full PAN only when entering a new number
+      if (!cardLooksMasked && cardDigits.length > 0 && (cardDigits.length < 13 || cardDigits.length > 19) && cardDigits.length !== 4) {
+        setFieldErrors((prev) => new Set([...prev, "cardNumber"]));
+        setToast({
+          message: "Enter a valid Card Number (13–19 digits), or keep the existing masked value.",
+          variant: "error",
+        });
+        return;
+      }
+      if (!cardDigits) {
+        setFieldErrors((prev) => new Set([...prev, "cardNumber"]));
+        setToast({ message: "Card Number is required.", variant: "error" });
+        return;
+      }
     }
 
     let resolvedCardType = "";
-    if (cardTypeChoice === "Other") {
-      resolvedCardType = String(cardTypeOther || "").trim();
-      if (!resolvedCardType) {
-        setFieldErrors((prev) => new Set([...prev, "cardType"]));
-        setToast({ message: "Enter the card type when Other is selected.", variant: "error" });
-        return;
+    if (showCardInfo) {
+      if (cardTypeChoice === "Other") {
+        resolvedCardType = String(cardTypeOther || "").trim();
+        if (!resolvedCardType) {
+          setFieldErrors((prev) => new Set([...prev, "cardType"]));
+          setToast({ message: "Enter the card type when Other is selected.", variant: "error" });
+          return;
+        }
+      } else {
+        resolvedCardType = cardTypeChoice || "";
       }
-    } else {
-      resolvedCardType = cardTypeChoice || "";
     }
 
     if (!/^[\w-.]+@([\w-]+\.)+[\w-]{2,4}$/.test((formData.email || "").trim())) {
@@ -791,10 +856,12 @@ export default function EditOrder() {
         expediteShipping: formData.expediteShipping ? "true" : "false",
         dsCall: formData.dsCall ? "true" : "false",
         programmingRequired: formData.programmingRequired ? "true" : "false",
-        cardNumber: formData.cardNumber,
-        cvv: formData.cvv,
-        last4digits: cardDigits.slice(-4),
-        cardType: resolvedCardType,
+        cardNumber: showCardInfo ? formData.cardNumber : "",
+        cvv: showCardInfo ? formData.cvv : "",
+        last4digits: showCardInfo ? cardDigits.slice(-4) : formData.last4digits || "",
+        cardType: showCardInfo ? resolvedCardType : formData.cardType || "",
+        nameOnCard: showCardInfo ? formData.nameOnCard : formData.nameOnCard || "",
+        cardExpDate: showCardInfo ? formData.cardExpDate : formData.cardExpDate || "",
         // Update orderDate if Admin changed it
         ...(role === "Admin" && formData.orderDateISO ? { orderDate: new Date(formData.orderDateISO) } : {}),
       };
@@ -1070,32 +1137,31 @@ export default function EditOrder() {
                 onChange={(e) => handleFieldChange("bAddressZip", e.target.value)}
                 error={fieldErrors.has("bAddressZip")}
               />
-              <Dropdown
-                placeholder="Payment Source"
-                options={[ 
-                  "247 - PRO Payments",
-                  "Affirm",
-                  "Bank/Wire Transfer",
-                 " Both (VPS & SA Authorized)",
-                 " Both (VPS & SA Payment)",
-                  "FTC - Authorize",
-                  "Paypal",
-                  "RP Authorize",
-                  "RP Payment",
-                  "SA Authorized",
-                  "SA Payment Link",
-                  "SSP Autorized",
-                  "SSP Payment Link",
-                  "VP2 Authorized",
-                  "VP2 Payment Link",
-                  "VPS Authorized",
-                  "VPS Payment Link",
-                  "Zelle",
-                ]}
+              <select
+                className={`w-full h-[42px] p-2 border bg-white/20 text-white rounded-md focus:outline-none focus:ring-2 ${
+                  fieldErrors.has("paymentSource")
+                    ? "border-red-500 focus:ring-red-400"
+                    : "border-gray-300 focus:ring-blue-400"
+                }`}
                 value={formData.paymentSource}
-                onChange={(e) => handleFieldChange("paymentSource", e.target.value)}
-                error={fieldErrors.has("paymentSource")}
-              />
+                onChange={(e) => handlePaymentSourceChange(e.target.value)}
+              >
+                <option value="">Payment Source</option>
+                {paymentSources.map((source) => (
+                  <option key={source._id || source.name} value={source.name} className="text-black">
+                    {source.name}
+                  </option>
+                ))}
+                {formData.paymentSource &&
+                  !paymentSources.some((s) => s.name === formData.paymentSource) && (
+                    <option value={formData.paymentSource} className="text-black">
+                      {formData.paymentSource}
+                    </option>
+                  )}
+                <option value="add_new_payment_source" className="text-blue-600 font-semibold">
+                  Add Payment Source
+                </option>
+              </select>
               <Input
                 placeholder="Authorization ID"
                 value={formData.authorizationId}
@@ -1327,73 +1393,77 @@ export default function EditOrder() {
                 <Input placeholder="Estimated GP" prefix="$" value={formData.grossProfit}
                   onChange={(e) => setFormData({ ...formData, grossProfit: e.target.value })} />
               </div>
-              <Input
-                placeholder="Name on Card"
-                value={formData.nameOnCard}
-                onChange={(e) => handleFieldChange("nameOnCard", e.target.value)}
-              />
-              <Input
-                placeholder="Card Number"
-                name="ord-pan-ref"
-                autoComplete="new-password"
-                dataFormType="other"
-                value={formData.cardNumber}
-                onChange={(e) => {
-                  const raw = e.target.value;
-                  if (/\*/.test(raw)) {
-                    handleFieldChange("cardNumber", raw);
-                  } else {
-                    handleFieldChange("cardNumber", formatCardNumberInput(raw));
-                  }
-                }}
-                error={fieldErrors.has("cardNumber")}
-              />
-              <div className="grid grid-cols-2 gap-2">
-                <Input
-                  placeholder="CVV"
-                  type="text"
-                  name="ord-sec-ref"
-                  inputMode="numeric"
-                  autoComplete="new-password"
-                  dataFormType="other"
-                  value={formData.cvv}
-                  onChange={(e) => handleFieldChange("cvv", e.target.value.replace(/\D/g, "").slice(0, 4))}
-                />
-                <Input
-                  placeholder="MM/YY"
-                  name="ord-exp-ref"
-                  inputMode="numeric"
-                  autoComplete="new-password"
-                  dataFormType="other"
-                  value={formData.cardExpDate}
-                  onChange={(e) =>
-                    handleFieldChange("cardExpDate", formatCardExpDateInput(e.target.value))
-                  }
-                />
-              </div>
-              <Dropdown
-                placeholder="Card Type"
-                options={CARD_TYPE_OPTIONS}
-                value={cardTypeChoice}
-                onChange={(e) => {
-                  const next = e.target.value;
-                  setCardTypeChoice(next);
-                  if (next !== "Other") setCardTypeOther("");
-                  setFieldErrors((prev) => {
-                    const n = new Set(prev);
-                    n.delete("cardType");
-                    return n;
-                  });
-                }}
-                error={fieldErrors.has("cardType")}
-              />
-              {cardTypeChoice === "Other" && (
-                <Input
-                  placeholder="Enter card type"
-                  value={cardTypeOther}
-                  onChange={(e) => setCardTypeOther(e.target.value)}
-                  error={fieldErrors.has("cardType")}
-                />
+              {showCardInfo && (
+                <>
+                  <Input
+                    placeholder="Name on Card"
+                    value={formData.nameOnCard}
+                    onChange={(e) => handleFieldChange("nameOnCard", e.target.value)}
+                  />
+                  <Input
+                    placeholder="Card Number"
+                    name="ord-pan-ref"
+                    autoComplete="new-password"
+                    dataFormType="other"
+                    value={formData.cardNumber}
+                    onChange={(e) => {
+                      const raw = e.target.value;
+                      if (/\*/.test(raw)) {
+                        handleFieldChange("cardNumber", raw);
+                      } else {
+                        handleFieldChange("cardNumber", formatCardNumberInput(raw));
+                      }
+                    }}
+                    error={fieldErrors.has("cardNumber")}
+                  />
+                  <div className="grid grid-cols-2 gap-2">
+                    <Input
+                      placeholder="CVV"
+                      type="text"
+                      name="ord-sec-ref"
+                      inputMode="numeric"
+                      autoComplete="new-password"
+                      dataFormType="other"
+                      value={formData.cvv}
+                      onChange={(e) => handleFieldChange("cvv", e.target.value.replace(/\D/g, "").slice(0, 4))}
+                    />
+                    <Input
+                      placeholder="MM/YY"
+                      name="ord-exp-ref"
+                      inputMode="numeric"
+                      autoComplete="new-password"
+                      dataFormType="other"
+                      value={formData.cardExpDate}
+                      onChange={(e) =>
+                        handleFieldChange("cardExpDate", formatCardExpDateInput(e.target.value))
+                      }
+                    />
+                  </div>
+                  <Dropdown
+                    placeholder="Card Type"
+                    options={CARD_TYPE_OPTIONS}
+                    value={cardTypeChoice}
+                    onChange={(e) => {
+                      const next = e.target.value;
+                      setCardTypeChoice(next);
+                      if (next !== "Other") setCardTypeOther("");
+                      setFieldErrors((prev) => {
+                        const n = new Set(prev);
+                        n.delete("cardType");
+                        return n;
+                      });
+                    }}
+                    error={fieldErrors.has("cardType")}
+                  />
+                  {cardTypeChoice === "Other" && (
+                    <Input
+                      placeholder="Enter card type"
+                      value={cardTypeOther}
+                      onChange={(e) => setCardTypeOther(e.target.value)}
+                      error={fieldErrors.has("cardType")}
+                    />
+                  )}
+                </>
               )}
               <Input
                 placeholder="Order Notes"
@@ -1452,6 +1522,59 @@ export default function EditOrder() {
           </button>
         </div>
       </form>
+
+      {showAddPaymentSource && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-md rounded-2xl bg-[#1e293b] p-5 text-white shadow-xl border border-white/20">
+            <h3 className="text-lg font-semibold mb-3">Add Payment Source</h3>
+            <Input
+              placeholder="Payment Source Name"
+              value={newPaymentSourceName}
+              onChange={(e) => setNewPaymentSourceName(e.target.value)}
+            />
+            <div className="mt-4 space-y-2">
+              <div className="text-sm text-white/80">Show Card Info?</div>
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="radio"
+                  name="editShowCardInfo"
+                  checked={newPaymentSourceShowCardInfo === true}
+                  onChange={() => setNewPaymentSourceShowCardInfo(true)}
+                />
+                Show Card Info
+              </label>
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="radio"
+                  name="editShowCardInfo"
+                  checked={newPaymentSourceShowCardInfo === false}
+                  onChange={() => setNewPaymentSourceShowCardInfo(false)}
+                />
+                Do not show Card Info
+              </label>
+            </div>
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                type="button"
+                className="px-4 py-2 rounded-lg border border-white/30"
+                onClick={() => setShowAddPaymentSource(false)}
+                disabled={addingPaymentSource}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="px-4 py-2 rounded-lg bg-blue-600 disabled:opacity-60"
+                onClick={submitNewPaymentSource}
+                disabled={addingPaymentSource}
+              >
+                {addingPaymentSource ? "Saving..." : "Save"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <Toast toast={toast} onClose={() => setToast(null)} />
     </div>
   );
