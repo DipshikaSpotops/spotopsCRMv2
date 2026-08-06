@@ -159,7 +159,7 @@ async function migrateTeamNameAliases() {
 
 /**
  * Idempotent startup / script:
- * - create Mavericks / Invicibles / High Clouds if missing (never delete teams)
+ * - create Mavericks / Invincibles / High Clouds if missing (never delete teams)
  * - remap "Team …" aliases on users/orders (no team deletes)
  * - snapshot Sales→team for legacy order scope, then remove Sales from teams
  * - assign matching Support users to ops teams + permissions

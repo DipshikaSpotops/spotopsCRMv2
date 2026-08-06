@@ -29,7 +29,7 @@ export const OPS_TEAMS = [
     ],
   },
   {
-    teamName: "Invicibles",
+    teamName: "Invincibles",
     members: [
       { firstName: "Amy", roleKey: "yardLocate" },
       { firstName: "Suzanne", roleKey: "yardProcessingEscalation" },
@@ -54,10 +54,12 @@ export const OPS_TEAMS = [
 export const OPS_TEAM_NAME_ALIASES = {
   "Team Mavericks": "Mavericks",
   Mavericks: "Mavericks",
-  "Team Invicibles": "Invicibles",
-  Invicibles: "Invicibles",
-  Invisibles: "Invicibles",
-  "Team Invisibles": "Invicibles",
+  "Team Invicibles": "Invincibles",
+  Invicibles: "Invincibles",
+  "Team Invincibles": "Invincibles",
+  Invincibles: "Invincibles",
+  Invisibles: "Invincibles",
+  "Team Invisibles": "Invincibles",
   "Team High Clouds": "High Clouds",
   "High Clouds": "High Clouds",
 };
