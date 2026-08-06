@@ -12,6 +12,7 @@ const Dashboard = lazy(() => import("./pages/Dashboard"));
 const AddOrder = lazy(() => import("./pages/AddOrder"));
 const EditOrder = lazy(() => import("./pages/EditOrder"));
 const PlacedOrders = lazy(() => import("./pages/PlacedOrders"));
+const AssignOrders = lazy(() => import("./pages/AssignOrders"));
 const PartiallyChargedOrders = lazy(() => import("./pages/PartiallyChargedOrders"));
 const CustomerApproved = lazy(() => import("./pages/CustomerApproved"));
 const MonthlyOrders = lazy(() => import("./pages/MonthlyOrders"));
@@ -128,6 +129,14 @@ function App() {
           element={withLayout(
             <Suspense fallback={<PageLoader />}>
               <PlacedOrders />
+            </Suspense>
+          )}
+        />
+        <Route
+          path="/assign-orders"
+          element={withLayout(
+            <Suspense fallback={<PageLoader />}>
+              <AssignOrders />
             </Suspense>
           )}
         />

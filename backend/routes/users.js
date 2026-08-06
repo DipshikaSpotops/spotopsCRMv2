@@ -12,8 +12,13 @@ function isAdminRole(role) {
   return String(role || "").trim() === "Admin";
 }
 
+function isSalesRole(role) {
+  return String(role || "").trim() === "Sales";
+}
+
+/** Admin and Sales are never kept on a team (ops teams only). */
 function applyTeamForRole(payload, role) {
-  if (isAdminRole(role)) {
+  if (isAdminRole(role) || isSalesRole(role)) {
     delete payload.team;
     return true;
   }

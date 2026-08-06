@@ -5,6 +5,7 @@ import { useSelector } from "react-redux";
 import { selectRole, selectUser } from "../store/authSlice";
 import { getCurrentBrand } from "../utils/brand";
 import { USER_PERMISSIONS, userHasAnyScopedPermission, userHasPermission } from "../../../shared/constants/userPermissions.js";
+import { ASSIGN_ORDERS_EMAILS, canAssignOrders } from "../../../shared/constants/assignOrdersAccess.js";
 
 const normalizeRole = (value) => {
   if (!value) return undefined;
@@ -126,7 +127,15 @@ export default function Sidebar() {
     { text: "UPS Claims", to: "/ups-claims" },
   ];
 
+  const assignOrdersLink = {
+    text: "Assign Orders",
+    to: "/assign-orders",
+    assignOrdersOnly: true,
+    emailAccessAny: ASSIGN_ORDERS_EMAILS,
+  };
+
   const dashboardLinksBase = [
+    assignOrdersLink,
     { text: "Add New Order", to: "/add-order", roles: ["Admin", "Sales"] },
     { text: "Edit Order", to: "/edit-order", roles: ["Admin", "Sales"] },
     { text: "Daily Sales GP", to: "/daily-sales-gp", roles: ["Admin", "Sales"] },
@@ -230,6 +239,18 @@ export default function Sidebar() {
     if (link.brandOnly && String(currentBrand || "").toUpperCase() !== link.brandOnly) {
       return false;
     }
+
+    // Assign Orders: Admin or allowlisted emails only
+    if (link.assignOrdersOnly || link.emailAccessAny) {
+      const emails = Array.isArray(link.emailAccessAny) ? link.emailAccessAny : [];
+      const emailOk = emails.some((e) => String(e).toLowerCase() === normalizedEmail);
+      if (isAdmin || emailOk || canAssignOrders({ role: userRole, email: userEmail })) {
+        if (link.assignOrdersOnly) return true;
+      } else if (link.assignOrdersOnly) {
+        return false;
+      }
+    }
+
     // Special case: If link has both adminOnly and emailAccess, show only for Admin OR authorized email
     if (link.adminOnly && link.emailAccess) {
       // Admin can always see
@@ -416,6 +437,14 @@ export default function Sidebar() {
   if (canAccessPermission(USER_PERMISSIONS.INVOICES, role, permissions)) {
     invoicesLinks = filterFlatLinks(invoicesLinksBase, role, email, brand);
     showInvoicesSection = invoicesLinks.length > 0;
+  }
+  // Assign Orders under Dashboard for Admin / allowlisted emails
+  if (canAssignOrders({ role, email })) {
+    if (!dashboardLinks.some((l) => l.to === "/assign-orders")) {
+      dashboardLinks = [assignOrdersLink, ...dashboardLinks];
+    }
+  } else {
+    dashboardLinks = dashboardLinks.filter((l) => l.to !== "/assign-orders");
   }
   if (canAccessPermission(USER_PERMISSIONS.YARD_LOCATES, role, permissions)) {
     yardLocatesLinks = filterFlatLinks(yardLocatesLinksBase, role, email, brand);

@@ -1,7 +1,10 @@
 import express from "express";
 import { getOrderModelForBrand } from "../models/Order.js";
 import { requireAuth } from "../middleware/auth.js";
-import { mergeOrderAccessFilter } from "../utils/orderAccessScope.js";
+import {
+  assignedTeamOrderClause,
+  mergeOrderAccessFilter,
+} from "../utils/orderAccessScope.js";
 import moment from "moment-timezone";
 
 const router = express.Router();
@@ -9,7 +12,11 @@ const router = express.Router();
 router.get("/", requireAuth, async (req, res) => {
   try {
     const { month, year, start, end, q } = req.query;
-    let filter = { orderStatus: "Placed" };
+    // Only team-assigned Placed orders appear here; unassigned stay on Assign Orders.
+    let filter = {
+      orderStatus: "Placed",
+      $and: [assignedTeamOrderClause()],
+    };
     console.log("Incoming Query Params:", { month, year, start, end });
     // Case 1: Start & End provided (Date range filter)
     if (start && end) {

@@ -3,6 +3,7 @@ import { isCommonTeam } from "../../../shared/constants/teams.js";
 /**
  * Resolve which team an order's salesAgent belongs to, using a
  * firstName → teamName map from GET /teams/sales-agent-map.
+ * Prefer order.teamOrder via resolveOrderTeam().
  */
 export function resolveTeamForSalesAgent(salesAgent, agentTeamMap) {
   if (!agentTeamMap || typeof agentTeamMap !== "object") return "—";
@@ -21,6 +22,13 @@ export function resolveTeamForSalesAgent(salesAgent, agentTeamMap) {
   if (first && lowerMap[first]) return lowerMap[first];
 
   return "—";
+}
+
+/** Prefer explicit order.teamOrder; fall back to legacy salesAgent → team map. */
+export function resolveOrderTeam(order, agentTeamMap) {
+  const assigned = String(order?.teamOrder || "").trim();
+  if (assigned) return assigned;
+  return resolveTeamForSalesAgent(order?.salesAgent, agentTeamMap);
 }
 
 export function readAuthUserTeam() {

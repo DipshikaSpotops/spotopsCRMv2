@@ -24,7 +24,7 @@ import useBrand from "../hooks/useBrand";
 import {
   currentUserIsCommonTeam,
   currentUserSeesTeamColumn,
-  resolveTeamForSalesAgent,
+  resolveOrderTeam,
 } from "../utils/teamScope";
 import { isCommonTeam } from "../../../shared/constants/teams.js";
 
@@ -589,11 +589,7 @@ export default function OrdersTable({
   const renderCellEffective = useCallback(
     (row, key, ...rest) => {
       if (key === "team") {
-        return (
-          row.team ||
-          resolveTeamForSalesAgent(row.salesAgent, agentTeamMap) ||
-          "—"
-        );
+        return resolveOrderTeam(row, agentTeamMap) || "—";
       }
       if (typeof renderCell === "function") {
         return renderCell(row, key, ...rest);
@@ -1665,7 +1661,7 @@ export default function OrdersTable({
                   {showTeamColumn && (
                     <div>
                       <b>Team:</b>{" "}
-                      {resolveTeamForSalesAgent(row.salesAgent, agentTeamMap)}
+                      {resolveOrderTeam(row, agentTeamMap)}
                     </div>
                   )}
                   <div>

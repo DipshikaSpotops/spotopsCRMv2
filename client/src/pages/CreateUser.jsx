@@ -46,9 +46,10 @@ export default function CreateUser() {
     const { name, value } = e.target;
     setForm((f) => {
       const next = { ...f, [name]: value };
-      if (name === "role" && value === "Admin") {
+      if (name === "role" && (value === "Admin" || value === "Sales")) {
         next.team = "";
-        setOnAttendanceRoster(false);
+        if (value === "Admin") setOnAttendanceRoster(false);
+        else setOnAttendanceRoster(true);
       } else if (name === "role" && value) {
         setOnAttendanceRoster(true);
       }
@@ -202,7 +203,7 @@ export default function CreateUser() {
           )}
         </div>
 
-        {form.role !== "Admin" && (
+        {form.role && form.role !== "Admin" && form.role !== "Sales" && (
         <div>
           <label className="block text-sm text-white/90 mb-1">Team</label>
           <select
@@ -221,6 +222,9 @@ export default function CreateUser() {
               </option>
             ))}
           </select>
+          <p className="mt-1 text-xs text-white/60">
+            Ops teams only — sales agents are not assigned to teams.
+          </p>
         </div>
         )}
 

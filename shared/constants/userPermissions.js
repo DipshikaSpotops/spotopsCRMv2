@@ -1,3 +1,5 @@
+import { canAssignOrders } from "./assignOrdersAccess.js";
+
 /** Permission keys stored on User.permissions (string array). */
 export const USER_PERMISSIONS = {
   INVOICES: "invoices",
@@ -109,6 +111,8 @@ export function userHasAnyScopedPermission(user) {
  * and remain accessible to any authenticated user.
  */
 export const ROUTE_PERMISSION_MAP = {
+  // Assign Orders — Admin / allowlisted emails only (see canAccessRoute)
+  "/assign-orders": [],
   // Invoices
   "/placed-orders": [USER_PERMISSIONS.INVOICES],
   "/partially-charged-orders": [USER_PERMISSIONS.INVOICES],
@@ -148,6 +152,11 @@ export const ROUTE_PERMISSION_MAP = {
 export function canAccessRoute(user, pathname, role) {
   const normalizedRole = String(role ?? user?.role ?? "").trim().toLowerCase();
   if (normalizedRole === "admin") return true;
+
+  if (pathname === "/assign-orders") {
+    return canAssignOrders(user);
+  }
+
   const required = ROUTE_PERMISSION_MAP[pathname];
   if (!required || required.length === 0) return true;
   return required.some((key) => userHasPermission(user, key));

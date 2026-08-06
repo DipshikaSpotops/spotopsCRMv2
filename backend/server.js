@@ -12,6 +12,7 @@ import ordersRoute from "./routes/orders.js";
 import partsRoute from "./routes/parts.js";
 import paymentSourcesRoute from "./routes/paymentSources.js";
 import placedOrdersRoutes from "./routes/placedOrders.js";
+import assignOrdersRoutes from "./routes/assignOrders.js";
 import partiallyChargedOrdersRoutes from "./routes/partiallyChargedOrders.js";
 import custApprovedRoutes from "./routes/customerApproved.js";
 import monthlyOrders from "./routes/monthlyOrders.js";
@@ -80,6 +81,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/attendance", attendanceRouter);
 
 app.use("/api/orders/placed", placedOrdersRoutes);
+app.use("/api/orders/assign", assignOrdersRoutes);
 app.use("/api/orders/partially-charged", partiallyChargedOrdersRoutes);
 app.use("/parts", partsRoute); // legacy path
 app.use("/api/parts", partsRoute);
@@ -355,11 +357,21 @@ mongoose
   .connect(process.env.MONGODB_URI)
   .then(() => {
     console.log("MongoDB connected");
-    // Ensure built-in "Common" team exists for cross-team viewers
-    import("./routes/teams.js").then(({ ensureCommonTeam }) => {
-      ensureCommonTeam().catch((err) => {
-        console.error("[Teams] Failed to ensure Common team:", err.message);
-      });
+    // Ensure Common + ops teams; snapshot/clear Sales teams; assign Support roster
+    import("./routes/teams.js").then(({ ensureTeamsBootstrap }) => {
+      ensureTeamsBootstrap()
+        .then((result) => {
+          console.log("[Teams] Bootstrap:", {
+            created: result?.teamsCreated,
+            existing: result?.teamsExisting,
+            salesCleared: result?.salesCleared,
+            membersAssigned: result?.membersAssigned,
+            membersMissing: result?.membersMissing,
+          });
+        })
+        .catch((err) => {
+          console.error("[Teams] Failed to bootstrap teams:", err.message);
+        });
     });
     // Initialize backup database connection
     import("./services/dbSync.js").then(({ initializeBackupDB }) => {

@@ -1,3 +1,4 @@
+import LegacySalesTeamMap from "../models/LegacySalesTeamMap.js";
 import User from "../models/User.js";
 import { isCommonTeam } from "../../shared/constants/teams.js";
 
@@ -52,21 +53,33 @@ export function buildSalesAgentScopeFromFirstNames(firstNames = [], brand) {
   return { $in: regexes };
 }
 
-async function getTeamSalesFirstNames(teamName) {
-  const team = String(teamName || "").trim();
-  if (!team) return [];
-
-  const users = await User.find({ team, role: "Sales" })
-    .select("firstName")
-    .lean();
-
-  return [...new Set(users.map((u) => String(u.firstName || "").trim()).filter(Boolean))];
-}
-
 export function attachSalesAgentScope(filter, salesAgentScope) {
   if (!salesAgentScope) return filter;
 
   const clause = { salesAgent: salesAgentScope };
+  return attachFilterClause(filter, clause);
+}
+
+/** Orders not yet assigned to a team (Assign Orders queue). */
+export function unassignedTeamOrderClause() {
+  return {
+    $or: [
+      { teamOrder: { $exists: false } },
+      { teamOrder: null },
+      { teamOrder: "" },
+    ],
+  };
+}
+
+/** Orders that have been assigned to a team. */
+export function assignedTeamOrderClause() {
+  return {
+    teamOrder: { $exists: true, $nin: [null, ""] },
+  };
+}
+
+function attachFilterClause(filter, clause) {
+  if (!clause) return filter;
 
   if (filter.$and) {
     filter.$and.push(clause);
@@ -79,39 +92,77 @@ export function attachSalesAgentScope(filter, salesAgentScope) {
     return filter;
   }
 
-  filter.salesAgent = salesAgentScope;
+  Object.assign(filter, clause);
   return filter;
 }
 
-async function getSalesAgentScopeForUser(user, brand) {
-  if (!user || user.role === "Admin") {
-    return null;
-  }
+export function attachTeamOrderScope(filter, teamName) {
+  const team = String(teamName || "").trim();
+  if (!team) return filter;
+  const escaped = escapeRegex(team);
+  return attachFilterClause(filter, {
+    teamOrder: new RegExp(`^${escaped}$`, "i"),
+  });
+}
 
-  const team = String(user.team || "").trim();
-  // "Common" team members see every order (cross-team).
-  if (isCommonTeam(team)) {
-    return null;
-  }
-  if (team) {
-    const firstNames = await getTeamSalesFirstNames(team);
-    const scope = buildSalesAgentScopeFromFirstNames(firstNames, brand);
-    return scope || { $in: [] };
-  }
+/** Live Sales still on a team + frozen legacy snapshot for that team. */
+async function getLegacySalesFirstNamesForTeam(teamName) {
+  const team = String(teamName || "").trim();
+  if (!team || isCommonTeam(team)) return [];
 
-  if (user.role === "Sales") {
-    return buildSalesAgentScopeFromFirstNames([user.firstName], brand);
-  }
+  const teamRegex = new RegExp(`^${escapeRegex(team)}$`, "i");
 
-  return null;
+  const [liveSales, legacyRows] = await Promise.all([
+    User.find({ role: "Sales", team: teamRegex }).select("firstName").lean(),
+    LegacySalesTeamMap.find({ team: teamRegex }).select("firstName").lean(),
+  ]);
+
+  const names = new Set();
+  for (const u of liveSales) {
+    const n = String(u.firstName || "").trim();
+    if (n) names.add(n);
+  }
+  for (const row of legacyRows) {
+    const n = String(row.firstName || "").trim();
+    if (n) names.add(n);
+  }
+  return [...names];
 }
 
 /**
- * Merge team/salesAgent access into a Mongo filter.
- * - Admin: optional adminSalesAgent query narrows results
- * - Common team: no salesAgent restriction (all orders)
- * - User with team: all Sales users on that team
- * - Sales without team: own orders only
+ * Team users see:
+ * 1) New flow: orders with teamOrder matching their team
+ * 2) Legacy flow: unassigned teamOrder + salesAgent from (live or snapshot) team sales
+ */
+async function attachTeamAccessScope(filter, teamName, brand) {
+  const team = String(teamName || "").trim();
+  if (!team) return filter;
+
+  const escaped = escapeRegex(team);
+  const teamOrderMatch = { teamOrder: new RegExp(`^${escaped}$`, "i") };
+
+  const legacyNames = await getLegacySalesFirstNamesForTeam(team);
+  const salesScope = buildSalesAgentScopeFromFirstNames(legacyNames, brand);
+
+  if (!salesScope) {
+    return attachFilterClause(filter, teamOrderMatch);
+  }
+
+  const legacyMatch = {
+    $and: [unassignedTeamOrderClause(), { salesAgent: salesScope }],
+  };
+
+  return attachFilterClause(filter, {
+    $or: [teamOrderMatch, legacyMatch],
+  });
+}
+
+/**
+ * Merge team / sales access into a Mongo filter.
+ * - Admin: optional adminSalesAgent query only
+ * - Common team: no restriction
+ * - User with team: teamOrder match OR legacy salesAgent scope for unassigned orders
+ * - Sales without team: own salesAgent orders only
  * - Support without team: no restriction
  */
 export async function mergeOrderAccessFilter(filter, req, options = {}) {
@@ -130,8 +181,22 @@ export async function mergeOrderAccessFilter(filter, req, options = {}) {
     return filter;
   }
 
-  const scope = await getSalesAgentScopeForUser(user, brand);
-  attachSalesAgentScope(filter, scope);
+  const team = String(user.team || "").trim();
+  if (isCommonTeam(team)) {
+    return filter;
+  }
+
+  if (team) {
+    await attachTeamAccessScope(filter, team, brand);
+    return filter;
+  }
+
+  if (user.role === "Sales") {
+    const scope = buildSalesAgentScopeFromFirstNames([user.firstName], brand);
+    attachSalesAgentScope(filter, scope);
+    return filter;
+  }
+
   return filter;
 }
 
@@ -140,9 +205,14 @@ export async function mergeOrderAccessFilter(filter, req, options = {}) {
  * @deprecated Prefer mergeOrderAccessFilter
  */
 export async function applyTeamOrderScope(filter, user, brand) {
-  const scope = await getSalesAgentScopeForUser(user, brand);
-  if (scope) {
-    filter.salesAgent = scope;
+  const team = String(user?.team || "").trim();
+  if (team && !isCommonTeam(team)) {
+    await attachTeamAccessScope(filter, team, brand);
+    return filter;
+  }
+  if (user?.role === "Sales") {
+    const scope = buildSalesAgentScopeFromFirstNames([user.firstName], brand);
+    if (scope) filter.salesAgent = scope;
   }
   return filter;
 }

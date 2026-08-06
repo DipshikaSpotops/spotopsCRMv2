@@ -167,9 +167,9 @@ export default function ViewUsers() {
     const { name, value } = e.target;
     setEditForm((f) => {
       const next = { ...f, [name]: value };
-      if (name === "role" && value === "Admin") {
+      if (name === "role" && (value === "Admin" || value === "Sales")) {
         next.team = "";
-        next.onAttendanceRoster = false;
+        next.onAttendanceRoster = value !== "Admin";
       } else if (name === "role" && value && value !== "Admin") {
         next.onAttendanceRoster = true;
       }
@@ -426,7 +426,7 @@ export default function ViewUsers() {
                     </td>
                     <td className="p-2.5 border-r border-white/20 whitespace-nowrap">
                       {isEditing ? (
-                        editForm.role === "Admin" ? (
+                        editForm.role === "Admin" || editForm.role === "Sales" ? (
                           "—"
                         ) : (
                         <select
@@ -442,7 +442,7 @@ export default function ViewUsers() {
                           ))}
                         </select>
                         )
-                      ) : u.role === "Admin" ? "—" : (u.team || "—")}
+                      ) : u.role === "Admin" || u.role === "Sales" ? "—" : (u.team || "—")}
                     </td>
                     <td className="p-2.5 border-r border-white/20 align-top max-w-[14rem]">
                       {isEditing ? (

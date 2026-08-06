@@ -9,7 +9,7 @@ import useOrdersRealtime from "../hooks/useOrdersRealtime";
 import useBrand from "../hooks/useBrand";
 import {
   currentUserSeesTeamColumn,
-  resolveTeamForSalesAgent,
+  resolveOrderTeam,
 } from "../utils/teamScope";
 
 const prettyFilterLabel = (filter) => {
@@ -548,7 +548,7 @@ const PlacedOrders = () => {
                 {showTeamColumn && (
                   <div>
                     <b>Team:</b>{" "}
-                    {resolveTeamForSalesAgent(order.salesAgent, agentTeamMap)}
+                    {resolveOrderTeam(order, agentTeamMap)}
                   </div>
                 )}
                 <div className="truncate" title={order.customerName || `${order.fName || ""} ${order.lName || ""}`}>
