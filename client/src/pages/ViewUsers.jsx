@@ -235,6 +235,11 @@ export default function ViewUsers() {
 
   const saveEdit = async (u) => {
     const changes = diffPayload(u, editForm);
+    // Sales / Admin never keep a team — force clear if one was set.
+    if (editForm.role === "Sales" || editForm.role === "Admin") {
+      if (u.team) changes.role = editForm.role; // ensure backend applyTeamForRole runs
+      delete changes.team;
+    }
     if (Object.keys(changes).length === 0) {
       // nothing changed
       cancelEdit();
@@ -245,7 +250,11 @@ export default function ViewUsers() {
       // API base URL already includes /api, so use "users" not "/api/users"
       const { data } = await API.patch(`users/${u._id}`, changes);
       // merge response into local list (without password)
-      setUsers(prev => prev.map(x => (x._id === u._id ? { ...x, ...data } : x)));
+      const merged =
+        data.role === "Sales" || data.role === "Admin"
+          ? { ...data, team: "" }
+          : data;
+      setUsers(prev => prev.map(x => (x._id === u._id ? { ...x, ...merged } : x)));
       cancelEdit();
     } catch (e) {
       const msg =

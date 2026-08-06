@@ -1,5 +1,3 @@
-import LegacySalesTeamMap from "../models/LegacySalesTeamMap.js";
-import User from "../models/User.js";
 import { isCommonTeam } from "../../shared/constants/teams.js";
 
 /** 50STARS firstName → PROLANE/PROTP salesAgent firstName on orders */
@@ -105,63 +103,12 @@ export function attachTeamOrderScope(filter, teamName) {
   });
 }
 
-/** Live Sales still on a team + frozen legacy snapshot for that team. */
-async function getLegacySalesFirstNamesForTeam(teamName) {
-  const team = String(teamName || "").trim();
-  if (!team || isCommonTeam(team)) return [];
-
-  const teamRegex = new RegExp(`^${escapeRegex(team)}$`, "i");
-
-  const [liveSales, legacyRows] = await Promise.all([
-    User.find({ role: "Sales", team: teamRegex }).select("firstName").lean(),
-    LegacySalesTeamMap.find({ team: teamRegex }).select("firstName").lean(),
-  ]);
-
-  const names = new Set();
-  for (const u of liveSales) {
-    const n = String(u.firstName || "").trim();
-    if (n) names.add(n);
-  }
-  for (const row of legacyRows) {
-    const n = String(row.firstName || "").trim();
-    if (n) names.add(n);
-  }
-  return [...names];
-}
-
 /**
- * Team users see:
- * 1) New flow: orders with teamOrder matching their team
- * 2) Legacy flow: unassigned teamOrder + salesAgent from (live or snapshot) team sales
- */
-async function attachTeamAccessScope(filter, teamName, brand) {
-  const team = String(teamName || "").trim();
-  if (!team) return filter;
-
-  const escaped = escapeRegex(team);
-  const teamOrderMatch = { teamOrder: new RegExp(`^${escaped}$`, "i") };
-
-  const legacyNames = await getLegacySalesFirstNamesForTeam(team);
-  const salesScope = buildSalesAgentScopeFromFirstNames(legacyNames, brand);
-
-  if (!salesScope) {
-    return attachFilterClause(filter, teamOrderMatch);
-  }
-
-  const legacyMatch = {
-    $and: [unassignedTeamOrderClause(), { salesAgent: salesScope }],
-  };
-
-  return attachFilterClause(filter, {
-    $or: [teamOrderMatch, legacyMatch],
-  });
-}
-
-/**
- * Merge team / sales access into a Mongo filter.
+ * Merge team access into a Mongo filter.
+ * Teams are ops-only via order.teamOrder — sales agents are never used for team scope.
  * - Admin: optional adminSalesAgent query only
  * - Common team: no restriction
- * - User with team: teamOrder match OR legacy salesAgent scope for unassigned orders
+ * - User with team: orders where teamOrder matches their team
  * - Sales without team: own salesAgent orders only
  * - Support without team: no restriction
  */
@@ -187,7 +134,7 @@ export async function mergeOrderAccessFilter(filter, req, options = {}) {
   }
 
   if (team) {
-    await attachTeamAccessScope(filter, team, brand);
+    attachTeamOrderScope(filter, team);
     return filter;
   }
 
@@ -201,13 +148,13 @@ export async function mergeOrderAccessFilter(filter, req, options = {}) {
 }
 
 /**
- * Apply salesAgent scope for list queries.
+ * Apply teamOrder / sales scope for list queries.
  * @deprecated Prefer mergeOrderAccessFilter
  */
 export async function applyTeamOrderScope(filter, user, brand) {
   const team = String(user?.team || "").trim();
   if (team && !isCommonTeam(team)) {
-    await attachTeamAccessScope(filter, team, brand);
+    attachTeamOrderScope(filter, team);
     return filter;
   }
   if (user?.role === "Sales") {

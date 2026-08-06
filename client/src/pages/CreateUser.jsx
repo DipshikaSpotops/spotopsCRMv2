@@ -79,7 +79,9 @@ export default function CreateUser() {
     setSubmitting(true);
     try {
       const payload = { ...form };
-      if (!payload.team) delete payload.team;
+      if (payload.role === "Sales" || payload.role === "Admin" || !payload.team) {
+        delete payload.team;
+      }
       payload.permissions = permissionsForStorage(selectedPermissions);
       if (form.role !== "Admin") {
         payload.onAttendanceRoster = onAttendanceRoster;

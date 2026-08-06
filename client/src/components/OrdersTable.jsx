@@ -516,10 +516,9 @@ export default function OrdersTable({
   // role (for admin agent filter and Edit button)
   const [userRole, setUserRole] = useState(null);
   const [firstName, setFirstName] = useState("");
-  const [teamAgentFirstNames, setTeamAgentFirstNames] = useState([]);
+  const [userTeam, setUserTeam] = useState("");
   const [isCommonTeamUser, setIsCommonTeamUser] = useState(() => currentUserIsCommonTeam());
   const [showTeamColumn, setShowTeamColumn] = useState(() => currentUserSeesTeamColumn());
-  const [agentTeamMap, setAgentTeamMap] = useState({});
   useEffect(() => {
     // Get role with fallback (like Sidebar does)
     const roleFromStorage = (() => {
@@ -546,33 +545,9 @@ export default function OrdersTable({
 
     const common = isCommonTeam(team);
     const isAdmin = String(roleFromStorage || "").toLowerCase() === "admin";
+    setUserTeam(team);
     setIsCommonTeamUser(common);
     setShowTeamColumn(isAdmin || common);
-
-    // Common team sees all orders — do not load a team agent scope.
-    if (team && !common) {
-      API.get("/users", { params: { role: "Sales", team } })
-        .then(({ data }) => {
-          const names = [
-            ...new Set(
-              (Array.isArray(data) ? data : [])
-                .map((u) => String(u?.firstName || "").trim())
-                .filter(Boolean)
-            ),
-          ];
-          setTeamAgentFirstNames(names);
-        })
-        .catch(() => setTeamAgentFirstNames([]));
-    } else {
-      setTeamAgentFirstNames([]);
-    }
-
-    // Admin + Common team need salesAgent → team map for the Team column.
-    if (isAdmin || common) {
-      API.get("/teams/sales-agent-map")
-        .then(({ data }) => setAgentTeamMap(data && typeof data === "object" ? data : {}))
-        .catch(() => setAgentTeamMap({}));
-    }
   }, []);
 
   const effectiveColumns = useMemo(() => {
@@ -589,14 +564,14 @@ export default function OrdersTable({
   const renderCellEffective = useCallback(
     (row, key, ...rest) => {
       if (key === "team") {
-        return resolveOrderTeam(row, agentTeamMap) || "—";
+        return resolveOrderTeam(row);
       }
       if (typeof renderCell === "function") {
         return renderCell(row, key, ...rest);
       }
       return row[key] ?? "—";
     },
-    [renderCell, agentTeamMap]
+    [renderCell]
   );
 
   // persist page + scroll to top on manual page change
@@ -941,7 +916,7 @@ export default function OrdersTable({
     return ["Select", "All", ...arr];
   }, [rowsAfterTrackingLabelFilter]);
 
-  // agent filter (team / sales scope; monthlyOrders & AllOrders APIs are unscoped on the server)
+  // Client-side team / sales scope (monthlyOrders & AllOrders are unscoped on the server)
   const filteredByRole = useMemo(() => {
     if (TEAM_FILTER_EXEMPT_TABLE_IDS.has(tableId)) {
       return rowsAfterTrackingLabelFilter;
@@ -957,16 +932,17 @@ export default function OrdersTable({
       String(endpoint || "").includes("/orders/monthlyOrders") ||
       String(endpoint || "").includes("/orders/AllOrders");
 
-    const agentsToMatch =
-      teamAgentFirstNames.length > 0
-        ? teamAgentFirstNames
-        : role === "sales" && firstName
-          ? [firstName]
-          : [];
+    // Ops team members: scope by assigned order.teamOrder only (not sales agents).
+    if (userTeam && !isCommonTeamUser) {
+      const teamLower = userTeam.toLowerCase();
+      return rowsAfterTrackingLabelFilter.filter(
+        (o) => String(o?.teamOrder || "").trim().toLowerCase() === teamLower
+      );
+    }
 
-    if (agentsToMatch.length > 0) {
+    if (role === "sales" && firstName) {
       return rowsAfterTrackingLabelFilter.filter((o) =>
-        salesAgentMatchesAnyFirstName(o?.salesAgent, agentsToMatch, brand)
+        salesAgentMatchesAnyFirstName(o?.salesAgent, [firstName], brand)
       );
     }
 
@@ -983,7 +959,7 @@ export default function OrdersTable({
     isServerPaginated,
     tableId,
     endpoint,
-    teamAgentFirstNames,
+    userTeam,
     isCommonTeamUser,
   ]);
 
@@ -1661,7 +1637,7 @@ export default function OrdersTable({
                   {showTeamColumn && (
                     <div>
                       <b>Team:</b>{" "}
-                      {resolveOrderTeam(row, agentTeamMap)}
+                      {resolveOrderTeam(row)}
                     </div>
                   )}
                   <div>

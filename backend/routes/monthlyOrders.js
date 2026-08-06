@@ -296,6 +296,7 @@ router.get('/', requireAuth, allow('Admin', 'Sales', 'Support'), async (req, res
       orderDate: 1,
       orderNo: 1,
       salesAgent: 1,
+      teamOrder: 1,
       salesOrigin: 1,
       leadOrigin: 1,
       saleOrigin: 1,

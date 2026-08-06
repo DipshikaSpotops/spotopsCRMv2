@@ -77,14 +77,6 @@ const CustomerApproved = () => {
   const [currentFilter, setCurrentFilter] = useState(null); // {month,year} OR {start,end}
   const [copiedId, setCopiedId] = useState(null);
   const [showTeamColumn] = useState(() => currentUserSeesTeamColumn());
-  const [agentTeamMap, setAgentTeamMap] = useState({});
-
-  useEffect(() => {
-    if (!showTeamColumn) return;
-    API.get("/teams/sales-agent-map")
-      .then(({ data }) => setAgentTeamMap(data && typeof data === "object" ? data : {}))
-      .catch(() => setAgentTeamMap({}));
-  }, [showTeamColumn]);
   const navigate = useNavigate();
   const brand = useBrand(); // 50STARS / PROLANE
 
@@ -339,7 +331,7 @@ const CustomerApproved = () => {
                 {showTeamColumn && (
                   <div>
                     <b>Team:</b>{" "}
-                    {resolveOrderTeam(order, agentTeamMap)}
+                    {resolveOrderTeam(order)}
                   </div>
                 )}
                 <div className="truncate" title={order.customerName || `${order.fName || ""} ${order.lName || ""}`}>

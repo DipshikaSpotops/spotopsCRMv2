@@ -170,9 +170,13 @@ export default function MonthlyOrders() {
     if (!assignTarget?.orderNo || !assignTeam || assigning) return;
     setAssigning(true);
     try {
-      await API.patch(
+      const { data } = await API.patch(
         `/orders/monthlyOrders/${encodeURIComponent(assignTarget.orderNo)}/assign-team`,
         { teamOrder: assignTeam }
+      );
+      const savedTeam = String(data?.teamOrder || assignTeam).trim();
+      window.alert(
+        `Order ${assignTarget.orderNo} assigned to ${savedTeam}.`
       );
       setAssignTarget(null);
       setAssignTeam("");

@@ -33,28 +33,10 @@ async function ensureTeamExists(teamName) {
   }
 }
 
-/** Snapshot current Sales→team rows before clearing (idempotent; no deletes). */
-async function snapshotLegacySalesTeams() {
-  const salesOnTeams = await User.find({
-    role: "Sales",
-    team: { $exists: true, $nin: [null, ""] },
-  })
-    .select("firstName team")
-    .lean();
-
-  let upserted = 0;
-  for (const u of salesOnTeams) {
-    const firstName = String(u.firstName || "").trim();
-    const team = String(u.team || "").trim();
-    if (!firstName || !team || isCommonTeam(team)) continue;
-    const res = await LegacySalesTeamMap.updateOne(
-      { firstName, team },
-      { $setOnInsert: { firstName, team } },
-      { upsert: true }
-    );
-    if (res.upsertedCount) upserted += 1;
-  }
-  return { salesOnTeams: salesOnTeams.length, legacyUpserted: upserted };
+/** Drop any leftover sales→team snapshots (sales agents are not on teams). */
+async function clearLegacySalesTeamMaps() {
+  const result = await LegacySalesTeamMap.deleteMany({});
+  return { deleted: result.deletedCount || 0 };
 }
 
 /** Remove Sales users from teams (does not delete Team documents). */
@@ -161,7 +143,7 @@ async function migrateTeamNameAliases() {
  * Idempotent startup / script:
  * - create Mavericks / Invincibles / High Clouds if missing (never delete teams)
  * - remap "Team …" aliases on users/orders (no team deletes)
- * - snapshot Sales→team for legacy order scope, then remove Sales from teams
+ * - remove Sales from teams; clear legacy sales→team maps
  * - assign matching Support users to ops teams + permissions
  */
 export async function ensureOpsTeams() {
@@ -175,7 +157,7 @@ export async function ensureOpsTeams() {
   }
 
   const renamed = await migrateTeamNameAliases();
-  const legacy = await snapshotLegacySalesTeams();
+  const legacyCleared = await clearLegacySalesTeamMaps();
   const salesCleared = await removeSalesAgentsFromTeams();
   const members = await assignOpsMembers();
 
@@ -183,7 +165,7 @@ export async function ensureOpsTeams() {
     teamsCreated,
     teamsExisting,
     renamed,
-    legacy,
+    legacyCleared,
     salesCleared,
     membersAssigned: members.assigned.length,
     membersMissing: members.missing,

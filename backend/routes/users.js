@@ -44,7 +44,9 @@ router.post("/", async (req, res) => {
     }
     //password will be hashed
     const payload = { firstName, lastName, email, password, role };
-    if (team) payload.team = team;
+    if (team && !isSalesRole(role) && !isAdminRole(role)) {
+      payload.team = team;
+    }
     applyTeamForRole(payload, role);
     if (Array.isArray(permissions)) {
       payload.permissions = permissionsForStorage(permissions);

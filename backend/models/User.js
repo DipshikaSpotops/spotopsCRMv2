@@ -26,6 +26,36 @@ const userSchema = new mongoose.Schema({
   appAccessUnlocked: { type: Boolean, required: false },
 }, { timestamps: true });
 
+/** Sales (and Admin) must never belong to an ops team. */
+function stripTeamForNonOpsRoles(doc) {
+  const role = String(doc?.role || '').trim();
+  if (role === 'Sales' || role === 'Admin') {
+    doc.team = undefined;
+  }
+}
+
+userSchema.pre('validate', function () {
+  stripTeamForNonOpsRoles(this);
+});
+
+userSchema.pre('save', function () {
+  stripTeamForNonOpsRoles(this);
+});
+
+userSchema.pre('findOneAndUpdate', function () {
+  const update = this.getUpdate() || {};
+  const $set = update.$set || update;
+  const role = String($set.role || this.getQuery()?.role || '').trim();
+  // When role is Sales/Admin in the update, always unset team.
+  if (role === 'Sales' || role === 'Admin') {
+    if (!update.$unset) update.$unset = {};
+    update.$unset.team = '';
+    if (update.$set) delete update.$set.team;
+    else if (update.team !== undefined) delete update.team;
+    this.setUpdate(update);
+  }
+});
+
 // Hash password before save (Mongoose 7+ async hooks do not take `next`)
 userSchema.pre('save', async function () {
   if (!this.isModified('password')) return;

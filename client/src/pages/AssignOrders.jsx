@@ -151,9 +151,12 @@ const AssignOrders = () => {
     if (!team || assigningId) return;
     setAssigningId(order._id);
     try {
-      await API.patch(`/orders/assign/${encodeURIComponent(order.orderNo)}`, {
-        teamOrder: team,
-      });
+      const { data } = await API.patch(
+        `/orders/assign/${encodeURIComponent(order.orderNo)}`,
+        { teamOrder: team }
+      );
+      const savedTeam = String(data?.teamOrder || team).trim();
+      window.alert(`Order ${order.orderNo} assigned to ${savedTeam}.`);
       setOrders((prev) => prev.filter((o) => o._id !== order._id));
       setSelectedTeamByOrder((prev) => {
         const next = { ...prev };
