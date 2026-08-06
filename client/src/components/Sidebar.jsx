@@ -368,6 +368,8 @@ export default function Sidebar() {
   let reportsLinks = reportsLinksBase;
   let attendanceLinks = attendanceLinksBase;
 
+  const isAttendanceEmail = email?.toLowerCase() === "50starsauto110@gmail.com";
+
   if (isPermissionScoped) {
     dashboardLinks = filterDashboardLinks(
       buildPermissionScopedDashboardLinks(),
@@ -381,7 +383,8 @@ export default function Sidebar() {
     showUsersSection = false;
     usersLinks = [];
     reportsLinks = [];
-    attendanceLinks = [];
+    // Permission-scoped users normally hide Attendance; allowlisted email keeps it.
+    attendanceLinks = isAttendanceEmail ? attendanceLinksBase : [];
   } else if (role === "Sales") {
     const hiddenForSales = new Set([
       "CX Related",
@@ -419,7 +422,7 @@ export default function Sidebar() {
       permissions
     );
 
-    const isAuthCodesViewer = email?.toLowerCase() === "50starsauto110@gmail.com";
+    const isAuthCodesViewer = isAttendanceEmail;
     showUsersSection = isAuthCodesViewer;
     usersLinks = isAuthCodesViewer
       ? usersLinksBase.filter((l) => l.to === "/authorization-codes")
@@ -432,6 +435,10 @@ export default function Sidebar() {
     dashboardLinks = filterDashboardLinks(dashboardLinksBase, role, email, brand, new Set(), new Set(), permissions);
     reportsLinks = filterNestedLinksByRole(reportsLinksBase, role, email, brand);
     attendanceLinks = attendanceLinksBase.filter((l) => shouldShowLink(l, role, email, brand));
+  }
+
+  if (isAttendanceEmail && attendanceLinks.length === 0) {
+    attendanceLinks = attendanceLinksBase;
   }
 
   if (canAccessPermission(USER_PERMISSIONS.INVOICES, role, permissions)) {

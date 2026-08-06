@@ -2,9 +2,12 @@
 import express from 'express';
 import moment from 'moment-timezone';
 import { getOrderModelForBrand } from '../models/Order.js';
+import Team from '../models/Team.js';
 import { requireAuth, allow } from '../middleware/auth.js';
 import { sendSalesReportEmail } from '../services/sendSalesReportEmail.js';
 import { isCommonTeam } from '../../shared/constants/teams.js';
+import { canAssignOrders } from '../../shared/constants/assignOrdersAccess.js';
+import { appendTeamAssignHistory } from '../utils/teamAssignHistory.js';
 
 const router = express.Router();
 const TZ = 'America/Chicago';
@@ -467,6 +470,86 @@ router.get('/', requireAuth, allow('Admin', 'Sales', 'Support'), async (req, res
       ? err.message
       : 'Internal server error';
     return res.status(500).json({ message: msg });
+  }
+});
+
+/**
+ * PATCH /orders/monthlyOrders/:orderNo/assign-team
+ * Assign (or reassign) any order to an ops team — for backfilling previous orders.
+ * Admin + assign-allowlisted emails only. Appends orderHistory.
+ */
+router.patch('/:orderNo/assign-team', requireAuth, async (req, res) => {
+  try {
+    if (!canAssignOrders(req.user)) {
+      return res.status(403).json({
+        message:
+          'Access denied. Only Admin or authorized emails can assign orders.',
+      });
+    }
+
+    const orderNo = String(req.params.orderNo || '').trim();
+    const teamName = String(req.body?.teamOrder || req.body?.team || '').trim();
+
+    if (!orderNo) {
+      return res.status(400).json({ message: 'Order number is required.' });
+    }
+    if (!teamName) {
+      return res.status(400).json({ message: 'Team is required.' });
+    }
+    if (isCommonTeam(teamName)) {
+      return res.status(400).json({
+        message: 'Cannot assign orders to the Common team. Pick an ops team.',
+      });
+    }
+
+    const team = await Team.findOne({
+      teamName: {
+        $regex: new RegExp(
+          `^${teamName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`,
+          'i'
+        ),
+      },
+    }).lean();
+
+    if (!team) {
+      return res.status(404).json({ message: 'Team not found.' });
+    }
+
+    const Order = getOrderModelForBrand(req.brand);
+    const order = await Order.findOne({ orderNo });
+    if (!order) {
+      return res.status(404).json({ message: 'Order not found.' });
+    }
+
+    const prevTeam = String(order.teamOrder || '').trim() || '—';
+    const nextTeam = team.teamName;
+    if (prevTeam.toLowerCase() === String(nextTeam).toLowerCase()) {
+      return res.json(order);
+    }
+
+    order.teamOrder = nextTeam;
+    appendTeamAssignHistory(order, {
+      prevTeam,
+      nextTeam,
+      by: req.user?.firstName || req.user?.email || 'System',
+    });
+
+    await order.save();
+
+    try {
+      const io = req.app.get('io');
+      if (io) io.emit('orderUpdated', order);
+    } catch (e) {
+      console.warn('[ws] monthlyOrders assign-team broadcast failed', e);
+    }
+
+    return res.json(order);
+  } catch (err) {
+    console.error('Error assigning team on monthly order:', err);
+    return res.status(500).json({
+      message: 'Failed to assign team',
+      error: err?.message,
+    });
   }
 });
 

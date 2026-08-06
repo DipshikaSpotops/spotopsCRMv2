@@ -4,6 +4,9 @@ import OrdersTable from "../components/OrdersTable";
 import useOrdersRealtime from "../hooks/useOrdersRealtime";
 import useBrand from "../hooks/useBrand";
 import API from "../api";
+import { canAssignOrders } from "../../../shared/constants/assignOrdersAccess.js";
+import { OPS_TEAMS } from "../../../shared/constants/opsTeams.js";
+import { isCommonTeam } from "../../../shared/constants/teams.js";
 
 /* ---------- Columns (order matters) ---------- */
 const columns = [
@@ -114,12 +117,95 @@ function readAuthEmailRole() {
 export default function MonthlyOrders() {
   const [expandedIds, setExpandedIds] = useState(() => new Set());
   const [sendingSalesReport, setSendingSalesReport] = useState(false);
+  const [assignTarget, setAssignTarget] = useState(null);
+  const [assignTeam, setAssignTeam] = useState("");
+  const [assignTeams, setAssignTeams] = useState([]);
+  const [assigning, setAssigning] = useState(false);
   const brand = useBrand(); // 50STARS / PROLANE
 
   const canSendSalesReport = useMemo(() => {
     const { role, email } = readAuthEmailRole();
     return role === "Admin" || email === "50starsauto110@gmail.com";
   }, []);
+
+  const canAssignTeam = useMemo(() => {
+    const { role, email } = readAuthEmailRole();
+    return canAssignOrders({ role, email });
+  }, []);
+
+  useEffect(() => {
+    if (!canAssignTeam) return;
+    API.get("/teams")
+      .then(({ data }) => {
+        const list = Array.isArray(data) ? data : [];
+        const opsNames = new Set(
+          OPS_TEAMS.map((t) => String(t.teamName).toLowerCase())
+        );
+        const preferred = list.filter(
+          (t) => t?.teamName && opsNames.has(String(t.teamName).toLowerCase())
+        );
+        const fallback = list.filter(
+          (t) =>
+            t?.teamName &&
+            !isCommonTeam(t.teamName) &&
+            !/^team\s+/i.test(String(t.teamName).trim())
+        );
+        setAssignTeams(preferred.length ? preferred : fallback);
+      })
+      .catch(() => setAssignTeams([]));
+  }, [canAssignTeam]);
+
+  const openAssign = useCallback((row) => {
+    setAssignTarget(row);
+    setAssignTeam(String(row?.teamOrder || "").trim());
+  }, []);
+
+  const closeAssign = useCallback(() => {
+    if (assigning) return;
+    setAssignTarget(null);
+    setAssignTeam("");
+  }, [assigning]);
+
+  const confirmAssign = useCallback(async () => {
+    if (!assignTarget?.orderNo || !assignTeam || assigning) return;
+    setAssigning(true);
+    try {
+      await API.patch(
+        `/orders/monthlyOrders/${encodeURIComponent(assignTarget.orderNo)}/assign-team`,
+        { teamOrder: assignTeam }
+      );
+      setAssignTarget(null);
+      setAssignTeam("");
+      if (window.__ordersTableRefs?.monthlyOrders?.refetch) {
+        window.__ordersTableRefs.monthlyOrders.refetch();
+      }
+    } catch (err) {
+      window.alert(err?.response?.data?.message || "Failed to assign team.");
+    } finally {
+      setAssigning(false);
+    }
+  }, [assignTarget, assignTeam, assigning]);
+
+  const extraActions = useCallback(
+    (row) => {
+      if (!canAssignTeam) return null;
+      const current = String(row?.teamOrder || "").trim();
+      return (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            openAssign(row);
+          }}
+          className="px-3 py-1 text-xs rounded bg-amber-600 hover:bg-amber-500 text-white"
+          title={current ? `Assigned: ${current}` : "Assign to team"}
+        >
+          {current ? "Reassign" : "Assign"}
+        </button>
+      );
+    },
+    [canAssignTeam, openAssign]
+  );
 
   const toggleExpand = useCallback((row) => {
     const id = row._id || row.orderNo || `${row.orderDate || ""}-${Math.random()}`;
@@ -420,39 +506,108 @@ export default function MonthlyOrders() {
   }, []);
 
   return (
-    <OrdersTable
-      title="Monthly Orders"
-      endpoint="/orders/monthlyOrders"
-      storageKeys={{
-        page: "monthlyOrdersPage",
-        search: "monthlyOrdersSearch",
-        filter: "mo_filter_v2",
-        hilite: "highlightedOrderNo",
-      }}
-      columns={columns}
-      renderCell={renderCell}
-      showAgentFilter={true}
-      showAddressTypeFilter={true}
-      showGP={false}
-      showTotalsButton={true}
-      extraTotals={paymentSourceTotals}
-      paramsBuilder={paramsBuilder}
-      tableId="monthlyOrders"
-      subheaderExtra={
-        canSendSalesReport
-          ? ({ activeFilter }) => (
+    <>
+      <OrdersTable
+        title="Monthly Orders"
+        endpoint="/orders/monthlyOrders"
+        storageKeys={{
+          page: "monthlyOrdersPage",
+          search: "monthlyOrdersSearch",
+          filter: "mo_filter_v2",
+          hilite: "highlightedOrderNo",
+        }}
+        columns={columns}
+        renderCell={renderCell}
+        showAgentFilter={true}
+        showAddressTypeFilter={true}
+        showGP={false}
+        showTotalsButton={true}
+        extraTotals={paymentSourceTotals}
+        paramsBuilder={paramsBuilder}
+        tableId="monthlyOrders"
+        extraActions={canAssignTeam ? extraActions : undefined}
+        subheaderExtra={
+          canSendSalesReport
+            ? ({ activeFilter }) => (
+                <button
+                  type="button"
+                  onClick={() => handleSendSalesReport(activeFilter)}
+                  disabled={sendingSalesReport}
+                  className="px-4 py-2 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white text-sm font-medium disabled:opacity-60 whitespace-nowrap"
+                  title="Email sales report for the selected range (50STARS + Prolane)"
+                >
+                  {sendingSalesReport ? "Sending…" : "Send Sales Report"}
+                </button>
+              )
+            : null
+        }
+      />
+
+      {assignTarget && (
+        <div className="fixed inset-0 z-50 grid place-items-center">
+          <div
+            className="absolute inset-0 bg-slate-900/65 backdrop-blur-sm"
+            onClick={closeAssign}
+          />
+          <div className="relative w-[420px] max-w-[95vw] rounded-2xl p-6 bg-white/12 border border-white/20 ring-1 ring-inset ring-white/15 backdrop-blur-xl text-white">
+            <button
+              type="button"
+              className="absolute top-2 right-3 rounded-full p-1.5 hover:bg-white/10 text-white/80"
+              onClick={closeAssign}
+              aria-label="Close"
+            >
+              ×
+            </button>
+            <h3 className="text-lg font-semibold mb-1 text-center">Assign Team</h3>
+            <p className="text-white/75 text-sm text-center mb-4">
+              Order <span className="font-semibold">{assignTarget.orderNo}</span>
+              {assignTarget.teamOrder ? (
+                <>
+                  {" "}
+                  · current: <span className="font-semibold">{assignTarget.teamOrder}</span>
+                </>
+              ) : (
+                <> · not assigned</>
+              )}
+            </p>
+            <label className="block text-xs text-white/70 mb-1">Team</label>
+            <select
+              value={assignTeam}
+              onChange={(e) => setAssignTeam(e.target.value)}
+              className="w-full mb-4 rounded-md border border-white/30 bg-white text-slate-900 px-2 py-2 text-sm"
+            >
+              <option value="">Select team</option>
+              {assignTeams.map((t) => (
+                <option key={t._id || t.teamName} value={t.teamName}>
+                  {t.teamName}
+                </option>
+              ))}
+            </select>
+            <div className="flex gap-3 justify-center">
               <button
                 type="button"
-                onClick={() => handleSendSalesReport(activeFilter)}
-                disabled={sendingSalesReport}
-                className="px-4 py-2 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white text-sm font-medium disabled:opacity-60 whitespace-nowrap"
-                title="Email sales report for the selected range (50STARS + Prolane)"
+                onClick={confirmAssign}
+                disabled={!assignTeam || assigning}
+                className="px-4 py-2 rounded-lg bg-amber-600 text-white font-medium shadow hover:bg-amber-500 disabled:opacity-60"
               >
-                {sendingSalesReport ? "Sending…" : "Send Sales Report"}
+                {assigning
+                  ? "Saving…"
+                  : String(assignTarget.teamOrder || "").trim()
+                    ? "Update Team"
+                    : "Assign"}
               </button>
-            )
-          : null
-      }
-    />
+              <button
+                type="button"
+                onClick={closeAssign}
+                disabled={assigning}
+                className="px-4 py-2 rounded-lg bg-white/10 border border-white/20 hover:bg-white/15"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }

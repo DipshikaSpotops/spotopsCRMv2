@@ -6,6 +6,7 @@ import { requireAuth } from "../middleware/auth.js";
 import { canAssignOrders } from "../../shared/constants/assignOrdersAccess.js";
 import { isCommonTeam } from "../../shared/constants/teams.js";
 import { unassignedTeamOrderClause } from "../utils/orderAccessScope.js";
+import { appendTeamAssignHistory } from "../utils/teamAssignHistory.js";
 
 const router = express.Router();
 
@@ -130,21 +131,19 @@ router.patch("/:orderNo", requireAuth, requireAssignAccess, async (req, res) => 
       });
     }
 
-    const alreadyAssigned = String(order.teamOrder || "").trim();
-    if (alreadyAssigned) {
+    const prevTeam = String(order.teamOrder || "").trim();
+    if (prevTeam) {
       return res.status(409).json({
-        message: `Order is already assigned to ${alreadyAssigned}.`,
+        message: `Order is already assigned to ${prevTeam}. Use Monthly Orders to reassign.`,
       });
     }
 
     order.teamOrder = team.teamName;
-    const by = req.user?.firstName || req.user?.email || "System";
-    const historyLine = `Team Assigned → ${team.teamName} by ${by}`;
-    if (Array.isArray(order.orderHistory)) {
-      order.orderHistory.push(historyLine);
-    } else {
-      order.orderHistory = [historyLine];
-    }
+    appendTeamAssignHistory(order, {
+      prevTeam: "—",
+      nextTeam: team.teamName,
+      by: req.user?.firstName || req.user?.email || "System",
+    });
 
     await order.save();
 
