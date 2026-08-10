@@ -154,7 +154,8 @@ router.get("/", requireAuth, allow("Admin", "Sales", "Support"), async (req, res
       // Project the fields you need
       {
         $project: {
-          orderDate: 1, orderNo: 1, salesAgent: 1, customerName: 1, fName: 1, lName: 1,
+          orderDate: 1, orderNo: 1, salesAgent: 1, teamOrder: 1,
+          customerName: 1, fName: 1, lName: 1,
           pReq: 1, partName: 1, desc: 1, partNo: 1,
           year: 1, make: 1, model: 1,
           email: 1, phone: 1,

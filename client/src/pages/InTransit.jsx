@@ -357,61 +357,58 @@ export default function InTransitOrders() {
   return (
     <div className="in-transit-table-wrapper">
       <style>{`
-        /* Make Yard Details and Last Comment columns wider and equal width */
+        /* Column widths by data-col (Team may be auto-inserted after Sales Agent). */
         .in-transit-table-wrapper table {
           table-layout: fixed;
           width: 100%;
         }
-        /* Table headers should stay on one line */
         .in-transit-table-wrapper table th {
           white-space: nowrap !important;
           overflow: hidden !important;
         }
-        /* Table body cells should wrap text to prevent overflow */
         .in-transit-table-wrapper table td {
           overflow: hidden !important;
           word-wrap: break-word !important;
           overflow-wrap: break-word !important;
           white-space: normal !important;
-          font-size: 0.9rem !important; /* Slightly smaller font size */
+          font-size: 0.9rem !important;
         }
-        /* Yard Details - wider */
-        .in-transit-table-wrapper table th:nth-child(6),
-        .in-transit-table-wrapper table td:nth-child(6) {
-          width: 26% !important;
-          min-width: 26% !important;
-        }
-        /* Order Date column - narrower */
-        .in-transit-table-wrapper table th:nth-child(1),
-        .in-transit-table-wrapper table td:nth-child(1) {
+        .in-transit-table-wrapper table th[data-col="orderDate"],
+        .in-transit-table-wrapper table td[data-col="orderDate"] {
           width: 8% !important;
         }
-        /* Order No column - narrower */
-        .in-transit-table-wrapper table th:nth-child(2),
-        .in-transit-table-wrapper table td:nth-child(2) {
+        .in-transit-table-wrapper table th[data-col="orderNo"],
+        .in-transit-table-wrapper table td[data-col="orderNo"] {
           width: 10% !important;
         }
-        /* Sales Agent column */
-        .in-transit-table-wrapper table th:nth-child(3),
-        .in-transit-table-wrapper table td:nth-child(3) {
-          width: 10% !important;
+        .in-transit-table-wrapper table th[data-col="salesAgent"],
+        .in-transit-table-wrapper table td[data-col="salesAgent"] {
+          width: 9% !important;
         }
-        /* Part Name column - wider to use the space */
-        .in-transit-table-wrapper table th:nth-child(4),
-        .in-transit-table-wrapper table td:nth-child(4) {
+        .in-transit-table-wrapper table th[data-col="team"],
+        .in-transit-table-wrapper table td[data-col="team"] {
+          width: 9% !important;
+        }
+        .in-transit-table-wrapper table th[data-col="pReq"],
+        .in-transit-table-wrapper table td[data-col="pReq"] {
+          width: 14% !important;
+        }
+        .in-transit-table-wrapper table th[data-col="customerName"],
+        .in-transit-table-wrapper table td[data-col="customerName"] {
+          width: 16% !important;
+        }
+        .in-transit-table-wrapper table th[data-col="yardName"],
+        .in-transit-table-wrapper table td[data-col="yardName"] {
           width: 18% !important;
-        }
-        /* Customer Info column - wider for header */
-        .in-transit-table-wrapper table th:nth-child(5),
-        .in-transit-table-wrapper table td:nth-child(5) {
-          width: 22% !important;
+          min-width: 140px !important;
         }
         /* Actions column — View + Delivered + Delivered & Send Email */
         .in-transit-table-wrapper table th:last-child,
         .in-transit-table-wrapper table td:last-child {
-          width: 24% !important;
-          min-width: 280px !important;
+          width: 16% !important;
+          min-width: 260px !important;
           white-space: normal !important;
+          overflow: visible !important;
         }
       `}</style>
       {actionNotice ? (
