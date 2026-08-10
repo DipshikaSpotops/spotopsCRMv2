@@ -16,6 +16,7 @@ import { normalizeYardName } from "../../shared/utils/yardName.js";
 import { assertYardNotBlocked } from "../services/blockedYardService.js";
 import multer from "multer";
 import { uploadVoidLabelScreenshotToS3, uploadYardImageToS3 } from "../services/s3Upload.js";
+import { isImageUpload, resolveImageMimeAndExt } from "../utils/imageMime.js";
 import {
   recalculateAndSaveActualGP,
   shouldApplyOrderLevelReimbursement,
@@ -29,7 +30,15 @@ import { generateAndStoreOrderInvoice } from "../services/generateOrderInvoice.j
 
 const router = express.Router();
 const TZ = "America/Chicago";
-const upload = multer();
+const IMAGE_UPLOAD_ERROR =
+  "Only image files are allowed (png, jpg, jpeg, gif, webp, bmp, tiff, heic, avif, etc.).";
+const imageFileFilter = (_req, file, cb) => {
+  if (!isImageUpload(file)) {
+    return cb(new Error(IMAGE_UPLOAD_ERROR));
+  }
+  cb(null, true);
+};
+const upload = multer({ fileFilter: imageFileFilter });
 const CUSTOMER_IMAGE_MAX_BYTES = 10 * 1024 * 1024; // 10 MB per image
 const customerImagesUpload = multer({
   storage: multer.memoryStorage(),
@@ -37,12 +46,7 @@ const customerImagesUpload = multer({
     fileSize: CUSTOMER_IMAGE_MAX_BYTES,
     files: 10,
   },
-  fileFilter: (_req, file, cb) => {
-    if (!String(file?.mimetype || "").startsWith("image/")) {
-      return cb(new Error("Only image files are allowed."));
-    }
-    cb(null, true);
-  },
+  fileFilter: imageFileFilter,
 }).array("images", 10);
 
 function handleCustomerImagesUpload(req, res, next) {
@@ -1655,10 +1659,17 @@ router.put(
         }
 
         const uploadPromises = files.map((file) => {
-          const mimeType = file.mimetype || "image/png";
+          if (!isImageUpload(file)) {
+            throw new Error(IMAGE_UPLOAD_ERROR);
+          }
+          const { mimeType } = resolveImageMimeAndExt(file);
           const safeBase = `${orderNo}-yard-${idx1}`;
-          // Reuse the same S3 logic as void label screenshots
-          return uploadVoidLabelScreenshotToS3(file.buffer, mimeType, safeBase);
+          return uploadYardImageToS3(
+            file.buffer,
+            mimeType,
+            safeBase,
+            file.originalname
+          );
         });
 
         const urls = await Promise.all(uploadPromises);
@@ -1789,13 +1800,14 @@ router.put(
 
       // Upload screenshot to Drive first; only proceed to void if this succeeds
       try {
-        const mimeType = req.file.mimetype || "image/png";
+        const { mimeType } = resolveImageMimeAndExt(req.file);
         const safeOrderNo = orderNo.replace(/[^\w\-]/g, "_");
 
         const s3Url = await uploadVoidLabelScreenshotToS3(
           req.file.buffer,
           mimeType,
-          safeOrderNo
+          safeOrderNo,
+          req.file.originalname
         );
 
         subdoc.voidLabelScreenshot = s3Url;
@@ -2928,14 +2940,18 @@ router.post(
       if (!Array.isArray(order.images)) order.images = [];
 
       const uploadPromises = files.map((file, idx) => {
-        const mimeType = file.mimetype || "image/png";
+        if (!isImageUpload(file)) {
+          throw new Error(IMAGE_UPLOAD_ERROR);
+        }
+        const { mimeType } = resolveImageMimeAndExt(file);
         // Reuse the same S3 upload behavior as the working void-label screenshot.
         // (This avoids S3 public-read/policy inconsistencies across prefixes.)
         const safeBase = `${orderNo}-customer-image-${idx + 1}`;
         return uploadVoidLabelScreenshotToS3(
           file.buffer,
           mimeType,
-          safeBase
+          safeBase,
+          file.originalname
         );
       });
 

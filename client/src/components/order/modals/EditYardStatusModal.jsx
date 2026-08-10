@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import API from "../../../api";
 import { extractOwn, extractYard } from "../../../utils/yards";
+import { IMAGE_FILE_ACCEPT, isImageFile } from "../../../utils/imageUpload";
 
 /* ---------------------- Toast Banner ---------------------- */
 function Toast({ message, onClose }) {
@@ -479,6 +480,15 @@ export default function EditYardStatusModal({
       return;
     }
 
+    for (let i = 0; i < files.length; i++) {
+      if (!isImageFile(files[i])) {
+        setToast(
+          "Only image files are allowed (png, jpg, jpeg, gif, webp, bmp, tiff, heic, avif, etc.)."
+        );
+        return;
+      }
+    }
+
     try {
       setLoading(true);
       setSavingAction("uploadYardImages");
@@ -821,7 +831,7 @@ export default function EditYardStatusModal({
                   />
                   <span>Send Driving License</span>
                 </label>
-                <input ref={fileInputRef} type="file" multiple accept="image/*" className="text-xs" />
+                <input ref={fileInputRef} type="file" multiple accept={IMAGE_FILE_ACCEPT} className="text-xs" />
               </div>
             </div>
           )}
@@ -910,7 +920,7 @@ export default function EditYardStatusModal({
                     </label>
                     <input
                       type="file"
-                      accept="image/*"
+                      accept={IMAGE_FILE_ACCEPT}
                       onChange={(e) => {
                         const file = e.target.files?.[0];
                         if (!file) {
@@ -918,7 +928,7 @@ export default function EditYardStatusModal({
                           setVoidLabelFile(null);
                           return;
                         }
-                        if (!file.type.startsWith("image/")) {
+                        if (!isImageFile(file)) {
                           setToast("Please upload a valid image file for the screenshot.");
                           e.target.value = "";
                           setVoidLabelScreenshot("");
@@ -1050,7 +1060,7 @@ export default function EditYardStatusModal({
                 ref={yardImagesInputRef}
                 type="file"
                 multiple
-                accept="image/*"
+                accept={IMAGE_FILE_ACCEPT}
                 className="text-xs"
               />
               <button

@@ -1,6 +1,7 @@
 import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
 import crypto from "crypto";
 import dotenv from "dotenv";
+import { resolveImageMimeAndExt } from "../utils/imageMime.js";
 
 // Ensure .env is loaded even if server.js hasn't called dotenv.config yet
 dotenv.config();
@@ -24,7 +25,7 @@ const s3Client = new S3Client({
     : undefined,
 });
 
-export async function uploadVoidLabelScreenshotToS3(buffer, mimeType, keyBase) {
+export async function uploadVoidLabelScreenshotToS3(buffer, mimeType, keyBase, originalName = "") {
   if (!buffer || !buffer.length) {
     throw new Error("No file data provided");
   }
@@ -32,16 +33,10 @@ export async function uploadVoidLabelScreenshotToS3(buffer, mimeType, keyBase) {
     throw new Error("S3_LABEL_VOIDED_BUCKET is not configured");
   }
 
-  // Derive extension from MIME type
-  let ext = "png";
-  if (mimeType && mimeType.startsWith("image/")) {
-    const rawExt = mimeType.split("/")[1].toLowerCase();
-    if (rawExt === "jpeg" || rawExt === "jpg") {
-      ext = "jpg";
-    } else if (rawExt) {
-      ext = rawExt;
-    }
-  }
+  const { mimeType: contentType, ext } = resolveImageMimeAndExt({
+    mimetype: mimeType,
+    originalname: originalName,
+  });
 
   // keyBase is typically the orderNo; we append a short random suffix for uniqueness
   const safeBase = String(keyBase || "order")
@@ -54,7 +49,7 @@ export async function uploadVoidLabelScreenshotToS3(buffer, mimeType, keyBase) {
     Bucket: bucket,
     Key: key,
     Body: buffer,
-    ContentType: mimeType || "image/png",
+    ContentType: contentType,
   });
 
   await s3Client.send(putCommand);
@@ -67,7 +62,7 @@ export async function uploadVoidLabelScreenshotToS3(buffer, mimeType, keyBase) {
 }
 
 // Generic helper to upload per-yard images (e.g., damage photos, tracking screenshots)
-export async function uploadYardImageToS3(buffer, mimeType, keyBase) {
+export async function uploadYardImageToS3(buffer, mimeType, keyBase, originalName = "") {
   if (!buffer || !buffer.length) {
     throw new Error("No file data provided");
   }
@@ -75,15 +70,10 @@ export async function uploadYardImageToS3(buffer, mimeType, keyBase) {
     throw new Error("S3_LABEL_VOIDED_BUCKET is not configured");
   }
 
-  let ext = "png";
-  if (mimeType && mimeType.startsWith("image/")) {
-    const rawExt = mimeType.split("/")[1].toLowerCase();
-    if (rawExt === "jpeg" || rawExt === "jpg") {
-      ext = "jpg";
-    } else if (rawExt) {
-      ext = rawExt;
-    }
-  }
+  const { mimeType: contentType, ext } = resolveImageMimeAndExt({
+    mimetype: mimeType,
+    originalname: originalName,
+  });
 
   const safeBase = String(keyBase || "yard")
     .trim()
@@ -95,7 +85,7 @@ export async function uploadYardImageToS3(buffer, mimeType, keyBase) {
     Bucket: bucket,
     Key: key,
     Body: buffer,
-    ContentType: mimeType || "image/png",
+    ContentType: contentType,
   });
 
   await s3Client.send(putCommand);

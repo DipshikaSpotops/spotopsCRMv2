@@ -28,6 +28,7 @@ import YardEscalationModal from "../components/order/modals/YardEscalationModal"
 import API from "../api";
 import { normalizeYardName } from "@spotops/shared";
 import { getCurrentUserFirstName } from "../utils/authStorage";
+import { IMAGE_FILE_ACCEPT, isImageFile } from "../utils/imageUpload";
 
 // popup intaed of alert or confirm:
 function ConfirmModal({
@@ -754,7 +755,7 @@ export default function OrderDetails() {
     const CHUNK_SIZE = 1; // safest for strict request-size limits
 
     const compressImage = async (file, targetBytes = TARGET_COMPRESSED_BYTES) => {
-      if (!String(file?.type || "").startsWith("image/")) return file;
+      if (!isImageFile(file)) return file;
       if (typeof createImageBitmap !== "function") return file;
 
       try {
@@ -818,8 +819,10 @@ export default function OrderDetails() {
       const preparedFiles = [];
       for (let i = 0; i < files.length; i++) {
         const f = files[i];
-        if (!String(f?.type || "").startsWith("image/")) {
-          setToast("Only image files are allowed for customer uploads.");
+        if (!isImageFile(f)) {
+          setToast(
+            "Only image files are allowed (png, jpg, jpeg, gif, webp, bmp, tiff, heic, avif, etc.)."
+          );
           return;
         }
         const normalized = await compressImageIfNeeded(f);
@@ -2429,7 +2432,7 @@ export default function OrderDetails() {
                     ref={customerImagesInputRef}
                     type="file"
                     multiple
-                    accept="image/*"
+                    accept={IMAGE_FILE_ACCEPT}
                     className="text-xs"
                   />
                   <button
