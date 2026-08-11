@@ -3115,7 +3115,7 @@ router.put("/:orderNo/refundOnly", async (req, res) => {
 router.patch("/:orderNo/storeCredits", ...requireAuthAllRoles, async (req, res) => {
   try {
     const { orderNo } = req.params;
-    const { usageType, amountUsed, orderNoUsedFor } = req.body;
+    const { usageType, amountUsed, orderNoUsedFor, targetYardIndex } = req.body;
     const firstName = cleanFirstName(
       req.query.firstName ||
         req.query.firstname ||
@@ -3140,6 +3140,41 @@ router.patch("/:orderNo/storeCredits", ...requireAuthAllRoles, async (req, res) 
     const order = await Order.findOne({ orderNo });
     if (!order) {
       return res.status(404).json({ message: "Order not found" });
+    }
+
+    const targetOrderNo = orderNoUsedFor.trim();
+    const targetOrder = await Order.findOne({ orderNo: targetOrderNo })
+      .select("orderNo additionalInfo")
+      .lean();
+    if (!targetOrder) {
+      return res.status(400).json({
+        message: `Target order ${targetOrderNo} was not found`,
+      });
+    }
+
+    const targetYards = Array.isArray(targetOrder.additionalInfo)
+      ? targetOrder.additionalInfo
+      : [];
+    if (targetYards.length === 0) {
+      return res.status(400).json({
+        message: `Target order ${targetOrderNo} has no yards`,
+      });
+    }
+
+    const parsedTargetYardIndex =
+      targetYardIndex === undefined || targetYardIndex === null || targetYardIndex === ""
+        ? null
+        : Number(targetYardIndex);
+    if (
+      parsedTargetYardIndex === null ||
+      !Number.isInteger(parsedTargetYardIndex) ||
+      parsedTargetYardIndex < 0 ||
+      parsedTargetYardIndex >= targetYards.length
+    ) {
+      return res.status(400).json({
+        message:
+          "targetYardIndex is required and must point to a yard on the target order",
+      });
     }
 
     // Find all yards with store credit > 0
@@ -3185,14 +3220,16 @@ router.patch("/:orderNo/storeCredits", ...requireAuthAllRoles, async (req, res) 
         yard.storeCreditUsedFor = [];
       }
       yard.storeCreditUsedFor.push({
-        orderNo: orderNoUsedFor.trim(),
+        orderNo: targetOrderNo,
         amount: amountToUse,
+        targetYardIndex: parsedTargetYardIndex,
       });
 
       updates.push({
         yardName: yard.yardName || "Unknown Yard",
         used: amountToUse,
         remaining: newCredit,
+        targetYardIndex: parsedTargetYardIndex,
       });
 
       // Mark the field as modified
@@ -3203,7 +3240,10 @@ router.patch("/:orderNo/storeCredits", ...requireAuthAllRoles, async (req, res) 
     if (!Array.isArray(order.orderHistory)) {
       order.orderHistory = [];
     }
-    const historyEntry = `Store credit of $${amount.toFixed(2)} used for order ${orderNoUsedFor.trim()} by ${firstName} on ${when}`;
+    const targetYardLabel =
+      targetYards[parsedTargetYardIndex]?.yardName ||
+      `Yard ${parsedTargetYardIndex + 1}`;
+    const historyEntry = `Store credit of $${amount.toFixed(2)} used for order ${targetOrderNo} (Yard ${parsedTargetYardIndex + 1}: ${targetYardLabel}) by ${firstName} on ${when}`;
     order.orderHistory.push(historyEntry);
 
     await order.save();
@@ -3211,7 +3251,8 @@ router.patch("/:orderNo/storeCredits", ...requireAuthAllRoles, async (req, res) 
     publish(req, orderNo, {
       type: "STORE_CREDIT_USED",
       amountUsed: amount,
-      orderNoUsedFor: orderNoUsedFor.trim(),
+      orderNoUsedFor: targetOrderNo,
+      targetYardIndex: parsedTargetYardIndex,
     });
     broadcastOrder(req, order);
 

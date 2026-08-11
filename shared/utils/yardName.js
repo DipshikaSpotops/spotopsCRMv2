@@ -56,6 +56,29 @@ export function yardStoreCreditMatchKey(yardName, city = "", state = "") {
     .replace(/[^a-z0-9]/g, "");
 }
 
+/**
+ * Looser key for display / applied-credit matching.
+ * Treats "Y 01 - TEST ORDER" and "Y 01" as the same yard.
+ */
+export function yardStoreCreditBaseKey(yardName, city = "", state = "") {
+  const stripped =
+    stripLocationParenthetical(yardName) ||
+    stripNonLocationParentheticals(yardName) ||
+    String(yardName || "").trim();
+  const beforeDash = stripped.split(/\s[-–—]\s/)[0].trim() || stripped;
+  return yardStoreCreditMatchKey(beforeDash, city, state);
+}
+
+/** True when full keys match or base keys match (e.g. "Y 01" vs "Y 01 - TEST ORDER"). */
+export function yardStoreCreditKeysMatch(aName, aCity, aState, bName, bCity, bState) {
+  const aFull = yardStoreCreditMatchKey(aName, aCity, aState);
+  const bFull = yardStoreCreditMatchKey(bName, bCity, bState);
+  if (aFull && bFull && aFull === bFull) return true;
+  const aBase = yardStoreCreditBaseKey(aName, aCity, aState);
+  const bBase = yardStoreCreditBaseKey(bName, bCity, bState);
+  return Boolean(aBase && bBase && aBase === bBase);
+}
+
 export function hasCityStateSuffix(yardName, city, state) {
   const cityTrimmed = String(city || "").trim();
   const stateTrimmed = String(state || "").trim();

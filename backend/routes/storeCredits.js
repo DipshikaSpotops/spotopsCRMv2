@@ -5,6 +5,7 @@ import { mergeOrderAccessFilter } from "../utils/orderAccessScope.js";
 import {
   normalizeYardName,
   stripLocationParenthetical,
+  yardStoreCreditBaseKey,
   yardStoreCreditMatchKey,
 } from "../../shared/utils/yardName.js";
 
@@ -121,6 +122,77 @@ router.get("/", requireAuth, allow("Admin", "Sales", "Support"), async (req, res
     res.status(500).json({ message: "Server error", error: error?.message || String(error) });
   }
 });
+
+/**
+ * GET /api/orders/storeCredits/applied-to/:orderNo
+ * Reverse lookup: source yards that recorded storeCreditUsedFor this order.
+ */
+router.get(
+  "/applied-to/:orderNo",
+  requireAuth,
+  allow("Admin", "Sales", "Support"),
+  async (req, res) => {
+    try {
+      const orderNo = String(req.params.orderNo || "").trim();
+      if (!orderNo) {
+        return res.status(400).json({ message: "orderNo is required" });
+      }
+
+      const escaped = orderNo.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const Order = getOrderModelForBrand(req.brand);
+      const orders = await Order.find({
+        "additionalInfo.storeCreditUsedFor.orderNo": {
+          $regex: new RegExp(`^${escaped}$`, "i"),
+        },
+      })
+        .select("orderNo additionalInfo")
+        .lean();
+
+      const applied = [];
+      const targetKey = orderNo.toLowerCase();
+
+      for (const ord of orders) {
+        for (const ai of ord.additionalInfo || []) {
+          const usages = Array.isArray(ai.storeCreditUsedFor)
+            ? ai.storeCreditUsedFor
+            : [];
+          for (const u of usages) {
+            if (String(u?.orderNo || "").trim().toLowerCase() !== targetKey) {
+              continue;
+            }
+            const amount = Number(u.amount) || 0;
+            if (amount <= 0) continue;
+            const targetYardIndex =
+              u.targetYardIndex !== undefined && u.targetYardIndex !== null
+                ? Number(u.targetYardIndex)
+                : null;
+            applied.push({
+              sourceOrderNo: ord.orderNo,
+              yardName: ai.yardName || "",
+              city: ai.city || "",
+              state: ai.state || "",
+              amount,
+              matchKey: yardStoreCreditMatchKey(ai.yardName, ai.city, ai.state),
+              // Looser key so "Y 01 - TEST ORDER" matches consuming "Y 01"
+              baseKey: yardStoreCreditBaseKey(ai.yardName, ai.city, ai.state),
+              targetYardIndex: Number.isFinite(targetYardIndex)
+                ? targetYardIndex
+                : null,
+            });
+          }
+        }
+      }
+
+      res.json({ applied });
+    } catch (error) {
+      console.error("Error fetching applied store credits:", error);
+      res.status(500).json({
+        message: "Server error",
+        error: error?.message || String(error),
+      });
+    }
+  }
+);
 
 /** GET /api/orders/storeCredits/yard-balance — lookup credit for a yard when adding yards */
 router.get("/yard-balance", requireAuth, allow("Admin", "Sales", "Support"), async (req, res) => {

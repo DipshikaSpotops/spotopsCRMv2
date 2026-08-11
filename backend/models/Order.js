@@ -30,8 +30,10 @@ const additionalInfoSchema = new mongoose.Schema(
     storeCredit: Number,
     storeCreditUsedFor: [
       {
-        orderNo: String, // The order from which the credit is being used
-        amount: Number, // The amount of credit being used
+        orderNo: String, // Order the credit was applied to
+        amount: Number,
+        // 0-based yard index on the consuming order (chosen when duplicates share a yard name)
+        targetYardIndex: Number,
       },
     ],
     refundedDate: Date,

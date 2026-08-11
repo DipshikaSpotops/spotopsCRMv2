@@ -1969,6 +1969,7 @@ export default function OrderDetails() {
               <div className="flex-1 min-h-0">
                 <YardList
                   yards={yards}
+                  orderNo={orderNo}
                   canAddNewYard={canAddNewYard}
                   onOpenAdd={() => setShowAdd(true)}
                   onEditStatus={(i) => {

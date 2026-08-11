@@ -1,9 +1,11 @@
 import { useState, useEffect, useRef } from "react";
 import GlassCard from "../../ui/GlassCard";
 import YardCard from "./YardCard";
+import API from "../../../api";
 
 export default function YardList({
   yards,
+  orderNo,
   canAddNewYard,
   onOpenAdd,
   onEditStatus,
@@ -15,9 +17,37 @@ export default function YardList({
   onActiveYardChange, // Optional: callback when user clicks a yard tab
 }) {
   const [activeIdx, setActiveIdx] = useState(0);
+  const [storeCreditApplied, setStoreCreditApplied] = useState([]);
   const prevYardsLengthRef = useRef(0);
   const isInitialMountRef = useRef(true);
   const parentControlledRef = useRef(false);
+
+  useEffect(() => {
+    const targetOrderNo = String(orderNo || "").trim();
+    if (!targetOrderNo) {
+      setStoreCreditApplied([]);
+      return;
+    }
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data } = await API.get(
+          `/orders/storeCredits/applied-to/${encodeURIComponent(targetOrderNo)}`
+        );
+        if (!cancelled) {
+          setStoreCreditApplied(Array.isArray(data?.applied) ? data.applied : []);
+        }
+      } catch (err) {
+        console.error("Failed to load applied store credits:", err);
+        if (!cancelled) setStoreCreditApplied([]);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [orderNo]);
 
   // If parent controls activeYardIndex, use it; otherwise use internal state
   const effectiveActiveIdx = activeYardIndex !== undefined ? activeYardIndex : activeIdx;
@@ -264,6 +294,7 @@ export default function YardList({
           onCardCharged={onCardCharged}
           onRefundStatus={onRefundStatus}
           onEscalation={onEscalation}
+          storeCreditApplied={storeCreditApplied}
         />
       )}
     </GlassCard>

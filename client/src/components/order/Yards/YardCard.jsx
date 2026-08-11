@@ -2,6 +2,10 @@ import Field from "../../ui/Field";
 import Input from "../../ui/Input";
 import YardActionButtons from "../YardActionButtons";
 import { extractOwn, extractYard } from "../../../utils/yards";
+import {
+  yardStoreCreditBaseKey,
+  yardStoreCreditMatchKey,
+} from "@spotops/shared/utils/yardName.js";
 
 export default function YardCard({
   yard,
@@ -11,8 +15,49 @@ export default function YardCard({
   onCardCharged,
   onRefundStatus,
   onEscalation,
+  storeCreditApplied = [],
 }) {
   const y = yard || {};
+
+  const matchingStoreCredits = (() => {
+    if (!Array.isArray(storeCreditApplied) || !storeCreditApplied.length) {
+      return [];
+    }
+    const yardKey = yardStoreCreditMatchKey(y.yardName, y.city, y.state);
+    const yardBaseKey = yardStoreCreditBaseKey(y.yardName, y.city, y.state);
+    if (!yardKey && !yardBaseKey) return [];
+
+    const bySource = new Map();
+    for (const entry of storeCreditApplied) {
+      if (!entry) continue;
+
+      // Prefer explicit target yard from Store Credit "Use" flow
+      const hasTargetIndex =
+        entry.targetYardIndex !== undefined &&
+        entry.targetYardIndex !== null &&
+        Number.isFinite(Number(entry.targetYardIndex));
+      if (hasTargetIndex) {
+        if (Number(entry.targetYardIndex) !== Number(index)) continue;
+      } else {
+        const exact =
+          yardKey && entry.matchKey && entry.matchKey === yardKey;
+        const loose =
+          yardBaseKey &&
+          (entry.baseKey === yardBaseKey || entry.matchKey === yardBaseKey);
+        if (!exact && !loose) continue;
+      }
+
+      const source = String(entry.sourceOrderNo || "").trim();
+      const amount = Number(entry.amount) || 0;
+      if (!source || amount <= 0) continue;
+      bySource.set(source, (bySource.get(source) || 0) + amount);
+    }
+
+    return Array.from(bySource.entries()).map(([sourceOrderNo, amount]) => ({
+      sourceOrderNo,
+      amount,
+    }));
+  })();
 
   const buildAddress = () => {
     const clean = (val) =>
@@ -247,6 +292,18 @@ export default function YardCard({
       style={milesBadgeStyle}
     >
       Miles: {milesValue}
+    </div>
+  )}
+  {matchingStoreCredits.length > 0 && (
+    <div className={`${hasMiles ? "mt-1.5" : "mt-2"} space-y-0.5`}>
+      {matchingStoreCredits.map(({ sourceOrderNo, amount }) => (
+        <div
+          key={sourceOrderNo}
+          className="inline-block rounded-md border border-green-700 bg-green-600 px-2.5 py-1 text-sm font-semibold text-white shadow-sm"
+        >
+          Store Credit ${amount.toFixed(2)} used from {sourceOrderNo}
+        </div>
+      ))}
     </div>
   )}
 </div>

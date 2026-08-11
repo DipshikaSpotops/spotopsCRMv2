@@ -1,5 +1,5 @@
 // src/pages/StoreCredits.jsx
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import API from "../api";
 import OrdersTable from "../components/OrdersTable";
 import { formatInTimeZone } from "date-fns-tz";
@@ -7,6 +7,10 @@ import { useNavigate } from "react-router-dom";
 import useOrdersRealtime from "../hooks/useOrdersRealtime";
 import useBrand from "../hooks/useBrand";
 import { getCurrentUserFirstName } from "../utils/authStorage";
+import {
+  yardStoreCreditBaseKey,
+  yardStoreCreditMatchKey,
+} from "@spotops/shared/utils/yardName.js";
 
 const TZ = "America/Chicago";
 
@@ -76,7 +80,10 @@ async function fetchStoreCreditsPage(params, headers) {
           yardShipping = parseAmountAfterColon(details);
         return {
           idx: idx + 1,
+          yardIndex: idx,
           yardName: ai.yardName || `Yard ${idx + 1}`,
+          city: ai.city || "",
+          state: ai.state || "",
           storeCredit,
           usedAmount: usedFromYard,
           partPrice,
@@ -145,6 +152,21 @@ export default function StoreCredits() {
   const [orderNoUsedFor, setOrderNoUsedFor] = useState("");
   const [useError, setUseError] = useState("");
   const [useLoading, setUseLoading] = useState(false);
+  const [targetYardOptions, setTargetYardOptions] = useState([]);
+  const [selectedTargetYardIndex, setSelectedTargetYardIndex] = useState(null);
+  const [targetYardLookupStatus, setTargetYardLookupStatus] = useState("idle"); // idle|loading|ready|error
+  const [targetYardLookupMessage, setTargetYardLookupMessage] = useState("");
+
+  const sourceCreditKeys = useMemo(() => {
+    const keys = new Set();
+    for (const y of useTarget?.yardDetails || []) {
+      const base = yardStoreCreditBaseKey(y.yardName, y.city, y.state);
+      const full = yardStoreCreditMatchKey(y.yardName, y.city, y.state);
+      if (base) keys.add(base);
+      if (full) keys.add(full);
+    }
+    return keys;
+  }, [useTarget]);
 
   // Modal state for "Used For" functionality
   const [usedForModalOpen, setUsedForModalOpen] = useState(false);
@@ -241,6 +263,10 @@ export default function StoreCredits() {
                   setPartialAmount("");
                   setOrderNoUsedFor("");
                   setUseError("");
+                  setTargetYardOptions([]);
+                  setSelectedTargetYardIndex(null);
+                  setTargetYardLookupStatus("idle");
+                  setTargetYardLookupMessage("");
                   setUseModalOpen(true);
                 }}
                 className="px-3 py-1 text-xs rounded bg-[#3d7ba8] hover:bg-[#4a8bb8] text-white"
@@ -257,6 +283,11 @@ export default function StoreCredits() {
                       .flatMap((y) => y?.storeCreditUsedFor || [])
                       .map((x, i) => ({
                         idx: i + 1,
+                        targetYardIndex:
+                          x?.targetYardIndex !== undefined &&
+                          x?.targetYardIndex !== null
+                            ? Number(x.targetYardIndex)
+                            : null,
                         orderNo: x.orderNo,
                         amount: Number(x.amount) || 0,
                       }));
@@ -321,6 +352,102 @@ export default function StoreCredits() {
     setTotalLabel(`Total Orders: ${rows.length} | Store Credit: $${totalCredit.toFixed(2)}`);
   }, []);
 
+  // Lookup matching yards on the consuming order when order no is typed
+  useEffect(() => {
+    if (!useModalOpen || !useTarget) return;
+
+    const targetNo = String(orderNoUsedFor || "").trim();
+    if (!targetNo) {
+      setTargetYardOptions([]);
+      setSelectedTargetYardIndex(null);
+      setTargetYardLookupStatus("idle");
+      setTargetYardLookupMessage("");
+      return;
+    }
+
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      setTargetYardLookupStatus("loading");
+      setTargetYardLookupMessage("");
+      try {
+        const { data } = await API.get(
+          `/orders/${encodeURIComponent(targetNo)}`
+        );
+        if (cancelled) return;
+
+        const yards = Array.isArray(data?.additionalInfo)
+          ? data.additionalInfo
+          : [];
+        if (!yards.length) {
+          setTargetYardOptions([]);
+          setSelectedTargetYardIndex(null);
+          setTargetYardLookupStatus("error");
+          setTargetYardLookupMessage(
+            `Order ${targetNo} was found but has no yards.`
+          );
+          return;
+        }
+
+        const matches = yards
+          .map((ai, index) => ({
+            index,
+            yardName: ai.yardName || `Yard ${index + 1}`,
+            city: ai.city || "",
+            state: ai.state || "",
+            status: ai.status || "",
+            baseKey: yardStoreCreditBaseKey(ai.yardName, ai.city, ai.state),
+            matchKey: yardStoreCreditMatchKey(ai.yardName, ai.city, ai.state),
+          }))
+          .filter(
+            (y) =>
+              (y.baseKey && sourceCreditKeys.has(y.baseKey)) ||
+              (y.matchKey && sourceCreditKeys.has(y.matchKey))
+          );
+
+        if (!matches.length) {
+          setTargetYardOptions([]);
+          setSelectedTargetYardIndex(null);
+          setTargetYardLookupStatus("error");
+          const sourceNames = (useTarget.yardDetails || [])
+            .map((y) => y.yardName)
+            .filter(Boolean)
+            .join(", ");
+          setTargetYardLookupMessage(
+            `No yards on ${targetNo} match the store credit yard name(s): ${sourceNames || "—"}.`
+          );
+          return;
+        }
+
+        setTargetYardOptions(matches);
+        setSelectedTargetYardIndex(
+          matches.length === 1 ? matches[0].index : null
+        );
+        setTargetYardLookupStatus("ready");
+        setTargetYardLookupMessage(
+          matches.length === 1
+            ? `Matched Yard ${matches[0].index + 1}: ${matches[0].yardName}`
+            : `${matches.length} yards share this name — choose which yard gets the credit.`
+        );
+      } catch (err) {
+        if (cancelled) return;
+        setTargetYardOptions([]);
+        setSelectedTargetYardIndex(null);
+        setTargetYardLookupStatus("error");
+        setTargetYardLookupMessage(
+          err?.response?.status === 404
+            ? `Order ${targetNo} was not found.`
+            : err?.response?.data?.message ||
+                "Could not look up that order. Check the order number."
+        );
+      }
+    }, 400);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [useModalOpen, useTarget, orderNoUsedFor, sourceCreditKeys]);
+
   // Handle "Use" submission
   const handleUseSubmit = async () => {
     if (!useTarget) return;
@@ -342,6 +469,18 @@ export default function StoreCredits() {
       setUseError("Please enter the Order No. the credit is used for");
       return;
     }
+    if (
+      selectedTargetYardIndex === null ||
+      selectedTargetYardIndex === undefined ||
+      !Number.isInteger(Number(selectedTargetYardIndex))
+    ) {
+      setUseError(
+        targetYardOptions.length > 1
+          ? "Select which yard on the target order should show this store credit."
+          : "Enter a valid target order with a matching yard first."
+      );
+      return;
+    }
 
     try {
       setUseLoading(true);
@@ -355,6 +494,7 @@ export default function StoreCredits() {
           usageType,
           amountUsed: amt,
           orderNoUsedFor: orderNoUsedFor.trim(),
+          targetYardIndex: Number(selectedTargetYardIndex),
         },
         {
           headers,
@@ -488,9 +628,70 @@ export default function StoreCredits() {
                   className="border border-white/20 rounded px-2 py-1 flex-1 bg-white/10 text-white"
                   placeholder="Enter target order number"
                   value={orderNoUsedFor}
-                  onChange={(e) => setOrderNoUsedFor(e.target.value)}
+                  onChange={(e) => {
+                    setOrderNoUsedFor(e.target.value);
+                    setSelectedTargetYardIndex(null);
+                    setUseError("");
+                  }}
                 />
               </div>
+
+              {targetYardLookupStatus === "loading" && (
+                <div className="text-sm text-white/70">Looking up yards…</div>
+              )}
+              {targetYardLookupMessage && targetYardLookupStatus !== "loading" && (
+                <div
+                  className={`text-sm ${
+                    targetYardLookupStatus === "error"
+                      ? "text-red-400"
+                      : "text-emerald-300"
+                  }`}
+                >
+                  {targetYardLookupMessage}
+                </div>
+              )}
+
+              {targetYardOptions.length > 1 && (
+                <div className="space-y-2 rounded border border-white/15 bg-white/5 p-3">
+                  <div className="text-sm font-semibold">
+                    Choose target yard
+                  </div>
+                  <div className="max-h-48 space-y-2 overflow-y-auto">
+                    {targetYardOptions.map((yard) => {
+                      const loc = [yard.city, yard.state].filter(Boolean).join(", ");
+                      return (
+                        <label
+                          key={yard.index}
+                          className="flex cursor-pointer items-start gap-2 rounded border border-white/10 bg-black/20 px-2 py-1.5 text-sm hover:bg-white/10"
+                        >
+                          <input
+                            type="radio"
+                            name="targetYardIndex"
+                            className="mt-1"
+                            checked={selectedTargetYardIndex === yard.index}
+                            onChange={() =>
+                              setSelectedTargetYardIndex(yard.index)
+                            }
+                          />
+                          <span>
+                            <span className="font-semibold">
+                              Yard {yard.index + 1}: {yard.yardName}
+                            </span>
+                            {loc ? (
+                              <span className="text-white/70"> — {loc}</span>
+                            ) : null}
+                            {yard.status ? (
+                              <span className="block text-xs text-white/60">
+                                Status: {yard.status}
+                              </span>
+                            ) : null}
+                          </span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
               {useError && (
                 <div className="text-red-400 text-sm">{useError}</div>
@@ -508,7 +709,11 @@ export default function StoreCredits() {
               <button
                 onClick={handleUseSubmit}
                 className="px-3 py-1 rounded bg-[#2c5d81] hover:bg-blue-700 text-white disabled:opacity-50"
-                disabled={useLoading}
+                disabled={
+                  useLoading ||
+                  targetYardLookupStatus === "loading" ||
+                  selectedTargetYardIndex === null
+                }
               >
                 {useLoading ? "Saving…" : "Submit"}
               </button>
@@ -533,6 +738,13 @@ export default function StoreCredits() {
                     <div key={idx} className="p-2 bg-white/5 rounded border border-white/10">
                       <div><strong>Order No:</strong> {item.orderNo}</div>
                       <div><strong>Amount:</strong> ${item.amount.toFixed(2)}</div>
+                      {item.targetYardIndex !== null &&
+                        Number.isFinite(item.targetYardIndex) && (
+                          <div>
+                            <strong>Target Yard:</strong>{" "}
+                            Yard {Number(item.targetYardIndex) + 1}
+                          </div>
+                        )}
                     </div>
                   ))}
                 </div>
