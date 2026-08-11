@@ -1,6 +1,7 @@
 import express from "express";
 import { requireAuth } from "../middleware/auth.js";
 import {
+  blockYardFromYardData,
   ensureBlockedYardsSeeded,
   getBlockedYardsForClient,
   invalidateBlockedYardCache,
@@ -49,6 +50,25 @@ router.get("/list", requireAuth, requireAdminOrAuthorizedEmail, async (req, res)
   } catch (err) {
     console.error("GET /api/blocked-yards/list failed:", err);
     res.status(500).json({ message: "Failed to load blocked yards" });
+  }
+});
+
+/** POST /api/blocked-yards — block a yard from Yard Data */
+router.post("/", requireAuth, requireAdminOrAuthorizedEmail, async (req, res) => {
+  try {
+    await ensureBlockedYardsSeeded();
+    const blocked = await blockYardFromYardData(req.body || {});
+    res.status(201).json({
+      message: "Yard blocked successfully",
+      yard: blocked,
+    });
+  } catch (err) {
+    console.error("POST /api/blocked-yards failed:", err);
+    const status = err?.statusCode || 500;
+    res.status(status).json({
+      message: err?.message || "Failed to block yard",
+      blockedYard: err?.blockedYard || undefined,
+    });
   }
 });
 

@@ -198,3 +198,55 @@ export async function unblockYardById(id) {
   invalidateBlockedYardCache();
   return deleted;
 }
+
+/** Add / reactivate a yard on the blocked list (from Yard Data Block action). */
+export async function blockYardFromYardData(payload = {}) {
+  const yardName = String(payload.yardName || "").trim();
+  if (!yardName) {
+    const error = new Error("yardName is required");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const row = {
+    yardName,
+    street: String(payload.street || "").trim(),
+    city: String(payload.city || "").trim(),
+    state: String(payload.state || "").trim(),
+    zipcode: String(payload.zipcode || "").trim(),
+    phone: String(payload.phone || "").trim(),
+    notes: String(payload.notes || "").trim() || "Blocked from Yard Data page",
+    active: true,
+  };
+
+  const normalizedKey = normalizeYardKey(row.yardName);
+  if (!normalizedKey) {
+    const error = new Error("yardName is invalid");
+    error.statusCode = 400;
+    throw error;
+  }
+  const locationKey = buildLocationKey(row);
+
+  const existing = await BlockedYard.findOne({ normalizedKey, locationKey }).lean();
+  if (existing?.active) {
+    const error = new Error("This yard is already blocked");
+    error.statusCode = 409;
+    error.blockedYard = existing;
+    throw error;
+  }
+
+  const doc = await BlockedYard.findOneAndUpdate(
+    { normalizedKey, locationKey },
+    {
+      $set: {
+        ...row,
+        normalizedKey,
+        locationKey,
+      },
+    },
+    { upsert: true, new: true, setDefaultsOnInsert: true }
+  );
+
+  invalidateBlockedYardCache();
+  return doc;
+}

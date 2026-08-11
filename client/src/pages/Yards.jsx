@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useMemo, useRef, useCallback } from "react";
+import moment from "moment-timezone";
 import API from "../api";
 import { getCurrentUserFirstName } from "../utils/authStorage";
 import { formatInTimeZone } from "date-fns-tz";
@@ -6,8 +7,21 @@ import { FaSort, FaSortUp, FaSortDown, FaChevronLeft, FaChevronRight, FaEdit, Fa
 import TableScrollViewport, {
   handleTableHorizontalWheel,
 } from "../components/TableScrollViewport";
+import UnifiedDatePicker from "../components/UnifiedDatePicker";
 
 const rowsPerPage = 25;
+const YARDS_DATE_ZONE = "America/Chicago";
+
+function prettyYardsDateLabel(filter) {
+  if (!filter?.start || !filter?.end) return "";
+  const s = moment.utc(filter.start).tz(YARDS_DATE_ZONE);
+  const e = moment.utc(filter.end).tz(YARDS_DATE_ZONE);
+  if (!s.isValid() || !e.isValid()) return "";
+  if (s.format("YYYY-MM-DD") === e.format("YYYY-MM-DD")) {
+    return s.format("MMM D, YYYY");
+  }
+  return `${s.format("MMM D, YYYY")} – ${e.format("MMM D, YYYY")}`;
+}
 
 function readAuthFromStorage() {
   try {
@@ -223,7 +237,10 @@ const Yards = () => {
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
   const [showUnblockConfirm, setShowUnblockConfirm] = useState(null);
-  const [showTodayOnly, setShowTodayOnly] = useState(false);
+  const [showBlockConfirm, setShowBlockConfirm] = useState(null);
+  const [blockSaving, setBlockSaving] = useState(false);
+  // null = show all yards; set only when user applies UnifiedDatePicker
+  const [dateFilter, setDateFilter] = useState(null);
   const [showBlockedYards, setShowBlockedYards] = useState(false);
 
   const addZipTimer = useRef(null);
@@ -286,7 +303,14 @@ const Yards = () => {
     };
   }, [editingYard, editForm.zipcode, fetchZipDetails]);
 
-  const fetchYards = async (page = 1, q = appliedQuery, sBy = sortBy, sDir = sortOrder, todayFilter = showTodayOnly, opts = { silent: false }) => {
+  const fetchYards = async (
+    page = 1,
+    q = appliedQuery,
+    sBy = sortBy,
+    sDir = sortOrder,
+    filter = dateFilter,
+    opts = { silent: false }
+  ) => {
     try {
       if (!opts.silent && loading === false) setLoading(true);
       if (opts.silent) setIsFetching(true);
@@ -295,7 +319,10 @@ const Yards = () => {
       params.set("page", String(page));
       params.set("limit", String(rowsPerPage));
       if (q) params.set("searchTerm", q);
-      if (todayFilter) params.set("today", "true");
+      if (filter?.start && filter?.end) {
+        params.set("start", filter.start);
+        params.set("end", filter.end);
+      }
       if (sBy) params.set("sortBy", sBy);
       if (sDir) params.set("sortOrder", sDir);
 
@@ -345,27 +372,39 @@ const Yards = () => {
     }
   };
 
-  const fetchCurrentView = (page, q, sBy, sDir, todayFilter, opts) => {
+  const fetchCurrentView = (page, q, sBy, sDir, filter, opts) => {
     if (showBlockedYards) {
       return fetchBlockedYards(page, q, sBy, sDir, opts);
     }
-    return fetchYards(page, q, sBy, sDir, todayFilter, opts);
+    return fetchYards(page, q, sBy, sDir, filter, opts);
   };
 
   useEffect(() => {
     const page = showBlockedYards
       ? parseInt(localStorage.getItem("blockedYardsPage") || "1", 10)
       : currentPage;
-    fetchCurrentView(
-      page,
-      appliedQuery,
-      sortBy,
-      sortOrder,
-      showTodayOnly,
-      { silent: page !== 1 || !!appliedQuery || !!sortBy || showTodayOnly || showBlockedYards }
-    );
+    fetchCurrentView(page, appliedQuery, sortBy, sortOrder, dateFilter, {
+      silent:
+        page !== 1 ||
+        !!appliedQuery ||
+        !!sortBy ||
+        !!dateFilter?.start ||
+        showBlockedYards,
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentPage, appliedQuery, sortBy, sortOrder, showTodayOnly, showBlockedYards]);
+  }, [currentPage, appliedQuery, sortBy, sortOrder, dateFilter, showBlockedYards]);
+
+  const handleDateFilterChange = (filter) => {
+    if (filter?.start && filter?.end) {
+      setDateFilter({ start: filter.start, end: filter.end });
+      setCurrentPage(1);
+    }
+  };
+
+  const clearDateFilter = () => {
+    setDateFilter(null);
+    setCurrentPage(1);
+  };
 
   const handleSort = (field) => {
     if (field === "action") return;
@@ -374,7 +413,7 @@ const Yards = () => {
     setSortBy(nextSortBy);
     setSortOrder(nextSortOrder);
     setCurrentPage(1);
-    fetchCurrentView(1, appliedQuery, nextSortBy, nextSortOrder, showTodayOnly, { silent: true });
+    fetchCurrentView(1, appliedQuery, nextSortBy, nextSortOrder, dateFilter, { silent: true });
   };
 
   const onSearchChange = (e) => {
@@ -384,7 +423,7 @@ const Yards = () => {
       setAppliedQuery("");
       localStorage.removeItem(showBlockedYards ? "blockedYardsSearch" : "yardsSearch");
       setCurrentPage(1);
-      fetchCurrentView(1, "", sortBy, sortOrder, showTodayOnly, { silent: true });
+      fetchCurrentView(1, "", sortBy, sortOrder, dateFilter, { silent: true });
     }
   };
 
@@ -396,14 +435,14 @@ const Yards = () => {
       if (q) localStorage.setItem(storageKey, q);
       else localStorage.removeItem(storageKey);
       setCurrentPage(1);
-      fetchCurrentView(1, q, sortBy, sortOrder, showTodayOnly, { silent: true });
+      fetchCurrentView(1, q, sortBy, sortOrder, dateFilter, { silent: true });
     }
     if (e.key === "Escape") {
       setSearchInput("");
       setAppliedQuery("");
       localStorage.removeItem(showBlockedYards ? "blockedYardsSearch" : "yardsSearch");
       setCurrentPage(1);
-      fetchCurrentView(1, "", sortBy, sortOrder, showTodayOnly, { silent: true });
+      fetchCurrentView(1, "", sortBy, sortOrder, dateFilter, { silent: true });
     }
   };
 
@@ -412,7 +451,7 @@ const Yards = () => {
     setAppliedQuery("");
     localStorage.removeItem(showBlockedYards ? "blockedYardsSearch" : "yardsSearch");
     setCurrentPage(1);
-    fetchCurrentView(1, "", sortBy, sortOrder, showTodayOnly, { silent: true });
+    fetchCurrentView(1, "", sortBy, sortOrder, dateFilter, { silent: true });
   };
 
   const formatDate = (dateStr) => {
@@ -454,7 +493,7 @@ const Yards = () => {
         updatedBy: updatedByUser,
       });
       setEditingYard(null);
-      fetchCurrentView(currentPage, appliedQuery, sortBy, sortOrder, showTodayOnly, { silent: true });
+      fetchCurrentView(currentPage, appliedQuery, sortBy, sortOrder, dateFilter, { silent: true });
       alert("Yard updated successfully");
     } catch (err) {
       console.error("Error updating yard:", err);
@@ -466,7 +505,7 @@ const Yards = () => {
     try {
       await API.delete(`/yards/${yardId}`);
       setShowDeleteConfirm(null);
-      fetchCurrentView(currentPage, appliedQuery, sortBy, sortOrder, showTodayOnly, { silent: true });
+      fetchCurrentView(currentPage, appliedQuery, sortBy, sortOrder, dateFilter, { silent: true });
       alert("Yard deleted successfully");
     } catch (err) {
       console.error("Error deleting yard:", err);
@@ -474,19 +513,35 @@ const Yards = () => {
     }
   };
 
-  const handleToggleTodayYards = () => {
-    const newValue = !showTodayOnly;
-    setShowTodayOnly(newValue);
-    setCurrentPage(1);
-    fetchCurrentView(1, appliedQuery, sortBy, sortOrder, newValue, { silent: false });
+  const handleBlock = async (yard) => {
+    if (!yard?._id) return;
+    try {
+      setBlockSaving(true);
+      await API.post("/blocked-yards", {
+        yardName: yard.yardName || "",
+        street: yard.street || "",
+        city: yard.city || "",
+        state: yard.state || "",
+        zipcode: yard.zipcode || "",
+        phone: yard.phone || "",
+        notes: "Blocked from Yard Data page",
+      });
+      setShowBlockConfirm(null);
+      alert("Yard blocked successfully.");
+    } catch (err) {
+      console.error("Error blocking yard:", err);
+      alert(err?.response?.data?.message || "Failed to block yard. Please try again.");
+    } finally {
+      setBlockSaving(false);
+    }
   };
 
   const handleToggleBlockedYards = () => {
     const nextValue = !showBlockedYards;
     setShowBlockedYards(nextValue);
-    setShowTodayOnly(false);
     setEditingYard(null);
     setAddYardOpen(false);
+    setShowBlockConfirm(null);
     setSearchInput(localStorage.getItem(nextValue ? "blockedYardsSearch" : "yardsSearch") || "");
     setAppliedQuery(localStorage.getItem(nextValue ? "blockedYardsSearch" : "yardsSearch") || "");
     localStorage.setItem(nextValue ? "blockedYardsPage" : "yardsPage", "1");
@@ -538,7 +593,7 @@ const Yards = () => {
       setAddYardOpen(false);
       setAddForm(emptyYardForm());
       setCurrentPage(1);
-      fetchCurrentView(1, appliedQuery, sortBy, sortOrder, showTodayOnly, { silent: true });
+      fetchCurrentView(1, appliedQuery, sortBy, sortOrder, dateFilter, { silent: true });
       alert("Yard added successfully.");
     } catch (err) {
       console.error("Error adding yard:", err);
@@ -561,7 +616,7 @@ const Yards = () => {
             {showBlockedYards ? "Blocked Yards" : "Yards"}
           </h2>
 
-          <div className="mt-1 flex items-center gap-4">
+          <div className="mt-1 flex flex-wrap items-center gap-4">
             <p className="text-sm text-white/70">
               {showBlockedYards ? (
                 appliedQuery ? (
@@ -573,13 +628,21 @@ const Yards = () => {
                     Total Blocked Yards: <strong>{totalYardsAll}</strong>
                   </>
                 )
-              ) : showTodayOnly ? (
+              ) : dateFilter?.start && dateFilter?.end ? (
                 <>
-                  Today's Yards: <strong>{totalYards}</strong>
+                  Showing: <strong>{totalYards}</strong> yards added{" "}
+                  <strong>{prettyYardsDateLabel(dateFilter)}</strong>
+                  {appliedQuery ? (
+                    <>
+                      {" "}
+                      (of <strong>{totalYardsAll}</strong> total)
+                    </>
+                  ) : null}
                 </>
               ) : appliedQuery ? (
                 <>
-                  Showing: <strong>{totalYards}</strong> of <strong>{totalYardsAll}</strong> yards
+                  Showing: <strong>{totalYards}</strong> of{" "}
+                  <strong>{totalYardsAll}</strong> yards
                 </>
               ) : (
                 <>
@@ -587,6 +650,29 @@ const Yards = () => {
                 </>
               )}
             </p>
+
+            {!showBlockedYards && (
+              <div className="flex items-center gap-3">
+                {dateFilter?.start && dateFilter?.end && (
+                  <>
+                    <span className="inline-flex items-center gap-2 rounded-full bg-white/5 border border-white/15 px-3 py-1 text-xs text-white/70">
+                      Added: {prettyYardsDateLabel(dateFilter)}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={clearDateFilter}
+                      className="px-3 py-1 rounded-lg text-xs font-medium bg-white/10 border border-white/20 hover:bg-white/20 text-white"
+                    >
+                      Clear date
+                    </button>
+                  </>
+                )}
+                <UnifiedDatePicker
+                  persistKey="yards_udp_range"
+                  onFilterChange={handleDateFilterChange}
+                />
+              </div>
+            )}
 
             <div className="flex items-center gap-2 text-white font-medium">
               <button
@@ -618,20 +704,8 @@ const Yards = () => {
           </div>
         </div>
 
-        {/* Search and Today's Yards Button */}
+        {/* Search and actions */}
         <div className="flex items-center gap-3">
-          {!showBlockedYards && (
-            <button
-              onClick={handleToggleTodayYards}
-              className={`px-4 py-2 rounded-lg font-medium transition whitespace-nowrap ${
-                showTodayOnly
-                  ? "bg-green-700 hover:bg-green-800 text-white"
-                  : "bg-green-600 hover:bg-green-700 text-white"
-              }`}
-            >
-              {showTodayOnly ? "Show All Yards" : "Today's Yards"}
-            </button>
-          )}
           {canManageBlockedYards && (
             <button
               type="button"
@@ -806,6 +880,14 @@ const Yards = () => {
                         <FaTrash size={12} />
                         Delete
                       </button>
+                      {canManageBlockedYards && (
+                        <button
+                          onClick={() => setShowBlockConfirm(yard)}
+                          className="px-2 py-1 bg-orange-600 hover:bg-orange-700 rounded text-white text-xs"
+                        >
+                          Block
+                        </button>
+                      )}
                     </div>
                   )}
                 </td>
@@ -920,6 +1002,54 @@ const Yards = () => {
                 className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 transition"
               >
                 Delete
+              </button>
+            </footer>
+          </div>
+        </div>
+      )}
+
+      {/* Block Confirmation Modal */}
+      {showBlockConfirm && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+            onClick={() => !blockSaving && setShowBlockConfirm(null)}
+          />
+          <div className="relative w-full max-w-md rounded-2xl border border-white/20 bg-white/10 text-white backdrop-blur-xl shadow-2xl">
+            <header className="flex items-center justify-between px-5 py-3 border-b border-white/20">
+              <h3 className="text-lg font-semibold">Confirm Block</h3>
+              <button
+                type="button"
+                disabled={blockSaving}
+                onClick={() => setShowBlockConfirm(null)}
+                className="px-2 py-1 rounded-md bg-white/10 border border-white/20 hover:bg-white/20 disabled:opacity-50"
+              >
+                ✕
+              </button>
+            </header>
+            <div className="p-5">
+              <p className="text-white/90">
+                Are you sure you want to block{" "}
+                <strong>{showBlockConfirm.yardName || "this yard"}</strong>? It
+                will be prevented from being used on orders.
+              </p>
+            </div>
+            <footer className="flex items-center justify-end gap-2 px-5 py-3 border-t border-white/20">
+              <button
+                type="button"
+                disabled={blockSaving}
+                onClick={() => setShowBlockConfirm(null)}
+                className="px-4 py-2 rounded-lg bg-white/10 border border-white/20 hover:bg-white/20 transition disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={blockSaving}
+                onClick={() => handleBlock(showBlockConfirm)}
+                className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 transition disabled:opacity-50"
+              >
+                {blockSaving ? "Blocking…" : "Block"}
               </button>
             </footer>
           </div>

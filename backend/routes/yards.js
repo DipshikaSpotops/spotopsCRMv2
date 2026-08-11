@@ -129,25 +129,37 @@ router.get("/list", async (req, res) => {
     const sortOrder = req.query.sortOrder === "desc" ? -1 : 1;
     const skip = (page - 1) * limit;
 
-    // Build base query
+    // Date filter = yards added in range (createdAt), same as old Today's Yards
     let query = {};
+    const andParts = [];
 
-    // Add today filter if requested
-    if (todayOnly) {
+    const startRaw = String(req.query.start || "").trim();
+    const endRaw = String(req.query.end || "").trim();
+    const startDate = startRaw ? new Date(startRaw) : null;
+    const endDate = endRaw ? new Date(endRaw) : null;
+    if (
+      startDate &&
+      endDate &&
+      !Number.isNaN(startDate.getTime()) &&
+      !Number.isNaN(endDate.getTime())
+    ) {
+      andParts.push({
+        createdAt: { $gte: startDate, $lte: endDate },
+      });
+    } else if (todayOnly) {
       const ZONE = "America/Chicago";
       const todayDallas = moment.tz(ZONE);
-      const startOfDay = todayDallas.clone().startOf("day").utc().toDate();
-      const endOfDay = todayDallas.clone().endOf("day").utc().toDate();
-      query.createdAt = {
-        $gte: startOfDay,
-        $lte: endOfDay,
-      };
+      andParts.push({
+        createdAt: {
+          $gte: todayDallas.clone().startOf("day").utc().toDate(),
+          $lte: todayDallas.clone().endOf("day").utc().toDate(),
+        },
+      });
     }
 
-    // Add search filter
     if (searchTerm) {
       const searchRegex = new RegExp(searchTerm, "i");
-      const searchQuery = {
+      andParts.push({
         $or: [
           { yardName: searchRegex },
           { street: searchRegex },
@@ -161,14 +173,11 @@ router.get("/list", async (req, res) => {
           { yardRating: searchRegex },
           { updatedBy: searchRegex },
         ],
-      };
-      // Combine with existing query
-      if (todayOnly) {
-        query = { $and: [query, searchQuery] };
-      } else {
-        query = searchQuery;
-      }
+      });
     }
+
+    if (andParts.length === 1) query = andParts[0];
+    else if (andParts.length > 1) query = { $and: andParts };
 
     // Build sort object
     const sortObj = {};
