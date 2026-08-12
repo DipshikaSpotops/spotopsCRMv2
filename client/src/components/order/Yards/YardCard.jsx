@@ -300,7 +300,7 @@ export default function YardCard({
       {matchingStoreCredits.map(({ sourceOrderNo, amount }) => (
         <div
           key={sourceOrderNo}
-          className="inline-block rounded-md border border-green-700 bg-green-600 px-2.5 py-1 text-sm font-semibold text-white shadow-sm"
+          className="text-sm font-normal text-green-600 dark:text-green-400"
         >
           Store Credit ${amount.toFixed(2)} used from {sourceOrderNo}
         </div>
@@ -336,9 +336,10 @@ export default function YardCard({
             rel="noopener noreferrer"
             onClick={(e) => {
               e.preventDefault();
+              e.stopPropagation();
               openS3ObjectUrl(y.voidLabelScreenshot);
             }}
-            className="inline-flex items-center text-xs text-blue-700 underline dark:text-blue-300 hover:text-blue-900 dark:hover:text-blue-200"
+            className="inline-flex w-fit max-w-full items-center self-start text-xs text-blue-700 underline dark:text-blue-300 hover:text-blue-900 dark:hover:text-blue-200"
           >
             View screenshot
           </a>
@@ -349,7 +350,7 @@ export default function YardCard({
       {Array.isArray(y.yardImages) && y.yardImages.length > 0 && (
         <div className="mt-4">
           <div className="text-sm font-semibold mb-1">Yard images</div>
-          <div className="flex flex-col gap-1">
+          <div className="flex flex-col items-start gap-1">
             {y.yardImages.map((url, idx) => (
               <a
                 key={`${url}-${idx}`}
@@ -358,9 +359,10 @@ export default function YardCard({
                 rel="noopener noreferrer"
                 onClick={(e) => {
                   e.preventDefault();
+                  e.stopPropagation();
                   openS3ObjectUrl(url);
                 }}
-                className="inline-flex items-center text-xs text-blue-700 underline dark:text-blue-300 hover:text-blue-900 dark:hover:text-blue-200"
+                className="inline-flex w-fit max-w-full items-center text-xs text-blue-700 underline dark:text-blue-300 hover:text-blue-900 dark:hover:text-blue-200"
               >
                 {`View image ${idx + 1}`}
               </a>
