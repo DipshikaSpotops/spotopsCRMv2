@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import API from "../../../api";
 import { extractOwn, extractYard } from "../../../utils/yards";
 import { IMAGE_FILE_ACCEPT, isImageFile } from "../../../utils/imageUpload";
+import { openS3ObjectUrl, resolveS3ViewSrc } from "../../../utils/s3View";
 
 /* ---------------------- Toast Banner ---------------------- */
 function Toast({ message, onClose }) {
@@ -97,6 +98,7 @@ export default function EditYardStatusModal({
     yard?.voidLabelScreenshot || ""
   );
   const [voidLabelFile, setVoidLabelFile] = useState(null);
+  const [voidLabelPreviewSrc, setVoidLabelPreviewSrc] = useState("");
 
   // General yard images (e.g. photos per yard)
   const [yardImages, setYardImages] = useState(Array.isArray(yard?.yardImages) ? yard.yardImages : []);
@@ -164,6 +166,22 @@ export default function EditYardStatusModal({
     setShowTracking(st === "Label created" || st === "Part shipped");
     setShowEsc(st === "Escalation");
   }, [open, yard]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const stored = yard?.voidLabelScreenshot || "";
+    if (!open || !stored) {
+      setVoidLabelPreviewSrc("");
+      return undefined;
+    }
+    (async () => {
+      const src = await resolveS3ViewSrc(stored);
+      if (!cancelled) setVoidLabelPreviewSrc(src);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [open, yard?.voidLabelScreenshot]);
 
   useEffect(() => {
     setShowPO(status === "Yard PO Sent");
@@ -906,7 +924,7 @@ export default function EditYardStatusModal({
                         Existing void label screenshot
                       </div>
                       <img
-                        src={yard.voidLabelScreenshot}
+                        src={voidLabelPreviewSrc || yard.voidLabelScreenshot}
                         alt={`Existing void label screenshot for Yard ${yardIndex + 1}`}
                         className="max-h-40 rounded border border-white/20"
                       />
@@ -997,10 +1015,14 @@ export default function EditYardStatusModal({
                         href={yard.voidLabelScreenshot}
                         target="_blank"
                         rel="noopener noreferrer"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          openS3ObjectUrl(yard.voidLabelScreenshot);
+                        }}
                         className="text-xs text-blue-700 underline dark:text-blue-300"
-                        title="Open void label screenshot in Drive"
+                        title="Open void label screenshot"
                       >
-                        Open screenshot in Drive
+                        Open screenshot
                       </a>
                     )}
                   </div>

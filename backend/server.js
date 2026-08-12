@@ -48,6 +48,7 @@ import salesAgentsRouter from "./routes/salesAgents.js";
 import salesActualGpSnapshotsRouter from "./routes/salesActualGpSnapshots.js";
 import incentivesReportRouter from "./routes/incentivesReport.js";
 import attendanceRouter from "./routes/attendance.js";
+import s3Router from "./routes/s3.js";
 import { brandMiddleware } from "./middleware/brand.js";
 import { seedBlockedYardsFromFile } from "./services/blockedYardService.js";
 
@@ -116,6 +117,7 @@ app.use("/", sendPORouter);
 app.use("/api", sendPORouter);
 app.use("/api/yards", yardsRouter);
 app.use("/api/blocked-yards", blockedYardsRouter);
+app.use("/api/s3", s3Router);
 app.use("/api/lead-notes", leadNotesRouter);
 app.use("/api/utils/zip-lookup", zipLookupRouter);
 app.use("/debug", debugRouter);

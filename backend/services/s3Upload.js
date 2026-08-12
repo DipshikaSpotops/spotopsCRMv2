@@ -1,4 +1,5 @@
 import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import crypto from "crypto";
 import dotenv from "dotenv";
 import { resolveImageMimeAndExt } from "../utils/imageMime.js";
@@ -24,6 +25,15 @@ const s3Client = new S3Client({
       }
     : undefined,
 });
+
+function publicObjectUrl(objectKey) {
+  // Keep path separators as `/` — encoding `/` as %2F breaks public/presigned path lookup
+  const encodedKey = String(objectKey || "")
+    .split("/")
+    .map((segment) => encodeURIComponent(segment))
+    .join("/");
+  return `https://${bucket}.s3.${region}.amazonaws.com/${encodedKey}`;
+}
 
 export async function uploadVoidLabelScreenshotToS3(buffer, mimeType, keyBase, originalName = "") {
   if (!buffer || !buffer.length) {
@@ -54,11 +64,7 @@ export async function uploadVoidLabelScreenshotToS3(buffer, mimeType, keyBase, o
 
   await s3Client.send(putCommand);
 
-  // Construct public URL (standard virtual-hosted–style URL)
-  const url = `https://${bucket}.s3.${region}.amazonaws.com/${encodeURIComponent(
-    key
-  )}`;
-  return url;
+  return publicObjectUrl(key);
 }
 
 // Generic helper to upload per-yard images (e.g., damage photos, tracking screenshots)
@@ -90,10 +96,7 @@ export async function uploadYardImageToS3(buffer, mimeType, keyBase, originalNam
 
   await s3Client.send(putCommand);
 
-  const url = `https://${bucket}.s3.${region}.amazonaws.com/${encodeURIComponent(
-    key
-  )}`;
-  return url;
+  return publicObjectUrl(key);
 }
 
 /**
@@ -223,13 +226,8 @@ export async function uploadInvoicePdfToS3(buffer, keyBase) {
 
   await s3Client.send(putCommand);
 
-  const url = `https://${bucket}.s3.${region}.amazonaws.com/${encodeURIComponent(
-    key
-  ).replace(/%2F/g, "/")}`;
-  return { url, key };
+  return { url: publicObjectUrl(key), key };
 }
-
-/** Fetch an invoice PDF previously uploaded to S3 by key. */
 export async function fetchInvoicePdfFromS3(key) {
   if (!bucket) {
     throw new Error("S3_LABEL_VOIDED_BUCKET is not configured");
@@ -244,4 +242,53 @@ export async function fetchInvoicePdfFromS3(key) {
     throw new Error("Empty invoice object from S3");
   }
   return streamToBuffer(res.Body);
+}
+
+/**
+ * Parse a virtual-hosted S3 URL for our configured label/yard image bucket.
+ * Supports keys with `/` or legacy `%2F` encoding.
+ */
+export function parseConfiguredS3ObjectUrl(rawUrl) {
+  const input = String(rawUrl || "").trim();
+  if (!input || !bucket || !region) return null;
+
+  let parsed;
+  try {
+    parsed = new URL(input);
+  } catch {
+    return null;
+  }
+
+  const host = parsed.hostname.toLowerCase();
+  const expectedHosts = [
+    `${bucket}.s3.${region}.amazonaws.com`.toLowerCase(),
+    `${bucket}.s3.amazonaws.com`.toLowerCase(),
+  ];
+  if (!expectedHosts.includes(host)) return null;
+
+  // pathname is like /Yard_Images/file.jpg or /Yard_Images%2Ffile.jpg
+  const pathRaw = parsed.pathname.replace(/^\/+/, "");
+  if (!pathRaw) return null;
+  const key = decodeURIComponent(pathRaw);
+  if (!key) return null;
+
+  return { bucket, key, region };
+}
+
+/** Short-lived signed GET URL so private bucket objects can be viewed in the browser. */
+export async function getPresignedViewUrlForObjectUrl(rawUrl, expiresInSeconds = 3600) {
+  const parsed = parseConfiguredS3ObjectUrl(rawUrl);
+  if (!parsed) {
+    const error = new Error("URL is not a recognized app S3 object");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const command = new GetObjectCommand({
+    Bucket: parsed.bucket,
+    Key: parsed.key,
+  });
+  return getSignedUrl(s3Client, command, {
+    expiresIn: Math.min(Math.max(Number(expiresInSeconds) || 3600, 60), 3600),
+  });
 }

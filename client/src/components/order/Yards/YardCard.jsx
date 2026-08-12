@@ -6,6 +6,7 @@ import {
   yardStoreCreditBaseKey,
   yardStoreCreditMatchKey,
 } from "@spotops/shared/utils/yardName.js";
+import { openS3ObjectUrl } from "../../../utils/s3View";
 
 export default function YardCard({
   yard,
@@ -333,6 +334,10 @@ export default function YardCard({
             href={y.voidLabelScreenshot}
             target="_blank"
             rel="noopener noreferrer"
+            onClick={(e) => {
+              e.preventDefault();
+              openS3ObjectUrl(y.voidLabelScreenshot);
+            }}
             className="inline-flex items-center text-xs text-blue-700 underline dark:text-blue-300 hover:text-blue-900 dark:hover:text-blue-200"
           >
             View screenshot
@@ -351,6 +356,10 @@ export default function YardCard({
                 href={url}
                 target="_blank"
                 rel="noopener noreferrer"
+                onClick={(e) => {
+                  e.preventDefault();
+                  openS3ObjectUrl(url);
+                }}
                 className="inline-flex items-center text-xs text-blue-700 underline dark:text-blue-300 hover:text-blue-900 dark:hover:text-blue-200"
               >
                 {`View image ${idx + 1}`}

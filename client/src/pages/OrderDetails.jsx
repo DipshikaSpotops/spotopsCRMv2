@@ -29,6 +29,7 @@ import API from "../api";
 import { normalizeYardName } from "@spotops/shared";
 import { getCurrentUserFirstName } from "../utils/authStorage";
 import { IMAGE_FILE_ACCEPT, isImageFile } from "../utils/imageUpload";
+import { openS3ObjectUrl } from "../utils/s3View";
 
 // popup intaed of alert or confirm:
 function ConfirmModal({
@@ -2463,6 +2464,10 @@ export default function OrderDetails() {
                           href={href}
                           target="_blank"
                           rel="noopener noreferrer"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            openS3ObjectUrl(href);
+                          }}
                           className="inline-flex items-center text-xs text-blue-700 underline dark:text-blue-300 hover:text-blue-900 dark:hover:text-blue-200"
                         >
                           {`View image ${idx + 1}`}
