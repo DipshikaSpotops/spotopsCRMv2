@@ -1,5 +1,4 @@
 import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
-import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import crypto from "crypto";
 import dotenv from "dotenv";
 import { resolveImageMimeAndExt } from "../utils/imageMime.js";
@@ -275,8 +274,11 @@ export function parseConfiguredS3ObjectUrl(rawUrl) {
   return { bucket, key, region };
 }
 
-/** Short-lived signed GET URL so private bucket objects can be viewed in the browser. */
-export async function getPresignedViewUrlForObjectUrl(rawUrl, expiresInSeconds = 3600) {
+/**
+ * Fetch a private S3 object for viewing (uses existing @aws-sdk/client-s3 only).
+ * Returns { buffer, contentType, fileName }.
+ */
+export async function fetchConfiguredS3ObjectForView(rawUrl) {
   const parsed = parseConfiguredS3ObjectUrl(rawUrl);
   if (!parsed) {
     const error = new Error("URL is not a recognized app S3 object");
@@ -284,11 +286,34 @@ export async function getPresignedViewUrlForObjectUrl(rawUrl, expiresInSeconds =
     throw error;
   }
 
-  const command = new GetObjectCommand({
-    Bucket: parsed.bucket,
-    Key: parsed.key,
-  });
-  return getSignedUrl(s3Client, command, {
-    expiresIn: Math.min(Math.max(Number(expiresInSeconds) || 3600, 60), 3600),
-  });
+  try {
+    const res = await s3Client.send(
+      new GetObjectCommand({
+        Bucket: parsed.bucket,
+        Key: parsed.key,
+      })
+    );
+    if (!res.Body) {
+      const error = new Error("Empty S3 object");
+      error.statusCode = 404;
+      throw error;
+    }
+    const buffer = await streamToBuffer(res.Body);
+    const fileName = parsed.key.split("/").pop() || "file";
+    return {
+      buffer,
+      contentType: res.ContentType || "application/octet-stream",
+      fileName,
+      key: parsed.key,
+    };
+  } catch (err) {
+    if (err?.statusCode) throw err;
+    const code = err?.name || err?.Code || "";
+    if (code === "NoSuchKey" || code === "NotFound") {
+      const error = new Error("S3 object not found");
+      error.statusCode = 404;
+      throw error;
+    }
+    throw err;
+  }
 }
