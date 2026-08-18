@@ -4,6 +4,7 @@ import {
   attendanceNameKey,
   displayAttendanceFirstName,
   isExcludedAttendanceName,
+  isHiddenFromAttendanceSheet,
   isOnAttendanceRoster as legacyIsOnAttendanceRoster,
 } from "../../shared/constants/activeAttendanceUsers.js";
 import User from "../models/User.js";
@@ -41,7 +42,7 @@ export async function loadActiveAttendanceRosterNames() {
   const addName = (name) => {
     const display = displayAttendanceFirstName(name);
     if (!display) return;
-    if (isExcludedAttendanceName(display)) return;
+    if (isExcludedAttendanceName(display) || isHiddenFromAttendanceSheet(display)) return;
     const key = attendanceNameKey(display);
     if (!key || nameKeys.has(key)) return;
     nameKeys.add(key);

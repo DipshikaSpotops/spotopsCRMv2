@@ -8,6 +8,7 @@ import {
   attendanceNameKey,
   canonicalAttendanceName as sharedCanonicalAttendanceName,
   isExcludedAttendanceName,
+  isHiddenFromAttendanceSheet,
   resolveAttendanceMarkName,
 } from "../../shared/constants/activeAttendanceUsers.js";
 import { loadActiveAttendanceRosterNames } from "../utils/attendanceRoster.js";
@@ -61,7 +62,7 @@ function displayAttendanceNamesFromDocs(activeNames, docs) {
   const seenKeys = new Set(activeKeys);
   for (const d of docs) {
     const fn = displayFirstName(d.firstName);
-    if (!fn || isExcludedAttendanceName(fn)) continue;
+    if (!fn || isExcludedAttendanceName(fn) || isHiddenFromAttendanceSheet(fn)) continue;
     const key = attendanceNameKey(fn);
     if (seenKeys.has(key)) continue;
     seenKeys.add(key);
@@ -70,7 +71,7 @@ function displayAttendanceNamesFromDocs(activeNames, docs) {
   extras.sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
   const activeDisplay = activeNames
     .map((n) => displayFirstName(n))
-    .filter((n) => n && !isExcludedAttendanceName(n));
+    .filter((n) => n && !isExcludedAttendanceName(n) && !isHiddenFromAttendanceSheet(n));
   return [...activeDisplay, ...extras];
 }
 
