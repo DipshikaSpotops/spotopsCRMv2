@@ -23,7 +23,10 @@ import {
   shouldBypassAppAccessGate,
 } from "../utils/accessGate.js";
 import { resolveUserOnAttendanceRoster } from "../utils/attendanceRoster.js";
-import { canonicalAttendanceName } from "../../shared/constants/activeAttendanceUsers.js";
+import {
+  AUTHORIZATION_CODES_VIEWER_EMAILS,
+  canonicalAttendanceName,
+} from "../../shared/constants/activeAttendanceUsers.js";
 // Note: We create JWT auth directly for Sheets API (doesn't need GMAIL_IMPERSONATED_USER)
 
 const router = express.Router();
@@ -47,9 +50,7 @@ const allowedEmails = [
   "dipsikha.spotopsdigital@gmail.com",
   "contact@50starsautoparts.com"
 ];
-const AUTHORIZATION_CODES_ALLOWED_EMAILS = new Set([
-  "50starsauto110@gmail.com",
-]);
+const AUTHORIZATION_CODES_ALLOWED_EMAILS = AUTHORIZATION_CODES_VIEWER_EMAILS;
 
 function generateAccessCode(length = 16) {
   const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";

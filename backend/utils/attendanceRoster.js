@@ -1,7 +1,9 @@
 import {
   ACTIVE_ATTENDANCE_USER_LIST,
   AUTHORIZATION_CODES_EXTRA_EMAILS,
+  attendanceNameKey,
   displayAttendanceFirstName,
+  isExcludedAttendanceName,
   isOnAttendanceRoster as legacyIsOnAttendanceRoster,
 } from "../../shared/constants/activeAttendanceUsers.js";
 import User from "../models/User.js";
@@ -14,6 +16,8 @@ export function defaultOnAttendanceRosterForRole(role) {
 export function resolveUserOnAttendanceRoster(user) {
   if (!user) return false;
   if (String(user.role || "").trim() === "Admin") return false;
+  if (isExcludedAttendanceName(user.firstName)) return false;
+  if (legacyIsOnAttendanceRoster(user.firstName)) return true;
   if (user.onAttendanceRoster === false) return false;
   if (user.onAttendanceRoster === true) return true;
 
@@ -37,8 +41,9 @@ export async function loadActiveAttendanceRosterNames() {
   const addName = (name) => {
     const display = displayAttendanceFirstName(name);
     if (!display) return;
-    const key = display.toLowerCase();
-    if (nameKeys.has(key)) return;
+    if (isExcludedAttendanceName(display)) return;
+    const key = attendanceNameKey(display);
+    if (!key || nameKeys.has(key)) return;
     nameKeys.add(key);
     ordered.push(display);
   };

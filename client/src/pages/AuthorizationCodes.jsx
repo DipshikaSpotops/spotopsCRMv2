@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Navigate } from "react-router-dom";
 import { useSelector } from "react-redux";
 import { selectRole } from "../store/authSlice";
-import API from "../api";
+import { AUTHORIZATION_CODES_VIEWER_EMAILS } from "../constants/activeAttendanceUsers";
 
 function useEffectiveRole() {
   const roleFromRedux = useSelector(selectRole);
@@ -29,7 +29,7 @@ export default function AuthorizationCodes() {
     }
     return String(localStorage.getItem("email") || "").trim().toLowerCase();
   }, []);
-  const isAllowedByEmail = userEmail === "50starsauto110@gmail.com";
+  const isAllowedByEmail = AUTHORIZATION_CODES_VIEWER_EMAILS.has(userEmail);
   const [rows, setRows] = useState([]);
   const [windowSeconds, setWindowSeconds] = useState(60);
   const [loading, setLoading] = useState(true);

@@ -6,6 +6,7 @@ import { selectRole, selectUser } from "../store/authSlice";
 import { getCurrentBrand } from "../utils/brand";
 import { USER_PERMISSIONS, userHasAnyScopedPermission, userHasPermission } from "../../../shared/constants/userPermissions.js";
 import { ASSIGN_ORDERS_EMAILS, canAssignOrders } from "../../../shared/constants/assignOrdersAccess.js";
+import { AUTHORIZATION_CODES_VIEWER_EMAILS } from "../../../shared/constants/activeAttendanceUsers.js";
 
 const normalizeRole = (value) => {
   if (!value) return undefined;
@@ -369,6 +370,9 @@ export default function Sidebar() {
   let attendanceLinks = attendanceLinksBase;
 
   const isAttendanceEmail = email?.toLowerCase() === "50starsauto110@gmail.com";
+  const isAuthCodesViewer = AUTHORIZATION_CODES_VIEWER_EMAILS.has(
+    String(email || "").trim().toLowerCase()
+  );
 
   if (isPermissionScoped) {
     dashboardLinks = filterDashboardLinks(
@@ -422,7 +426,6 @@ export default function Sidebar() {
       permissions
     );
 
-    const isAuthCodesViewer = isAttendanceEmail;
     showUsersSection = isAuthCodesViewer;
     usersLinks = isAuthCodesViewer
       ? usersLinksBase.filter((l) => l.to === "/authorization-codes")
@@ -439,6 +442,14 @@ export default function Sidebar() {
 
   if (isAttendanceEmail && attendanceLinks.length === 0) {
     attendanceLinks = attendanceLinksBase;
+  }
+
+  if (isAuthCodesViewer) {
+    const authCodeLink = usersLinksBase.find((l) => l.to === "/authorization-codes");
+    if (authCodeLink && !usersLinks.some((l) => l.to === "/authorization-codes")) {
+      usersLinks = [...usersLinks, authCodeLink];
+    }
+    showUsersSection = usersLinks.length > 0;
   }
 
   if (canAccessPermission(USER_PERMISSIONS.INVOICES, role, permissions)) {

@@ -1,6 +1,6 @@
 import {
   attendanceNameKey,
-  canonicalAttendanceName,
+  resolveAttendanceMarkName,
   userRequiresAttendanceRoster,
 } from "../constants/activeAttendanceUsers";
 import { todayDateKeyIST } from "./attendanceStatus";
@@ -16,13 +16,13 @@ export async function userNeedsAttendanceMark(userOrFirstName) {
       : { firstName: userOrFirstName };
   if (!userRequiresAttendanceRoster(user)) return false;
 
-  const canonical = canonicalAttendanceName(user.firstName);
-  if (!canonical) return false;
+  const markName = resolveAttendanceMarkName(user.firstName);
+  if (!markName) return false;
 
   const dateKey = todayDateKeyIST();
   const data = await fetchAttendance(dateKey);
   const row = (data?.rows || []).find(
-    (r) => attendanceNameKey(r.firstName) === attendanceNameKey(canonical)
+    (r) => attendanceNameKey(r.firstName) === attendanceNameKey(markName)
   );
   return !row?.loginAt;
 }

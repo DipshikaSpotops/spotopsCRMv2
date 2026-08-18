@@ -7,6 +7,8 @@ import { requireAuth } from "../middleware/auth.js";
 import {
   attendanceNameKey,
   canonicalAttendanceName as sharedCanonicalAttendanceName,
+  isExcludedAttendanceName,
+  resolveAttendanceMarkName,
 } from "../../shared/constants/activeAttendanceUsers.js";
 import { loadActiveAttendanceRosterNames } from "../utils/attendanceRoster.js";
 
@@ -15,17 +17,8 @@ const IST = "Asia/Kolkata";
 const DALLAS = "America/Chicago";
 const EDITOR_EMAIL = "50starsauto110@gmail.com";
 
-/** Removed from roster — never shown on the attendance sheet (even if DB has rows). */
-const EXCLUDED_ATTENDANCE_NAMES = ["Ashley"];
-
 async function getActiveAttendanceNames() {
   return loadActiveAttendanceRosterNames();
-}
-
-function isExcludedAttendanceName(name) {
-  const key = attendanceNameKey(name);
-  if (!key) return false;
-  return EXCLUDED_ATTENDANCE_NAMES.some((n) => attendanceNameKey(n) === key);
 }
 
 function displayFirstName(name) {
@@ -305,8 +298,8 @@ router.get("/", requireAuth, async (req, res) => {
 
 router.post("/mark-present", requireAuth, async (req, res) => {
   try {
-    const canonical = canonicalFirstName(req.user?.firstName);
-    if (!canonical) {
+    const canonical = resolveAttendanceMarkName(req.user?.firstName);
+    if (!canonical || isExcludedAttendanceName(canonical)) {
       return res.status(403).json({
         message: "Your account is not in the attendance roster for Mark Present.",
       });
@@ -354,8 +347,8 @@ router.post("/mark-present", requireAuth, async (req, res) => {
 
 router.patch("/logout", requireAuth, async (req, res) => {
   try {
-    const canonical = canonicalFirstName(req.user?.firstName);
-    if (!canonical) {
+    const canonical = resolveAttendanceMarkName(req.user?.firstName);
+    if (!canonical || isExcludedAttendanceName(canonical)) {
       return res.status(200).json({ message: "No attendance roster user; skipped." });
     }
 

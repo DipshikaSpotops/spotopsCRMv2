@@ -4,7 +4,7 @@ import { useDispatch } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import {
   attendanceNameKey,
-  canonicalAttendanceName,
+  resolveAttendanceMarkName,
   userRequiresAttendanceRoster,
 } from "../constants/activeAttendanceUsers";
 import { todayDateKeyIST } from "../utils/attendanceStatus";
@@ -72,10 +72,10 @@ export default function MarkAttendanceModal({ isOpen, onClose, isDarkMode, block
         const dateKey = todayDateKeyIST();
         const data = await fetchAttendance(dateKey);
         if (cancelled) return;
-        const canonical = canonicalAttendanceName(name);
-        const row = canonical
+        const markName = resolveAttendanceMarkName(name);
+        const row = markName
           ? (data?.rows || []).find(
-              (r) => attendanceNameKey(r.firstName) === attendanceNameKey(canonical)
+              (r) => attendanceNameKey(r.firstName) === attendanceNameKey(markName)
             ) || null
           : null;
         setMyRow(row);
@@ -92,7 +92,7 @@ export default function MarkAttendanceModal({ isOpen, onClose, isDarkMode, block
   }, [isOpen]);
 
   const canonical = useMemo(
-    () => canonicalAttendanceName(currentFirstName),
+    () => resolveAttendanceMarkName(currentFirstName),
     [currentFirstName]
   );
 
