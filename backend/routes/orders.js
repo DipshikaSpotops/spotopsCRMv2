@@ -1539,42 +1539,6 @@ router.post("/:orderNo/additionalInfo", async (req, res) => {
     order.additionalInfo = order.additionalInfo || [];
     const nextIndex = order.additionalInfo.length + 1;
 
-    // ---- Yard Locaters SLA / relocate reason enforcement -------------------
-    // 2nd+ yard slots MUST include a reason for relocating.
-    if (nextIndex >= 2 && !String(relocateReason || "").trim()) {
-      return res.status(400).json({
-        message:
-          "Relocate reason is required when adding a 2nd (or later) yard to an order.",
-        code: "RELOCATE_REASON_REQUIRED",
-      });
-    }
-    // If more than 24h have passed since Customer Approved (Invoice Signed = day 0),
-    // the locater must supply a delay reason.
-    const nowMs = Date.now();
-    let hoursSinceApproved = null;
-    const approvedRaw = order.customerApprovedDate;
-    if (approvedRaw) {
-      const parsedApproved = new Date(approvedRaw);
-      if (!Number.isNaN(parsedApproved.getTime())) {
-        hoursSinceApproved =
-          (nowMs - parsedApproved.getTime()) / (1000 * 60 * 60);
-      }
-    }
-    const DELAY_HOURS_THRESHOLD = 24;
-    if (
-      hoursSinceApproved !== null &&
-      hoursSinceApproved > DELAY_HOURS_THRESHOLD &&
-      !String(locateDelayReason || "").trim()
-    ) {
-      return res.status(400).json({
-        message: `Yard located ${hoursSinceApproved.toFixed(
-          1
-        )}h after Invoice Signed. A locate-delay reason is required (SLA is ${DELAY_HOURS_THRESHOLD}h).`,
-        code: "LOCATE_DELAY_REASON_REQUIRED",
-        hoursSinceApproved,
-      });
-    }
-
     const parsedExpedite = parseOptionalBooleanFlag(yardExpedite);
     const expediteFlag = parsedExpedite === undefined ? false : parsedExpedite;
     const milesNum =
