@@ -141,62 +141,28 @@ export default function ReturnInTransitOrders() {
   return (
     <div className="return-in-transit-table-wrapper">
       <style>{`
-        .return-in-transit-table-wrapper table {
-          table-layout: fixed;
-          width: 100%;
-        }
-        .return-in-transit-table-wrapper table th {
-          white-space: nowrap !important;
-          overflow: hidden !important;
-        }
+        /*
+          NOTE: previous versions of this file hard-coded per-column widths
+          via nth-child selectors. When OrdersTable started auto-injecting a
+          "Team" column after Sales Agent, every nth-child index shifted by
+          one, the totals exceeded 100%, and overflow:hidden clipped every
+          row's content — making the table look empty. Removed those rules
+          and let the browser auto-layout the columns like other reports.
+        */
         .return-in-transit-table-wrapper table td {
-          overflow: hidden !important;
-          word-wrap: break-word !important;
-          overflow-wrap: break-word !important;
-          white-space: normal !important;
-          font-size: 0.9rem !important;
+          word-wrap: break-word;
+          overflow-wrap: break-word;
         }
         .return-in-transit-table-wrapper .yard-tracking-label {
-          font-size: 1.1rem !important;
+          font-size: 1rem;
           font-weight: 600;
           color: #4ade80;
         }
         .return-in-transit-table-wrapper .yard-tracking-value {
-          font-size: 0.875rem !important;
+          font-size: 0.875rem;
         }
         .return-in-transit-table-wrapper .yard-tracking-row {
-          font-size: 0.9rem !important;
-        }
-        .return-in-transit-table-wrapper table th:nth-child(6),
-        .return-in-transit-table-wrapper table td:nth-child(6) {
-          width: 28% !important;
-          min-width: 28% !important;
-        }
-        .return-in-transit-table-wrapper table th:nth-child(1),
-        .return-in-transit-table-wrapper table td:nth-child(1) {
-          width: 8% !important;
-        }
-        .return-in-transit-table-wrapper table th:nth-child(2),
-        .return-in-transit-table-wrapper table td:nth-child(2) {
-          width: 10% !important;
-        }
-        .return-in-transit-table-wrapper table th:nth-child(3),
-        .return-in-transit-table-wrapper table td:nth-child(3) {
-          width: 10% !important;
-        }
-        .return-in-transit-table-wrapper table th:nth-child(4),
-        .return-in-transit-table-wrapper table td:nth-child(4) {
-          width: 18% !important;
-        }
-        .return-in-transit-table-wrapper table th:nth-child(5),
-        .return-in-transit-table-wrapper table td:nth-child(5) {
-          width: 22% !important;
-        }
-        .return-in-transit-table-wrapper table th:last-child,
-        .return-in-transit-table-wrapper table td:last-child {
-          width: 10% !important;
-          min-width: 90px !important;
-          white-space: nowrap !important;
+          font-size: 0.9rem;
         }
       `}</style>
       <OrdersTable

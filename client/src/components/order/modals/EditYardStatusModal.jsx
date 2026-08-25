@@ -100,6 +100,12 @@ export default function EditYardStatusModal({
   const [voidLabelFile, setVoidLabelFile] = useState(null);
   const [voidLabelPreviewSrc, setVoidLabelPreviewSrc] = useState("");
 
+  // Yard Locaters: mandatory reason when moving to "PO cancelled"
+  const [poCancelReason, setPoCancelReason] = useState(yard?.poCancelReason || "");
+  const [poCancelCategory, setPoCancelCategory] = useState(
+    yard?.poCancelCategory || "other"
+  );
+
   // General yard images (e.g. photos per yard)
   const [yardImages, setYardImages] = useState(Array.isArray(yard?.yardImages) ? yard.yardImages : []);
   const yardImagesInputRef = useRef(null);
@@ -155,6 +161,8 @@ export default function EditYardStatusModal({
     // Existing void-label screenshot (if any)
     setVoidLabelScreenshot(yard?.voidLabelScreenshot || "");
     setVoidLabelFile(null);
+    setPoCancelReason(yard?.poCancelReason || "");
+    setPoCancelCategory(yard?.poCancelCategory || "other");
 
     // Existing yard images (gallery)
     setYardImages(Array.isArray(yard?.yardImages) ? yard.yardImages : []);
@@ -251,6 +259,20 @@ export default function EditYardStatusModal({
           setSavingAction(null);
           return;
         }
+      }
+
+      // Yard Locaters: PO cancel requires a reason before moving forward.
+      if (status === "PO cancelled") {
+        if (!t(poCancelReason)) {
+          setToast(
+            "Please describe why the PO is being cancelled (muddy / rusty / damaged / other) before saving."
+          );
+          setLoading(false);
+          setSavingAction(null);
+          return;
+        }
+        body.poCancelReason = t(poCancelReason);
+        body.poCancelCategory = poCancelCategory || "other";
       }
 
       if (status === "Escalation" || alreadyEscalated) {
@@ -1099,6 +1121,35 @@ export default function EditYardStatusModal({
               </button>
             </div>
           </div>
+
+          {/* PO cancelled — mandatory reason (Yard Locaters) */}
+          {status === "PO cancelled" && (
+            <div className="grid grid-cols-1 gap-2 rounded-lg border border-amber-400/60 bg-amber-50/70 p-3 dark:border-amber-500/40 dark:bg-amber-500/10">
+              <div className="text-sm font-semibold text-amber-800 dark:text-amber-200">
+                Yard Locaters — PO cancel reason (required)
+              </div>
+              <label className="text-xs opacity-90">Category</label>
+              <select
+                value={poCancelCategory}
+                onChange={(e) => setPoCancelCategory(e.target.value)}
+                className="w-full rounded-lg px-3 py-2 bg-[#2b2d68] hover:bg-[#090c6c] border border-white/30 outline-none dark:bg-[#2b2d68] dark:hover:bg-[#090c6c] dark:text-white"
+              >
+                <option value="muddy">Muddy part</option>
+                <option value="rusty">Rusty part</option>
+                <option value="damaged">Damaged part</option>
+                <option value="wrong_part">Wrong part / mismatch</option>
+                <option value="other">Other</option>
+              </select>
+              <label className="mt-1 text-xs opacity-90">Reason (required)</label>
+              <textarea
+                value={poCancelReason}
+                onChange={(e) => setPoCancelReason(e.target.value)}
+                rows={2}
+                placeholder="Describe the issue in one or two sentences (visible on the Yard Locaters report)"
+                className="w-full rounded-lg px-3 py-2 bg-[#2b2d68] hover:bg-[#090c6c] border border-white/30 outline-none dark:bg-[#2b2d68] dark:hover:bg-[#090c6c] dark:text-white"
+              />
+            </div>
+          )}
 
           {/* Escalation */}
           {showEsc && (

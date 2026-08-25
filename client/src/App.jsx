@@ -65,6 +65,7 @@ const CardCharged = lazy(() => import("./pages/CardCharged"));
 const JunkParts = lazy(() => import("./pages/JunkParts"));
 const YardStatistics = lazy(() => import("./pages/YardStatistics"));
 const IncentivesReport = lazy(() => import("./pages/IncentivesReport"));
+const YardLocatersStats = lazy(() => import("./pages/YardLocatersStats"));
 const Attendance = lazy(() => import("./pages/Attendance"));
 const AccessCodes = lazy(() => import("./pages/AccessCodes"));
 const AuthorizationCodes = lazy(() => import("./pages/AuthorizationCodes"));
@@ -577,6 +578,14 @@ function App() {
           element={withLayout(
             <Suspense fallback={<PageLoader />}>
               <IncentivesReport />
+            </Suspense>
+          )}
+        />
+        <Route
+          path="/yard-locaters-stats"
+          element={withLayout(
+            <Suspense fallback={<PageLoader />}>
+              <YardLocatersStats />
             </Suspense>
           )}
         />

@@ -25,6 +25,23 @@ const additionalInfoSchema = new mongoose.Schema(
     status: String,
     paymentStatus: String,
     cardChargedDate: Date,
+    // ---- Yard Locaters tracking (Yard Locaters Stats report) ----
+    /** UTC timestamp when this yard was first added to the order. Auto-set on POST /additionalInfo. */
+    yardLocatedAt: Date,
+    /** firstName of the person who located this yard. Auto-set from ?firstName= at POST time. */
+    locatedByName: String,
+    /** 1-based position on the order at time of add; ≥2 means it's a relocate slot. */
+    relocateSequence: Number,
+    /** Mandatory when relocateSequence ≥ 2 — why a 2nd (or later) yard was located. */
+    relocateReason: String,
+    /** Mandatory when time from customerApprovedDate → yardLocatedAt exceeds SLA threshold. */
+    locateDelayReason: String,
+    /** UTC timestamp when this yard's status first became "Part shipped". Auto-set on PATCH. */
+    partShippedAt: Date,
+    /** Free-text reason captured before cancelling the PO (muddy / rusty / damaged / other). */
+    poCancelReason: String,
+    /** Category for PO cancellation. One of: muddy | rusty | damaged | wrong_part | other. */
+    poCancelCategory: String,
     refundStatus: String,
     refundedAmount: Number,
     storeCredit: Number,

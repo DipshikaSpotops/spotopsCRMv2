@@ -93,6 +93,9 @@ export default function YardAddModal({ open, onClose, onSubmit, order }) {
     warranty: "",
     yardWarrantyField: "days",
     stockNo: "",
+    // Yard Locaters tracking
+    relocateReason: "",
+    locateDelayReason: "",
   });
   const [errors, setErrors] = useState({});
   const [filterText, setFilterText] = useState("");
@@ -371,6 +374,28 @@ export default function YardAddModal({ open, onClose, onSubmit, order }) {
     }));
   };
 
+  // ---- Yard Locaters tracking: is this a relocate? was it delayed? ----
+  const existingYardsCount = Array.isArray(order?.additionalInfo)
+    ? order.additionalInfo.length
+    : 0;
+  const isRelocate = existingYardsCount >= 1;
+  const nextYardNumber = existingYardsCount + 1;
+  const invoiceSignedDate = useMemo(() => {
+    const raw = order?.customerApprovedDate;
+    if (!raw) return null;
+    const d = new Date(raw);
+    return Number.isNaN(d.getTime()) ? null : d;
+  }, [order?.customerApprovedDate]);
+  const hoursSinceInvoiceSigned = useMemo(() => {
+    if (!invoiceSignedDate) return null;
+    const diffMs = Date.now() - invoiceSignedDate.getTime();
+    if (!Number.isFinite(diffMs) || diffMs < 0) return null;
+    return diffMs / (1000 * 60 * 60);
+  }, [invoiceSignedDate]);
+  const SLA_HOURS = 24;
+  const isDelayedLocate =
+    hoursSinceInvoiceSigned !== null && hoursSinceInvoiceSigned > SLA_HOURS;
+
   // Helpers to derive currently selected yard + its agents (if any)
   const trimmedYardName = String(form.yardName || "").trim();
   const currentYard =
@@ -426,6 +451,19 @@ export default function YardAddModal({ open, onClose, onSubmit, order }) {
       e.miles = "Required";
     } else if (Number.isNaN(Number(milesTrim))) {
       e.miles = "Enter a valid number";
+    }
+    // Yard Locaters: mandatory reasons
+    if (isRelocate && !String(form.relocateReason || "").trim()) {
+      e.relocateReason =
+        `Required. Explain why a ${nextYardNumber}${
+          nextYardNumber === 2 ? "nd" : nextYardNumber === 3 ? "rd" : "th"
+        } yard is being located.`;
+    }
+    if (isDelayedLocate && !String(form.locateDelayReason || "").trim()) {
+      e.locateDelayReason =
+        `Required. It's been ${hoursSinceInvoiceSigned?.toFixed(
+          1
+        )}h since invoice was signed (> ${SLA_HOURS}h) — please state the delay reason.`;
     }
     setErrors(e);
     
@@ -1135,6 +1173,67 @@ export default function YardAddModal({ open, onClose, onSubmit, order }) {
             </Field>
           </div>
 
+          {/* Yard Locaters: mandatory reasons for relocate / delayed locate */}
+          {(isRelocate || isDelayedLocate) && (
+            <div className="rounded-lg border border-amber-300/60 bg-amber-50/70 p-3 dark:border-amber-500/40 dark:bg-amber-500/10">
+              <div className="mb-2 text-sm font-semibold text-amber-800 dark:text-amber-200">
+                Yard Locaters — required before adding this yard
+              </div>
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                {isRelocate && (
+                  <Field
+                    label={`Why locating Yard #${nextYardNumber}? (required)`}
+                  >
+                    <textarea
+                      name="relocateReason"
+                      value={form.relocateReason}
+                      onChange={(ev) =>
+                        setForm((p) => ({
+                          ...p,
+                          relocateReason: ev.target.value,
+                        }))
+                      }
+                      rows={2}
+                      className="w-full rounded-md border p-2 text-sm dark:bg-white/10 dark:text-white"
+                      placeholder="e.g. previous yard cancelled the PO, part was damaged, yard unresponsive…"
+                    />
+                    {errors.relocateReason && (
+                      <p className="mt-1 text-xs text-red-600 dark:text-red-300">
+                        {errors.relocateReason}
+                      </p>
+                    )}
+                  </Field>
+                )}
+                {isDelayedLocate && (
+                  <Field
+                    label={`Locate-delay reason — ${hoursSinceInvoiceSigned?.toFixed(
+                      1
+                    )}h since Invoice Signed (> ${SLA_HOURS}h) (required)`}
+                  >
+                    <textarea
+                      name="locateDelayReason"
+                      value={form.locateDelayReason}
+                      onChange={(ev) =>
+                        setForm((p) => ({
+                          ...p,
+                          locateDelayReason: ev.target.value,
+                        }))
+                      }
+                      rows={2}
+                      className="w-full rounded-md border p-2 text-sm dark:bg-white/10 dark:text-white"
+                      placeholder="e.g. weekend, part not in market, waiting on customer confirmation…"
+                    />
+                    {errors.locateDelayReason && (
+                      <p className="mt-1 text-xs text-red-600 dark:text-red-300">
+                        {errors.locateDelayReason}
+                      </p>
+                    )}
+                  </Field>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Shipping splits (single row: Own + Yard + Others/Expedite) */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <Field label="Own Shipping ($)">
@@ -1227,6 +1326,8 @@ export default function YardAddModal({ open, onClose, onSubmit, order }) {
                   ]
                     .filter(Boolean)
                     .join(" | "),
+                  relocateReason: String(form.relocateReason || "").trim(),
+                  locateDelayReason: String(form.locateDelayReason || "").trim(),
                 });
               } catch (error) {
                 console.error("Error submitting yard:", error);

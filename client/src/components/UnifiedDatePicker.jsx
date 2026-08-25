@@ -136,9 +136,29 @@ const UnifiedDatePicker = ({
       top = btnRect.top - margin - height;
     }
 
+    // If the app has a fixed left sidebar, keep the popover to its right so
+    // it never opens behind the sidebar. Sidebar.jsx tags itself with
+    // `data-app-sidebar="true"` so we can find it deterministically.
+    let leftInset = margin;
+    if (typeof document !== "undefined") {
+      const sidebar = document.querySelector('[data-app-sidebar="true"]');
+      if (sidebar) {
+        const r = sidebar.getBoundingClientRect();
+        if (r.right > 0 && r.width < vw / 2) {
+          leftInset = Math.max(leftInset, Math.ceil(r.right) + margin);
+        }
+      }
+    }
+
+    // Try to right-align the popover to the trigger. If that would clip to
+    // the left of the sidebar/viewport, fall back to left-aligning with the
+    // button so it opens to the right instead of vanishing.
     let left = btnRect.right - width;
-    if (left < margin) left = margin;
+    if (left < leftInset) {
+      left = Math.max(btnRect.left, leftInset);
+    }
     if (left + width > vw - margin) left = vw - margin - width;
+    if (left < leftInset) left = leftInset;
 
     setPopoverPos({ top, left });
   };

@@ -203,6 +203,26 @@ export default function Sidebar() {
         { text: "Order Statistics", to: "/order-statistics", adminOnly: true, emailAccess: "50starsauto110@gmail.com" },
         { text: "Make/Model", to: "/make-statistics", adminOnly: true, emailAccess: "50starsauto110@gmail.com" },
         { text: "Incentives Report", to: "/incentives-report", adminOnly: true, emailAccess: "50starsauto110@gmail.com" },
+        {
+          text: "Yard Locaters Stats",
+          to: "/yard-locaters-stats",
+          permissionRequired: USER_PERMISSIONS.YARD_LOCATES,
+        },
+      ],
+    },
+  ];
+
+  // Report links that stay visible to permission-scoped users (based on their permissions).
+  const permissionScopedReportsLinks = [
+    {
+      text: "Statistics",
+      submenuKey: "reportsStatistics",
+      children: [
+        {
+          text: "Yard Locaters Stats",
+          to: "/yard-locaters-stats",
+          permissionRequired: USER_PERMISSIONS.YARD_LOCATES,
+        },
       ],
     },
   ];
@@ -287,8 +307,12 @@ export default function Sidebar() {
   };
 
   /** Reports / nested menus: Sales always keeps Sales Report; Support hides it; leaves still use shouldShowLink. */
-  const filterNestedLinksByRole = (items, userRole, userEmail, currentBrand) => {
+  const filterNestedLinksByRole = (items, userRole, userEmail, currentBrand, userPermissions = []) => {
+    const permOk = (l) =>
+      !l.permissionRequired ||
+      canAccessPermission(l.permissionRequired, userRole, userPermissions);
     const leafVisible = (l) => {
+      if (!permOk(l)) return false;
       if (userRole === "Sales") {
         if (l.text === "Sales Report") return true;
         return shouldShowLink(l, userRole, userEmail, currentBrand);
@@ -386,7 +410,15 @@ export default function Sidebar() {
     );
     showUsersSection = false;
     usersLinks = [];
-    reportsLinks = [];
+    // Show only the permission-scoped Reports subset (e.g. Yard Locaters Stats
+    // for users with the YARD_LOCATES permission).
+    reportsLinks = filterNestedLinksByRole(
+      permissionScopedReportsLinks,
+      role,
+      email,
+      brand,
+      permissions
+    );
     // Permission-scoped users normally hide Attendance; allowlisted email keeps it.
     attendanceLinks = isAttendanceEmail ? attendanceLinksBase : [];
   } else if (role === "Sales") {
@@ -431,17 +463,55 @@ export default function Sidebar() {
       ? usersLinksBase.filter((l) => l.to === "/authorization-codes")
       : [];
 
-    reportsLinks = filterNestedLinksByRole(reportsLinksBase, role, email, brand);
+    reportsLinks = filterNestedLinksByRole(reportsLinksBase, role, email, brand, permissions);
     attendanceLinks = attendanceLinksBase.filter((l) => shouldShowLink(l, role, email, brand));
   } else {
     showUsersSection = true;
     dashboardLinks = filterDashboardLinks(dashboardLinksBase, role, email, brand, new Set(), new Set(), permissions);
-    reportsLinks = filterNestedLinksByRole(reportsLinksBase, role, email, brand);
+    reportsLinks = filterNestedLinksByRole(reportsLinksBase, role, email, brand, permissions);
     attendanceLinks = attendanceLinksBase.filter((l) => shouldShowLink(l, role, email, brand));
   }
 
   if (isAttendanceEmail && attendanceLinks.length === 0) {
     attendanceLinks = attendanceLinksBase;
+  }
+
+  // 50starsauto110@gmail.com has explicit access to specific report pages
+  // regardless of role/permissions. Ensure those entries are present.
+  if (isAttendanceEmail) {
+    const emailReportGrants = [
+      {
+        text: "Purchases",
+        submenuKey: "reportsPurchases",
+        children: [
+          { text: "Card Charged", to: "/card-charged" },
+          { text: "Card Not Charged", to: "/card-not-charged-report" },
+        ],
+      },
+      {
+        text: "Statistics",
+        submenuKey: "reportsStatistics",
+        children: [
+          { text: "Yard Locaters Stats", to: "/yard-locaters-stats" },
+        ],
+      },
+    ];
+    const merged = [...reportsLinks];
+    for (const group of emailReportGrants) {
+      const existing = merged.find(
+        (r) => r.text === group.text && Array.isArray(r.children)
+      );
+      if (existing) {
+        const paths = new Set(existing.children.map((c) => c.to));
+        const additions = group.children.filter((c) => !paths.has(c.to));
+        if (additions.length > 0) {
+          existing.children = [...existing.children, ...additions];
+        }
+      } else {
+        merged.push(group);
+      }
+    }
+    reportsLinks = merged;
   }
 
   if (isAuthCodesViewer) {
@@ -485,6 +555,7 @@ export default function Sidebar() {
 
   return (
     <div
+      data-app-sidebar="true"
       className="
         fixed 
         top-16 

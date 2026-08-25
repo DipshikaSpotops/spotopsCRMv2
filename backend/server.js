@@ -47,6 +47,7 @@ import gmailRouter from "./routes/gmail.js";
 import salesAgentsRouter from "./routes/salesAgents.js";
 import salesActualGpSnapshotsRouter from "./routes/salesActualGpSnapshots.js";
 import incentivesReportRouter from "./routes/incentivesReport.js";
+import yardLocatersStatsRouter from "./routes/yardLocatersStats.js";
 import attendanceRouter from "./routes/attendance.js";
 import s3Router from "./routes/s3.js";
 import { brandMiddleware } from "./middleware/brand.js";
@@ -125,6 +126,7 @@ app.use("/api/gmail", gmailRouter);
 app.use("/api/salesAgents", salesAgentsRouter);
 app.use("/api/salesActualGpSnapshots", salesActualGpSnapshotsRouter);
 app.use("/api/reports/incentives", incentivesReportRouter);
+app.use("/api/reports/yard-locaters", yardLocatersStatsRouter);
 
 // Add redirect route for OAuth callback (in case credentials.json has wrong redirect URI)
 app.get("/oauth2/callback", (req, res) => {

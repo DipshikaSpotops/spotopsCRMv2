@@ -123,6 +123,7 @@ export const ROUTE_PERMISSION_MAP = {
   "/yard-statistics": [USER_PERMISSIONS.YARD_LOCATES],
   "/yard-relocates": [USER_PERMISSIONS.YARD_LOCATES],
   "/yard-not-found": [USER_PERMISSIONS.YARD_LOCATES],
+  "/yard-locaters-stats": [USER_PERMISSIONS.YARD_LOCATES],
   // Yard Processing
   "/yard-processing": [USER_PERMISSIONS.YARD_PROCESSING],
   "/in-transit": [USER_PERMISSIONS.YARD_PROCESSING],
@@ -146,6 +147,14 @@ export const ROUTE_PERMISSION_MAP = {
 };
 
 /**
+ * Per-route email allowlist. Users whose email matches are granted access
+ * regardless of role/permissions.
+ */
+export const ROUTE_EMAIL_ALLOWLIST = {
+  "/yard-locaters-stats": ["50starsauto110@gmail.com"],
+};
+
+/**
  * Whether `user` can access `pathname`. Admin -> always. Unmapped path -> always.
  * Mapped path -> user must hold at least one of the required permissions.
  */
@@ -155,6 +164,14 @@ export function canAccessRoute(user, pathname, role) {
 
   if (pathname === "/assign-orders") {
     return canAssignOrders(user);
+  }
+
+  const emailAllow = ROUTE_EMAIL_ALLOWLIST[pathname];
+  if (emailAllow && emailAllow.length) {
+    const userEmail = String(user?.email || "").trim().toLowerCase();
+    if (userEmail && emailAllow.some((e) => String(e).toLowerCase() === userEmail)) {
+      return true;
+    }
   }
 
   const required = ROUTE_PERMISSION_MAP[pathname];

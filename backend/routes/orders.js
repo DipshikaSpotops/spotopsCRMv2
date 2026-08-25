@@ -1503,6 +1503,9 @@ router.post("/:orderNo/additionalInfo", async (req, res) => {
       eta,
       deliveredDate,
       status = "Yard located",
+      // Yard Locaters tracking — supplied by YardAddModal for 2nd+ yards / delayed locates
+      relocateReason,
+      locateDelayReason,
     } = req.body || {};
 
     const normalizedYardName = normalizeYardName(yardName, city, state);
@@ -1536,6 +1539,42 @@ router.post("/:orderNo/additionalInfo", async (req, res) => {
     order.additionalInfo = order.additionalInfo || [];
     const nextIndex = order.additionalInfo.length + 1;
 
+    // ---- Yard Locaters SLA / relocate reason enforcement -------------------
+    // 2nd+ yard slots MUST include a reason for relocating.
+    if (nextIndex >= 2 && !String(relocateReason || "").trim()) {
+      return res.status(400).json({
+        message:
+          "Relocate reason is required when adding a 2nd (or later) yard to an order.",
+        code: "RELOCATE_REASON_REQUIRED",
+      });
+    }
+    // If more than 24h have passed since Customer Approved (Invoice Signed = day 0),
+    // the locater must supply a delay reason.
+    const nowMs = Date.now();
+    let hoursSinceApproved = null;
+    const approvedRaw = order.customerApprovedDate;
+    if (approvedRaw) {
+      const parsedApproved = new Date(approvedRaw);
+      if (!Number.isNaN(parsedApproved.getTime())) {
+        hoursSinceApproved =
+          (nowMs - parsedApproved.getTime()) / (1000 * 60 * 60);
+      }
+    }
+    const DELAY_HOURS_THRESHOLD = 24;
+    if (
+      hoursSinceApproved !== null &&
+      hoursSinceApproved > DELAY_HOURS_THRESHOLD &&
+      !String(locateDelayReason || "").trim()
+    ) {
+      return res.status(400).json({
+        message: `Yard located ${hoursSinceApproved.toFixed(
+          1
+        )}h after Invoice Signed. A locate-delay reason is required (SLA is ${DELAY_HOURS_THRESHOLD}h).`,
+        code: "LOCATE_DELAY_REASON_REQUIRED",
+        hoursSinceApproved,
+      });
+    }
+
     const parsedExpedite = parseOptionalBooleanFlag(yardExpedite);
     const expediteFlag = parsedExpedite === undefined ? false : parsedExpedite;
     const milesNum =
@@ -1554,6 +1593,14 @@ router.post("/:orderNo/additionalInfo", async (req, res) => {
       shippingDetails, others, faxNo, expShipDate, warranty, yardWarrantyField, stockNo,
       trackingNo, eta, deliveredDate, status,
       yardExpedite: expediteFlag,
+      // Yard Locaters tracking
+      yardLocatedAt: new Date(),
+      locatedByName: firstName || undefined,
+      relocateSequence: nextIndex,
+      relocateReason:
+        nextIndex >= 2 ? String(relocateReason || "").trim() : undefined,
+      locateDelayReason:
+        String(locateDelayReason || "").trim() || undefined,
     };
 
     order.additionalInfo.push(yardEntry);
@@ -1569,6 +1616,16 @@ router.post("/:orderNo/additionalInfo", async (req, res) => {
     order.orderHistory.push(
       `Yard ${nextIndex} Located by ${firstName} on ${when}`
     );
+    if (nextIndex >= 2 && String(relocateReason || "").trim()) {
+      order.orderHistory.push(
+        `Yard ${nextIndex} relocate reason: ${String(relocateReason).trim()} (by ${firstName} on ${when})`
+      );
+    }
+    if (String(locateDelayReason || "").trim()) {
+      order.orderHistory.push(
+        `Yard ${nextIndex} locate-delay reason: ${String(locateDelayReason).trim()} (by ${firstName} on ${when})`
+      );
+    }
 // Yard Name: ${yname} PP: ${pp} Shipping: ${shipTxt} Others: ${othTxt}
     if (orderStatus && String(orderStatus).trim() !== "") {
       const normalizedYardStatus = canonicalOrderStatus(orderStatus.trim()) || orderStatus.trim();
@@ -1782,11 +1839,51 @@ router.put(
     "escrepBOLhistoryYard",
     "collectRefundCheckbox",
     "refundToCollect",
+    // Yard Locaters tracking
+    "poCancelReason",
+    "poCancelCategory",
+    "relocateReason",
+    "locateDelayReason",
     ];
 
     const patch = {};
     for (const k of allowed) {
       if (Object.prototype.hasOwnProperty.call(req.body, k)) patch[k] = req.body[k];
+    }
+
+    // ---- Yard Locaters: enforce PO cancel reason ------------------------
+    // If the status is being changed to a PO-cancelled variant, a reason is mandatory.
+    if (Object.prototype.hasOwnProperty.call(patch, "status")) {
+      const nextStatusStr = String(patch.status || "").trim().toLowerCase();
+      const isPoCancelStatus =
+        nextStatusStr === "po cancelled" ||
+        nextStatusStr === "po canceled" ||
+        nextStatusStr === "po cancel";
+      const priorStatusStr = String(subdoc.status || "").trim().toLowerCase();
+      const alreadyCancelled =
+        priorStatusStr === "po cancelled" ||
+        priorStatusStr === "po canceled" ||
+        priorStatusStr === "po cancel";
+      if (isPoCancelStatus && !alreadyCancelled) {
+        const incomingReason = String(
+          patch.poCancelReason ?? subdoc.poCancelReason ?? ""
+        ).trim();
+        if (!incomingReason) {
+          return res.status(400).json({
+            message:
+              "A cancellation reason is required before cancelling this PO. Please describe why (muddy / rusty / damaged / other).",
+            code: "PO_CANCEL_REASON_REQUIRED",
+          });
+        }
+      }
+    }
+    // Auto-record when the part first ships (used by report SLA).
+    if (
+      Object.prototype.hasOwnProperty.call(patch, "status") &&
+      String(patch.status || "").trim().toLowerCase() === "part shipped" &&
+      !subdoc.partShippedAt
+    ) {
+      patch.partShippedAt = new Date();
     }
 
     /* ---------------------- VOID LABEL ---------------------- */
