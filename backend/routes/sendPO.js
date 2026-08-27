@@ -148,7 +148,7 @@ const SUPPORT_AGENT_PROLANE_NAME_MAP = {
   Alex: "Jason Morgan",
   Hannah: "Alice Presley",
   Natasha: "Sophia Roberts",
-  Stella: "Zoe Harris",
+  Kevin: "Jacob Lewis",
   Amy: "Jessica Mitchell",
   Rhea: "Katherine Williams",
   Tylor: "Hailey Pitt",
