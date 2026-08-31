@@ -15,6 +15,7 @@ export default function YardList({
   onEscalation,
   activeYardIndex, // Optional: parent can control which yard is active
   onActiveYardChange, // Optional: callback when user clicks a yard tab
+  onYardImagesChanged,
 }) {
   const [activeIdx, setActiveIdx] = useState(0);
   const [storeCreditApplied, setStoreCreditApplied] = useState([]);
@@ -289,12 +290,14 @@ export default function YardList({
         <YardCard
           yard={yards[effectiveActiveIdx]}
           index={effectiveActiveIdx}
+          orderNo={orderNo}
           onEditStatus={onEditStatus}
           onEditDetails={onEditDetails}
           onCardCharged={onCardCharged}
           onRefundStatus={onRefundStatus}
           onEscalation={onEscalation}
           storeCreditApplied={storeCreditApplied}
+          onYardImagesChanged={onYardImagesChanged}
         />
       )}
     </GlassCard>

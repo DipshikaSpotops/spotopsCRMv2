@@ -238,6 +238,7 @@ const Yards = () => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
   const [showUnblockConfirm, setShowUnblockConfirm] = useState(null);
   const [showBlockConfirm, setShowBlockConfirm] = useState(null);
+  const [blockReason, setBlockReason] = useState("");
   const [blockSaving, setBlockSaving] = useState(false);
   // null = show all yards; set only when user applies UnifiedDatePicker
   const [dateFilter, setDateFilter] = useState(null);
@@ -518,6 +519,7 @@ const Yards = () => {
     try {
       setBlockSaving(true);
       await API.post("/blocked-yards", {
+        yardId: yard._id,
         yardName: yard.yardName || "",
         street: yard.street || "",
         city: yard.city || "",
@@ -525,8 +527,10 @@ const Yards = () => {
         zipcode: yard.zipcode || "",
         phone: yard.phone || "",
         notes: "Blocked from Yard Data page",
+        blockReason: String(blockReason || "").trim(),
       });
       setShowBlockConfirm(null);
+      setBlockReason("");
       alert("Yard blocked successfully.");
     } catch (err) {
       console.error("Error blocking yard:", err);
@@ -775,6 +779,9 @@ const Yards = () => {
                 { key: "updatedAt", label: "Updated At" },
                 { key: "updatedBy", label: "Updated By" },
                 { key: "yardRating", label: "Yard Rating" },
+                ...(showBlockedYards
+                  ? [{ key: "blockReason", label: "Reason" }]
+                  : []),
               ].map((col) => (
                 <th
                   key={col.key}
@@ -856,6 +863,11 @@ const Yards = () => {
                 <td className="p-2.5 border-r border-white/20 whitespace-nowrap text-[#e1ebeb]">
                   {yard.yardRating || "—"}
                 </td>
+                {showBlockedYards && (
+                  <td className="p-2.5 border-r border-white/20 text-[#e1ebeb] max-w-xs">
+                    {yard.blockReason || "—"}
+                  </td>
+                )}
                 <td className="p-2.5 whitespace-nowrap">
                   {showBlockedYards ? (
                     <button
@@ -882,7 +894,10 @@ const Yards = () => {
                       </button>
                       {canManageBlockedYards && (
                         <button
-                          onClick={() => setShowBlockConfirm(yard)}
+                          onClick={() => {
+                            setBlockReason("");
+                            setShowBlockConfirm(yard);
+                          }}
                           className="px-2 py-1 bg-orange-600 hover:bg-orange-700 rounded text-white text-xs"
                         >
                           Block
@@ -1013,7 +1028,12 @@ const Yards = () => {
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
           <div
             className="absolute inset-0 bg-black/40 backdrop-blur-sm"
-            onClick={() => !blockSaving && setShowBlockConfirm(null)}
+            onClick={() => {
+              if (!blockSaving) {
+                setShowBlockConfirm(null);
+                setBlockReason("");
+              }
+            }}
           />
           <div className="relative w-full max-w-md rounded-2xl border border-white/20 bg-white/10 text-white backdrop-blur-xl shadow-2xl">
             <header className="flex items-center justify-between px-5 py-3 border-b border-white/20">
@@ -1021,24 +1041,42 @@ const Yards = () => {
               <button
                 type="button"
                 disabled={blockSaving}
-                onClick={() => setShowBlockConfirm(null)}
+                onClick={() => {
+                  setShowBlockConfirm(null);
+                  setBlockReason("");
+                }}
                 className="px-2 py-1 rounded-md bg-white/10 border border-white/20 hover:bg-white/20 disabled:opacity-50"
               >
                 ✕
               </button>
             </header>
-            <div className="p-5">
+            <div className="p-5 space-y-4">
               <p className="text-white/90">
                 Are you sure you want to block{" "}
                 <strong>{showBlockConfirm.yardName || "this yard"}</strong>? It
                 will be prevented from being used on orders.
               </p>
+              <label className="block">
+                <span className="mb-1 block text-sm font-medium text-white/90">
+                  Reason
+                </span>
+                <input
+                  type="text"
+                  value={blockReason}
+                  onChange={(e) => setBlockReason(e.target.value)}
+                  placeholder="Why is this yard being blocked?"
+                  className="w-full rounded-md border border-white/30 bg-white/10 px-3 py-2 text-sm text-white placeholder:text-white/50 focus:border-white/60 focus:outline-none"
+                />
+              </label>
             </div>
             <footer className="flex items-center justify-end gap-2 px-5 py-3 border-t border-white/20">
               <button
                 type="button"
                 disabled={blockSaving}
-                onClick={() => setShowBlockConfirm(null)}
+                onClick={() => {
+                  setShowBlockConfirm(null);
+                  setBlockReason("");
+                }}
                 className="px-4 py-2 rounded-lg bg-white/10 border border-white/20 hover:bg-white/20 transition disabled:opacity-50"
               >
                 Cancel

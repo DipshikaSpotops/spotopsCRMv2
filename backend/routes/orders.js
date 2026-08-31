@@ -3048,6 +3048,120 @@ router.post(
     }
   }
 );
+
+router.delete("/:orderNo/customerImages/:imageIndex", async (req, res) => {
+  try {
+    const orderNo = decodeURIComponent(req.params.orderNo).trim();
+    const imageIndex = parseInt(req.params.imageIndex, 10);
+    if (!orderNo) {
+      return res.status(400).json({ message: "orderNo is required" });
+    }
+    if (!Number.isInteger(imageIndex) || imageIndex < 0) {
+      return res.status(400).json({ message: "Invalid image index" });
+    }
+
+    const firstName = cleanFirstName(
+      req.query.firstName || req.query.firstname || "System"
+    );
+    const when = getWhen();
+
+    const Order = getOrderModel(req);
+    const order = await Order.findOne({ orderNo });
+    if (!order) return res.status(404).json({ message: "Order not found" });
+
+    if (!Array.isArray(order.images) || imageIndex >= order.images.length) {
+      return res.status(404).json({ message: "Customer image not found" });
+    }
+
+    order.images.splice(imageIndex, 1);
+    order.markModified("images");
+    order.orderHistory = order.orderHistory || [];
+    order.orderHistory.push(
+      `Customer image ${imageIndex + 1} deleted by ${firstName} on ${when}`
+    );
+    await order.save();
+
+    publish(req, orderNo, { type: "CUSTOMER_IMAGE_DELETED", imageIndex });
+    broadcastOrder(req, order);
+
+    return res.json({
+      message: "Customer image deleted",
+      images: order.images,
+    });
+  } catch (err) {
+    console.error("DELETE /customerImages/:imageIndex failed", err);
+    return res.status(500).json({
+      message: "Server error while deleting customer image",
+      error: err.message || String(err),
+    });
+  }
+});
+
+router.delete(
+  "/:orderNo/additionalInfo/:index/yardImages/:imageIndex",
+  async (req, res) => {
+    try {
+      const orderNo = decodeURIComponent(req.params.orderNo).trim();
+      const idx1 = parseInt(req.params.index, 10);
+      const idx0 = idx1 - 1;
+      const imageIndex = parseInt(req.params.imageIndex, 10);
+      if (!orderNo) {
+        return res.status(400).json({ message: "orderNo is required" });
+      }
+      if (!Number.isInteger(idx1) || idx1 < 1) {
+        return res.status(400).json({ message: "Invalid yard index" });
+      }
+      if (!Number.isInteger(imageIndex) || imageIndex < 0) {
+        return res.status(400).json({ message: "Invalid image index" });
+      }
+
+      const firstName = cleanFirstName(
+        req.query.firstName || req.query.firstname || "System"
+      );
+      const when = getWhen();
+
+      const Order = getOrderModel(req);
+      const order = await Order.findOne({ orderNo });
+      if (!order) return res.status(404).json({ message: "Order not found" });
+      if (!order.additionalInfo?.[idx0]) {
+        return res.status(404).json({ message: `Yard ${idx1} not found` });
+      }
+
+      const subdoc = order.additionalInfo[idx0];
+      if (!Array.isArray(subdoc.yardImages) || imageIndex >= subdoc.yardImages.length) {
+        return res.status(404).json({ message: "Yard image not found" });
+      }
+
+      subdoc.yardImages.splice(imageIndex, 1);
+      order.markModified(`additionalInfo.${idx0}.yardImages`);
+      order.orderHistory = order.orderHistory || [];
+      order.orderHistory.push(
+        `Yard ${idx1} image ${imageIndex + 1} deleted by ${firstName} on ${when}`
+      );
+      await order.save();
+
+      publish(req, orderNo, {
+        type: "YARD_UPDATED",
+        yardIndex: idx1,
+        status: order.orderStatus,
+      });
+      broadcastOrder(req, order);
+
+      return res.json({
+        message: "Yard image deleted",
+        yardImages: subdoc.yardImages,
+        order,
+      });
+    } catch (err) {
+      console.error("DELETE /additionalInfo/:index/yardImages/:imageIndex failed", err);
+      return res.status(500).json({
+        message: "Server error while deleting yard image",
+        error: err.message || String(err),
+      });
+    }
+  }
+);
+
 /* Save only — for order cancellation (no email sent)*/
 router.put("/:orderNo/cancelOnly", async (req, res) => {
   try {

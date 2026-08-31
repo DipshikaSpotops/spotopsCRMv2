@@ -21,6 +21,7 @@ const yardsSchema = new mongoose.Schema(
       },
     ],
     updatedBy: { type: String, trim: true },
+    blockReason: { type: String, trim: true, default: "" },
   },
   { timestamps: true }
 );

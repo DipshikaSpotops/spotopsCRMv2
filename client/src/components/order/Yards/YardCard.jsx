@@ -1,3 +1,4 @@
+import { useState } from "react";
 import Field from "../../ui/Field";
 import Input from "../../ui/Input";
 import YardActionButtons from "../YardActionButtons";
@@ -7,18 +8,24 @@ import {
   yardStoreCreditMatchKey,
 } from "@spotops/shared/utils/yardName.js";
 import { openS3ObjectUrl } from "../../../utils/s3View";
+import API from "../../../api";
+import TrashCanIcon from "../../ui/TrashCanIcon";
 
 export default function YardCard({
   yard,
   index,
+  orderNo,
   onEditStatus,
   onEditDetails,
   onCardCharged,
   onRefundStatus,
   onEscalation,
   storeCreditApplied = [],
+  onYardImagesChanged,
 }) {
   const y = yard || {};
+  const [pendingDeleteIdx, setPendingDeleteIdx] = useState(null);
+  const [deletingImage, setDeletingImage] = useState(false);
 
   const matchingStoreCredits = (() => {
     if (!Array.isArray(storeCreditApplied) || !storeCreditApplied.length) {
@@ -59,6 +66,26 @@ export default function YardCard({
       amount,
     }));
   })();
+
+  const confirmDeleteYardImage = async () => {
+    if (pendingDeleteIdx == null || deletingImage) return;
+    if (!orderNo) return;
+    try {
+      setDeletingImage(true);
+      const firstName = localStorage.getItem("firstName");
+      await API.delete(
+        `/orders/${encodeURIComponent(orderNo)}/additionalInfo/${index + 1}/yardImages/${pendingDeleteIdx}`,
+        { params: { firstName } }
+      );
+      setPendingDeleteIdx(null);
+      await onYardImagesChanged?.();
+    } catch (err) {
+      console.error("Failed to delete yard image:", err);
+      alert(err?.response?.data?.message || "Failed to delete image. Please try again.");
+    } finally {
+      setDeletingImage(false);
+    }
+  };
 
   const buildAddress = () => {
     const clean = (val) =>
@@ -352,21 +379,77 @@ export default function YardCard({
           <div className="text-sm font-semibold mb-1">Yard images</div>
           <div className="flex flex-col items-start gap-1">
             {y.yardImages.map((url, idx) => (
-              <a
-                key={`${url}-${idx}`}
-                href={url}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  openS3ObjectUrl(url);
-                }}
-                className="inline-flex w-fit max-w-full items-center text-xs text-blue-700 underline dark:text-blue-300 hover:text-blue-900 dark:hover:text-blue-200"
-              >
-                {`View image ${idx + 1}`}
-              </a>
+              <div key={`${url}-${idx}`} className="flex items-center gap-2">
+                <a
+                  href={url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    openS3ObjectUrl(url);
+                  }}
+                  className="inline-flex w-fit max-w-full items-center text-xs text-blue-700 underline dark:text-blue-300 hover:text-blue-900 dark:hover:text-blue-200"
+                >
+                  {`View image ${idx + 1}`}
+                </a>
+                <button
+                  type="button"
+                  title="Delete image"
+                  aria-label={`Delete yard image ${idx + 1}`}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setPendingDeleteIdx(idx);
+                  }}
+                  className="inline-flex h-6 w-6 items-center justify-center rounded-sm bg-black text-white hover:bg-black/80"
+                >
+                  <TrashCanIcon className="h-3.5 w-3.5" />
+                </button>
+              </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {pendingDeleteIdx != null && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="relative w-[90vw] max-w-md rounded-2xl border border-gray-200 bg-blue-50 text-[#09325d] shadow-2xl overflow-hidden dark:border-white/15 dark:bg-[#0b1c34]/90 dark:text-white">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200 dark:border-white/10">
+              <h3 className="text-lg font-semibold">Delete image?</h3>
+              <button
+                type="button"
+                disabled={deletingImage}
+                onClick={() => setPendingDeleteIdx(null)}
+                className="h-8 w-8 grid place-items-center rounded-md bg-blue-200 hover:bg-blue-300 border border-blue-300 text-blue-800 dark:bg-white/10 dark:hover:bg-white/20 dark:border-white/15 dark:text-white"
+                aria-label="Close"
+              >
+                ×
+              </button>
+            </div>
+            <div className="px-5 py-4">
+              <p className="leading-relaxed">
+                Delete yard image {pendingDeleteIdx + 1}? This cannot be undone.
+              </p>
+            </div>
+            <div className="flex justify-end gap-3 px-5 py-4 border-t border-gray-200 dark:border-white/10">
+              <button
+                type="button"
+                disabled={deletingImage}
+                onClick={() => setPendingDeleteIdx(null)}
+                className="px-4 py-2 rounded-lg bg-blue-200 hover:bg-blue-300 border border-blue-300 text-blue-800 dark:bg-white/10 dark:hover:bg-white/20 dark:border-white/20 dark:text-white"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={deletingImage}
+                onClick={confirmDeleteYardImage}
+                className="px-5 py-2 rounded-lg bg-red-600 text-white font-medium border border-red-600 hover:bg-red-700 disabled:opacity-50"
+              >
+                {deletingImage ? "Deleting…" : "Delete"}
+              </button>
+            </div>
           </div>
         </div>
       )}

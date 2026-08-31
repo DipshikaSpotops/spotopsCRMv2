@@ -1,4 +1,5 @@
 import BlockedYard from "../models/BlockedYard.js";
+import Yards from "../models/Yards.js";
 import seedRows from "../../shared/data/blockedYards.json" with { type: "json" };
 import {
   buildLocationKey,
@@ -37,7 +38,7 @@ async function loadActiveBlockedYards() {
 
   const rows = await BlockedYard.find({ active: true })
     .select(
-      "yardName normalizedKey locationKey street city state zipcode phone notes"
+      "yardName normalizedKey locationKey street city state zipcode phone notes blockReason"
     )
     .lean();
 
@@ -139,6 +140,7 @@ const ADMIN_LIST_SORT_FIELDS = new Set([
   "phone",
   "updatedAt",
   "createdAt",
+  "blockReason",
 ]);
 
 export async function listBlockedYardsForAdmin({
@@ -168,6 +170,7 @@ export async function listBlockedYardsForAdmin({
         { zipcode: searchRegex },
         { phone: searchRegex },
         { notes: searchRegex },
+        { blockReason: searchRegex },
       ],
     };
   }
@@ -179,7 +182,7 @@ export async function listBlockedYardsForAdmin({
     .skip(skip)
     .limit(pageSize)
     .select(
-      "yardName street city state zipcode phone notes updatedAt createdAt"
+      "yardName street city state zipcode phone notes blockReason updatedAt createdAt"
     )
     .lean();
 
@@ -195,6 +198,16 @@ export async function listBlockedYardsForAdmin({
 export async function unblockYardById(id) {
   const deleted = await BlockedYard.findByIdAndDelete(id);
   if (!deleted) return null;
+  if (deleted.yardName) {
+    try {
+      await Yards.findOneAndUpdate(
+        { yardName: deleted.yardName },
+        { $set: { blockReason: "" } }
+      );
+    } catch (err) {
+      console.error("Failed to clear blockReason on Yards:", err);
+    }
+  }
   invalidateBlockedYardCache();
   return deleted;
 }
@@ -216,6 +229,7 @@ export async function blockYardFromYardData(payload = {}) {
     zipcode: String(payload.zipcode || "").trim(),
     phone: String(payload.phone || "").trim(),
     notes: String(payload.notes || "").trim() || "Blocked from Yard Data page",
+    blockReason: String(payload.blockReason || "").trim(),
     active: true,
   };
 
@@ -246,6 +260,20 @@ export async function blockYardFromYardData(payload = {}) {
     },
     { upsert: true, new: true, setDefaultsOnInsert: true }
   );
+
+  const yardId = String(payload.yardId || payload._id || "").trim();
+  try {
+    if (yardId) {
+      await Yards.findByIdAndUpdate(yardId, { $set: { blockReason: row.blockReason } });
+    } else {
+      await Yards.findOneAndUpdate(
+        { yardName },
+        { $set: { blockReason: row.blockReason } }
+      );
+    }
+  } catch (err) {
+    console.error("Failed to save blockReason on Yards:", err);
+  }
 
   invalidateBlockedYardCache();
   return doc;

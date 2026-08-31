@@ -16,6 +16,7 @@ const blockedYardSchema = new mongoose.Schema(
     phone: { type: String, trim: true, default: "" },
     active: { type: Boolean, default: true },
     notes: { type: String, trim: true, default: "" },
+    blockReason: { type: String, trim: true, default: "" },
   },
   { timestamps: true }
 );

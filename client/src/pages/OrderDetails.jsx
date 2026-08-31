@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import NavbarForm from "../components/NavbarForm";
 import GlassCard from "../components/ui/GlassCard";
 import Pill from "../components/ui/Pill";
+import TrashCanIcon from "../components/ui/TrashCanIcon";
 import { getStatusColor } from "../utils/formatter";
 import useOrderDetails from "../hooks/useOrderDetails";
 import useOrderRealtime from "../hooks/useOrderRealtime";
@@ -378,6 +379,7 @@ export default function OrderDetails() {
   const [showCustomerImagesModal, setShowCustomerImagesModal] = useState(false);
   const customerImagesInputRef = useRef(null);
   const [uploadingCustomerImages, setUploadingCustomerImages] = useState(false);
+  const [deletingCustomerImage, setDeletingCustomerImage] = useState(false);
   const [newStatus, setNewStatus] = useState(order?.orderStatus || "");
   const [confirm, setConfirm] = useState({ open: false, title: "", message: "", onConfirm: null });
   const [reimbursementAmount, setReimbursementAmount] = useState("");
@@ -895,6 +897,26 @@ export default function OrderDetails() {
       setToast(message);
     } finally {
       setUploadingCustomerImages(false);
+    }
+  };
+
+  const deleteCustomerImage = async (imageIndex) => {
+    if (deletingCustomerImage || imageIndex == null || !orderNo) return;
+    try {
+      setDeletingCustomerImage(true);
+      const firstName = localStorage.getItem("firstName");
+      await API.delete(
+        `/orders/${encodeURIComponent(orderNo)}/customerImages/${imageIndex}`,
+        { params: { firstName } }
+      );
+      await refresh();
+      setToast("Customer image deleted.");
+    } catch (err) {
+      const message =
+        err?.response?.data?.message || err?.message || "Failed to delete customer image";
+      setToast(message);
+    } finally {
+      setDeletingCustomerImage(false);
     }
   };
 
@@ -2013,6 +2035,7 @@ export default function OrderDetails() {
                   }}
                   activeYardIndex={activeYardIndex}
                   onActiveYardChange={handleActiveYardChange}
+                  onYardImagesChanged={refresh}
                 />
               </div>
             </section>
@@ -2455,23 +2478,43 @@ export default function OrderDetails() {
               {customerImages.length > 0 && (
                 <div className="mt-2 space-y-1">
                   <div className="text-sm font-semibold">Existing images</div>
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex flex-col items-start gap-1">
                     {customerImages.map((img, idx) => {
                       const href = img?.url || img;
                       return (
-                        <a
-                          key={`${href}-${idx}`}
-                          href={href}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            openS3ObjectUrl(href);
-                          }}
-                          className="inline-flex items-center text-xs text-blue-700 underline dark:text-blue-300 hover:text-blue-900 dark:hover:text-blue-200"
-                        >
-                          {`View image ${idx + 1}`}
-                        </a>
+                        <div key={`${href}-${idx}`} className="flex items-center gap-2">
+                          <a
+                            href={href}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              openS3ObjectUrl(href);
+                            }}
+                            className="inline-flex items-center text-xs text-blue-700 underline dark:text-blue-300 hover:text-blue-900 dark:hover:text-blue-200"
+                          >
+                            {`View image ${idx + 1}`}
+                          </a>
+                          <button
+                            type="button"
+                            title="Delete image"
+                            aria-label={`Delete customer image ${idx + 1}`}
+                            disabled={deletingCustomerImage}
+                            onClick={() =>
+                              setConfirm({
+                                open: true,
+                                title: "Delete image?",
+                                message: `Delete customer image ${idx + 1}? This cannot be undone.`,
+                                confirmText: "Delete",
+                                cancelText: "Cancel",
+                                onConfirm: () => deleteCustomerImage(idx),
+                              })
+                            }
+                            className="inline-flex h-6 w-6 items-center justify-center rounded-sm bg-black text-white hover:bg-black/80 disabled:opacity-50"
+                          >
+                            <TrashCanIcon className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
                       );
                     })}
                   </div>

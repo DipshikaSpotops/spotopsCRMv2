@@ -3,6 +3,7 @@ import API from "../../../api";
 import { extractOwn, extractYard } from "../../../utils/yards";
 import { IMAGE_FILE_ACCEPT, isImageFile } from "../../../utils/imageUpload";
 import { openS3ObjectUrl, resolveS3ViewSrc } from "../../../utils/s3View";
+import TrashCanIcon from "../../ui/TrashCanIcon";
 
 /* ---------------------- Toast Banner ---------------------- */
 function Toast({ message, onClose }) {
@@ -109,6 +110,7 @@ export default function EditYardStatusModal({
   // General yard images (e.g. photos per yard)
   const [yardImages, setYardImages] = useState(Array.isArray(yard?.yardImages) ? yard.yardImages : []);
   const yardImagesInputRef = useRef(null);
+  const [pendingDeleteImageIdx, setPendingDeleteImageIdx] = useState(null);
 
   const fileInputRef = useRef(null);
   const rootApiBase = useMemo(() => {
@@ -559,6 +561,31 @@ export default function EditYardStatusModal({
         e?.response?.data?.message ||
         "Error uploading yard images. Please try again.";
       setToast(message);
+    } finally {
+      setLoading(false);
+      setSavingAction(null);
+    }
+  };
+
+  const deleteYardImage = async (imageIndex) => {
+    if (savingAction) return;
+    const orderNo = order?.orderNo;
+    if (!orderNo || imageIndex == null) return;
+    try {
+      setLoading(true);
+      setSavingAction("deleteYardImage");
+      const firstName = localStorage.getItem("firstName");
+      const { data } = await API.delete(
+        `/orders/${encodeURIComponent(orderNo)}/additionalInfo/${yardIndex + 1}/yardImages/${imageIndex}`,
+        { params: { firstName } }
+      );
+      setYardImages(Array.isArray(data?.yardImages) ? data.yardImages : []);
+      setPendingDeleteImageIdx(null);
+      setToast("Yard image deleted.");
+      onSave?.();
+    } catch (e) {
+      console.error(e);
+      setToast(e?.response?.data?.message || "Error deleting yard image. Please try again.");
     } finally {
       setLoading(false);
       setSavingAction(null);
@@ -1120,6 +1147,31 @@ export default function EditYardStatusModal({
                 {savingAction === "uploadYardImages" ? "Uploading…" : "Upload Images"}
               </button>
             </div>
+            {yardImages.length > 0 && (
+              <div className="flex flex-col items-start gap-1 pt-1">
+                {yardImages.map((url, idx) => (
+                  <div key={`${url}-${idx}`} className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => openS3ObjectUrl(url)}
+                      className="inline-flex items-center text-xs text-blue-200 underline hover:text-white"
+                    >
+                      {`View image ${idx + 1}`}
+                    </button>
+                    <button
+                      type="button"
+                      title="Delete image"
+                      aria-label={`Delete yard image ${idx + 1}`}
+                      disabled={!!savingAction}
+                      onClick={() => setPendingDeleteImageIdx(idx)}
+                      className="inline-flex h-6 w-6 items-center justify-center rounded-sm bg-black text-white hover:bg-black/80 disabled:opacity-50"
+                    >
+                      <TrashCanIcon className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* PO cancelled — mandatory reason (Yard Locaters) */}
@@ -1327,6 +1379,48 @@ export default function EditYardStatusModal({
         </footer>
       </div>
 
+
+      {pendingDeleteImageIdx != null && (
+        <div className="fixed inset-0 z-[180] flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="relative w-[90vw] max-w-md rounded-2xl border border-white/20 bg-[#0b1c34] text-white shadow-2xl overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-white/10">
+              <h3 className="text-lg font-semibold">Delete image?</h3>
+              <button
+                type="button"
+                disabled={!!savingAction}
+                onClick={() => setPendingDeleteImageIdx(null)}
+                className="h-8 w-8 grid place-items-center rounded-md bg-white/10 hover:bg-white/20 border border-white/15"
+                aria-label="Close"
+              >
+                ×
+              </button>
+            </div>
+            <div className="px-5 py-4">
+              <p className="leading-relaxed">
+                Delete yard image {pendingDeleteImageIdx + 1}? This cannot be undone.
+              </p>
+            </div>
+            <div className="flex justify-end gap-3 px-5 py-4 border-t border-white/10">
+              <button
+                type="button"
+                disabled={!!savingAction}
+                onClick={() => setPendingDeleteImageIdx(null)}
+                className="px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 border border-white/20"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={!!savingAction}
+                onClick={() => deleteYardImage(pendingDeleteImageIdx)}
+                className="px-5 py-2 rounded-lg bg-red-600 text-white font-medium border border-red-600 hover:bg-red-700 disabled:opacity-50"
+              >
+                {savingAction === "deleteYardImage" ? "Deleting…" : "Delete"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Toast visible until OK click */}
       <Toast
