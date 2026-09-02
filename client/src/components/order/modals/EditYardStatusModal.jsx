@@ -1125,7 +1125,7 @@ export default function EditYardStatusModal({
 
           {/* Yard Images (upload only; viewing handled on Yard card) */}
           <div className="mt-4 text-sm space-y-2">
-            <div className="font-semibold">Yard Images</div>
+            <div className="font-semibold">{`Yard ${yardIndex + 1} Images`}</div>
             <div className="flex flex-wrap items-center gap-2">
               <input
                 ref={yardImagesInputRef}
@@ -1148,9 +1148,9 @@ export default function EditYardStatusModal({
               </button>
             </div>
             {yardImages.length > 0 && (
-              <div className="flex flex-col items-start gap-1 pt-1">
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 max-h-16 overflow-y-auto pt-1">
                 {yardImages.map((url, idx) => (
-                  <div key={`${url}-${idx}`} className="flex items-center gap-2">
+                  <div key={`${url}-${idx}`} className="flex items-center gap-1.5 shrink-0">
                     <button
                       type="button"
                       onClick={() => openS3ObjectUrl(url)}

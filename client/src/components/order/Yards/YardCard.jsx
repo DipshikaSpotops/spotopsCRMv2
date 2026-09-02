@@ -373,13 +373,13 @@ export default function YardCard({
         </div>
       )}
 
-      {/* General yard images – list as Yard image 1, 2, ... */}
+      {/* General yard images – wrap horizontally so action buttons stay in place */}
       {Array.isArray(y.yardImages) && y.yardImages.length > 0 && (
         <div className="mt-4">
-          <div className="text-sm font-semibold mb-1">Yard images</div>
-          <div className="flex flex-col items-start gap-1">
+          <div className="text-sm font-semibold mb-1">{`Yard ${index + 1} Images`}</div>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 max-h-16 overflow-y-auto pr-1">
             {y.yardImages.map((url, idx) => (
-              <div key={`${url}-${idx}`} className="flex items-center gap-2">
+              <div key={`${url}-${idx}`} className="flex items-center gap-1.5 shrink-0">
                 <a
                   href={url}
                   target="_blank"
@@ -389,7 +389,7 @@ export default function YardCard({
                     e.stopPropagation();
                     openS3ObjectUrl(url);
                   }}
-                  className="inline-flex w-fit max-w-full items-center text-xs text-blue-700 underline dark:text-blue-300 hover:text-blue-900 dark:hover:text-blue-200"
+                  className="inline-flex items-center text-xs text-blue-700 underline dark:text-blue-300 hover:text-blue-900 dark:hover:text-blue-200"
                 >
                   {`View image ${idx + 1}`}
                 </a>

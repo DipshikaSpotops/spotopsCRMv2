@@ -2478,11 +2478,11 @@ export default function OrderDetails() {
               {customerImages.length > 0 && (
                 <div className="mt-2 space-y-1">
                   <div className="text-sm font-semibold">Existing images</div>
-                  <div className="flex flex-col items-start gap-1">
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 max-h-24 overflow-y-auto">
                     {customerImages.map((img, idx) => {
                       const href = img?.url || img;
                       return (
-                        <div key={`${href}-${idx}`} className="flex items-center gap-2">
+                        <div key={`${href}-${idx}`} className="flex items-center gap-1.5 shrink-0">
                           <a
                             href={href}
                             target="_blank"
