@@ -836,13 +836,13 @@ router.post("/login", validateLogin, async (req, res) => {
     const token = jwt.sign(
       { id: user._id, email: user.email, role: user.role }, // keep in sync with requireAuth
       JWT_SECRET,
-      { expiresIn: "630m" }
+      { expiresIn: "645m" }
     );
 
     // Optional: clean old sessions as you do
     await LoggedInUser.deleteMany({ expiry: { $lte: new Date() } });
 
-    const expiryDate = new Date(Date.now() + 10.5 * 60 * 60 * 1000);
+    const expiryDate = new Date(Date.now() + 10.75 * 60 * 60 * 1000);
     
     // Extract IP address and user agent
     const ipAddress = getIpAddress(req);

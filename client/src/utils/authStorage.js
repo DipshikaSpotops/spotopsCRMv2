@@ -10,7 +10,7 @@ const AUTH_KEYS = [
   "username",
 ];
 
-export const SESSION_DURATION_MS = 10.5 * 60 * 60 * 1000; // 10.5 hours
+export const SESSION_DURATION_MS = 10.75 * 60 * 60 * 1000; // 10 hours 45 minutes (logout ~4:45)
 
 export function readStoredAuth() {
   try {
