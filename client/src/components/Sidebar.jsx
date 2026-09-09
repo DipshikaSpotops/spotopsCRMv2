@@ -105,6 +105,7 @@ export default function Sidebar() {
 
   const yardProcessingLinksBase = [
     { text: "Yard Processing Orders", to: "/yard-processing" },
+    { text: "Yard Processing Statistics", to: "/yard-processing-statistics", emailAccess: "50starsauto110@gmail.com" },
     { text: "In-Transit Orders", to: "/in-transit" },
     { text: "Own Shipping Orders", to: "/own-shipping-orders" },
     { text: "Expedite Shipping Orders", to: "/yard-expedite" },
@@ -540,6 +541,15 @@ export default function Sidebar() {
   }
   if (canAccessPermission(USER_PERMISSIONS.YARD_PROCESSING, role, permissions)) {
     yardProcessingLinks = filterFlatLinks(yardProcessingLinksBase, role, email, brand);
+    showYardProcessingSection = yardProcessingLinks.length > 0;
+  }
+  if (isAttendanceEmail) {
+    const ypStatsLink = yardProcessingLinksBase.find(
+      (l) => l.to === "/yard-processing-statistics"
+    );
+    if (ypStatsLink && !yardProcessingLinks.some((l) => l.to === ypStatsLink.to)) {
+      yardProcessingLinks = [...yardProcessingLinks, ypStatsLink];
+    }
     showYardProcessingSection = yardProcessingLinks.length > 0;
   }
   if (canAccessPermission(USER_PERMISSIONS.ESCALATION, role, permissions)) {

@@ -126,6 +126,7 @@ export const ROUTE_PERMISSION_MAP = {
   "/yard-locaters-stats": [USER_PERMISSIONS.YARD_LOCATES],
   // Yard Processing
   "/yard-processing": [USER_PERMISSIONS.YARD_PROCESSING],
+  "/yard-processing-statistics": [USER_PERMISSIONS.YARD_PROCESSING],
   "/in-transit": [USER_PERMISSIONS.YARD_PROCESSING],
   "/own-shipping-orders": [USER_PERMISSIONS.YARD_PROCESSING],
   "/yard-expedite": [USER_PERMISSIONS.YARD_PROCESSING],
@@ -152,6 +153,7 @@ export const ROUTE_PERMISSION_MAP = {
  */
 export const ROUTE_EMAIL_ALLOWLIST = {
   "/yard-locaters-stats": ["50starsauto110@gmail.com"],
+  "/yard-processing-statistics": ["50starsauto110@gmail.com"],
 };
 
 /**
