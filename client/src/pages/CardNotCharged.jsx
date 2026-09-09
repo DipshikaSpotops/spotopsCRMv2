@@ -33,11 +33,25 @@ const parseAmountAfterColon = (s) => {
   return isNaN(n) ? 0 : n;
 };
 
-// Yard qualifies ONLY when: (!paymentStatus || "Card not charged") AND status !== "PO cancelled"
+const isPOCancelledStatus = (status) => {
+  const t = String(status || "")
+    .trim()
+    .toLowerCase();
+  return t === "po cancelled" || t === "po canceled" || t === "po cancel";
+};
+
+// Qualifies when:
+// - Normal yards: payment empty or "Card not charged"
+// - PO cancelled yards: only if paymentStatus is still unset (not "Card charged" / "Card not charged")
 const yardQualifies = (info) => {
-  const ps = (info?.paymentStatus || "").toLowerCase();
-  const st = (info?.status || "").toLowerCase();
-  return (!ps || ps === "card not charged") && st !== "po cancelled";
+  const ps = (info?.paymentStatus || info?.pamentStatus || "").trim().toLowerCase();
+  const paymentUnset = !ps;
+  const paymentCardNotCharged = ps === "card not charged";
+
+  if (isPOCancelledStatus(info?.status)) {
+    return paymentUnset;
+  }
+  return paymentUnset || paymentCardNotCharged;
 };
 
 /* ---------- One-page Fetch ---------- */
@@ -48,9 +62,13 @@ async function fetchCardNotChargedPage(params, headers) {
   const filtered = [];
 
   allOrders.forEach((order) => {
-    const yards = Array.isArray(order.additionalInfo)
-      ? order.additionalInfo.filter(yardQualifies)
-      : [];
+    const yards = [];
+    (Array.isArray(order.additionalInfo) ? order.additionalInfo : []).forEach(
+      (info, idx) => {
+        if (!yardQualifies(info)) return;
+        yards.push({ ...info, yardIndex: idx + 1 });
+      }
+    );
     if (yards.length === 0) return;
 
     let approxCharge = 0;
@@ -87,83 +105,61 @@ const extraTotals = (rows) => {
 
 /* ---------- Page ---------- */
 export default function CardNotCharged() {
-  const [expandedIds, setExpandedIds] = useState(new Set());
   const [totalLabel, setTotalLabel] = useState("Total Orders: 0 | Approx: $0.00");
   const brand = useBrand(); // 50STARS / PROLANE
 
-  const renderCell = useCallback(
-    (row, key) => {
-      const isExpanded = expandedIds.has(row.orderNo);
-      switch (key) {
-        case "orderNo":
-          return row.orderNo || "—";
-        case "orderDate":
-          return formatDateSafe(row.orderDate);
-        case "salesAgent":
-          return row.salesAgent || "—";
-        case "yardDetails":
-          return (
-            <div>
-              <div className="flex justify-between items-center">
-                <span>{row.yardDetails?.length || 0} yards</span>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setExpandedIds((prev) => {
-                      const next = new Set(prev);
-                      next.has(row.orderNo)
-                        ? next.delete(row.orderNo)
-                        : next.add(row.orderNo);
-                      return next;
-                    });
-                  }}
-                  className="text-blue-400 text-xs underline hover:text-blue-300"
-                >
-                  {isExpanded ? "Hide Details" : "Show Details"}
-                </button>
-              </div>
-              {isExpanded && (
-                <div className="mt-2 border-t border-white/20 pt-2 text-xs space-y-1 text-white/90">
-                  {row.yardDetails.map((y, i) => (
-                    <div
-                      key={i}
-                      className="mb-2 pb-1 border-b border-white/10 last:border-0"
-                    >
-                      <div>
-                        <b>Yard:</b> {y.yardName || "—"}
-                      </div>
-                      <div>
-                        <b>Status:</b> {y.status || "—"}
-                      </div>
-                      <div>
-                        <b>Payment:</b> {y?.pamentStatus || y?.paymentStatus || ""}
-                      </div>
-                      <div>
-                        <b>Stock No:</b> {y.stockNo || "—"}
-                      </div>
-                      <div>
-                        <b>Shipping:</b> {y.shippingDetails || "—"}
-                      </div>
-                      <div>
-                        <b>Part Price:</b> ${Number(y.partPrice || 0).toFixed(2)}
-                      </div>
-                      <div>
-                        <b>Others:</b> ${Number(y.others || 0).toFixed(2)}
-                      </div>
-                    </div>
-                  ))}
+  const renderCell = useCallback((row, key) => {
+    switch (key) {
+      case "orderNo":
+        return row.orderNo || "—";
+      case "orderDate":
+        return formatDateSafe(row.orderDate);
+      case "salesAgent":
+        return row.salesAgent || "—";
+      case "yardDetails": {
+        const yards = row.yardDetails || [];
+        if (yards.length === 0) return "—";
+        return (
+          <div className="space-y-2 text-xs text-white/90">
+            {yards.map((y, i) => (
+              <div
+                key={`${y.yardIndex ?? i}-${y.yardName || ""}`}
+                className={i > 0 ? "border-t border-white/20 pt-2 mt-2" : ""}
+              >
+                <div className="font-semibold text-sm mb-1">
+                  Yard {y.yardIndex ?? i + 1}
+                  {y.yardName ? `: ${y.yardName}` : ""}
                 </div>
-              )}
-            </div>
-          );
-        case "approxCharge":
-          return `$${Number(row.approxCharge || 0).toFixed(2)}`;
-        default:
-          return row[key] ?? "—";
+                <div>
+                  <b>Status:</b> {y.status || "—"}
+                </div>
+                <div>
+                  <b>Payment:</b>{" "}
+                  {y?.pamentStatus || y?.paymentStatus || "—"}
+                </div>
+                <div>
+                  <b>Stock No:</b> {y.stockNo || "—"}
+                </div>
+                <div>
+                  <b>Shipping:</b> {y.shippingDetails || "—"}
+                </div>
+                <div>
+                  <b>Part Price:</b> ${Number(y.partPrice || 0).toFixed(2)}
+                </div>
+                <div>
+                  <b>Others:</b> ${Number(y.others || 0).toFixed(2)}
+                </div>
+              </div>
+            ))}
+          </div>
+        );
       }
-    },
-    [expandedIds]
-  );
+      case "approxCharge":
+        return `$${Number(row.approxCharge || 0).toFixed(2)}`;
+      default:
+        return row[key] ?? "—";
+    }
+  }, []);
 
   const paramsBuilder = useCallback(({ filter }) => {
     const params = {};

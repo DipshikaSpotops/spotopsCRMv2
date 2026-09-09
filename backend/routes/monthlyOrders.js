@@ -202,17 +202,38 @@ router.get('/', requireAuth, allow('Admin', 'Sales', 'Support'), async (req, res
       };
     }
     if (String(cardNotChargedOnly || "").toLowerCase() === "true") {
+      // Include:
+      // 1) Non-PO-cancelled yards with empty / "Card not charged" payment
+      // 2) PO-cancelled yards only when paymentStatus is still unset
+      //    (exclude once set to "Card charged" or "Card not charged")
+      const paymentUnsetOr = [
+        { paymentStatus: { $exists: false } },
+        { paymentStatus: null },
+        { paymentStatus: "" },
+      ];
       additionalInfoElemMatch = {
         ...(additionalInfoElemMatch || {}),
         $and: [
           ...((additionalInfoElemMatch && additionalInfoElemMatch.$and) || []),
-          { status: { $ne: "PO cancelled" } },
           {
             $or: [
-              { paymentStatus: { $exists: false } },
-              { paymentStatus: null },
-              { paymentStatus: "" },
-              { paymentStatus: /^card not charged$/i },
+              {
+                $and: [
+                  { status: { $not: /po\s*cancel/i } },
+                  {
+                    $or: [
+                      ...paymentUnsetOr,
+                      { paymentStatus: /^card not charged$/i },
+                    ],
+                  },
+                ],
+              },
+              {
+                $and: [
+                  { status: /po\s*cancel/i },
+                  { $or: paymentUnsetOr },
+                ],
+              },
             ],
           },
         ],
