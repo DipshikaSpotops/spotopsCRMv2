@@ -92,7 +92,7 @@ router.get(
 
       // Include orderHistory so the client can extract "Cancelled By"
       const projectFields = {
-        orderDate: 1, orderNo: 1, salesAgent: 1, customerName: 1, fName: 1, lName: 1,
+        orderDate: 1, orderNo: 1, salesAgent: 1, teamOrder: 1, customerName: 1, fName: 1, lName: 1,
         orderStatus: 1, pReq: 1, partName: 1, additionalInfo: 1,
         email: 1, phone: 1,
         cancelledBy: 1, cancelledDate: 1, cancellationReason: 1,

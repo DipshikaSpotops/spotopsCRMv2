@@ -139,6 +139,7 @@ router.get("/", requireAuth, allow("Admin", "Sales", "Support"), async (req, res
       orderDate: 1,
       orderNo: 1,
       salesAgent: 1,
+      teamOrder: 1,
       customerName: 1,
       fName: 1,
       lName: 1,

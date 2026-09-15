@@ -932,7 +932,14 @@ export default function OrdersTable({
       String(endpoint || "").includes("/orders/monthlyOrders") ||
       String(endpoint || "").includes("/orders/AllOrders");
 
-    // Ops team members: scope by assigned order.teamOrder only (not sales agents).
+    // Server-scoped list endpoints already apply mergeOrderAccessFilter.
+    // Trust those results — many projections omit teamOrder, so client
+    // re-filtering would empty the table while totalOrders stays correct.
+    if (isServerPaginated && !usesUnscopedMonthlyApi) {
+      return rowsAfterTrackingLabelFilter;
+    }
+
+    // Ops team members (unscoped APIs): scope by assigned order.teamOrder.
     if (userTeam && !isCommonTeamUser) {
       const teamLower = userTeam.toLowerCase();
       return rowsAfterTrackingLabelFilter.filter(
@@ -944,10 +951,6 @@ export default function OrdersTable({
       return rowsAfterTrackingLabelFilter.filter((o) =>
         salesAgentMatchesAnyFirstName(o?.salesAgent, [firstName], brand)
       );
-    }
-
-    if (isServerPaginated && !usesUnscopedMonthlyApi) {
-      return rowsAfterTrackingLabelFilter;
     }
 
     return rowsAfterTrackingLabelFilter;

@@ -13,6 +13,7 @@ const PROJECTION = {
   orderDate: 1,
   desc: 1,
   salesAgent: 1,
+  teamOrder: 1,
   customerName: 1,
   fName: 1,
   lName: 1,
