@@ -1,5 +1,6 @@
 /**
- * Create ops teams, remove Sales from teams, assign Support roster.
+ * Create Mavericks, remapping old teams → Mavericks, remove Sales from teams,
+ * assign Support roster + put all Support on Mavericks.
  * Never deletes existing Team documents.
  *
  * Run: node scripts/ensureOpsTeams.js

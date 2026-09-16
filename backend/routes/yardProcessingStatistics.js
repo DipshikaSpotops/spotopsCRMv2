@@ -12,7 +12,7 @@ import { OPS_TEAM_NAME_ALIASES } from "../../shared/constants/opsTeams.js";
 const router = express.Router();
 const TZ = "America/Chicago";
 const EXTRA_VIEWER_EMAILS = new Set(["50starsauto110@gmail.com"]);
-const REPORT_TEAMS = ["Mavericks", "Invincibles"];
+const REPORT_TEAMS = ["Mavericks"];
 
 function normalizeTeamName(raw) {
   const trimmed = String(raw || "").trim();
@@ -189,7 +189,7 @@ router.get("/", requireAuth, async (req, res) => {
 
     if (!canSeeAllTeams && !allowedTeams.length) {
       return res.status(403).json({
-        message: "Your account is not assigned to Mavericks or Invincibles.",
+        message: "Your account is not assigned to Mavericks.",
       });
     }
 

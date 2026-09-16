@@ -1,10 +1,10 @@
 import Team from "../models/Team.js";
 import User from "../models/User.js";
 import LegacySalesTeamMap from "../models/LegacySalesTeamMap.js";
-import { isCommonTeam } from "../../shared/constants/teams.js";
 import {
   OPS_TEAMS,
   OPS_TEAM_NAME_ALIASES,
+  PRIMARY_OPS_TEAM,
   permissionsForOpsRole,
 } from "../../shared/constants/opsTeams.js";
 import { permissionsForStorage } from "../../shared/constants/userPermissions.js";
@@ -96,8 +96,25 @@ async function assignOpsMembers() {
 }
 
 /**
- * Remap user.team / legacy map / order.teamOrder from "Team X" (and aliases)
- * to short names. Does not delete Team documents.
+ * Every Support user goes on Mavericks (Sales/Admin stay teamless via User hooks).
+ * Does not overwrite permissions — only the team field.
+ */
+async function assignAllSupportToMavericks() {
+  const result = await User.updateMany(
+    { role: "Support" },
+    { $set: { team: PRIMARY_OPS_TEAM } }
+  );
+  return {
+    matched: result.matchedCount || 0,
+    modified: result.modifiedCount || 0,
+    team: PRIMARY_OPS_TEAM,
+  };
+}
+
+/**
+ * Remap user.team / legacy map / order.teamOrder from old team names
+ * (Invincibles, High Clouds, "Team …", etc.) to Mavericks.
+ * Does not delete Team documents.
  */
 async function migrateTeamNameAliases() {
   const pairs = Object.entries(OPS_TEAM_NAME_ALIASES).filter(
@@ -141,10 +158,11 @@ async function migrateTeamNameAliases() {
 
 /**
  * Idempotent startup / script:
- * - create Mavericks / Invincibles / High Clouds if missing (never delete teams)
- * - remap "Team …" aliases on users/orders (no team deletes)
+ * - create Mavericks if missing (never delete other Team docs)
+ * - remapping Invincibles / High Clouds / aliases → Mavericks on users/orders
  * - remove Sales from teams; clear legacy sales→team maps
- * - assign matching Support users to ops teams + permissions
+ * - assign matching Support roster permissions
+ * - put ALL Support users on Mavericks
  */
 export async function ensureOpsTeams() {
   const teamsCreated = [];
@@ -160,6 +178,7 @@ export async function ensureOpsTeams() {
   const legacyCleared = await clearLegacySalesTeamMaps();
   const salesCleared = await removeSalesAgentsFromTeams();
   const members = await assignOpsMembers();
+  const allSupport = await assignAllSupportToMavericks();
 
   return {
     teamsCreated,
@@ -170,5 +189,6 @@ export async function ensureOpsTeams() {
     membersAssigned: members.assigned.length,
     membersMissing: members.missing,
     assigned: members.assigned,
+    allSupportOnMavericks: allSupport,
   };
 }

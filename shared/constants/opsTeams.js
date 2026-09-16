@@ -13,34 +13,27 @@ export const OPS_ROLE_PERMISSIONS = {
   ],
 };
 
+/** Single shared ops team for all Support users (Sales stay off teams). */
+export const PRIMARY_OPS_TEAM = "Mavericks";
+
 /**
  * Ops teams from the org chart (no "Team " prefix).
- * Existing Team documents are never deleted; these names are created if missing.
+ * Everyone is on Mavericks; Invincibles / High Clouds docs are not deleted.
  */
 export const OPS_TEAMS = [
   {
-    teamName: "Mavericks",
+    teamName: PRIMARY_OPS_TEAM,
     members: [
       { firstName: "Tyler", roleKey: "yardLocate" },
       { firstName: "Natasha", roleKey: "yardProcessingEscalation" },
       { firstName: "Rhea", roleKey: "yardProcessingEscalation" },
       { firstName: "Hardin", roleKey: "yardProcessingEscalation" },
       { firstName: "Alex", roleKey: "invoicesRefund" },
-    ],
-  },
-  {
-    teamName: "Invincibles",
-    members: [
       { firstName: "Amy", roleKey: "yardLocate" },
       { firstName: "Suzanne", roleKey: "yardProcessingEscalation" },
       { firstName: "Duke", roleKey: "yardProcessingEscalation" },
       { firstName: "Steve", roleKey: "yardProcessingEscalation" },
       { firstName: "Mona", roleKey: "invoicesRefund" },
-    ],
-  },
-  {
-    teamName: "High Clouds",
-    members: [
       { firstName: "Nik", roleKey: "yardLocate" },
       { firstName: "Max", roleKey: "yardProcessingEscalation" },
       { firstName: "Adam", roleKey: "yardProcessingEscalation" },
@@ -50,18 +43,23 @@ export const OPS_TEAMS = [
   },
 ];
 
-/** Old / alternate names → current ops team name (never deletes old Team docs). */
+/**
+ * Old / alternate names → Mavericks.
+ * Used to remapping user.team and order.teamOrder (never deletes Team docs).
+ */
 export const OPS_TEAM_NAME_ALIASES = {
-  "Team Mavericks": "Mavericks",
-  Mavericks: "Mavericks",
-  "Team Invicibles": "Invincibles",
-  Invicibles: "Invincibles",
-  "Team Invincibles": "Invincibles",
-  Invincibles: "Invincibles",
-  Invisibles: "Invincibles",
-  "Team Invisibles": "Invincibles",
-  "Team High Clouds": "High Clouds",
-  "High Clouds": "High Clouds",
+  "Team Maverick": PRIMARY_OPS_TEAM,
+  "Team Mavericks": PRIMARY_OPS_TEAM,
+  Maverick: PRIMARY_OPS_TEAM,
+  Mavericks: PRIMARY_OPS_TEAM,
+  "Team Invicibles": PRIMARY_OPS_TEAM,
+  Invicibles: PRIMARY_OPS_TEAM,
+  "Team Invincibles": PRIMARY_OPS_TEAM,
+  Invincibles: PRIMARY_OPS_TEAM,
+  Invisibles: PRIMARY_OPS_TEAM,
+  "Team Invisibles": PRIMARY_OPS_TEAM,
+  "Team High Clouds": PRIMARY_OPS_TEAM,
+  "High Clouds": PRIMARY_OPS_TEAM,
 };
 
 export function permissionsForOpsRole(roleKey) {

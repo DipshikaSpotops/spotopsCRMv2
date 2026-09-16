@@ -119,7 +119,7 @@ export default function YardProcessingStatistics() {
           <div>
             <h1 className="text-2xl font-semibold">Yard Processing Statistics</h1>
             <p className="text-sm text-white/70">
-              Team-wise yard processing status report for Mavericks and Invincibles.
+              Team-wise yard processing status report for Mavericks.
             </p>
           </div>
           <button

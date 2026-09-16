@@ -23,7 +23,7 @@ export async function ensureCommonTeam() {
   }
 }
 
-/** Common + Mavericks / Invincibles / High Clouds (never deletes existing teams). */
+/** Common + Mavericks (never deletes existing teams). */
 export async function ensureTeamsBootstrap() {
   await ensureCommonTeam();
   return ensureOpsTeams();
