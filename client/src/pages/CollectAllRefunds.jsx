@@ -28,14 +28,18 @@ async function fetchCollectAllRefundsPage(params, headers) {
   const filtered = [];
 
   allOrders.forEach((order) => {
-    // Ticked AND refund not yet collected (No or empty).
-    const infos = Array.isArray(order.additionalInfo)
-      ? order.additionalInfo.filter(
-          (i) =>
-            i?.collectRefundCheckbox === "Ticked" &&
-            String(i?.refundStatus || "").trim() !== "Refund collected"
-        )
-      : [];
+    // Ticked AND refund not yet collected (No or empty). Keep original Yard N index.
+    const infos = [];
+    (Array.isArray(order.additionalInfo) ? order.additionalInfo : []).forEach(
+      (info, idx) => {
+        if (
+          info?.collectRefundCheckbox === "Ticked" &&
+          String(info?.refundStatus || "").trim() !== "Refund collected"
+        ) {
+          infos.push({ ...info, yardIndex: idx + 1 });
+        }
+      }
+    );
     if (infos.length === 0) return;
 
     let totalRefundToCollect = 0;
@@ -79,11 +83,18 @@ export default function CollectAllRefunds() {
           return row.orderNo || "—";
         case "orderDate":
           return formatDateSafe(row.orderDate);
-        case "yardDetails":
+        case "yardDetails": {
+          const yards = row.yardDetails || [];
+          const yardLabels =
+            yards.length === 0
+              ? "—"
+              : yards
+                  .map((y, i) => `Yard ${y.yardIndex ?? i + 1}`)
+                  .join(", ");
           return (
             <div>
-              <div className="flex justify-between items-center">
-                <span>{row.yardDetails?.length || 0} yards</span>
+              <div className="flex justify-between items-center gap-2">
+                <span>{yardLabels}</span>
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
@@ -95,16 +106,22 @@ export default function CollectAllRefunds() {
                       return next;
                     });
                   }}
-                  className="text-blue-400 text-xs underline hover:text-blue-300"
+                  className="text-blue-400 text-xs underline hover:text-blue-300 shrink-0"
                 >
                   {isExpanded ? "Hide Details" : "Show Details"}
                 </button>
               </div>
               {isExpanded && (
                 <div className="mt-2 border-t border-white/20 pt-2 text-xs space-y-1 text-white/90">
-                  {row.yardDetails.map((y, i) => (
-                    <div key={i} className="mb-2 pb-1 border-b border-white/10 last:border-0">
-                      <div><b>Yard:</b> {y.yardName || "—"}</div>
+                  {yards.map((y, i) => (
+                    <div
+                      key={`${y.yardIndex ?? i}-${y.yardName || ""}`}
+                      className="mb-2 pb-1 border-b border-white/10 last:border-0"
+                    >
+                      <div className="font-semibold mb-1">
+                        Yard {y.yardIndex ?? i + 1}
+                        {y.yardName ? `: ${y.yardName}` : ""}
+                      </div>
                       <div><b>Status:</b> {y.status || "—"}</div>
                       <div><b>Stock No:</b> {y.stockNo || "—"}</div>
                       <div><b>Part Price:</b> ${Number(y.partPrice || 0).toFixed(2)}</div>
@@ -120,6 +137,7 @@ export default function CollectAllRefunds() {
               )}
             </div>
           );
+        }
         case "refundToCollect":
           return `$${Number(row.refundToCollect || 0).toFixed(2)}`;
         default:

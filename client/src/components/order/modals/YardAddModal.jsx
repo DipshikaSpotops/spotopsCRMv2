@@ -1207,6 +1207,26 @@ export default function YardAddModal({ open, onClose, onSubmit, order }) {
             onClick={async () => {
               if (isSubmitting) return; // Prevent multiple clicks
               if (!validate()) return;
+
+              // Warn if yardName matches any yard already on this order (allow continue).
+              const existingYards = Array.isArray(order?.additionalInfo)
+                ? order.additionalInfo
+                : [];
+              const duplicateYardNumbers = [];
+              existingYards.forEach((y, idx) => {
+                if (yardsMatchByName(y, form.yardName, form.city, form.state)) {
+                  duplicateYardNumbers.push(idx + 1);
+                }
+              });
+              if (duplicateYardNumbers.length > 0) {
+                const labels = duplicateYardNumbers
+                  .map((n) => `Yard ${n}`)
+                  .join(", ");
+                const proceed = window.confirm(
+                  `Warning: This yard name is the same as ${labels} already on this order. Do you want to continue?`
+                );
+                if (!proceed) return;
+              }
               
               setIsSubmitting(true);
               try {
