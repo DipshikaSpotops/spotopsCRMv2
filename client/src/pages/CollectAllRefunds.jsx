@@ -1,4 +1,4 @@
-// All orders with Collect Refund ticked (pending + already collected).
+// Orders with Collect Refund ticked and not yet collected (Refund Collected ≠ Yes).
 import React, { useCallback, useState, useEffect } from "react";
 import API from "../api";
 import OrdersTable from "../components/OrdersTable";
@@ -28,8 +28,13 @@ async function fetchCollectAllRefundsPage(params, headers) {
   const filtered = [];
 
   allOrders.forEach((order) => {
+    // Ticked AND refund not yet collected (No or empty).
     const infos = Array.isArray(order.additionalInfo)
-      ? order.additionalInfo.filter((i) => i?.collectRefundCheckbox === "Ticked")
+      ? order.additionalInfo.filter(
+          (i) =>
+            i?.collectRefundCheckbox === "Ticked" &&
+            String(i?.refundStatus || "").trim() !== "Refund collected"
+        )
       : [];
     if (infos.length === 0) return;
 
@@ -147,7 +152,7 @@ export default function CollectAllRefunds() {
         q: query || undefined,
         sortBy: sortBy || undefined,
         sortOrder: sortOrder || undefined,
-        collectRefundTicked: "true",
+        collectRefundPendingOnly: "true",
         skipTotals: "true",
       };
       if (
