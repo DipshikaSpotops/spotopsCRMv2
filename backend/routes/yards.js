@@ -316,6 +316,7 @@ router.post("/", requireAuth, async (req, res) => {
           updatedBy: updatedByValue,
         },
       };
+      const updateOptions = { new: true };
 
       // Handle agent: save if name exists, update phone if agent already exists
       if (agent) {
@@ -327,10 +328,17 @@ router.post("/", requireAuth, async (req, res) => {
         if (existingAgent) {
           // Agent exists: update phone if we have one and existing doesn't
           if (agentPhoneTrimmed && !existingAgent.phone) {
-            // Update the existing agent's phone in the same update
-            updateDoc.$set = updateDoc.$set || {};
             updateDoc.$set["agents.$[elem].phone"] = agentPhoneTrimmed;
-            updateDoc.arrayFilters = [{ "elem.name": existingAgent.name }];
+            updateOptions.arrayFilters = [
+              {
+                "elem.name": {
+                  $regex: new RegExp(
+                    `^${agentNameTrimmed.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`,
+                    "i"
+                  ),
+                },
+              },
+            ];
           }
           // If agent exists and already has phone, do nothing (don't duplicate)
         } else {
@@ -344,9 +352,7 @@ router.post("/", requireAuth, async (req, res) => {
       const updated = await Yard.findByIdAndUpdate(
         existing._id,
         updateDoc,
-        {
-          new: true,
-        }
+        updateOptions
       );
       return res.json({ message: "Yard updated (existing reused)", yard: updated });
     }

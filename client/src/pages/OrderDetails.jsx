@@ -1234,23 +1234,31 @@ export default function OrderDetails() {
         formData?.state
       );
 
-      // 1) Upsert master yard record (create or update, always records updatedBy)
-      await API.post(`/yards`, {
-        yardName: normalizedYardName,
-        agentName: formData.agentName,
-        agentPhone: formData.agentPhone,
-        yardRating: formData.yardRating,
-        phone: formData.phone,
-        altNo: formData.altPhone,
-        email: formData.email,
-        street: formData.street,
-        city: formData.city,
-        state: formData.state,
-        zipcode: formData.zipcode,
-        country: formData.country,
-        miles: formData.miles,
-        updatedBy: firstName,
-      });
+      // 1) Upsert master yard record (create or update, always records updatedBy).
+      // Yard already exists in master DB when re-adding the same yard — don't block order add.
+      try {
+        await API.post(`/yards`, {
+          yardName: normalizedYardName,
+          agentName: formData.agentName,
+          agentPhone: formData.agentPhone,
+          yardRating: formData.yardRating,
+          phone: formData.phone,
+          altNo: formData.altPhone,
+          email: formData.email,
+          street: formData.street,
+          city: formData.city,
+          state: formData.state,
+          zipcode: formData.zipcode,
+          country: formData.country,
+          miles: formData.miles,
+          updatedBy: firstName,
+        });
+      } catch (yardErr) {
+        console.warn(
+          "Master yard upsert failed; continuing to add yard on order:",
+          yardErr?.response?.data || yardErr?.message || yardErr
+        );
+      }
 
       // 2) Add yard info to this order (updates order.additionalInfo)
       const payload = {
@@ -1258,6 +1266,9 @@ export default function OrderDetails() {
         yardName: normalizedYardName,
         orderStatus: "Yard Processing",
       };
+      // Avoid CastError on Number fields when inputs are blank strings
+      if (payload.ext === "" || payload.ext === undefined) delete payload.ext;
+      if (payload.miles === "" || payload.miles === undefined) delete payload.miles;
       await API.post(
         `/orders/${orderNo}/additionalInfo`,
         payload,
