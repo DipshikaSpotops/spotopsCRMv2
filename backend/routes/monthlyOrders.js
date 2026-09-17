@@ -5,7 +5,7 @@ import { getOrderModelForBrand } from '../models/Order.js';
 import Team from '../models/Team.js';
 import { requireAuth, allow } from '../middleware/auth.js';
 import { sendSalesReportEmail } from '../services/sendSalesReportEmail.js';
-import { isCommonTeam } from '../../shared/constants/teams.js';
+import { isCommonTeam, teamSeesAllOrders } from '../../shared/constants/teams.js';
 import { canAssignOrders } from '../../shared/constants/assignOrdersAccess.js';
 import { appendTeamAssignHistory } from '../utils/teamAssignHistory.js';
 
@@ -251,9 +251,9 @@ router.get('/', requireAuth, allow('Admin', 'Sales', 'Support'), async (req, res
     }
 
     // 4) RBAC — enforce row-level access
-    // Common team members (and Support/Admin) see every order.
-    const isCommon = isCommonTeam(req.user?.team);
-    if (req.user.role === 'Sales' && !isCommon) {
+    // Common / Mavericks see every order; Sales without that see own agent only.
+    const seesAll = teamSeesAllOrders(req.user?.team);
+    if (req.user.role === 'Sales' && !seesAll) {
       // Match either exact firstName or full name starting with firstName
       // This handles both: "Richard" (new format) and "Richard Parker" (old format)
       const firstName = req.user.firstName;

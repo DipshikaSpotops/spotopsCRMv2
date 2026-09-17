@@ -1,4 +1,4 @@
-import { isCommonTeam } from "../../shared/constants/teams.js";
+import { teamSeesAllOrders } from "../../shared/constants/teams.js";
 
 /** 50STARS firstName → PROLANE/PROTP salesAgent firstName on orders */
 export const AGENT_BRAND_MAPPING = {
@@ -107,8 +107,8 @@ export function attachTeamOrderScope(filter, teamName) {
  * Merge team access into a Mongo filter.
  * Teams are ops-only via order.teamOrder — sales agents are never used for team scope.
  * - Admin: optional adminSalesAgent query only
- * - Common team: no restriction
- * - User with team: orders where teamOrder matches their team
+ * - Common / Mavericks (shared ops team): no restriction — see all orders
+ * - User with other team: orders where teamOrder matches their team
  * - Sales without team: own salesAgent orders only
  * - Support without team: no restriction
  */
@@ -129,7 +129,7 @@ export async function mergeOrderAccessFilter(filter, req, options = {}) {
   }
 
   const team = String(user.team || "").trim();
-  if (isCommonTeam(team)) {
+  if (teamSeesAllOrders(team)) {
     return filter;
   }
 
@@ -153,7 +153,7 @@ export async function mergeOrderAccessFilter(filter, req, options = {}) {
  */
 export async function applyTeamOrderScope(filter, user, brand) {
   const team = String(user?.team || "").trim();
-  if (team && !isCommonTeam(team)) {
+  if (team && !teamSeesAllOrders(team)) {
     attachTeamOrderScope(filter, team);
     return filter;
   }

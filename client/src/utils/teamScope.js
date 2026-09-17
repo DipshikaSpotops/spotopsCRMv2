@@ -1,4 +1,4 @@
-import { isCommonTeam } from "../../../shared/constants/teams.js";
+import { isCommonTeam, teamSeesAllOrders } from "../../../shared/constants/teams.js";
 
 /**
  * Team on an order comes only from explicit assignment (order.teamOrder).
@@ -40,8 +40,13 @@ export function currentUserIsCommonTeam() {
   return isCommonTeam(readAuthUserTeam());
 }
 
-/** Admin + Common team members see the Team column on order lists. */
+/** Common or Mavericks — no client-side team row filter. */
+export function currentUserSeesAllOrders() {
+  return teamSeesAllOrders(readAuthUserTeam());
+}
+
+/** Admin + unscoped team members see the Team column on order lists. */
 export function currentUserSeesTeamColumn() {
   if (String(readAuthUserRole()).toLowerCase() === "admin") return true;
-  return currentUserIsCommonTeam();
+  return currentUserSeesAllOrders();
 }

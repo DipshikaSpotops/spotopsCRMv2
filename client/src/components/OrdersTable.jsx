@@ -22,11 +22,11 @@ import {
 } from "react-icons/fa";
 import useBrand from "../hooks/useBrand";
 import {
-  currentUserIsCommonTeam,
+  currentUserSeesAllOrders,
   currentUserSeesTeamColumn,
   resolveOrderTeam,
 } from "../utils/teamScope";
-import { isCommonTeam } from "../../../shared/constants/teams.js";
+import { teamSeesAllOrders } from "../../../shared/constants/teams.js";
 
 /* =========================
    Constants / helpers
@@ -517,7 +517,7 @@ export default function OrdersTable({
   const [userRole, setUserRole] = useState(null);
   const [firstName, setFirstName] = useState("");
   const [userTeam, setUserTeam] = useState("");
-  const [isCommonTeamUser, setIsCommonTeamUser] = useState(() => currentUserIsCommonTeam());
+  const [isCommonTeamUser, setIsCommonTeamUser] = useState(() => currentUserSeesAllOrders());
   const [showTeamColumn, setShowTeamColumn] = useState(() => currentUserSeesTeamColumn());
   useEffect(() => {
     // Get role with fallback (like Sidebar does)
@@ -543,11 +543,11 @@ export default function OrdersTable({
       }
     } catch {}
 
-    const common = isCommonTeam(team);
+    const unscoped = teamSeesAllOrders(team);
     const isAdmin = String(roleFromStorage || "").toLowerCase() === "admin";
     setUserTeam(team);
-    setIsCommonTeamUser(common);
-    setShowTeamColumn(isAdmin || common);
+    setIsCommonTeamUser(unscoped);
+    setShowTeamColumn(isAdmin || unscoped);
   }, []);
 
   const effectiveColumns = useMemo(() => {
