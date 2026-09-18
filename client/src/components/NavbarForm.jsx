@@ -89,6 +89,7 @@ export default function NavbarForm() {
       ["Store Credits", "/store-credit"],
       ["Tracking Report", "/tracking-info"],
       ["Incentives Report", "/incentive-calculation"],
+      ["GP Less Than 50%", "/gp-less-than-50"],
       ["Attendance", "/attendance"],
     ],
   };

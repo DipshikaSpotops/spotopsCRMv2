@@ -49,6 +49,7 @@ import salesAgentsRouter from "./routes/salesAgents.js";
 import salesActualGpSnapshotsRouter from "./routes/salesActualGpSnapshots.js";
 import incentivesReportRouter from "./routes/incentivesReport.js";
 import yardLocatersStatsRouter from "./routes/yardLocatersStats.js";
+import gpLessThan50Router from "./routes/gpLessThan50.js";
 import attendanceRouter from "./routes/attendance.js";
 import s3Router from "./routes/s3.js";
 import { brandMiddleware } from "./middleware/brand.js";
@@ -129,6 +130,7 @@ app.use("/api/salesAgents", salesAgentsRouter);
 app.use("/api/salesActualGpSnapshots", salesActualGpSnapshotsRouter);
 app.use("/api/reports/incentives", incentivesReportRouter);
 app.use("/api/reports/yard-locaters", yardLocatersStatsRouter);
+app.use("/api/reports/gp-less-than-50", gpLessThan50Router);
 
 // Add redirect route for OAuth callback (in case credentials.json has wrong redirect URI)
 app.get("/oauth2/callback", (req, res) => {

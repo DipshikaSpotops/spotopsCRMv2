@@ -66,6 +66,7 @@ const JunkParts = lazy(() => import("./pages/JunkParts"));
 const YardStatistics = lazy(() => import("./pages/YardStatistics"));
 const YardProcessingStatistics = lazy(() => import("./pages/YardProcessingStatistics"));
 const IncentivesReport = lazy(() => import("./pages/IncentivesReport"));
+const GpLessThan50 = lazy(() => import("./pages/GpLessThan50"));
 const YardLocatersStats = lazy(() => import("./pages/YardLocatersStats"));
 const Attendance = lazy(() => import("./pages/Attendance"));
 const AccessCodes = lazy(() => import("./pages/AccessCodes"));
@@ -587,6 +588,14 @@ function App() {
           element={withLayout(
             <Suspense fallback={<PageLoader />}>
               <IncentivesReport />
+            </Suspense>
+          )}
+        />
+        <Route
+          path="/gp-less-than-50"
+          element={withLayout(
+            <Suspense fallback={<PageLoader />}>
+              <GpLessThan50 />
             </Suspense>
           )}
         />

@@ -2752,12 +2752,16 @@ router.put("/:orderNo/reimbursement", async (req, res) => {
   const { reimbursementAmount, reimbursementDate, toBeReimbursed } = req.body || {};
   try {
     const Order = getOrderModel(req);
-    const existing = await Order.findOne({ orderNo: String(orderNo) });
-    if (!existing) {
+    const order = await Order.findOne({ orderNo: String(orderNo) });
+    if (!order) {
       return res.status(404).json({ message: "Order not found" });
     }
 
-    const updates = {};
+    const firstName = cleanFirstName(
+      req.user?.firstName || req.query.firstName || req.body?.firstName || "CRM"
+    );
+    const when = getWhen();
+    let changed = false;
 
     if (Object.prototype.hasOwnProperty.call(req.body || {}, "reimbursementAmount")) {
       const amount =
@@ -2771,7 +2775,10 @@ router.put("/:orderNo/reimbursement", async (req, res) => {
           .status(400)
           .json({ message: "Invalid reimbursementAmount value" });
       }
-      updates.reimbursementAmount = amount;
+      if (String(order.reimbursementAmount ?? "") !== String(amount ?? "")) {
+        order.reimbursementAmount = amount;
+        changed = true;
+      }
     }
 
     if (Object.prototype.hasOwnProperty.call(req.body || {}, "reimbursementDate")) {
@@ -2785,35 +2792,45 @@ router.put("/:orderNo/reimbursement", async (req, res) => {
         }
         dateValue = parsed;
       }
-      updates.reimbursementDate = dateValue;
+      const prev = order.reimbursementDate
+        ? new Date(order.reimbursementDate).getTime()
+        : null;
+      const next = dateValue ? dateValue.getTime() : null;
+      if (prev !== next) {
+        order.reimbursementDate = dateValue;
+        changed = true;
+      }
     }
 
     if (Object.prototype.hasOwnProperty.call(req.body || {}, "toBeReimbursed")) {
-      updates.toBeReimbursed =
-        toBeReimbursed === true || toBeReimbursed === "true";
+      const nextFlag = toBeReimbursed === true || toBeReimbursed === "true";
+      if (Boolean(order.toBeReimbursed) !== nextFlag) {
+        order.toBeReimbursed = nextFlag;
+        changed = true;
+      }
     }
 
-    const order = await Order.findOneAndUpdate(
-      { orderNo: String(orderNo) },
-      updates,
-      { new: true }
-    );
-
-    if (!order) {
-      return res.status(404).json({ message: "Order not found" });
+    if (changed) {
+      order.orderHistory = order.orderHistory || [];
+      order.orderHistory.push(
+        `Reimbursement updated by ${firstName || "CRM"} on ${when}`
+      );
     }
 
     // New reimbursement flow only: recalc GP when a dated reimbursement is recorded.
     // Legacy to-be-reimbursed / yard-level reimbursement is unchanged.
     if (shouldApplyOrderLevelReimbursement(order)) {
-      const editor =
-        req.user?.firstName || req.query.firstName || "CRM";
       await recalculateAndSaveActualGP(order, {
-        firstName: editor,
+        firstName: firstName || "CRM",
         req,
         publish,
         broadcastOrder,
       });
+    }
+
+    // Always persist reimbursement field/history changes (recalc may skip save if GP unchanged).
+    if (changed) {
+      await order.save();
     }
 
     publish(req, orderNo, {
@@ -2829,13 +2846,11 @@ router.put("/:orderNo/reimbursement", async (req, res) => {
       reimbursementAmount: order.reimbursementAmount,
       reimbursementDate: order.reimbursementDate,
       toBeReimbursed: order.toBeReimbursed,
-      order,
+      actualGP: order.actualGP,
     });
   } catch (error) {
     console.error("Error updating reimbursement:", error);
-    res
-      .status(500)
-      .json({ message: "Server error", error: error?.message || String(error) });
+    res.status(500).json({ message: "Server error", error: error.message });
   }
 });
 // Updating Actual GP for an order

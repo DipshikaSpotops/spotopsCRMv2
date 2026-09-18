@@ -204,6 +204,7 @@ export default function Sidebar() {
         { text: "Order Statistics", to: "/order-statistics", adminOnly: true, emailAccess: "50starsauto110@gmail.com" },
         { text: "Make/Model", to: "/make-statistics", adminOnly: true, emailAccess: "50starsauto110@gmail.com" },
         { text: "Incentives Report", to: "/incentives-report", adminOnly: true, emailAccess: "50starsauto110@gmail.com" },
+        { text: "GP Less Than 50%", to: "/gp-less-than-50", adminOnly: true, emailAccess: "50starsauto110@gmail.com" },
         {
           text: "Yard Locaters Stats",
           to: "/yard-locaters-stats",
