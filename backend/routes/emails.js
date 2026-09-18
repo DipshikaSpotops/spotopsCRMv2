@@ -1413,6 +1413,9 @@ router.post("/orders/sendReturnEmailCustomerShipping/:orderNo", async (req, res)
       }
     }
     const customerName = cleanCustomerName(order.customerName || order.fName || "Customer");
+    const partName = String(
+      order.pReq || order.partName || order.productName || order.part || order.desc || "—"
+    ).trim();
     const bccList =
       supportBcc ||
       "service@50starsautoparts.com,dipsikha.spotopsdigital@gmail.com";
@@ -1424,8 +1427,14 @@ router.post("/orders/sendReturnEmailCustomerShipping/:orderNo", async (req, res)
       subject: `Return Instructions for Your Order ${orderNo}`,
       html: `<div style="font-size:16px;line-height:1.7;">
         <p>Dear ${customerName},</p>
+        <p>
+          This email is regarding:<br/>
+          <strong>Order Number:</strong> ${orderNo}<br/>
+          <strong>Quantity:</strong> 1<br/>
+          <strong>Part to be Shipped Back:</strong> ${partName}
+        </p>
         <p>Please ship the part back to the following address so we can continue processing your return:</p>
-        <p>${formattedAddress}</p>
+        <p><strong>${formattedAddress}</strong></p>
         ${PART_RETURN_POLICY_HTML}
         <p>Kindly share the tracking number once the package is on its way. As soon as we receive and inspect the part, we will continue with the necessary next steps.</p>
         ${emailLogoHtml(logoUrl)}
