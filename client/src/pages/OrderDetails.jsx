@@ -2033,12 +2033,8 @@ export default function OrderDetails() {
                     activeYardIndexRef.current = i; // Update ref immediately
                   }}
                   onEscalation={(i) => {
-                    const yardEntry = Array.isArray(yards) ? yards[i] : null;
-                    const status = String(yardEntry?.status || "").trim();
-                    if (status !== "Escalation") {
-                      setToast("Set the yard status to Escalation before opening escalation details.");
-                      return;
-                    }
+                    // Always allow opening so prior escalation procedure can be reviewed
+                    // even after yard status changed (e.g. to PO cancelled).
                     focusCommentsOnYard(i);
                     setEscalationIdx(i);
                     setActiveYardIndex(i); // Preserve active yard when opening modal

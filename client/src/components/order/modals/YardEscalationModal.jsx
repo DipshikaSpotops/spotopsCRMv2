@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import API from "../../../api";
+import { isProtectedFromYardAutoStatus } from "@spotops/shared/utils/orderStatusGuards.js";
 
 const ESC_CAUSES = [
   "Damaged",
@@ -406,26 +407,37 @@ useEffect(() => {
     };
 
     const followUpNotes = [];
+    const lockOrderStatus = isProtectedFromYardAutoStatus(order?.orderStatus);
 
-    if (relocatesChanged && followUpRelocates) {
-      payload.orderStatus = "Relocates";
+    if (!lockOrderStatus) {
+      if (relocatesChanged && followUpRelocates) {
+        payload.orderStatus = "Relocates";
+        followUpNotes.push(
+          "Follow-up: Move to Relocates — order status set to Relocates"
+        );
+      } else if (relocatesChanged && !followUpRelocates) {
+        // Cleared Relocates (No follow-up or unchecked) → back to Escalation
+        payload.orderStatus = "Escalation";
+        followUpNotes.push(
+          "Follow-up removed: Relocates cleared — order status set to Escalation"
+        );
+      } else if (
+        order?.orderStatus !== "Escalation" &&
+        order?.orderStatus !== "Relocates"
+      ) {
+        payload.orderStatus = "Escalation";
+      } else if (canFollowUp && followUpRelocates) {
+        // Keep Relocates if still selected and unchanged
+        payload.orderStatus = "Relocates";
+      }
+    } else if (relocatesChanged && followUpRelocates) {
       followUpNotes.push(
-        "Follow-up: Move to Relocates — order status set to Relocates"
+        "Follow-up: Move to Relocates noted (order status left unchanged — Cancelled/Refunded/Dispute)"
       );
     } else if (relocatesChanged && !followUpRelocates) {
-      // Cleared Relocates (No follow-up or unchecked) → back to Escalation
-      payload.orderStatus = "Escalation";
       followUpNotes.push(
-        "Follow-up removed: Relocates cleared — order status set to Escalation"
+        "Follow-up Relocates cleared (order status left unchanged — Cancelled/Refunded/Dispute)"
       );
-    } else if (
-      order?.orderStatus !== "Escalation" &&
-      order?.orderStatus !== "Relocates"
-    ) {
-      payload.orderStatus = "Escalation";
-    } else if (canFollowUp && followUpRelocates) {
-      // Keep Relocates if still selected and unchanged
-      payload.orderStatus = "Relocates";
     }
 
     if (collectRefundChanged && followUpCollectRefund) {

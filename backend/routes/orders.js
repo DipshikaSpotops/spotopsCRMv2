@@ -10,6 +10,7 @@ import { mergeOrderAccessFilter } from "../utils/orderAccessScope.js";
 const requireAuthAllRoles = [requireAuth, allow("Admin", "Sales", "Support")];
 import { getDateRange } from "../utils/dateRange.js";
 import { canonicalOrderStatus } from "../utils/canonicalOrderStatus.js";
+import { isProtectedFromYardAutoStatus } from "../../shared/utils/orderStatusGuards.js";
 import { applyAutoCollectRefundIfPoCancelledAndCardCharged } from "../utils/autoCollectRefund.js";
 import { getWhen } from "../../shared/utils/timeUtils.js";
 import { normalizeYardName } from "../../shared/utils/yardName.js";
@@ -1594,7 +1595,11 @@ router.post("/:orderNo/additionalInfo", async (req, res) => {
     if (orderStatus && String(orderStatus).trim() !== "") {
       const normalizedYardStatus = canonicalOrderStatus(orderStatus.trim()) || orderStatus.trim();
       const prevStatus = order.orderStatus || "";
-      if (prevStatus !== normalizedYardStatus) {
+      // Don't auto-flip Cancelled / Refunded / Dispute from adding a yard
+      if (
+        prevStatus !== normalizedYardStatus &&
+        !isProtectedFromYardAutoStatus(prevStatus)
+      ) {
         order.orderStatus = normalizedYardStatus;
         order.orderHistory.push(
           `Order status changed: ${prevStatus || "—"} → ${normalizedYardStatus}   by ${firstName} on ${when}`
@@ -1902,7 +1907,9 @@ router.put(
 
       subdoc.status = "Yard PO Sent";
       subdoc.labelVoidedDate = isoNow;
-      order.orderStatus = ORDER_STATUS_MAP["Yard PO Sent"];
+      if (!isProtectedFromYardAutoStatus(order.orderStatus)) {
+        order.orderStatus = ORDER_STATUS_MAP["Yard PO Sent"];
+      }
 
       const summary = removed.length
         ? `Label voided. Cleared → ${removed.join(", ")}.`
@@ -1955,12 +1962,19 @@ router.put(
         `Yard ${idx1} status updated to ${newStatus} by ${firstName} on ${when}`
       );
 
-      const mapped = ORDER_STATUS_MAP[newStatus] || order.orderStatus;
-      const fromBody = req.body.orderStatus
-        ? canonicalOrderStatus(req.body.orderStatus) || req.body.orderStatus
-        : null;
-      order.orderStatus = fromBody || mapped;
-    } else if (req.body.orderStatus) {
+      // Keep Cancelled / Refunded / Dispute / Dispute after Cancellation stable
+      // when yards change; manual order-status edits use other endpoints.
+      if (!isProtectedFromYardAutoStatus(order.orderStatus)) {
+        const mapped = ORDER_STATUS_MAP[newStatus] || order.orderStatus;
+        const fromBody = req.body.orderStatus
+          ? canonicalOrderStatus(req.body.orderStatus) || req.body.orderStatus
+          : null;
+        order.orderStatus = fromBody || mapped;
+      }
+    } else if (
+      req.body.orderStatus &&
+      !isProtectedFromYardAutoStatus(order.orderStatus)
+    ) {
       const prev = order.orderStatus;
       order.orderStatus =
         canonicalOrderStatus(req.body.orderStatus) || req.body.orderStatus;
@@ -2254,7 +2268,9 @@ router.put("/:orderNo/cancelShipment", async (req, res) => {
     subdoc.status = "Yard PO Sent";
     subdoc.shipmentCancelledDate = isoNow;
 
-    order.orderStatus = ORDER_STATUS_MAP["Yard PO Sent"];
+    if (!isProtectedFromYardAutoStatus(order.orderStatus)) {
+      order.orderStatus = ORDER_STATUS_MAP["Yard PO Sent"];
+    }
 
     const summary = removed.length
       ? `Shipment cancelled. Cleared → ${removed.join(", ")}.`

@@ -4,6 +4,7 @@ import { extractOwn, extractYard } from "../../../utils/yards";
 import { IMAGE_FILE_ACCEPT, isImageFile } from "../../../utils/imageUpload";
 import { openS3ObjectUrl, resolveS3ViewSrc } from "../../../utils/s3View";
 import TrashCanIcon from "../../ui/TrashCanIcon";
+import { isProtectedFromYardAutoStatus } from "@spotops/shared/utils/orderStatusGuards.js";
 
 /* ---------------------- Toast Banner ---------------------- */
 function Toast({ message, onClose }) {
@@ -249,10 +250,14 @@ export default function EditYardStatusModal({
         eta: showTracking ? t(eta) : (status === "Part delivered" && yard?.eta ? yard.eta : undefined),
         shipperName: showTracking ? chosenShipper : (status === "Part delivered" && yard?.shipperName ? yard.shipperName : undefined),
         trackingLink: showTracking ? t(trackingLink) : (status === "Part delivered" && yard?.trackingLink ? yard.trackingLink : undefined),
-        orderStatus: ORDER_STATUS_MAP[status],
         // Always skip backend email sending - frontend will handle it exclusively when sendEmail is true
         skipEmail: status === "Part shipped" || status === "Part delivered",
       };
+
+      // Don't auto-change Cancelled / Refunded / Dispute order status from yard edits
+      if (!isProtectedFromYardAutoStatus(order?.orderStatus)) {
+        body.orderStatus = ORDER_STATUS_MAP[status];
+      }
 
       if (status === "Escalation") {
         if (!t(escCause)) {
