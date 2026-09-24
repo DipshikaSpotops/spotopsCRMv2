@@ -303,7 +303,7 @@ const SUPPORT_AGENT_PROLANE_NAME_MAP = {
   Tony: "Kevin Wilson",
   Alex: "Jason Morgan",
   Hannah: "Alice Presley",
-  Natasha: "Sophia Roberts",
+  Sunny: "Sherman Cole",
   Kevin: "Jacob Lewis",
   Amy: "Jessica Mitchell",
   Rhea: "Katherine Williams",
