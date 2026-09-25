@@ -51,14 +51,16 @@ export default function YardStatistics() {
       case "cardCharged":
         return currency(row.cardCharged);
       case "cardChargedOrderNos": {
-        const nos = Array.isArray(row.cardChargedOrderNos)
-          ? row.cardChargedOrderNos.filter(Boolean)
+        const items = Array.isArray(row.cardChargedOrderNos)
+          ? row.cardChargedOrderNos.filter((item) => item?.orderNo)
           : [];
-        if (!nos.length) return "—";
+        if (!items.length) return "—";
         return (
           <div className="text-xs leading-snug space-y-0.5 whitespace-nowrap">
-            {nos.map((orderNo) => (
-              <div key={orderNo}>{orderNo}</div>
+            {items.map((item) => (
+              <div key={item.orderNo}>
+                {item.orderNo}: {currency(item.amount)}
+              </div>
             ))}
           </div>
         );

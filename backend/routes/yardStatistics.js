@@ -299,11 +299,14 @@ router.get("/", requireAuth, allow("Admin", "Sales", "Support"), async (req, res
           row.junkedParts += 1;
         }
 
-        row.cardCharged += cardChargedAmount(yard);
+        const charged = cardChargedAmount(yard);
+        row.cardCharged += charged;
         if (isCardCharged(yard) && order.orderNo) {
           const orderNo = String(order.orderNo).trim();
-          if (orderNo && !row.cardChargedOrderNos.includes(orderNo)) {
-            row.cardChargedOrderNos.push(orderNo);
+          if (orderNo) {
+            const existing = row.cardChargedOrderNos.find((item) => item.orderNo === orderNo);
+            if (existing) existing.amount += charged;
+            else row.cardChargedOrderNos.push({ orderNo, amount: charged });
           }
         }
         row.refundToBeCollected += refundToCollectAmount(yard);
@@ -328,6 +331,10 @@ router.get("/", requireAuth, allow("Admin", "Sales", "Support"), async (req, res
       return {
         ...row,
         cardCharged: roundMoney(row.cardCharged),
+        cardChargedOrderNos: (row.cardChargedOrderNos || []).map((item) => ({
+          orderNo: item.orderNo,
+          amount: roundMoney(item.amount),
+        })),
         refundToBeCollected: roundMoney(row.refundToBeCollected),
         refundCollected: roundMoney(row.refundCollected),
         storeCredit: roundMoney(row.storeCredit),
