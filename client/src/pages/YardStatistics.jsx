@@ -10,6 +10,7 @@ const columns = [
   { key: "orderCancelled", label: "PO Cancelled" },
   { key: "junkedParts", label: "Junked Parts" },
   { key: "cardCharged", label: "Card Charged" },
+  { key: "cardChargedOrderNos", label: "Card Charged Order No" },
   { key: "refundToBeCollected", label: "Refund to Be Collected" },
   { key: "refundCollected", label: "Refund Collected" },
   { key: "storeCredit", label: "Store Credit" },
@@ -48,6 +49,20 @@ export default function YardStatistics() {
       case "failedOrders":
         return row[key] ?? 0;
       case "cardCharged":
+        return currency(row.cardCharged);
+      case "cardChargedOrderNos": {
+        const nos = Array.isArray(row.cardChargedOrderNos)
+          ? row.cardChargedOrderNos.filter(Boolean)
+          : [];
+        if (!nos.length) return "—";
+        return (
+          <div className="text-xs leading-snug space-y-0.5 whitespace-nowrap">
+            {nos.map((orderNo) => (
+              <div key={orderNo}>{orderNo}</div>
+            ))}
+          </div>
+        );
+      }
       case "refundToBeCollected":
       case "refundCollected":
       case "storeCredit":

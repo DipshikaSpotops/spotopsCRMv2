@@ -230,6 +230,7 @@ function emptyRow(yardName) {
     orderCancelled: 0,
     junkedParts: 0,
     cardCharged: 0,
+    cardChargedOrderNos: [],
     refundToBeCollected: 0,
     refundCollected: 0,
     storeCredit: 0,
@@ -265,7 +266,7 @@ router.get("/", requireAuth, allow("Admin", "Sales", "Support"), async (req, res
     await mergeOrderAccessFilter(query, req);
 
     const orders = await Order.find(query)
-      .select("orderStatus additionalInfo orderHistory")
+      .select("orderNo orderStatus additionalInfo orderHistory")
       .lean();
 
     const statsMap = new Map();
@@ -299,6 +300,12 @@ router.get("/", requireAuth, allow("Admin", "Sales", "Support"), async (req, res
         }
 
         row.cardCharged += cardChargedAmount(yard);
+        if (isCardCharged(yard) && order.orderNo) {
+          const orderNo = String(order.orderNo).trim();
+          if (orderNo && !row.cardChargedOrderNos.includes(orderNo)) {
+            row.cardChargedOrderNos.push(orderNo);
+          }
+        }
         row.refundToBeCollected += refundToCollectAmount(yard);
         row.refundCollected += refundCollectedAmount(yard);
         row.storeCredit += storeCreditAmount(yard);
