@@ -96,7 +96,7 @@ export default function Sidebar() {
   ];
 
   const yardLocatesLinksBase = [
-    { text: "Yard Data", to: "/yards", roles: ["Admin", "Support"], emailAccess: "50starsauto110@gmail.com" },
+    { text: "Yard Data", to: "/yards", roles: ["Admin", "Support"], emailAccess: ["50starsauto110@gmail.com", "50starsauto112@gmail.com"] },
     { text: "Yard Statistics", to: "/yard-statistics" },
     { text: "Customer Approved", to: "/customer-approved" },
     { text: "Yard Relocates", to: "/yard-relocates" },
@@ -287,8 +287,9 @@ export default function Sidebar() {
 
     // Check email-based access (overrides other restrictions - works for ANY role)
     if (link.emailAccess) {
-      const isAuthorizedEmail = normalizedEmail === link.emailAccess.toLowerCase();
-      if (isAuthorizedEmail) return true; // Email access grants permission regardless of role
+      const allowedEmails = (Array.isArray(link.emailAccess) ? link.emailAccess : [link.emailAccess])
+        .map((value) => String(value).toLowerCase());
+      if (allowedEmails.includes(normalizedEmail)) return true;
     }
 
     // Check adminOnly restriction
@@ -538,6 +539,17 @@ export default function Sidebar() {
   }
   if (canAccessPermission(USER_PERMISSIONS.YARD_LOCATES, role, permissions)) {
     yardLocatesLinks = filterFlatLinks(yardLocatesLinksBase, role, email, brand);
+    showYardLocatesSection = yardLocatesLinks.length > 0;
+  }
+  // 50starsauto112 gets Yard Data + Yard Statistics only (not the rest of Yard Locates).
+  if (String(email || "").toLowerCase() === "50starsauto112@gmail.com" && !showYardLocatesSection) {
+    const limited = new Set(["/yards", "/yard-statistics"]);
+    yardLocatesLinks = filterFlatLinks(
+      yardLocatesLinksBase.filter((l) => limited.has(l.to)),
+      role,
+      email,
+      brand
+    );
     showYardLocatesSection = yardLocatesLinks.length > 0;
   }
   if (canAccessPermission(USER_PERMISSIONS.YARD_PROCESSING, role, permissions)) {

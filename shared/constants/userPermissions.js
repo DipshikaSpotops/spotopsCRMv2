@@ -154,6 +154,8 @@ export const ROUTE_PERMISSION_MAP = {
 export const ROUTE_EMAIL_ALLOWLIST = {
   "/yard-locaters-stats": ["50starsauto110@gmail.com"],
   "/yard-processing-statistics": ["50starsauto110@gmail.com"],
+  "/yards": ["50starsauto112@gmail.com"],
+  "/yard-statistics": ["50starsauto112@gmail.com"],
 };
 
 /**
