@@ -515,6 +515,7 @@ export default function OrdersTable({
 
   // role (for admin agent filter and Edit button)
   const [userRole, setUserRole] = useState(null);
+  const [userEmail, setUserEmail] = useState("");
   const [firstName, setFirstName] = useState("");
   const [userTeam, setUserTeam] = useState("");
   const [isCommonTeamUser, setIsCommonTeamUser] = useState(() => currentUserSeesAllOrders());
@@ -531,7 +532,18 @@ export default function OrdersTable({
       } catch {}
       return localStorage.getItem("role") || undefined;
     })();
+    const emailFromStorage = (() => {
+      try {
+        const raw = localStorage.getItem("auth");
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          return parsed?.user?.email || undefined;
+        }
+      } catch {}
+      return localStorage.getItem("email") || undefined;
+    })();
     setUserRole(roleFromStorage);
+    setUserEmail(String(emailFromStorage || "").trim().toLowerCase());
     setFirstName((localStorage.getItem("firstName") || "").trim());
 
     let team = "";
@@ -1581,7 +1593,7 @@ export default function OrdersTable({
                             );
                           })()}
                           {typeof extraActions === "function" ? extraActions(row) : null}
-                          {userRole === "Sales" && (
+                          {(userRole === "Sales" || userRole === "Admin" || userEmail === "50starsauto104@gmail.com") && (
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -1723,7 +1735,7 @@ export default function OrdersTable({
                   {typeof extraActions === "function" ? (
                     <div className="flex flex-wrap gap-2 w-full">{extraActions(row)}</div>
                   ) : null}
-                  {userRole === "Sales" && (
+                  {(userRole === "Sales" || userRole === "Admin" || userEmail === "50starsauto104@gmail.com") && (
                     <button
                       onClick={(e) => {
                         e.stopPropagation();

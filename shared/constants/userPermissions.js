@@ -156,6 +156,8 @@ export const ROUTE_EMAIL_ALLOWLIST = {
   "/yard-processing-statistics": ["50starsauto110@gmail.com"],
   "/yards": ["50starsauto112@gmail.com"],
   "/yard-statistics": ["50starsauto112@gmail.com"],
+  "/add-order": ["50starsauto104@gmail.com"],
+  "/edit-order": ["50starsauto104@gmail.com"],
 };
 
 /**

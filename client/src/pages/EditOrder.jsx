@@ -356,19 +356,32 @@ export default function EditOrder() {
     return localStorage.getItem("role") || undefined;
   })();
 
-  // Check if user is Admin or Sales (only after role is loaded)
+  const userEmail = (() => {
+    try {
+      const raw = localStorage.getItem("auth");
+      if (raw) return JSON.parse(raw)?.user?.email || undefined;
+    } catch {}
+    return localStorage.getItem("email") || undefined;
+  })();
+
+  const isAuthorized =
+    role === "Admin" ||
+    role === "Sales" ||
+    String(userEmail || "").trim().toLowerCase() === "50starsauto104@gmail.com";
+
+  // Check if user is Admin, Sales, or authorized email (only after role is loaded)
   useEffect(() => {
-    // Wait for role to be available before checking
-    if (role === undefined) return;
+    // Wait for role/email to be available before checking
+    if (role === undefined && !userEmail) return;
     
-    if (role !== "Admin" && role !== "Sales") {
+    if (!isAuthorized) {
       setToast({
         message: "Access denied. Admin or Sales access required.",
         variant: "error",
       });
       setTimeout(() => navigate("/dashboard"), 2000);
     }
-  }, [role, navigate]);
+  }, [role, userEmail, isAuthorized, navigate]);
 
   // Helper to clear error when field is updated
   const handleFieldChange = (fieldKey, value) => {
@@ -879,7 +892,7 @@ export default function EditOrder() {
   };
 
   // Show loading state while role is being determined
-  if (role === undefined) {
+  if (role === undefined && !userEmail) {
     return (
       <div className="h-screen flex items-center justify-center">
         <div className="text-white text-xl">Loading...</div>
@@ -887,10 +900,10 @@ export default function EditOrder() {
     );
   }
 
-  if (role !== "Admin" && role !== "Sales") {
+  if (!isAuthorized) {
     return (
       <div className="h-screen flex items-center justify-center">
-        <div className="text-white text-xl">Access denied. Admin or Sales access required.</div>
+        <div className="text-white text-xl">Access denied. Admin, Sales, or authorized access required.</div>
       </div>
     );
   }

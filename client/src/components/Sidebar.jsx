@@ -138,8 +138,8 @@ export default function Sidebar() {
 
   const dashboardLinksBase = [
     assignOrdersLink,
-    { text: "Add New Order", to: "/add-order", roles: ["Admin", "Sales"] },
-    { text: "Edit Order", to: "/edit-order", roles: ["Admin", "Sales"] },
+    { text: "Add New Order", to: "/add-order", roles: ["Admin", "Sales"], emailAccess: "50starsauto104@gmail.com" },
+    { text: "Edit Order", to: "/edit-order", roles: ["Admin", "Sales"], emailAccess: "50starsauto104@gmail.com" },
     { text: "Daily Sales GP", to: "/daily-sales-gp", roles: ["Admin", "Sales"] },
     { text: "Mid-Month Actual GP", to: "/mid-month-actual-gp", roles: ["Admin", "Sales"] },
     { text: "Sales Data", to: "/sales-data", roles: ["Admin", "Sales"] },
@@ -400,6 +400,7 @@ export default function Sidebar() {
   const isAuthCodesViewer = AUTHORIZATION_CODES_VIEWER_EMAILS.has(
     String(email || "").trim().toLowerCase()
   );
+  const is104Email = String(email || "").trim().toLowerCase() === "50starsauto104@gmail.com";
 
   if (isPermissionScoped) {
     dashboardLinks = filterDashboardLinks(
@@ -450,7 +451,7 @@ export default function Sidebar() {
     );
     attendanceLinks = attendanceLinksBase.filter((l) => shouldShowLink(l, role, email, brand));
   } else if (role === "Support") {
-    const hiddenForSupport = new Set(["Sales Data", "Add New Order"]);
+    const hiddenForSupport = new Set(["Sales Data", ...(is104Email ? [] : ["Add New Order"])]);
     dashboardLinks = filterDashboardLinks(
       dashboardLinksBase,
       role,
@@ -536,6 +537,26 @@ export default function Sidebar() {
     }
   } else {
     dashboardLinks = dashboardLinks.filter((l) => l.to !== "/assign-orders");
+  }
+  // 50starsauto104@gmail.com has explicit access to Add New Order and Edit Order
+  if (is104Email) {
+    const addOrderLink = dashboardLinksBase.find((l) => l.to === "/add-order");
+    const editOrderLink = dashboardLinksBase.find((l) => l.to === "/edit-order");
+    const explicitLinks = [addOrderLink, editOrderLink].filter(Boolean);
+    const existingPaths = new Set(dashboardLinks.map((l) => l.to));
+    const toAdd = explicitLinks.filter((l) => !existingPaths.has(l.to));
+    if (toAdd.length > 0) {
+      const assignIdx = dashboardLinks.findIndex((l) => l.to === "/assign-orders");
+      if (assignIdx >= 0) {
+        dashboardLinks = [
+          ...dashboardLinks.slice(0, assignIdx + 1),
+          ...toAdd,
+          ...dashboardLinks.slice(assignIdx + 1),
+        ];
+      } else {
+        dashboardLinks = [...toAdd, ...dashboardLinks];
+      }
+    }
   }
   if (canAccessPermission(USER_PERMISSIONS.YARD_LOCATES, role, permissions)) {
     yardLocatesLinks = filterFlatLinks(yardLocatesLinksBase, role, email, brand);
