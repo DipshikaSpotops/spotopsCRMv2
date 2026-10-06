@@ -362,13 +362,12 @@ function fiftyStarsTermsHtml() {
   return `
     <div class="terms">
       <h3>TERMS &amp; CONDITIONS:</h3>
-      <p><b>Shipping &amp; Delays:</b> Slight shipping delays may occur depending on part availability and carrier schedules.</p>
-      <p><b>Restocking Fee:</b> Orders cancelled due to personal reasons are subject to a 25% restocking fee.</p>
-      <p><b>VIN-Confirmed Parts:</b> Once a part is confirmed and matched to the vehicle VIN, free replacement is not applicable for incorrect orders. Customers are responsible for shipping the wrong part back and covering the shipping costs for the correct one.</p>
-      <p><b>Wrong or Faulty Parts:</b> In case a part is wrongly shipped or found faulty, 50 Stars Auto Parts will cover all shipping charges and arrange a prompt replacement.</p>
-      <p><b>Used Parts Condition:</b> All parts are used OEM components and may have minor rust, grease, or surface marks, especially on older models. These do not affect the functionality or performance of the part.</p>
-      <p><b>Warranty Coverage:</b> Every used Transmission sold by 50 Stars Auto Parts comes with a 5-Year or 100,000-Mile warranty (whichever occurs first). The warranty covers replacement or repair of defective parts under normal use conditions.</p>
-      <p><b>RETURN POLICY:</b> If a customer returns a part for replacement or refund, the returned item must be shipped back to us within 7 working days from the date the return is authorized. Once the returned part is received and inspected, we will process either a replacement or a refund, as applicable. Returns received after the 7-working-day period may not be eligible for a replacement or refund unless otherwise approved in writing.</p>
+      <p><b>Shipping &amp; Returns:</b> Minor delays may occur due to part availability, warehouse processing, or carrier schedules. We will keep you informed of significant delays. Return, replacement, or refund requests should be made within 15 calendar days of delivery. Approved returns should be shipped back within 7 business days with tracking provided. Cancellations for personal reasons or reasons unrelated to a product issue may be subject to a 25% restocking fee.</p>
+      <p><b>Used OEM Parts:</b> All parts are inspected and quality-checked before shipment. Minor rust, grease, scratches, discoloration, or surface marks may be present due to normal previous use. Parts are confirmed against the VIN provided with the order. If incorrect vehicle or part information is provided, return or replacement shipping costs may apply.</p>
+      <p><b>Incorrect or Faulty Parts:</b> If we send an incorrect or confirmed faulty part, we will work with you on a suitable replacement, with applicable shipping costs covered by 50 Stars Auto Parts for approved cases.</p>
+      <p><b>Warranty:</b> Used engines, transmissions, and other major components may be covered for up to 5 years or 100,000 miles, whichever comes first, subject to the specific warranty terms.</p>
+      <p><i>(We appreciate your business and strive to make every return, replacement, and warranty process as smooth as possible.)</i></p>
+      <p>Please visit our website at <a href="http://www.50starsautoparts.com" style="color: #04356d; text-decoration: underline;">www.50starsautoparts.com</a> to review our Terms &amp; Conditions, Privacy Policy, <a href="https://50starsautoparts.com/refund_returns/" style="color: #04356d; text-decoration: underline;">Return &amp; Refund Policy</a>, and Warranty Policy.</p>
     </div>`;
 }
 
@@ -376,28 +375,21 @@ function prolaneTermsHtml() {
   return `
     <div class="terms">
       <h3>TERMS &amp; CONDITIONS:</h3>
-      <p><b>NOTE:</b> You agreed to buy a "USED OEM PART." All purchased auto parts are subject to dismantler acceptance and a 25% handling charge if accepted by seller. Returns are only accepted at the seller's option with a 1 year warranty. If the parts are not returned to us in the same condition in which they were sold, the warranty is void.</p>
-      <p>All returns are subject to a 25% restocking fee and are at the seller's sole discretion. Returning the part is the customer's responsibility at their expense. The costs of return shipping will not be reimbursed. The laws of the State of Texas govern this sale agreement, and you hereby consent to the exclusive jurisdiction and venue of the courts of Texas for all disputes.</p>
-      <p>All parts sold by Prolane Auto Parts are used OEM auto parts inspected and tested before shipping. Customers are responsible for verifying compatibility using VIN, year, make, and model prior to purchase.</p>
-      <p>Electronic parts may require programming, coding, or calibration during installation. Professional installation by a qualified technician is strongly recommended. Normal wear such as scratches, dirt, or cosmetic imperfections may be present on used parts.</p>
-      <p>Warranty covers replacement of the part only and does not include labor, towing, diagnostics, programming, or installation costs. Parts damaged due to improper installation, misuse, overheating, or modification will void warranty eligibility.</p>
-      <p><b>RETURN POLICY:</b> If a customer returns a part for replacement or refund, the returned item must be shipped back to us within 7 working days from the date the return is authorized. Once the returned part is received and inspected, we will process either a replacement or a refund, as applicable. Returns received after the 7-working-day period may not be eligible for a replacement or refund unless otherwise approved in writing.</p>
+      <p><b>Shipping &amp; Returns:</b> Minor delays may occur due to part availability, warehouse processing, or carrier schedules. We will keep you informed of significant delays. Return, replacement, or refund requests should be made within 15 calendar days of delivery. Approved returns should be shipped back within 7 business days with tracking provided. Cancellations for personal reasons or reasons unrelated to a product issue may be subject to a 25% restocking fee.</p>
+      <p><b>Used OEM Parts:</b> All parts are inspected and quality-checked before shipment. Minor rust, grease, scratches, discoloration, or surface marks may be present due to normal previous use. Parts are confirmed against the VIN provided with the order. If incorrect vehicle or part information is provided, return or replacement shipping costs may apply.</p>
+      <p><b>Incorrect or Faulty Parts:</b> If we send an incorrect or confirmed faulty part, we will work with you on a suitable replacement, with applicable shipping costs covered by Prolane Auto Parts for approved cases.</p>
+      <p><b>Warranty:</b> Used engines, transmissions, and other major components may be covered for up to 5 years or 100,000 miles, whichever comes first, subject to the specific warranty terms.</p>
+      <p><i>(We appreciate your business and strive to make every return, replacement, and warranty process as smooth as possible.)</i></p>
+      <p>Please visit our website at <a href="https://www.prolaneautoparts.com" style="color: #04356d; text-decoration: underline;">www.prolaneautoparts.com</a> to review our Terms &amp; Conditions, Privacy Policy, <a href="https://prolaneautoparts.com/refund-and-returns/" style="color: #04356d; text-decoration: underline;">Return &amp; Refund Policy</a>, and Warranty Policy.</p>
     </div>`;
 }
 
 function otherRemarksInner(isProlane) {
-  if (isProlane) {
-    return `
-      <div class="title">Other Remarks:</div>
-      <div>Part delivery takes 5 to 7 business days.</div>
-      <div>If the order is over $1000.00, the customer must provide a copy of their credit card as well as proof of their valid ID.</div>
-      <div>The order will be fulfilled only if the customer signs the invoice that will be sent to your email and a copy is received by the Account's Team.</div>`;
-  }
   return `
     <div class="title">Other Remarks:</div>
-    <div>Part delivery takes 5 to 7 business days.</div>
+    <div>Part delivery takes 5 to 7 business days. For freight delivery it takes 7 to 10 Business Days</div>
     <div>If the order is over $1000.00, the customer must provide a copy of their credit card as well as proof of their valid ID.</div>
-    <div>Customer signature is mandatory to further process the order.</div>`;
+    <div>Customer signature is mandatory to further process the order</div>`;
 }
 
 function authLegalHtml(cfg) {
@@ -556,7 +548,7 @@ function buildInvoiceHtml(order, brand, plainCard, { includeAuthPage = true } = 
         <div class="addr">${esc(cfg.addressLine)} ${esc(cfg.phone)}</div>
         <hr class="footer-bar" />
         <div class="web">${esc(cfg.website)}</div>
-        <div>Please visit our website at ${esc(cfg.website)} to review our Terms &amp; Conditions, Privacy Policy, Return &amp; Refund Policy, and Warranty Policy.</div>
+        <div>Please visit our website at <a href="${cfg.brand === '50STARS' ? 'http://www.50starsautoparts.com' : 'https://' + esc(cfg.website)}" style="color: inherit; text-decoration: underline;">${esc(cfg.website)}</a> to review our Terms &amp; Conditions, Privacy Policy, <a href="${cfg.brand === '50STARS' ? 'https://50starsautoparts.com/refund_returns/' : 'https://prolaneautoparts.com/refund-and-returns/'}" style="color: inherit; text-decoration: underline;">Return &amp; Refund Policy</a>, and Warranty Policy.</div>
       </div>
     </div>
   </div>
