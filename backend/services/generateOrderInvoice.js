@@ -300,6 +300,29 @@ function sharedStyles() {
     margin: 0 0 6px;
   }
   .footer .web { font-weight: 600; margin-bottom: 2px; }
+  .invoice-page { font-size: 12px; line-height: 1.45; }
+  .invoice-page .top { margin-bottom: 10px; }
+  .invoice-page .invoice-title .meta { margin-top: 8px; font-size: 12px; }
+  .invoice-page .invoice-title .meta div { margin-bottom: 3px; }
+  .invoice-page .cols { margin-bottom: 10px; }
+  .invoice-page .cols .col { padding: 10px 12px; font-size: 12px; line-height: 1.55; }
+  .invoice-page .cols .label { font-size: 13px; margin-bottom: 6px; padding-bottom: 4px; }
+  .invoice-page table.parts th,
+  .invoice-page table.parts td { padding: 9px 10px; }
+  .invoice-page table.parts th { font-size: 12px; }
+  .invoice-page table.parts .amt { font-size: 13px; }
+  .invoice-page .part-lines div { margin-bottom: 3px; }
+  .invoice-page .mid-row { gap: 12px; margin-top: 10px; }
+  .invoice-page .remarks { padding: 10px 12px; font-size: 11px; line-height: 1.5; }
+  .invoice-page .remarks .title { margin-bottom: 6px; font-size: 12px; }
+  .invoice-page .remarks div { margin-bottom: 4px; }
+  .invoice-page .totals td { padding: 8px 10px; font-size: 12px; }
+  .invoice-page .terms { margin-top: 12px; font-size: 9px; line-height: 1.5; }
+  .invoice-page .terms h3 { font-size: 11px; margin-bottom: 6px; }
+  .invoice-page .terms p { margin: 0 0 6px; }
+  .invoice-page .sig-line { margin-top: 22px; font-size: 11px; padding-top: 4px; }
+  .invoice-page .footer { margin-top: 12px; font-size: 10px; line-height: 1.5; }
+  .invoice-page .page-bottom { padding-top: 14px; }
   .auth-head { text-align: center; margin-bottom: 10px; }
   .auth-head .brand-name { font-size: 15px; margin-bottom: 2px; }
   .auth-head h1 {
@@ -437,7 +460,7 @@ function buildInvoiceHtml(order, brand, plainCard, { includeAuthPage = true } = 
     customerDisplayName(order);
 
   const phoneLine = [order.phone, order.altPhone].filter(Boolean).join(" / ");
-  const billName = customerDisplayName(order);
+  const billName = order.bName || order.businessName || customerDisplayName(order);
   const warranty = formatWarranty(order);
   const partNo = order.partNo || "NA";
 
@@ -457,12 +480,18 @@ function buildInvoiceHtml(order, brand, plainCard, { includeAuthPage = true } = 
     ? `<div><b>Shipp :</b> ${shipAddressBlock(order)}</div>`
     : shipAddressBlock(order);
 
-  // Sample Bill To: name, email, phones + state
-  const billColInner = `
-    <div>${esc(billName)}</div>
-    <div>${esc(order.email || "")}</div>
-    <div>${esc(phoneLine)}${order.bAddressState || order.sAddressState ? ` ${esc(order.bAddressState || order.sAddressState)}` : ""}</div>
-  `;
+  const billCityLine = [order.bAddressCity, order.bAddressState, order.bAddressZip]
+    .filter(Boolean)
+    .join(", ");
+  const billLines = [
+    billName,
+    order.email,
+    phoneLine,
+    order.bAddressStreet,
+    billCityLine,
+    order.bAddressAcountry,
+  ].filter((line) => String(line || "").trim());
+  const billColInner = billLines.map((line) => `<div>${esc(line)}</div>`).join("");
 
   const businessLine = order.businessName
     ? `${esc(billName)} / ${esc(order.businessName)}`
@@ -475,7 +504,7 @@ function buildInvoiceHtml(order, brand, plainCard, { includeAuthPage = true } = 
 <style>${sharedStyles()}</style>
 </head>
 <body>
-  <div class="page">
+  <div class="page invoice-page">
     <div class="page-main">
       <div class="top">
         <div class="brand-block">
