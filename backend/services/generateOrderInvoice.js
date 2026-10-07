@@ -486,7 +486,7 @@ function buildInvoiceHtml(order, brand, plainCard, { includeAuthPage = true } = 
           <div class="meta">
             <div><b>Invoice No :</b> ${esc(order.orderNo || "")}</div>
             <div><b>Invoice Date :</b> ${esc(invoiceDate)}</div>
-            <div><b>Payment Source :</b> ${esc(order.paymentSource || "")}</div>
+            
           </div>
         </div>
       </div>
