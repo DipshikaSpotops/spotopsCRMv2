@@ -317,12 +317,14 @@ function sharedStyles() {
   .invoice-page .remarks .title { margin-bottom: 6px; font-size: 12px; }
   .invoice-page .remarks div { margin-bottom: 4px; }
   .invoice-page .totals td { padding: 8px 10px; font-size: 12px; }
-  .invoice-page .terms { margin-top: 12px; font-size: 9px; line-height: 1.5; }
-  .invoice-page .terms h3 { font-size: 11px; margin-bottom: 6px; }
-  .invoice-page .terms p { margin: 0 0 6px; }
-  .invoice-page .sig-line { margin-top: 22px; font-size: 11px; padding-top: 4px; }
-  .invoice-page .footer { margin-top: 12px; font-size: 10px; line-height: 1.5; }
-  .invoice-page .page-bottom { padding-top: 14px; }
+  .invoice-page .terms { margin-top: 4px; font-size: 9px; line-height: 1.42; }
+  .invoice-page .terms h3 { font-size: 11px; margin-bottom: 4px; }
+  .invoice-page .terms p { margin: 0 0 4px; }
+  .invoice-page .terms p:last-child { margin-bottom: 0; }
+  .invoice-page .sig-row { margin-top: 18px; }
+  .invoice-page .sig-line { margin-top: 28px; font-size: 11px; padding-top: 4px; }
+  .invoice-page .footer { margin-top: 10px; font-size: 10px; line-height: 1.5; }
+  .invoice-page .page-bottom { padding-top: 8px; }
   .auth-head { text-align: center; margin-bottom: 10px; }
   .auth-head .brand-name { font-size: 15px; margin-bottom: 2px; }
   .auth-head h1 {
