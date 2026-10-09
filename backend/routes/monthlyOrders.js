@@ -1,6 +1,7 @@
 // /routes/monthlyOrders.js
 import express from 'express';
 import moment from 'moment-timezone';
+import { google } from 'googleapis';
 import { getOrderModelForBrand } from '../models/Order.js';
 import Team from '../models/Team.js';
 import { requireAuth, allow } from '../middleware/auth.js';
@@ -491,6 +492,127 @@ router.get('/', requireAuth, allow('Admin', 'Sales', 'Support'), async (req, res
     const msg = err?.message?.includes('Provide either start/end')
       ? err.message
       : 'Internal server error';
+    return res.status(500).json({ message: msg });
+  }
+});
+
+/**
+ * GET /orders/monthlyOrders/customer-export
+ * Admin only. CSV of customer contact fields for the chosen date range and part.
+ */
+router.get("/customer-export", requireAuth, allow("Admin"), async (req, res) => {
+  try {
+    const { start, end, month, year, part, parts } = req.query;
+    const { startDate, endDate, exclusiveEnd } = buildDateRange({ start, end, month, year });
+    const query = {
+      orderDate: exclusiveEnd
+        ? { $gte: startDate, $lt: endDate }
+        : { $gte: startDate, $lte: endDate },
+    };
+
+    const selectedParts = [];
+    const pushPart = (value) => {
+      const name = String(value || "").trim();
+      if (!name || name.toLowerCase() === "all") return;
+      selectedParts.push(name);
+    };
+    const rawParts = parts ?? part;
+    if (Array.isArray(rawParts)) {
+      rawParts.forEach(pushPart);
+    } else if (rawParts) {
+      const text = String(rawParts).trim();
+      if (text.startsWith("[")) {
+        try {
+          const parsed = JSON.parse(text);
+          if (Array.isArray(parsed)) parsed.forEach(pushPart);
+          else pushPart(text);
+        } catch {
+          pushPart(text);
+        }
+      } else {
+        pushPart(text);
+      }
+    }
+    if (selectedParts.length) {
+      query.pReq = {
+        $in: selectedParts.map(
+          (name) => new RegExp(`^${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i")
+        ),
+      };
+    }
+
+    const Order = getOrderModelForBrand(req.brand);
+    const orders = await Order.find(query)
+      .select("fName lName email phone bAddressAcountry sAddressAcountry bAddressZip sAddressZip orderDate")
+      .sort({ orderDate: 1 })
+      .lean();
+
+    const header = ["First Name", "Last Name", "Email", "Phone", "Country Code", "Zipcode"];
+
+    const clientEmail = String(process.env.GCP_CLIENT_EMAIL || "").trim();
+    const privateKey = String(process.env.GCP_PRIVATE_KEY || "").trim();
+    const spreadsheetId = String(process.env.LOGIN_TRACKING_SHEET_ID || "").trim();
+    if (!clientEmail || !privateKey || !spreadsheetId) {
+      return res.status(500).json({
+        message:
+          "Google Sheets is not configured. Set GCP_CLIENT_EMAIL, GCP_PRIVATE_KEY, and LOGIN_TRACKING_SHEET_ID.",
+      });
+    }
+
+    // The service account can edit the existing workbook, but cannot create a new file.
+    const auth = new google.auth.JWT({
+      email: clientEmail,
+      key: privateKey.replace(/\\n/g, "\n"),
+      scopes: ["https://www.googleapis.com/auth/spreadsheets"],
+    });
+    const sheets = google.sheets({ version: "v4", auth });
+    const rangeLabel = `${moment.tz(startDate, TZ).format("YYYY-MM-DD")} to ${moment
+      .tz(endDate, TZ)
+      .subtract(1, "millisecond")
+      .format("YYYY-MM-DD")}`;
+    const sheetTitle = `Contacts ${rangeLabel} ${moment.tz(TZ).format("HHmmss")}`
+      .replace(/[\\/?*[\]:]/g, " ")
+      .slice(0, 99);
+
+    const added = await sheets.spreadsheets.batchUpdate({
+      spreadsheetId,
+      requestBody: {
+        requests: [{ addSheet: { properties: { title: sheetTitle } } }],
+      },
+    });
+    const sheetId = added.data.replies?.[0]?.addSheet?.properties?.sheetId;
+    const values = [
+      header,
+      ...orders.map((order) => [
+        order.fName || "",
+        order.lName || "",
+        order.email || "",
+        order.phone || "",
+        order.bAddressAcountry || order.sAddressAcountry || "",
+        order.bAddressZip || order.sAddressZip || "",
+      ]),
+    ];
+    await sheets.spreadsheets.values.update({
+      spreadsheetId,
+      range: `'${sheetTitle}'!A1`,
+      valueInputOption: "RAW",
+      requestBody: { values },
+    });
+
+    const url = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit#gid=${sheetId ?? 0}`;
+    return res.json({
+      url,
+      spreadsheetId,
+      sheetTitle,
+      rowCount: orders.length,
+    });
+  } catch (err) {
+    console.error("Error exporting customer contacts:", err);
+    const googleMessage = err?.response?.data?.error?.message;
+    const msg = err?.message?.includes("Provide either start/end") ||
+      err?.message?.includes("Invalid month/year")
+      ? err.message
+      : googleMessage || err?.message || "Failed to export customer contacts";
     return res.status(500).json({ message: msg });
   }
 });

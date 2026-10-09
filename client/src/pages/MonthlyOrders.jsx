@@ -1,5 +1,6 @@
 // /src/pages/MonthlyOrders.jsx
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import moment from "moment-timezone";
 import OrdersTable from "../components/OrdersTable";
 import useOrdersRealtime from "../hooks/useOrdersRealtime";
 import useBrand from "../hooks/useBrand";
@@ -117,6 +118,13 @@ function readAuthEmailRole() {
 export default function MonthlyOrders() {
   const [expandedIds, setExpandedIds] = useState(() => new Set());
   const [sendingSalesReport, setSendingSalesReport] = useState(false);
+  const [contactExportOpen, setContactExportOpen] = useState(false);
+  const [contactExportFilter, setContactExportFilter] = useState(null);
+  const [exportStart, setExportStart] = useState("");
+  const [exportEnd, setExportEnd] = useState("");
+  const [exportPart, setExportPart] = useState([]);
+  const [exportParts, setExportParts] = useState([]);
+  const [exportingContacts, setExportingContacts] = useState(false);
   const [assignTarget, setAssignTarget] = useState(null);
   const [assignTeam, setAssignTeam] = useState("");
   const [assignTeams, setAssignTeams] = useState([]);
@@ -126,6 +134,11 @@ export default function MonthlyOrders() {
   const canSendSalesReport = useMemo(() => {
     const { role, email } = readAuthEmailRole();
     return role === "Admin" || email === "50starsauto110@gmail.com";
+  }, []);
+
+  const isAdmin = useMemo(() => {
+    const { role } = readAuthEmailRole();
+    return String(role || "").trim().toLowerCase() === "admin";
   }, []);
 
   const canAssignTeam = useMemo(() => {
@@ -421,6 +434,72 @@ export default function MonthlyOrders() {
     return params;
   }, []);
 
+  const datesFromFilter = useCallback((filter) => {
+    const zone = "America/Chicago";
+    if (filter?.start && filter?.end) {
+      return {
+        start: moment.tz(filter.start, zone).format("YYYY-MM-DD"),
+        end: moment.tz(filter.end, zone).format("YYYY-MM-DD"),
+      };
+    }
+    if (filter?.month && filter?.year) {
+      const parsed = moment.tz(
+        `${filter.month} ${filter.year}`,
+        ["MMM YYYY", "MMMM YYYY", "M YYYY"],
+        zone
+      );
+      if (parsed.isValid()) {
+        return {
+          start: parsed.clone().startOf("month").format("YYYY-MM-DD"),
+          end: parsed.clone().endOf("month").format("YYYY-MM-DD"),
+        };
+      }
+    }
+    const now = moment.tz(zone);
+    return {
+      start: now.clone().startOf("month").format("YYYY-MM-DD"),
+      end: now.format("YYYY-MM-DD"),
+    };
+  }, []);
+
+  const openContactExport = useCallback((filter) => {
+    const dates = datesFromFilter(filter);
+    setContactExportFilter(filter || null);
+    setExportStart(dates.start);
+    setExportEnd(dates.end);
+    setExportPart([]);
+    setContactExportOpen(true);
+    API.get("/parts")
+      .then(({ data }) => {
+        const names = (Array.isArray(data) ? data : [])
+          .map((part) => String(part?.name || "").trim())
+          .filter(Boolean);
+        setExportParts([...new Set(names)].sort((a, b) => a.localeCompare(b)));
+      })
+      .catch(() => setExportParts([]));
+  }, [datesFromFilter]);
+
+  const downloadCustomerContacts = useCallback(async () => {
+    if (!exportStart || !exportEnd || exportingContacts) return;
+    setExportingContacts(true);
+    try {
+      const params = { start: exportStart, end: exportEnd };
+      if (exportPart.length) params.parts = JSON.stringify(exportPart);
+      const { data } = await API.get("/orders/monthlyOrders/customer-export", { params });
+      if (!data?.url) throw new Error("Google Sheet link was not returned.");
+      window.open(data.url, "_blank", "noopener,noreferrer");
+      setContactExportOpen(false);
+    } catch (err) {
+      const message =
+        err?.response?.data?.message ||
+        err?.message ||
+        "Failed to create the Google Sheet.";
+      window.alert(message);
+    } finally {
+      setExportingContacts(false);
+    }
+  }, [exportEnd, exportPart, exportStart, exportingContacts]);
+
   const handleSendSalesReport = useCallback(async (filter) => {
     const payload = {};
     if (filter?.start && filter?.end) {
@@ -530,9 +609,25 @@ export default function MonthlyOrders() {
         paramsBuilder={paramsBuilder}
         tableId="monthlyOrders"
         extraActions={canAssignTeam ? extraActions : undefined}
-        subheaderExtra={
-          canSendSalesReport
-            ? ({ activeFilter }) => (
+        subheaderExtra={({ activeFilter }) =>
+          canSendSalesReport || isAdmin ? (
+            <div className="flex items-center gap-2">
+              {isAdmin && (
+                <button
+                  type="button"
+                  onClick={() => openContactExport(activeFilter)}
+                  className="inline-flex items-center justify-center h-10 w-10 rounded-lg bg-white/15 border border-white/25 text-white hover:bg-white/25"
+                  title="Create Google Sheet of customer contacts"
+                  aria-label="Create Google Sheet of customer contacts"
+                >
+                  <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M12 3v12" strokeLinecap="round" />
+                    <path d="M7 11l5 5 5-5" strokeLinecap="round" strokeLinejoin="round" />
+                    <path d="M5 21h14" strokeLinecap="round" />
+                  </svg>
+                </button>
+              )}
+              {canSendSalesReport && (
                 <button
                   type="button"
                   onClick={() => handleSendSalesReport(activeFilter)}
@@ -542,10 +637,107 @@ export default function MonthlyOrders() {
                 >
                   {sendingSalesReport ? "Sending…" : "Send Sales Report"}
                 </button>
-              )
-            : null
+              )}
+            </div>
+          ) : null
         }
       />
+
+      {contactExportOpen && (
+        <div className="fixed inset-0 z-50 grid place-items-center">
+          <div
+            className="absolute inset-0 bg-slate-900/65 backdrop-blur-sm"
+            onClick={() => !exportingContacts && setContactExportOpen(false)}
+          />
+          <div className="relative w-[460px] max-w-[95vw] rounded-2xl p-6 bg-white/12 border border-white/20 ring-1 ring-inset ring-white/15 backdrop-blur-xl text-white">
+            <button
+              type="button"
+              className="absolute top-2 right-3 rounded-full p-1.5 hover:bg-white/10 text-white/80"
+              onClick={() => !exportingContacts && setContactExportOpen(false)}
+              aria-label="Close"
+            >
+              ×
+            </button>
+            <h3 className="text-lg font-semibold mb-1 text-center">Create Google Sheet</h3>
+            <p className="text-white/70 text-sm text-center mb-4">
+              First name, last name, email, phone, country, and zip only.
+              {contactExportFilter ? " Date range starts from the current Monthly Orders filter." : ""}
+            </p>
+            <div className="grid grid-cols-2 gap-3 mb-3">
+              <label className="block text-xs text-white/70">
+                Start date
+                <input
+                  type="date"
+                  value={exportStart}
+                  onChange={(e) => setExportStart(e.target.value)}
+                  className="mt-1 w-full rounded-md border border-white/30 bg-white text-slate-900 px-2 py-2 text-sm"
+                />
+              </label>
+              <label className="block text-xs text-white/70">
+                End date
+                <input
+                  type="date"
+                  value={exportEnd}
+                  onChange={(e) => setExportEnd(e.target.value)}
+                  className="mt-1 w-full rounded-md border border-white/30 bg-white text-slate-900 px-2 py-2 text-sm"
+                />
+              </label>
+            </div>
+            <div className="mb-4">
+              <div className="text-xs text-white/70 mb-1">Parts</div>
+              <div className="max-h-48 overflow-y-auto rounded-md border border-white/30 bg-white text-slate-900 px-3 py-2 text-sm">
+                <label className="flex items-center gap-2 py-1 font-medium">
+                  <input
+                    type="checkbox"
+                    checked={exportPart.length === 0}
+                    onChange={() => setExportPart([])}
+                  />
+                  All
+                </label>
+                {exportParts.map((name) => (
+                  <label key={name} className="flex items-center gap-2 py-1">
+                    <input
+                      type="checkbox"
+                      checked={exportPart.includes(name)}
+                      onChange={() =>
+                        setExportPart((prev) =>
+                          prev.includes(name)
+                            ? prev.filter((item) => item !== name)
+                            : [...prev, name]
+                        )
+                      }
+                    />
+                    {name}
+                  </label>
+                ))}
+              </div>
+              <p className="mt-1 text-xs text-white/60">
+                {exportPart.length === 0
+                  ? "All parts"
+                  : `${exportPart.length} part${exportPart.length === 1 ? "" : "s"} selected`}
+              </p>
+            </div>
+            <div className="flex gap-3 justify-center">
+              <button
+                type="button"
+                onClick={downloadCustomerContacts}
+                disabled={!exportStart || !exportEnd || exportingContacts}
+                className="px-4 py-2 rounded-lg bg-emerald-700 text-white font-medium shadow hover:bg-emerald-600 disabled:opacity-60"
+              >
+                {exportingContacts ? "Creating…" : "Create Google Sheet"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setContactExportOpen(false)}
+                disabled={exportingContacts}
+                className="px-4 py-2 rounded-lg bg-white/10 border border-white/20 hover:bg-white/15"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {assignTarget && (
         <div className="fixed inset-0 z-50 grid place-items-center">
