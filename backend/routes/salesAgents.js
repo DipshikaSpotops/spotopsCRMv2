@@ -1,5 +1,6 @@
 import express from "express";
 import SalesAgent from "../models/SalesAgent.js";
+import User from "../models/User.js";
 import { brandMiddleware } from "../middleware/brand.js";
 
 const router = express.Router();
@@ -11,7 +12,37 @@ router.use(brandMiddleware);
 router.get("/", async (req, res) => {
   try {
     const brand = req.brand || "50STARS";
-    const agents = await SalesAgent.find({ brand }).sort({ firstName: 1 });
+    const agents = await SalesAgent.find({ brand }).sort({ firstName: 1 }).lean();
+
+    // 50STARS dropdown should include every Sales user, not only the seeded list.
+    // PROLANE keeps its own alias roster (Victor, Sam, Steve, Charlie).
+    if (brand === "50STARS") {
+      const salesUsers = await User.find({ role: "Sales" })
+        .select("firstName lastName")
+        .lean();
+      const seen = new Set(
+        agents.map((agent) => String(agent.firstName || "").trim().toLowerCase())
+      );
+      for (const user of salesUsers) {
+        const firstName = String(user.firstName || "").trim();
+        if (!firstName) continue;
+        const key = firstName.toLowerCase();
+        if (seen.has(key)) continue;
+        seen.add(key);
+        const lastName = String(user.lastName || "").trim();
+        agents.push({
+          firstName,
+          fullName: [firstName, lastName].filter(Boolean).join(" "),
+          brand: "50STARS",
+        });
+      }
+      agents.sort((a, b) =>
+        String(a.firstName || "").localeCompare(String(b.firstName || ""), undefined, {
+          sensitivity: "base",
+        })
+      );
+    }
+
     res.json(agents);
   } catch (error) {
     console.error("Error fetching sales agents:", error);
