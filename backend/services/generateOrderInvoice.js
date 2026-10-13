@@ -478,9 +478,7 @@ function buildInvoiceHtml(order, brand, plainCard, { includeAuthPage = true } = 
       <div><b>Warranty:</b> ${esc(warranty)}</div>
     </div>`;
 
-  const shipColInner = isProlane
-    ? `<div><b>Shipp :</b> ${shipAddressBlock(order)}</div>`
-    : shipAddressBlock(order);
+  const shipColInner = shipAddressBlock(order);
 
   const billCityLine = [order.bAddressCity, order.bAddressState, order.bAddressZip]
     .filter(Boolean)
