@@ -309,7 +309,7 @@ const SUPPORT_AGENT_PROLANE_NAME_MAP = {
   Rhea: "Katherine Williams",
   Tylor: "Hailey Pitt",
   Olivia: "Carlie Phillips",
-  Adam: "Jaden Scott",
+  Nathan: "Ricky Smith",
   Duke: "Patrick Evans",
   Chris: "Joseph Kale",
   Steve: "Troy Smith",

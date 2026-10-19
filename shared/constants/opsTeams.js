@@ -36,7 +36,7 @@ export const OPS_TEAMS = [
       { firstName: "Mona", roleKey: "invoicesRefund" },
       { firstName: "Nik", roleKey: "yardLocate" },
       { firstName: "Max", roleKey: "yardProcessingEscalation" },
-      { firstName: "Adam", roleKey: "yardProcessingEscalation" },
+      { firstName: "Nathan", roleKey: "yardProcessingEscalation" },
       { firstName: "Chris", roleKey: "yardProcessingEscalation" },
       { firstName: "Kevin", roleKey: "invoicesRefund" },
     ],

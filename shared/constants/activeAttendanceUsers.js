@@ -24,7 +24,7 @@ export const ACTIVE_ATTENDANCE_USER_LIST = [
   "Steve",
   "Mona",
   "Duke",
-  "Adam",
+  "Nathan",
 ];
 
 /** Never show on attendance sheet and never require Mark Present. */
