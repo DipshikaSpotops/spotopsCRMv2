@@ -2,6 +2,7 @@
 export const ASSIGN_ORDERS_EMAILS = [
   "spotopsdigital.darshan@gmail.com",
   "50starsauto110@gmail.com",
+  "50starsauto104@gmail.com",
 ];
 
 export function isAssignOrdersEmail(email) {
