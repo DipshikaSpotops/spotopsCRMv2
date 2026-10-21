@@ -205,6 +205,7 @@ export default function EditOrder() {
         "David": "Steve",
         "Michael": "Charlie",
         "Dipsikha": "Dipsikha", // Same for both brands
+        "James": "Justin",
       };
       
       // Fetch agents from both brands using custom headers

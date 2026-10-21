@@ -16,6 +16,7 @@ const AGENT_BRAND_MAPPING = {
   Michael: "Charlie",
   Dipsikha: "Dipsikha", // Same for both brands
   Dipshika: "Dipsikha", // Handle alternate spelling for safety
+  James: "Justin",
 };
 
 const LEAD_STATUS_OPTIONS = [

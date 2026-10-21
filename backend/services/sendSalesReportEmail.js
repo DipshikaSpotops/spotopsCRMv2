@@ -16,6 +16,7 @@ const AGENT_BRAND_MAPPING = {
   David: "Steve",
   Michael: "Charlie",
   Dipsikha: "Dipsikha",
+  James: "Justin",
 };
 
 const PROLANE_TO_CANONICAL = Object.fromEntries(

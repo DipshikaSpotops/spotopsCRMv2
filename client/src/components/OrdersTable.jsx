@@ -53,6 +53,7 @@ const AGENT_BRAND_MAPPING = {
   "David": "Steve",
   "Michael": "Charlie",
   "Dipsikha": "Dipsikha", // Same for both brands
+  "James": "Justin",
 };
 
 /** Monthly Orders page only — API intentionally returns all orders. */

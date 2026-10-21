@@ -7,6 +7,7 @@ export const AGENT_BRAND_MAPPING = {
   David: "Steve",
   Michael: "Charlie",
   Dipsikha: "Dipsikha",
+  James: "Justin",
 };
 
 function escapeRegex(value = "") {

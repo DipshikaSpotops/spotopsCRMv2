@@ -28,6 +28,7 @@ const AGENT_BRAND_MAPPING = {
   "David": "Steve",
   "Michael": "Charlie",
   "Dipsikha": "Dipsikha", // Same for both brands
+  "James": "Justin",
 };
 
 // Utility: build date range from query

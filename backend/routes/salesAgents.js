@@ -14,8 +14,23 @@ router.get("/", async (req, res) => {
     const brand = req.brand || "50STARS";
     const agents = await SalesAgent.find({ brand }).sort({ firstName: 1 }).lean();
 
+    // PROLANE alias for James (50STARS) — keep in list even before DB is re-seeded.
+    if (brand === "PROLANE") {
+      const hasJustin = agents.some(
+        (a) => String(a.firstName || "").trim().toLowerCase() === "justin"
+      );
+      if (!hasJustin) {
+        agents.push({ firstName: "Justin", fullName: "Justin Time", brand: "PROLANE" });
+        agents.sort((a, b) =>
+          String(a.firstName || "").localeCompare(String(b.firstName || ""), undefined, {
+            sensitivity: "base",
+          })
+        );
+      }
+    }
+
     // 50STARS dropdown should include every Sales user, not only the seeded list.
-    // PROLANE keeps its own alias roster (Victor, Sam, Steve, Charlie).
+    // PROLANE keeps its own alias roster (Victor, Sam, Steve, Charlie, Justin).
     if (brand === "50STARS") {
       const salesUsers = await User.find({ role: "Sales" })
         .select("firstName lastName")
@@ -109,6 +124,7 @@ router.post("/seed", async (req, res) => {
       { firstName: "Steve", fullName: "Steve Burnette" },
       { firstName: "Victor", fullName: "Victor Collins" },
       { firstName: "Dipsikha", fullName: "Dipsikha Pradhan" },
+      { firstName: "Justin", fullName: "Justin Time" },
     ];
 
     const results = { "50STARS": [], PROLANE: [] };

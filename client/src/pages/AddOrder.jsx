@@ -10,6 +10,7 @@ const AGENT_BRAND_MAPPING = {
   "David": "Steve",
   "Michael": "Charlie",
   "Dipsikha": "Dipsikha", // Same for both brands
+  "James": "Justin",
 };
 
 const KNOWN_CARD_TYPES = ["Visa", "Mastercard", "Amex", "Discover"];

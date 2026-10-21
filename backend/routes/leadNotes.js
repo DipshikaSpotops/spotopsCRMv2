@@ -20,6 +20,7 @@ const AGENT_BRAND_MAPPING = {
   "David": "Steve",
   "Michael": "Charlie",
   "Dipsikha": "Dipsikha", // Same for both brands
+  "James": "Justin",
 };
 
 // Create a new lead note for the logged-in Sales/Admin user
