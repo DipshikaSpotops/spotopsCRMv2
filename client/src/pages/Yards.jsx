@@ -193,9 +193,12 @@ const Yards = () => {
   const isAdmin = role === "Admin";
   const isSupport = role === "Support";
   const normalizedEmail = email?.toLowerCase();
-  const isAuthorizedEmail =
-    normalizedEmail === "50starsauto110@gmail.com" ||
-    normalizedEmail === "50starsauto112@gmail.com";
+  const isAuthorizedEmail = [
+    "50starsauto110@gmail.com",
+    "50starsauto112@gmail.com",
+    "50starsauto116@gmail.com",
+    "50starsauto122@gmail.com",
+  ].includes(normalizedEmail);
   const isAuthorized = isAdmin || isSupport || isAuthorizedEmail;
   const canManageBlockedYards = isAdmin || normalizedEmail === "50starsauto110@gmail.com";
   
@@ -206,7 +209,7 @@ const Yards = () => {
         <div className="text-center">
           <h1 className="text-3xl font-bold text-red-400 mb-4">Access Denied</h1>
           <p className="text-white/70">
-            This page is only accessible to Admin, Support, 50starsauto110@gmail.com, and 50starsauto112@gmail.com.
+            This page is only accessible to Admin, Support, and authorized emails.
           </p>
           <p className="text-white/50 mt-2">Your current role: {role || "Not set"}</p>
           <p className="text-white/50">Your email: {email || "Not set"}</p>

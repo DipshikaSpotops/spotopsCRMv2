@@ -96,7 +96,17 @@ export default function Sidebar() {
   ];
 
   const yardLocatesLinksBase = [
-    { text: "Yard Data", to: "/yards", roles: ["Admin", "Support"], emailAccess: ["50starsauto110@gmail.com", "50starsauto112@gmail.com"] },
+    {
+      text: "Yard Data",
+      to: "/yards",
+      roles: ["Admin", "Support"],
+      emailAccess: [
+        "50starsauto110@gmail.com",
+        "50starsauto112@gmail.com",
+        "50starsauto116@gmail.com",
+        "50starsauto122@gmail.com",
+      ],
+    },
     { text: "Yard Statistics", to: "/yard-statistics" },
     { text: "Customer Approved", to: "/customer-approved" },
     { text: "Yard Relocates", to: "/yard-relocates" },
@@ -562,8 +572,16 @@ export default function Sidebar() {
     yardLocatesLinks = filterFlatLinks(yardLocatesLinksBase, role, email, brand);
     showYardLocatesSection = yardLocatesLinks.length > 0;
   }
-  // 50starsauto112 gets Yard Data + Yard Statistics only (not the rest of Yard Locates).
-  if (String(email || "").toLowerCase() === "50starsauto112@gmail.com" && !showYardLocatesSection) {
+  // Limited Yard Locates: Yard Data + Yard Statistics only (not the rest).
+  const limitedYardLocatesEmails = new Set([
+    "50starsauto112@gmail.com",
+    "50starsauto116@gmail.com",
+    "50starsauto122@gmail.com",
+  ]);
+  if (
+    limitedYardLocatesEmails.has(String(email || "").toLowerCase()) &&
+    !showYardLocatesSection
+  ) {
     const limited = new Set(["/yards", "/yard-statistics"]);
     yardLocatesLinks = filterFlatLinks(
       yardLocatesLinksBase.filter((l) => limited.has(l.to)),
