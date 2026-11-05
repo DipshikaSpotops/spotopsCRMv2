@@ -166,6 +166,8 @@ export const ROUTE_EMAIL_ALLOWLIST = {
   ],
   "/add-order": ["50starsauto104@gmail.com"],
   "/edit-order": ["50starsauto104@gmail.com"],
+  "/po-report": ["50starsauto110@gmail.com"],
+  "/reimbursement-report": ["50starsauto120@gmail.com"],
 };
 
 /**

@@ -3,21 +3,16 @@
  * Add new names here only — backend attendance + client UI both use this file.
  */
 export const ACTIVE_ATTENDANCE_USER_LIST = [
-  "Nik",
   "Tristan",
   "James",
   "Richard",
-  "Max",
   "Guru",
   "Suzanne",
-  "Tony",
   "Tyler",
   "Dipsikha",
-  "Alex",
   "Hannah",
   "Sunny",
   "Kevin",
-  "Mike",
   "Amy",
   "Jim",
   "Chris",

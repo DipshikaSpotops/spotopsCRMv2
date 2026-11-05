@@ -498,6 +498,7 @@ export default function Sidebar() {
         text: "Purchases",
         submenuKey: "reportsPurchases",
         children: [
+          { text: "PO Report", to: "/po-report" },
           { text: "Card Charged", to: "/card-charged" },
           { text: "Card Not Charged", to: "/card-not-charged-report" },
         ],
@@ -524,6 +525,26 @@ export default function Sidebar() {
       } else {
         merged.push(group);
       }
+    }
+    reportsLinks = merged;
+  }
+
+  // 50starsauto120@gmail.com gets the yard refund report (Refunds / Reimbursements).
+  const isYardRefundEmail = String(email || "").trim().toLowerCase() === "50starsauto120@gmail.com";
+  if (isYardRefundEmail) {
+    const yardRefundGrant = {
+      text: "Refunds",
+      submenuKey: "reportsRefunds",
+      children: [{ text: "Reimbursements", to: "/reimbursement-report" }],
+    };
+    const merged = [...reportsLinks];
+    const existing = merged.find((r) => r.text === yardRefundGrant.text && Array.isArray(r.children));
+    if (existing) {
+      const paths = new Set(existing.children.map((c) => c.to));
+      const additions = yardRefundGrant.children.filter((c) => !paths.has(c.to));
+      if (additions.length > 0) existing.children = [...existing.children, ...additions];
+    } else {
+      merged.push(yardRefundGrant);
     }
     reportsLinks = merged;
   }
