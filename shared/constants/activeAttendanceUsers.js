@@ -52,6 +52,11 @@ export const AUTHORIZATION_CODES_VIEWER_EMAILS = new Set([
   "spotops.digital12@gmail.com",
 ]);
 
+/** Skip Mark Present on login (still allowed to view Authorization Codes). */
+export const ATTENDANCE_BYPASS_EMAILS = new Set([
+  "spotops.digital12@gmail.com",
+]);
+
 /** First token only — used for attendance table display. */
 export function displayAttendanceFirstName(firstName) {
   const token = String(firstName || "").trim().split(/\s+/)[0];
@@ -125,13 +130,14 @@ export function isOnAuthorizationCodesRoster({ firstName, email } = {}) {
 /** Client/server: use auth user payload when available (DB roster flag). */
 export function userRequiresAttendanceRoster(user) {
   if (!user) return false;
+  const email = String(user.email || "").trim().toLowerCase();
+  if (ATTENDANCE_BYPASS_EMAILS.has(email)) return false;
   if (String(user.role || "").trim() === "Admin") return false;
   if (isExcludedAttendanceName(user.firstName)) return false;
   if (isAttendancePresentRequiredName(user.firstName)) return true;
   if (isOnAttendanceRoster(user.firstName)) return true;
   if (user.onAttendanceRoster === false) return false;
   if (user.onAttendanceRoster === true) return true;
-  const email = String(user.email || "").trim().toLowerCase();
   if (AUTHORIZATION_CODES_EXTRA_EMAILS.has(email)) return true;
   if (user.onAttendanceRoster === undefined) return true;
   return false;

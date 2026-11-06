@@ -18,6 +18,7 @@ const columns = [
   { key: "others",               label: "Other Charges ($)" },
   { key: "refunds",              label: "Refunds ($)" },
   { key: "overallAfterRefund",   label: "Overall Purchase Cost ($)" },
+  { key: "overallCardCharged",   label: "Overall Card Charged ($)" },
 ];
 
 /* ---------- Helpers ---------- */
@@ -31,6 +32,21 @@ const parseShippingDetails = (s) => {
   const amount = parseMoney((amountPart || "").trim());
   return { type: (typePart || "").trim(), amount };
 };
+function yardCardChargedAmount(info) {
+  const status = String(info?.paymentStatus || info?.pamentStatus || "").trim();
+  if (status !== "Card charged") return 0;
+  const { amount: ship } = parseShippingDetails(info.shippingDetails);
+  const part = parseMoney(info.partPrice);
+  const others = parseMoney(info.others);
+  const ref = parseMoney(info.refundedAmount);
+  return Math.max(0, part + ship + others - ref);
+}
+
+function paymentStatusLabel(info) {
+  const status = String(info?.pamentStatus || info?.paymentStatus || "").trim();
+  return status || "Card not charged";
+}
+
 const formatDateSafe = (dateStr) => {
   if (!dateStr) return "—";
   const d = new Date(dateStr);
@@ -45,7 +61,8 @@ function buildRow(order) {
     totalShip = 0,
     totalOthers = 0,
     totalRefunds = 0,
-    totalOverallAfterRefund = 0;
+    totalOverallAfterRefund = 0,
+    totalCardCharged = 0;
 
   addl.forEach((info) => {
     const { amount: ship } = parseShippingDetails(info.shippingDetails);
@@ -57,6 +74,7 @@ function buildRow(order) {
     totalOthers += others;
     totalRefunds += refunds;
     totalOverallAfterRefund += part + ship + others - refunds;
+    totalCardCharged += yardCardChargedAmount(info);
   });
 
   return {
@@ -71,6 +89,7 @@ function buildRow(order) {
     others: Number(totalOthers.toFixed(2)),
     refunds: Number(totalRefunds.toFixed(2)),
     overallAfterRefund: Number(totalOverallAfterRefund.toFixed(2)),
+    overallCardCharged: Number(totalCardCharged.toFixed(2)),
   };
 }
 
@@ -111,9 +130,10 @@ const extraTotals = (rows) => {
       acc.others += r.others || 0;
       acc.refunds += r.refunds || 0;
       acc.overall += r.overallAfterRefund || 0;
+      acc.cardCharged += r.overallCardCharged || 0;
       return acc;
     },
-    { part: 0, ship: 0, others: 0, refunds: 0, overall: 0 }
+    { part: 0, ship: 0, others: 0, refunds: 0, overall: 0, cardCharged: 0 }
   );
 
   return [
@@ -123,6 +143,7 @@ const extraTotals = (rows) => {
     { name: "Others", value: `$${totals.others.toFixed(2)}` },
     { name: "Refunds", value: `$${totals.refunds.toFixed(2)}` },
     { name: "Overall Purchase Cost", value: `$${totals.overall.toFixed(2)}` },
+    { name: "Overall Card Charged", value: `$${totals.cardCharged.toFixed(2)}` },
   ];
 };
 
@@ -182,7 +203,7 @@ export default function POReport() {
                             {ai.phone || "—"} {ai.phone && ai.email ? "|" : ""} {ai.email || ""}
                           </div>
                         )}
-                        <div><b>Payment Status:</b> {ai?.pamentStatus || ai?.paymentStatus || ""}</div>
+                        <div><b>Payment Status:</b> {paymentStatusLabel(ai)}</div>
                         <div className="text-xs">
                           <b>Part:</b> ${parseMoney(ai.partPrice).toFixed(2)} {" | "}
                           <b>{type || "Shipping"}:</b> ${amount.toFixed(2)} {" | "}
@@ -211,6 +232,9 @@ export default function POReport() {
 
         case "overallAfterRefund":
           return `$${Number(row.overallAfterRefund || 0).toFixed(2)}`;
+
+        case "overallCardCharged":
+          return `$${Number(row.overallCardCharged || 0).toFixed(2)}`;
 
         default:
           return row[key] ?? "—";
