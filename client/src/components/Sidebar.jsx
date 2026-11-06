@@ -188,8 +188,8 @@ export default function Sidebar() {
       children: [
         { text: "Shipping", to: "/shipping-expenses" },
         { text: "PO Report", to: "/po-report" },
-        { text: "Card Charged", to: "/card-charged" },
-        { text: "Card Not Charged", to: "/card-not-charged-report" },
+        { text: "Card Charged", to: "/card-charged", emailAccess: "50starsauto110@gmail.com" },
+        { text: "Card Not Charged", to: "/card-not-charged-report", emailAccess: "50starsauto110@gmail.com" },
       ],
     },
     {
