@@ -49,6 +49,7 @@ export const AUTHORIZATION_CODES_EXTRA_EMAILS = new Set([
 /** Emails allowed to open the Authorization Code page (in addition to Admin). */
 export const AUTHORIZATION_CODES_VIEWER_EMAILS = new Set([
   "50starsauto110@gmail.com",
+  "spotops.digital12@gmail.com",
 ]);
 
 /** First token only — used for attendance table display. */
